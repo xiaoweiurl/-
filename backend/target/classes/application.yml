@@ -1,0 +1,103 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: image-manager-backend
+
+  # PostgreSQL 数据库配置
+  datasource:
+    url: ${DATABASE_URL_JDBC:jdbc:postgresql://localhost:5432/image_management}
+    # 如果 DATABASE_URL_JDBC 未设置，则从 PGDATABASE_URL 解析
+    # PGDATABASE_URL 格式: postgresql://user:password@host:port/dbname
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:13369516}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+  
+  # JPA 配置
+  jpa:
+    hibernate:
+      ddl-auto: update  # 开发环境自动创建/更新表结构，生产环境建议改为 validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  # SQL 初始化配置（首次部署时使用，之后可注释掉）
+  # sql:
+  #   init:
+  #     mode: always
+  #     schema-locations: classpath:schema.sql
+  #     continue-on-error: false
+  
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5GB
+      max-request-size: 5GB
+  
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+# 应用配置
+app:
+  # 后端服务 URL（用于生成图片访问链接）
+  backend:
+    url: ${BACKEND_URL:http://localhost:8080/api}
+  
+  # 前端服务 URL（用于生成文档访问链接）
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:5000}
+  
+  # Cookie 安全模式配置
+  # true: 生产模式，sameSite=None, secure=true（需要 HTTPS）
+  # false: 开发模式，sameSite=Lax, secure=false（localhost 不需要 HTTPS）
+  cookie:
+    secure-mode: false
+  
+  upload:
+    path: ${UPLOAD_PATH:./uploads}
+    allowed-types: jpg,jpeg,png,gif,webp,bmp
+    max-size: 52428800  # 50MB for images
+    document-max-size: 5368709120  # 5GB for documents
+  
+  # 存储配置
+  storage:
+    type: local  # local 或 s3
+    # 本地存储路径（绝对路径或相对路径）
+    local-path: ${UPLOAD_PATH:./uploads}
+    # 存储服务基础URL（用于生成文件访问URL）
+    # 部署时替换为实际的服务器地址，例如: https://your-domain.com/api
+    base-url: ${STORAGE_BASE_URL:http://localhost:8080/api}
+  
+  # AI 配置
+  ai:
+    enabled: false
+    api-key: ${AI_API_KEY:}
+    base-url: ${AI_BASE_URL:https://api.coze.cn}
+    model: doubao-seed-1-6-vision-250815
+  
+  # 去水印配置
+  watermark:
+    remove:
+      enabled: false  # 设置为 true 启用去水印功能
+
+# 日志配置
+logging:
+  level:
+    com.imagemanager: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
