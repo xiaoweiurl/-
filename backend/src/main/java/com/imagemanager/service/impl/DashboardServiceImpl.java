@@ -76,10 +76,8 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取概览统计
      */
     private DashboardStatsResponse.OverviewStats getOverviewStats() {
-        // 获取所有未删除图片用于统计
-        List<Image> allImages = imageRepository.findAll().stream()
-            .filter(img -> img.getDeleted() == null || !img.getDeleted())
-            .collect(Collectors.toList());
+        // 获取所有未删除图片用于统计（加载tags避免懒加载）
+        List<Image> allImages = imageRepository.findByDeletedFalseWithTagsAndAiTags();
 
         long totalImages = allImages.size();
         long totalSize = allImages.stream().mapToLong(Image::getSize).sum();
@@ -88,9 +86,7 @@ public class DashboardServiceImpl implements DashboardService {
             .count();
 
         // 回收站图片
-        long trashCount = imageRepository.findAll().stream()
-            .filter(img -> img.getDeleted() != null && img.getDeleted())
-            .count();
+        List<Image> trashImages = imageRepository.findByDeletedTrueAndIsMainImageTrueList();
 
         // 近7天和30天上传
         LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
@@ -119,7 +115,7 @@ public class DashboardServiceImpl implements DashboardService {
             totalAlbums,
             totalTags,
             favoritesCount,
-            trashCount,
+            trashImages.size(),
             recentUploads7d,
             recentUploads30d
         );
@@ -206,10 +202,8 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取热门标签
      */
     private List<DashboardStatsResponse.TagStat> getTopTags(int limit) {
-        // 获取所有未删除图片的标签
-        List<Image> allImages = imageRepository.findAll().stream()
-            .filter(img -> img.getDeleted() == null || !img.getDeleted())
-            .collect(Collectors.toList());
+        // 获取所有未删除图片的标签（加载tags避免懒加载）
+        List<Image> allImages = imageRepository.findByDeletedFalseWithTagsAndAiTags();
 
         // 统计标签使用次数
         Map<String, Long> tagCounts = new HashMap<>();

@@ -141,8 +141,8 @@ public class ImageServiceImpl implements ImageService {
                     img.getAiTags() != null ? img.getAiTags().toString() : "null");
             });
 
-            // 检查是否有图片包含tags或aiTags
-            List<Image> imagesWithTags = imageRepository.findByDeletedFalse().stream()
+            // 检查是否有图片包含tags或aiTags（使用加载tags的查询）
+            List<Image> imagesWithTags = imageRepository.findByDeletedFalseWithTagsAndAiTags().stream()
                 .filter(img -> (img.getTags() != null && !img.getTags().isEmpty()) ||
                               (img.getAiTags() != null && !img.getAiTags().isEmpty()))
                 .limit(10)
@@ -446,8 +446,8 @@ public class ImageServiceImpl implements ImageService {
             // 使用安全的 Stream 过滤进行高级搜索
             log.info("使用Stream过滤进行高级搜索，参数: {}", request);
             
-            // 1. 先获取所有未删除的主图（只查主图，不查详情图）
-            List<Image> allImages = imageRepository.findByDeletedFalseAndIsMainImageTrue();
+            // 1. 先获取所有未删除的主图（只查主图，不查详情图），并加载tags
+            List<Image> allImages = imageRepository.findByDeletedFalseAndIsMainImageTrueWithTags();
             log.info("从数据库获取主图总数: {}", allImages.size());
             
             // 2. 处理日期范围
