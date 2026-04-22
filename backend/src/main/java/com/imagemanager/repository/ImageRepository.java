@@ -336,4 +336,10 @@ public interface ImageRepository extends JpaRepository<Image, String> {
      */
     @Query("SELECT i FROM Image i WHERE i.deleted = false AND i.isMainImage = :onlyMainImage AND (LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(i.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Image> findByIsMainImageAndKeywordContaining(@Param("onlyMainImage") Boolean onlyMainImage, @Param("keyword") String keyword, Pageable pageable);
+
+    /**
+     * 统计用户未删除图片的总大小
+     */
+    @Query("SELECT COALESCE(SUM(i.fileSize), 0) FROM Image i WHERE i.userId = :userId AND i.deleted = false")
+    Long sumSizeByUserIdAndDeletedFalse(@Param("userId") String userId);
 }
