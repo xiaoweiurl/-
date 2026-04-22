@@ -112,101 +112,48 @@ export default function ExcelBatchUpload({
         const productName = String(row[1] || '').trim(); // 列B: 商品名称
         const mainImageUrl = String(row[3] || '').trim(); // 列D: 商品详情（主页的商品图）
         
-        // 收集详情图URL（从E列开始，索引4），支持合并被拆分的URL
+        // 收集详情图URL（从E列开始，索引4）
+        // Excel中多个URL可能直接拼接在一起，需要用正则提取
         const detailImageUrls: string[] = [];
-        let currentUrl = '';
-        let consecutiveEmptyCount = 0; // 连续空单元格计数
         
-        for (let colIndex = 4; colIndex < row.length; colIndex++) { // 从E列开始（索引4）
+        // 1. 先收集E列及之后所有非空的单元格文本
+        let allText = '';
+        for (let colIndex = 4; colIndex < row.length; colIndex++) {
           const value = row[colIndex];
-          
-          if (!value || typeof value !== 'string' || value.trim().length === 0) {
-            // 空单元格
-            if (currentUrl.length > 0) {
-              consecutiveEmptyCount++;
-              // 连续遇到3个以上空单元格，认为URL结束了
-              if (consecutiveEmptyCount >= 3) {
-                if (currentUrl.startsWith('http')) {
-                  detailImageUrls.push(currentUrl.trim());
-                }
-                currentUrl = '';
-                consecutiveEmptyCount = 0;
-              }
-            }
-            continue;
-          }
-          
-          consecutiveEmptyCount = 0; // 重置连续空计数
-          const trimmedValue = value.trim();
-          
-          // 判断是否是新URL的开始
-          if (trimmedValue.startsWith('http://') || trimmedValue.startsWith('https://')) {
-            // 如果有未完成的URL，先保存
-            if (currentUrl.length > 0) {
-              detailImageUrls.push(currentUrl.trim());
-            }
-            // 开始新的URL
-            currentUrl = trimmedValue;
-          } else if (currentUrl.length > 0) {
-            // 当前单元格不是新URL，但已经有URL在处理中
-            // 检查是否是URL的延续（包含URL特征字符）
-            const looksLikeUrlPart = 
-              trimmedValue.includes('/') || 
-              trimmedValue.includes('.') ||
-              trimmedValue.includes('?') ||
-              trimmedValue.includes('&') ||
-              trimmedValue.includes('=') ||
-              trimmedValue.includes('_') ||
-              trimmedValue.includes('-');
-            
-            if (looksLikeUrlPart || trimmedValue.length > 0) {
-              // 合并到当前URL
-              currentUrl += trimmedValue;
-            } else {
-              // 看起来不是URL的延续，保存当前URL
-              if (currentUrl.startsWith('http')) {
-                detailImageUrls.push(currentUrl.trim());
-              }
-              currentUrl = '';
-            }
-          } else {
-            // 没有正在处理的URL，跳过
-            continue;
-          }
-          
-          // 检查URL是否完整（以常见图片扩展名结尾，或者没有更多列）
-          const isCompleteUrl = 
-            currentUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) ||
-            currentUrl.length > 200; // URL太长可能不完整，但也不太可能是被拆分的
-            
-          // 只有当确实是最后一行/列时，或者遇到连续多个空单元格时才保存
-          if (isCompleteUrl && colIndex + 1 >= row.length) {
-            // 已经是最后一行了，保存当前URL
-            if (currentUrl.startsWith('http')) {
-              detailImageUrls.push(currentUrl.trim());
-            }
-            currentUrl = '';
+          if (value && typeof value === 'string' && value.trim().length > 0) {
+            allText += value.trim();
           }
         }
         
-        // 保存最后一个未保存的URL
-        if (currentUrl.length > 0 && currentUrl.startsWith('http')) {
-          detailImageUrls.push(currentUrl.trim());
+        // 2. 用正则表达式提取所有以 http 开头的 URL
+        // 匹配 http:// 或 https:// 开始，直到遇到非URL字符（空格、引号、换行等）
+        const urlPattern = /https?:\/\/[^\s"'\]]{20,}/g;
+        const matches = allText.match(urlPattern);
+        
+        if (matches) {
+          // 过滤掉 s.gif 等无效图片
+          const filteredDetailImageUrls = matches.filter(url => 
+            !url.includes('s.gif') && 
+            (url.includes('.jpg') || url.includes('.png') || url.includes('.jpeg') || 
+             url.includes('.gif') || url.includes('.webp') || url.length > 50)
+          );
+          detailImageUrls.push(...filteredDetailImageUrls);
+          console.log(`[ExcelUpload] 从E列提取到 ${filteredDetailImageUrls.length} 个有效URL`);
+        } else {
+          console.warn(`[ExcelUpload] 从E列未提取到任何URL, allText长度: ${allText.length}`);
         }
         
-        // 过滤无效URL
-        const validDetailImageUrls = detailImageUrls.filter(url => {
-          // 排除占位图
+        // 过滤无效URL（备用逻辑，保留以防万一）
+        const filteredDetailImageUrls = detailImageUrls.filter(url => {
           if (url.includes('s.gif')) return false;
-          // URL长度至少20个字符
           if (url.length < 20) return false;
           return true;
         });
         
         // 如果收集到的URL数量异常多（可能是合并逻辑有问题），使用备用方案
         // 备用方案：只收集以http开头的独立单元格
-        if (validDetailImageUrls.length > 50) {
-          console.warn('[ExcelUpload] 详情图数量异常多（' + validDetailImageUrls.length + '张），使用备用方案');
+        if (filteredDetailImageUrls.length > 50) {
+          console.warn('[ExcelUpload] 详情图数量异常多（' + filteredDetailImageUrls.length + '张），使用备用方案');
           const backupUrls: string[] = [];
           for (let colIndex = 4; colIndex < row.length; colIndex++) { // 从E列开始（索引4）
             const value = row[colIndex];
@@ -227,8 +174,8 @@ export default function ExcelBatchUpload({
               }
             }
           }
-          validDetailImageUrls.length = 0;
-          validDetailImageUrls.push(...backupUrls);
+          filteredDetailImageUrls.length = 0;
+          filteredDetailImageUrls.push(...backupUrls);
         }
         
         // category 已从 row[0] 正确获取，不再重复获取
@@ -239,18 +186,18 @@ export default function ExcelBatchUpload({
           console.log(`[ExcelUpload] 第${rowIndex}行解析结果:`, {
             productName,
             mainImageUrl: mainImageUrl ? mainImageUrl.substring(0, 50) + '...' : '无',
-            detailImageCount: validDetailImageUrls.length,
-            firstDetailUrl: validDetailImageUrls[0] ? validDetailImageUrls[0].substring(0, 50) + '...' : '无'
+            detailImageCount: filteredDetailImageUrls.length,
+            firstDetailUrl: filteredDetailImageUrls[0] ? filteredDetailImageUrls[0].substring(0, 50) + '...' : '无'
           });
         }
         
         // 过滤无效行
-        if (productName && productName.trim() && (mainImageUrl || validDetailImageUrls.length > 0)) {
+        if (productName && productName.trim() && (mainImageUrl || filteredDetailImageUrls.length > 0)) {
           rows.push({
             id: `${Date.now()}_${rowIndex}`,
             productName: productName.trim(),
             mainImageUrl: mainImageUrl ? mainImageUrl.trim() : '',
-            detailImageUrls: validDetailImageUrls,
+            detailImageUrls: filteredDetailImageUrls,
             category: category && category.trim() ? category.trim() : undefined,
             description: description && description.trim() ? description.trim() : undefined,
             status: 'pending' as const,
