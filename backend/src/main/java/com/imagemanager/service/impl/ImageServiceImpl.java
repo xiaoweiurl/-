@@ -1323,8 +1323,9 @@ public class ImageServiceImpl implements ImageService {
     
     /**
      * 从文件名中解析层级目录结构
+     * 只保留两级目录：品牌/产品类别
      * 支持的格式：
-     * - "松野湃/速干T恤/蓝色款.jpg" -> "松野湃/速干T恤/蓝色款"（直接包含斜杠）
+     * - "松野湃/速干T恤/蓝色款.jpg" -> "松野湃/速干T恤"（只取前两级）
      * - "松野湃-速干T恤.jpg" -> "松野湃/速干T恤"
      * - "松野湃_速干T恤.jpg" -> "松野湃/速干T恤"
      * - "松野湃.速干T恤.jpg" -> "松野湃/速干T恤"
@@ -1340,10 +1341,13 @@ public class ImageServiceImpl implements ImageService {
         // 移除文件扩展名
         String nameWithoutExt = removeFileExtension(filename);
         
-        // 1. 首先检查是否包含斜杠分隔符（优先级最高）
-        if (nameWithoutExt.contains("/")) {
-            String[] parts = nameWithoutExt.split("/");
-            // 过滤掉空的部分，并验证至少有父级和子级
+        // 统一使用 "/" 作为分隔符，便于后续处理
+        String normalizedName = nameWithoutExt;
+        
+        // 1. 首先检查是否包含斜杠分隔符
+        if (normalizedName.contains("/")) {
+            String[] parts = normalizedName.split("/");
+            // 过滤掉空的部分
             List<String> validParts = new ArrayList<>();
             for (String part : parts) {
                 String trimmed = part.trim();
@@ -1352,19 +1356,15 @@ public class ImageServiceImpl implements ImageService {
                 }
             }
             
-            // 至少需要两级目录才算有效
+            // 只取前两级：品牌/产品类别
             if (validParts.size() >= 2) {
-                // 检查最后一级是否合理（不应该是纯数字或常见后缀）
-                String lastPart = validParts.get(validParts.size() - 1);
-                if (!lastPart.toLowerCase().contains("copy") &&
-                    !lastPart.toLowerCase().contains("备份") &&
-                    !lastPart.toLowerCase().contains("backup") &&
-                    !lastPart.matches("^\\d+$")) {
-                    // 转换为标准路径格式
-                    String path = String.join("/", validParts);
-                    log.info("从文件名中解析出斜杠分隔的层级路径: {}", path);
-                    return path;
-                }
+                String brand = validParts.get(0);
+                String category = validParts.get(1);
+                
+                // 构建两级路径
+                String path = brand + "/" + category;
+                log.info("从文件名中解析出层级路径（两级）: {}", path);
+                return path;
             }
         }
         
@@ -1388,9 +1388,9 @@ public class ImageServiceImpl implements ImageService {
                         !secondPart.toLowerCase().contains("copy") &&
                         !secondPart.toLowerCase().contains("备份") &&
                         !secondPart.toLowerCase().contains("backup") &&
-                        !secondPart.matches(".*\\d+.*")) { // 第二部分不应该主要是数字
+                        !secondPart.matches("^\\d+$")) { // 第二部分不应该主要是数字
                         
-                        // 构建层级路径
+                        // 构建两级层级路径
                         return firstPart + "/" + secondPart;
                     }
                 }
