@@ -119,6 +119,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'albums' AND column_name = 'full_name') THEN
         ALTER TABLE albums ADD COLUMN full_name VARCHAR(200);
     END IF;
+    
+    -- 添加 path 的唯一约束（同一用户下 path 不能重复）
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'albums_user_path_unique') THEN
+        ALTER TABLE albums ADD CONSTRAINT albums_user_path_unique UNIQUE (user_id, path);
+    END IF;
 END $$;
 
 -- ============================================
