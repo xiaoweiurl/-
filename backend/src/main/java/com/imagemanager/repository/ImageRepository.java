@@ -30,15 +30,8 @@ public interface ImageRepository extends JpaRepository<Image, String> {
     /**
      * 查询未删除的图片（立即加载aiTags）
      */
-    @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.aiTags WHERE i.deleted = false")
+    @Query("SELECT i FROM Image i WHERE i.deleted = false")
     Page<Image> findByDeletedFalseWithAiTags(Pageable pageable);
-
-    /**
-     * 查询未删除的图片（立即加载tags和aiTags）
-     * 返回 List 而不是 Page，避免 MultipleBagFetchException
-     */
-    @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.tags LEFT JOIN FETCH i.aiTags WHERE i.deleted = false")
-    List<Image> findByDeletedFalseWithTagsAndAiTagsList();
 
     /**
      * 查询未删除的图片
@@ -49,12 +42,6 @@ public interface ImageRepository extends JpaRepository<Image, String> {
      * 查询所有未删除的图片（不带分页）
      */
     List<Image> findByDeletedFalse();
-    
-    /**
-     * 查询所有未删除的图片并加载tags和aiTags（用于需要访问tags的统计操作）
-     */
-    @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.tags LEFT JOIN FETCH i.aiTags WHERE i.deleted = false")
-    List<Image> findByDeletedFalseWithTagsAndAiTags();
     
     // ==================== 主图查询方法（只查主图，不查详情图） ====================
     
@@ -69,12 +56,6 @@ public interface ImageRepository extends JpaRepository<Image, String> {
      */
     @Query("SELECT i FROM Image i WHERE i.deleted = false AND i.isMainImage = true")
     List<Image> findByDeletedFalseAndIsMainImageTrue();
-    
-    /**
-     * 查询所有未删除的主图并加载tags和aiTags（用于高级搜索，避免懒加载）
-     */
-    @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.tags LEFT JOIN FETCH i.aiTags WHERE i.deleted = false AND i.isMainImage = true")
-    List<Image> findByDeletedFalseAndIsMainImageTrueWithTags();
     
     /**
      * 查询回收站主图（只查主图）

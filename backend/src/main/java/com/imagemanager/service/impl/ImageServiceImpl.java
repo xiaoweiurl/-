@@ -131,8 +131,8 @@ public class ImageServiceImpl implements ImageService {
                 log.info("所有图片数据完整，跳过更新");
             }
 
-            // 使用JPA查询抽样图片，检查tags和aiTags字段
-            List<Image> sampleImages = imageRepository.findByDeletedFalseWithTagsAndAiTagsList().stream().limit(5).toList();
+            // 使用JPA查询抽样图片，检查tags和aiTags字段（EAGER fetch自动加载）
+            List<Image> sampleImages = imageRepository.findByDeletedFalse().stream().limit(5).toList();
             log.info("JPA抽样检查前{}个图片的tags和aiTags字段:", sampleImages.size());
             sampleImages.forEach(img -> {
                 log.info("  - Image[id={}, title={}, tags={}, aiTags={}]",
@@ -141,8 +141,8 @@ public class ImageServiceImpl implements ImageService {
                     img.getAiTags() != null ? img.getAiTags().toString() : "null");
             });
 
-            // 检查是否有图片包含tags或aiTags（使用加载tags的查询）
-            List<Image> imagesWithTags = imageRepository.findByDeletedFalseWithTagsAndAiTags().stream()
+            // 检查是否有图片包含tags或aiTags（EAGER fetch自动加载）
+            List<Image> imagesWithTags = imageRepository.findByDeletedFalse().stream()
                 .filter(img -> (img.getTags() != null && !img.getTags().isEmpty()) ||
                               (img.getAiTags() != null && !img.getAiTags().isEmpty()))
                 .limit(10)
@@ -446,8 +446,8 @@ public class ImageServiceImpl implements ImageService {
             // 使用安全的 Stream 过滤进行高级搜索
             log.info("使用Stream过滤进行高级搜索，参数: {}", request);
             
-            // 1. 先获取所有未删除的主图（只查主图，不查详情图），并加载tags
-            List<Image> allImages = imageRepository.findByDeletedFalseAndIsMainImageTrueWithTags();
+            // 1. 先获取所有未删除的主图（只查主图，不查详情图），EAGER fetch自动加载tags
+            List<Image> allImages = imageRepository.findByDeletedFalseAndIsMainImageTrue();
             log.info("从数据库获取主图总数: {}", allImages.size());
             
             // 2. 处理日期范围

@@ -76,8 +76,8 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取概览统计
      */
     private DashboardStatsResponse.OverviewStats getOverviewStats() {
-        // 获取所有未删除图片用于统计（加载tags避免懒加载）
-        List<Image> allImages = imageRepository.findByDeletedFalseWithTagsAndAiTags();
+        // 获取所有未删除图片用于统计（EAGER fetch自动加载tags）
+        List<Image> allImages = imageRepository.findByDeletedFalse();
 
         long totalImages = allImages.size();
         long totalSize = allImages.stream().mapToLong(Image::getSize).sum();
@@ -202,8 +202,8 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取热门标签
      */
     private List<DashboardStatsResponse.TagStat> getTopTags(int limit) {
-        // 获取所有未删除图片的标签（加载tags避免懒加载）
-        List<Image> allImages = imageRepository.findByDeletedFalseWithTagsAndAiTags();
+        // 获取所有未删除图片的标签（EAGER fetch自动加载tags）
+        List<Image> allImages = imageRepository.findByDeletedFalse();
 
         // 统计标签使用次数
         Map<String, Long> tagCounts = new HashMap<>();

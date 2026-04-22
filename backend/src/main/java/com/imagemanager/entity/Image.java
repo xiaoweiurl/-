@@ -126,18 +126,18 @@ public class Image {
     /**
      * 标签列表
      */
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "image_tags", joinColumns = @JoinColumn(name = "image_id"))
     @Column(name = "tag", length = 50)
-    private Set<String> tags;
+    private List<String> tags;
     
     /**
      * AI识别的标签
      */
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "image_ai_tags", joinColumns = @JoinColumn(name = "image_id"))
     @Column(name = "tag", length = 50)
-    private Set<String> aiTags;
+    private List<String> aiTags;
     
     /**
      * AI识别置信度（0-100）
