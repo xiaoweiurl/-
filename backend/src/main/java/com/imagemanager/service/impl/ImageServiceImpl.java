@@ -1468,14 +1468,40 @@ public class ImageServiceImpl implements ImageService {
             // 生成商品ID（用于关联主图和详情图）
             String productId = existingProduct.map(Product::getId).orElse("product-" + UUID.randomUUID().toString().substring(0, 8));
 
-            // 如果指定了分类，查找对应的相册（在lambda表达式外定义以确保effectively final）
+            // 如果指定了分类，查找或创建对应的相册（支持层级目录）
             String albumId = null;
+            String albumName = null;
             if (item.getCategory() != null && !item.getCategory().isEmpty()) {
-                albumId = albums.stream()
-                    .filter(a -> a.getName().contains(item.getCategory()))
-                    .findFirst()
-                    .map(Album::getId)
-                    .orElse(null);
+                String category = item.getCategory().trim();
+                log.info("Excel导入 - 处理分类: {}", category);
+                
+                // 首先尝试匹配已有相册（精确匹配或包含匹配）
+                for (Album album : albums) {
+                    String albumPath = album.getPath() != null ? album.getPath() : album.getName();
+                    if (albumPath.equals(category) || album.getName().equals(category) || album.getName().contains(category)) {
+                        albumId = album.getId();
+                        albumName = album.getFullName() != null ? album.getFullName() : album.getName();
+                        log.info("Excel导入 - 匹配到已有相册: ID={}, 名称={}", albumId, albumName);
+                        break;
+                    }
+                }
+                
+                // 如果没有匹配到，尝试创建/获取层级相册
+                if (albumId == null) {
+                    try {
+                        // 尝试解析层级结构并创建相册
+                        Album hierarchyAlbum = albumService.getOrCreateAlbumByPath(category);
+                        if (hierarchyAlbum != null) {
+                            albumId = hierarchyAlbum.getId();
+                            albumName = hierarchyAlbum.getFullName() != null ? hierarchyAlbum.getFullName() : hierarchyAlbum.getName();
+                            // 刷新相册列表
+                            albums = albumService.getAllAlbums();
+                            log.info("Excel导入 - 创建/获取层级相册: ID={}, 名称={}", albumId, albumName);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Excel导入 - 创建层级相册失败: {}", e.getMessage());
+                    }
+                }
             }
 
             // 获取或创建商品记录

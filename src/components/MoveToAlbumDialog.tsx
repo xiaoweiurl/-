@@ -16,6 +16,9 @@ import { FolderOpen, Check, Image } from 'lucide-react';
 export interface Album {
   id: string;
   name: string;
+  fullName?: string;      // 完整显示名称，如 "松野湃-速干T恤"
+  parentId?: string;       // 父相册ID，null 表示顶级
+  path?: string;           // 层级路径，如 "松野湃/速干T恤"
   description?: string;
   coverUrl?: string;
   imageCount?: number;
