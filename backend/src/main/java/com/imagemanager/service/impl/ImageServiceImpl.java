@@ -132,7 +132,7 @@ public class ImageServiceImpl implements ImageService {
             }
 
             // 使用JPA查询抽样图片，检查tags和aiTags字段
-            List<Image> sampleImages = imageRepository.findByDeletedFalseWithTagsAndAiTags(PageRequest.of(0, 5)).getContent();
+            List<Image> sampleImages = imageRepository.findByDeletedFalseWithTagsAndAiTagsList().stream().limit(5).toList();
             log.info("JPA抽样检查前{}个图片的tags和aiTags字段:", sampleImages.size());
             sampleImages.forEach(img -> {
                 log.info("  - Image[id={}, title={}, tags={}, aiTags={}]",

@@ -128,7 +128,7 @@ public class Image {
     @ElementCollection
     @CollectionTable(name = "image_tags", joinColumns = @JoinColumn(name = "image_id"))
     @Column(name = "tag", length = 50)
-    private List<String> tags;
+    private Set<String> tags;
     
     /**
      * AI识别的标签

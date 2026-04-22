@@ -35,9 +35,10 @@ public interface ImageRepository extends JpaRepository<Image, String> {
 
     /**
      * 查询未删除的图片（立即加载tags和aiTags）
+     * 返回 List 而不是 Page，避免 MultipleBagFetchException
      */
     @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.tags LEFT JOIN FETCH i.aiTags WHERE i.deleted = false")
-    Page<Image> findByDeletedFalseWithTagsAndAiTags(Pageable pageable);
+    List<Image> findByDeletedFalseWithTagsAndAiTagsList();
 
     /**
      * 查询未删除的图片
