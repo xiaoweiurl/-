@@ -54,6 +54,7 @@ export default function ExcelBatchUpload({
   const [isDragging, setIsDragging] = React.useState(false);
   const [excelData, setExcelData] = React.useState<ExcelRow[]>([]);
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [excelFileName, setExcelFileName] = React.useState<string>(''); // 保存Excel文件名
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { addNotification } = useNotifications();
 
@@ -78,6 +79,10 @@ export default function ExcelBatchUpload({
 
     try {
       setIsProcessing(true);
+      
+      // 保存Excel文件名（用于创建层级相册）
+      setExcelFileName(file.name);
+      console.log('[ExcelUpload] 选择的文件:', file.name);
 
       // 读取Excel文件
       const data = await file.arrayBuffer();
@@ -366,14 +371,17 @@ export default function ExcelBatchUpload({
         );
       }
 
-      // 调用后端API批量下载
+      // 调用后端API批量下载（传递文件名用于创建层级相册）
       const response = await fetch('/api/images/batch-download', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ images: imagesToDownload }),
+        body: JSON.stringify({ 
+          images: imagesToDownload,
+          parentAlbumName: excelFileName, // 传递文件名作为父相册名称
+        }),
       });
 
       const result = await response.json();

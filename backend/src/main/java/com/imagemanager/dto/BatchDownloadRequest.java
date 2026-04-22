@@ -20,6 +20,12 @@ import java.util.List;
 public class BatchDownloadRequest {
 
     /**
+     * 父相册名称（可选，如 Excel 文件名）
+     * 如果设置，分类将在此父相册下创建层级结构，如：父相册=松野湃，分类=鞋袜 -> 松野湃/鞋袜
+     */
+    private String parentAlbumName;
+    
+    /**
      * 待下载的图片信息列表
      */
     @NotEmpty(message = "图片列表不能为空")
