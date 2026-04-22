@@ -106,15 +106,17 @@ export default function ExcelBatchUpload({
         
         if (!row || row.length === 0) continue;
         
-        // 按列索引提取数据
-        const productName = String(row[0] || ''); // 列A: 商品名称
-        const mainImageUrl = String(row[2] || ''); // 列C: 商品详情（主图）
+        // 按列索引提取数据（根据实际表头）
+        // 列A(0): 分类, 列B(1): 商品名称, 列C(2): 价格, 列D(3): 商品详情（主图）, 列E+(4): 详情图
+        const category = String(row[0] || '').trim(); // 列A: 分类
+        const productName = String(row[1] || '').trim(); // 列B: 商品名称
+        const mainImageUrl = String(row[3] || '').trim(); // 列D: 商品详情（主页的商品图）
         
-        // 收集详情图URL（从D列开始），支持合并被拆分的URL
+        // 收集详情图URL（从E列开始，索引4），支持合并被拆分的URL
         const detailImageUrls: string[] = [];
         let currentUrl = '';
         
-        for (let colIndex = 3; colIndex < row.length; colIndex++) { // 从D列开始（索引3）
+        for (let colIndex = 4; colIndex < row.length; colIndex++) { // 从E列开始（索引4）
           const value = row[colIndex];
           
           if (!value || typeof value !== 'string') {
@@ -204,7 +206,7 @@ export default function ExcelBatchUpload({
         if (validDetailImageUrls.length > 50) {
           console.warn('[ExcelUpload] 详情图数量异常多（' + validDetailImageUrls.length + '张），使用备用方案');
           const backupUrls: string[] = [];
-          for (let colIndex = 3; colIndex < row.length; colIndex++) {
+          for (let colIndex = 4; colIndex < row.length; colIndex++) { // 从E列开始（索引4）
             const value = row[colIndex];
             if (value && typeof value === 'string' && value.trim().startsWith('http')) {
               const trimmedValue = value.trim();
@@ -227,7 +229,7 @@ export default function ExcelBatchUpload({
           validDetailImageUrls.push(...backupUrls);
         }
         
-        const category: string = headers.length > 4 ? String(row[4] || '') : ''; // 可选的分类
+        // category 已从 row[0] 正确获取，不再重复获取
         const description: string = ''; // 描述在Excel中没有对应列
         
         // 打印解析结果（只打印前3行）
