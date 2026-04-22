@@ -1578,7 +1578,7 @@ export default function Home() {
         id: album.id,
         name: album.name,
         fullName: album.fullName || album.name,
-        parentId: album.parentId || null,
+        parentId: album.parentId || undefined,
         path: album.path || album.name,
         count,
       };
