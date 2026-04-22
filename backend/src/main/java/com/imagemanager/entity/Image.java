@@ -8,6 +8,7 @@ import lombok.Builder;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 图片实体类
@@ -136,7 +137,7 @@ public class Image {
     @ElementCollection
     @CollectionTable(name = "image_ai_tags", joinColumns = @JoinColumn(name = "image_id"))
     @Column(name = "tag", length = 50)
-    private List<String> aiTags;
+    private Set<String> aiTags;
     
     /**
      * AI识别置信度（0-100）

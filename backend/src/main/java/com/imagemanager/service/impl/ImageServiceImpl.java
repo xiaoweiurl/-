@@ -260,7 +260,7 @@ public class ImageServiceImpl implements ImageService {
                 .albumId("album-fleece")
                 .albumName("抓绒衣")
                 .favorite(true)
-                .tags(Arrays.asList("抓绒衣", "保暖", "户外", "透气", "速干"))
+                .tags(new java.util.HashSet<>(Arrays.asList("抓绒衣", "保暖", "户外", "透气", "速干")))
                 .isMainImage(true)
                 .displayOrder(0)
                 .productId("product-1")
@@ -289,7 +289,7 @@ public class ImageServiceImpl implements ImageService {
                 .albumId("album-underwear")
                 .albumName("内衣")
                 .favorite(false)
-                .tags(Arrays.asList("内衣", "美利奴羊毛", "保暖"))
+                .tags(new java.util.HashSet<>(Arrays.asList("内衣", "美利奴羊毛", "保暖")))
                 .isMainImage(true)
                 .displayOrder(0)
                 .productId("product-2")
@@ -318,7 +318,7 @@ public class ImageServiceImpl implements ImageService {
                 .albumId("album-softshell")
                 .albumName("软壳")
                 .favorite(true)
-                .tags(Arrays.asList("软壳", "防泼水", "保暖", "户外"))
+                .tags(new java.util.HashSet<>(Arrays.asList("软壳", "防泼水", "保暖", "户外")))
                 .isMainImage(true)
                 .displayOrder(0)
                 .productId("product-3")
@@ -347,7 +347,7 @@ public class ImageServiceImpl implements ImageService {
                 .albumId("album-tshirt")
                 .albumName("T恤")
                 .favorite(false)
-                .tags(Arrays.asList("T恤", "速干", "休闲", "户外"))
+                .tags(new java.util.HashSet<>(Arrays.asList("T恤", "速干", "休闲", "户外")))
                 .isMainImage(true)
                 .displayOrder(0)
                 .productId("product-4")
@@ -376,7 +376,7 @@ public class ImageServiceImpl implements ImageService {
                 .albumId("album-jacket")
                 .albumName("冲锋衣")
                 .favorite(true)
-                .tags(Arrays.asList("冲锋衣", "防风", "防水", "专业", "登山"))
+                .tags(new java.util.HashSet<>(Arrays.asList("冲锋衣", "防风", "防水", "专业", "登山")))
                 .isMainImage(true)
                 .displayOrder(0)
                 .productId("product-5")
@@ -756,7 +756,7 @@ public class ImageServiceImpl implements ImageService {
                     .fileType(getFileType(file.getContentType()))
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tags(finalTags != null ? finalTags : new ArrayList<>())
+                    .tags(finalTags != null ? new java.util.HashSet<>(finalTags) : new java.util.HashSet<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .createdAt(LocalDateTime.now())
@@ -803,7 +803,7 @@ public class ImageServiceImpl implements ImageService {
                 image.setAlbumName(albumName);
             }
         }
-        if (tags != null) image.setTags(tags);
+        if (tags != null) image.setTags(new java.util.HashSet<>(tags));
         if (description != null) image.setDescription(description);
         image.setUpdatedAt(LocalDateTime.now());
         
@@ -1192,7 +1192,7 @@ public class ImageServiceImpl implements ImageService {
                     .fileType(getFileType(file.getContentType()))
                     .albumId(albumId)
                     .albumName(albumName)
-                    .tags(tags != null ? tags : new ArrayList<>())
+                    .aiTags(tags != null ? new java.util.HashSet<>(tags) : new java.util.HashSet<>())
                     .aiTags(tags) // AI识别的标签
                     .aiConfidence(result.getConfidence())
                     .classifyMethod(classifyMethod)
@@ -1817,7 +1817,7 @@ public class ImageServiceImpl implements ImageService {
                     .fileType(getFileType(file.getContentType()))
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tags(finalTags != null ? finalTags : new ArrayList<>())
+                    .tags(finalTags != null ? new java.util.HashSet<>(finalTags) : new java.util.HashSet<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .createdAt(LocalDateTime.now())
