@@ -196,6 +196,11 @@ interface SidebarProps {
   documentStats?: Record<string, number>;
   onAlbumCreated?: () => void;
   onCreateSmartAlbum?: () => void;
+  /**
+   * 当点击相册时触发（包括有子级的父相册）
+   * 传递该相册及其所有子相册的 ID 列表
+   */
+  onAlbumClick?: (albumId: string, allAlbumIds: string[]) => void;
 }
 
 export default function Sidebar({
@@ -211,6 +216,7 @@ export default function Sidebar({
   documentStats = { all: 0, pdf: 0, word: 0, excel: 0, ppt: 0, zip: 0, other: 0 },
   onAlbumCreated,
   onCreateSmartAlbum,
+  onAlbumClick,
 }: SidebarProps) {
   const router = useRouter();
   const [expandedItems, setExpandedItems] = React.useState<string[]>(['albums', 'smart-albums']);
@@ -234,6 +240,43 @@ export default function Sidebar({
     setExpandedItems((prev) =>
       prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
     );
+  };
+
+  // 收集指定相册及其所有子相册的 ID
+  const collectAllAlbumIds = (albumId: string, albumList: AlbumInfo[]): string[] => {
+    const result: string[] = [albumId];
+    const findAlbum = (albums: AlbumInfo[]): AlbumInfo | undefined => {
+      for (const album of albums) {
+        if (album.id === albumId) return album;
+        if (album.children) {
+          const found = findAlbum(album.children);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+    const album = findAlbum(albumList);
+    if (album?.children) {
+      const collectChildren = (children: AlbumInfo[]) => {
+        for (const child of children) {
+          result.push(child.id);
+          if (child.children) {
+            collectChildren(child.children);
+          }
+        }
+      };
+      collectChildren(album.children);
+    }
+    return result;
+  };
+
+  // 处理相册点击（包括有子级的父相册）
+  const handleAlbumClick = (albumId: string) => {
+    if (onAlbumClick) {
+      const allIds = collectAllAlbumIds(albumId, albums);
+      onAlbumClick(albumId, allIds);
+    }
+    onItemClick(albumId);
   };
 
   const handleCreateAlbum = async () => {
@@ -570,6 +613,8 @@ export default function Sidebar({
                     <button
                       onClick={() => {
                         if (item.children) {
+                          // 有子级的相册：先触发相册点击（加载图片），再展开
+                          handleAlbumClick(item.id);
                           toggleExpand(item.id);
                         } else {
                           onItemClick(item.id);

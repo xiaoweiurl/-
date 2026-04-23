@@ -244,6 +244,7 @@ export default function Home() {
   const [editingSmartAlbum, setEditingSmartAlbum] = React.useState<SmartAlbumInfo | null>(null);
   const [isLoadingSmartAlbums, setIsLoadingSmartAlbums] = React.useState(false);
   const [trashCount, setTrashCount] = React.useState(0); // 回收站主图数量（从后端获取）
+  const [selectedAlbumIds, setSelectedAlbumIds] = React.useState<string[]>([]); // 当前选中的相册及其子相册 ID
 
   // 获取智能相册列表
   const fetchSmartAlbums = React.useCallback(async () => {
@@ -687,13 +688,15 @@ export default function Home() {
           filteredImages = sourceImages.filter(img => img.favorite === true && img.isMainImage === true);
           console.log('[Home] 收藏过滤后:', filteredImages.length, '张');
         } else if (activeMenuItem.startsWith('album-')) {
-          // 相册：只显示该相册的主图
+          // 相册：只显示该相册及其子相册的主图
+          // 如果有子相册，使用 selectedAlbumIds 来筛选
+          const albumIdsToFilter = selectedAlbumIds.length > 0 ? selectedAlbumIds : [activeMenuItem];
           filteredImages = sourceImages.filter(img =>
-            img.albumId === activeMenuItem &&
+            albumIdsToFilter.includes(img.albumId) &&
             img.isMainImage === true &&
             img.deleted !== true
           );
-          console.log('[Home] 相册过滤后:', filteredImages.length, '张', 'albumId:', activeMenuItem);
+          console.log('[Home] 相册过滤后:', filteredImages.length, '张', 'albumIds:', albumIdsToFilter);
         } else {
           // 默认（全部图片或其他）：只显示主图
           filteredImages = sourceImages.filter(img => img.isMainImage === true && img.deleted !== true);
@@ -762,9 +765,10 @@ export default function Home() {
         filters.tags.forEach(tag => params.append('tags', tag));
       }
       
-      // 添加相册
-      if (filters.albums && filters.albums.length > 0) {
-        params.append('albumId', filters.albums.join(','));
+      // 添加相册（优先使用 selectedAlbumIds，如果没有则使用 filters.albums）
+      const albumIdsToUse = selectedAlbumIds.length > 0 ? selectedAlbumIds : (filters.albums || []);
+      if (albumIdsToUse.length > 0) {
+        params.append('albumId', albumIdsToUse.join(','));
       }
       
       // 添加文件类型
@@ -1641,6 +1645,11 @@ export default function Home() {
         onCreateSmartAlbum={() => {
           setEditingSmartAlbum(null);
           setIsSmartAlbumEditorOpen(true);
+        }}
+        onAlbumClick={(albumId, allAlbumIds) => {
+          // 设置选中的相册及其所有子相册 ID
+          setSelectedAlbumIds(allAlbumIds);
+          handleMenuItemClick(albumId);
         }}
       />
 
