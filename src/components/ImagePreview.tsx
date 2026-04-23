@@ -50,8 +50,12 @@ export default function ImagePreview({
   // 记录预览次数
   React.useEffect(() => {
     if (image?.id) {
-      fetch(`/api/images/${image.id}/view`, { method: 'POST', credentials: 'include' })
-        .catch(err => console.error('[ImagePreview] 记录预览失败:', err));
+      const sessionId = localStorage.getItem('session_id');
+      fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api'}/images/${image.id}/view`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      }).catch(err => console.error('[ImagePreview] 记录预览失败:', err));
     }
   }, [image?.id]);
 
