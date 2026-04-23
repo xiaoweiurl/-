@@ -692,7 +692,7 @@ export default function Home() {
           // 如果有子相册，使用 selectedAlbumIds 来筛选
           const albumIdsToFilter = selectedAlbumIds.length > 0 ? selectedAlbumIds : [activeMenuItem];
           filteredImages = sourceImages.filter(img =>
-            albumIdsToFilter.includes(img.albumId) &&
+            img.albumId && albumIdsToFilter.includes(img.albumId) &&
             img.isMainImage === true &&
             img.deleted !== true
           );
