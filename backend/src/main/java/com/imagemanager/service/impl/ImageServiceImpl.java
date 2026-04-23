@@ -501,8 +501,7 @@ public class ImageServiceImpl implements ImageService {
                         albumIds.add(albumId);
                     }
                     // 查询子相册
-                    List<Album> childAlbums = albumRepository.findByUserIdAndParentIdOrderBySortOrderAsc(
-                        request.getUserId() != null ? request.getUserId() : "default", albumId);
+                    List<Album> childAlbums = albumRepository.findByParentIdOrderBySortOrderAsc(albumId);
                     for (Album child : childAlbums) {
                         if (!albumIds.contains(child.getId())) {
                             albumIds.add(child.getId());

@@ -75,6 +75,11 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     List<Album> findByUserIdAndParentIdOrderBySortOrderAsc(String userId, String parentId);
     
     /**
+     * 查询子相册（根据父ID，不限制用户）
+     */
+    List<Album> findByParentIdOrderBySortOrderAsc(String parentId);
+    
+    /**
      * 根据路径查询相册
      */
     Optional<Album> findByUserIdAndPath(String userId, String path);
