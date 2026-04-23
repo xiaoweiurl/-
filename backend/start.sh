@@ -26,4 +26,4 @@ fi
 
 # 启动 Spring Boot 应用
 cd /workspace/projects/backend
-mvn spring-boot:run
+./mvnw spring-boot:run

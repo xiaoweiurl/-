@@ -803,7 +803,7 @@ public class ImageServiceImpl implements ImageService {
                 image.setAlbumName(albumName);
             }
         }
-        if (tags != null) image.setTags(new java.util.HashSet<>(tags));
+        if (tags != null) image.setTags(new java.util.ArrayList<>(tags));
         if (description != null) image.setDescription(description);
         image.setUpdatedAt(LocalDateTime.now());
         

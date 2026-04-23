@@ -1,12 +1,12 @@
-com/imagemanager/config/AuthInterceptor.class
-com/imagemanager/dto/RestoreImagesRequest$RestoreImagesRequestBuilder.class
 com/imagemanager/dto/DashboardStatsResponse$AlbumDistribution.class
+com/imagemanager/dto/RestoreImagesRequest$RestoreImagesRequestBuilder.class
+com/imagemanager/config/AuthInterceptor.class
 com/imagemanager/dto/CreateUserRequest.class
 com/imagemanager/dto/DashboardStatsResponse$HotAlbum.class
 com/imagemanager/dto/PageResponse.class
 com/imagemanager/service/impl/WatermarkRemoveServiceImpl.class
-com/imagemanager/dto/UpdateUserRequest.class
 com/imagemanager/dto/WatermarkRemoveRequest$WatermarkRemoveRequestBuilder.class
+com/imagemanager/dto/UpdateUserRequest.class
 com/imagemanager/dto/TagResponse.class
 com/imagemanager/service/impl/ImageServiceImpl.class
 com/imagemanager/service/AlbumService.class
@@ -14,8 +14,8 @@ com/imagemanager/controller/ImageController.class
 com/imagemanager/controller/AuthController.class
 com/imagemanager/dto/CategoryResponse.class
 com/imagemanager/service/impl/DocumentServiceImpl.class
-com/imagemanager/repository/ImageRepository.class
 com/imagemanager/dto/BatchOperationRequest.class
+com/imagemanager/repository/ImageRepository.class
 com/imagemanager/entity/UserSettingsEntity$UserSettingsEntityBuilder.class
 com/imagemanager/entity/Image$ImageBuilder.class
 com/imagemanager/service/impl/AuthServiceImpl$SessionInfo.class
@@ -79,9 +79,9 @@ com/imagemanager/controller/AIController.class
 com/imagemanager/dto/LoginResponse$UserInfo$UserInfoBuilder.class
 com/imagemanager/entity/Product.class
 com/imagemanager/entity/Document.class
+com/imagemanager/entity/AuditLog$AuditLogBuilder.class
 com/imagemanager/entity/User$UserBuilder.class
 com/imagemanager/entity/Image.class
-com/imagemanager/entity/AuditLog$AuditLogBuilder.class
 com/imagemanager/service/UserService.class
 com/imagemanager/repository/DocumentRepository.class
 com/imagemanager/service/DashboardService.class
@@ -92,6 +92,7 @@ com/imagemanager/dto/UserSettings.class
 com/imagemanager/dto/CreateNotificationRequest.class
 com/imagemanager/service/impl/AIRecognitionServiceImpl.class
 com/imagemanager/service/impl/WeakPasswordException.class
+com/imagemanager/controller/CreateAlbumRequest.class
 com/imagemanager/controller/UserController.class
 com/imagemanager/dto/DashboardStatsResponse$FileTypeStat.class
 com/imagemanager/controller/DashboardController.class
@@ -99,6 +100,7 @@ com/imagemanager/dto/DashboardStatsResponse$ActivityStats.class
 com/imagemanager/config/SessionIdAuthFilter.class
 com/imagemanager/dto/TagResponse$TagResponseBuilder.class
 com/imagemanager/entity/Notification$NotificationBuilder.class
+com/imagemanager/controller/GetOrCreateByPathRequest.class
 com/imagemanager/util/MatchingEngine.class
 com/imagemanager/service/impl/DashboardServiceImpl.class
 com/imagemanager/util/RateLimiter.class
@@ -111,12 +113,12 @@ com/imagemanager/entity/Product$ProductBuilder.class
 com/imagemanager/dto/MatchingConfig$SynonymGroup.class
 com/imagemanager/dto/ChangePasswordRequest.class
 com/imagemanager/service/impl/AlbumServiceImpl.class
-com/imagemanager/controller/DataFixController.class
 com/imagemanager/entity/Album.class
+com/imagemanager/controller/DataFixController.class
 com/imagemanager/service/impl/UserServiceImpl.class
 com/imagemanager/controller/AlbumController.class
-com/imagemanager/config/CorsConfig.class
 com/imagemanager/dto/RestoreImagesRequest.class
+com/imagemanager/config/CorsConfig.class
 com/imagemanager/repository/AlbumRepository.class
 com/imagemanager/dto/BatchUpdateMatchingRequest.class
 com/imagemanager/controller/AdminController$UserInfo.class
