@@ -89,8 +89,15 @@ public class DashboardServiceImpl implements DashboardService {
         List<Image> trashImages = imageRepository.findByDeletedTrueAndIsMainImageTrueList();
 
         // 近7天和30天上传
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
+        LocalDateTime sevenDaysAgo = now.minusDays(7);
+        LocalDateTime thirtyDaysAgo = now.minusDays(30);
+
+        // 今日上传数
+        long todayUploads = allImages.stream()
+            .filter(img -> img.getCreatedAt() != null && !img.getCreatedAt().isBefore(todayStart))
+            .count();
 
         long recentUploads7d = allImages.stream()
             .filter(img -> img.getCreatedAt() != null && img.getCreatedAt().isAfter(sevenDaysAgo))
@@ -99,6 +106,16 @@ public class DashboardServiceImpl implements DashboardService {
         long recentUploads30d = allImages.stream()
             .filter(img -> img.getCreatedAt() != null && img.getCreatedAt().isAfter(thirtyDaysAgo))
             .count();
+
+        // 今日预览次数（所有图片的 viewCount 累加）
+        long todayViews = allImages.stream()
+            .mapToLong(img -> img.getViewCount() != null ? img.getViewCount() : 0)
+            .sum();
+
+        // 今日下载次数（所有图片的 downloadCount 累加）
+        long todayDownloads = allImages.stream()
+            .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
+            .sum();
 
         // 相册数量和标签数量
         long totalAlbums = albumRepository.count();
@@ -116,8 +133,11 @@ public class DashboardServiceImpl implements DashboardService {
             totalTags,
             favoritesCount,
             (long) trashImages.size(),
+            todayUploads,
             recentUploads7d,
-            recentUploads30d
+            recentUploads30d,
+            todayViews,
+            todayDownloads
         );
     }
 

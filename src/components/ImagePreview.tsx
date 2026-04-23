@@ -47,6 +47,14 @@ export default function ImagePreview({
   const [productImages, setProductImages] = React.useState<ImageItem[]>([]); // 该商品的所有图片
   const [loading, setLoading] = React.useState(false);
 
+  // 记录预览次数
+  React.useEffect(() => {
+    if (image?.id) {
+      fetch(`/api/images/${image.id}/view`, { method: 'POST', credentials: 'include' })
+        .catch(err => console.error('[ImagePreview] 记录预览失败:', err));
+    }
+  }, [image?.id]);
+
   // 获取完整的图片 URL（处理相对路径）
   const getFullImageUrl = (url: string): string => {
     // 如果已经是完整 URL（包含协议），直接返回

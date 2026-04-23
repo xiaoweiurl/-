@@ -871,6 +871,17 @@ public class ImageServiceImpl implements ImageService {
             updateAlbumImageCount(image.getAlbumId());
         }
     }
+
+    @Override
+    public void recordView(String id) {
+        Image image = imageRepository.findById(id).orElse(null);
+        if (image != null) {
+            int currentViews = image.getViewCount() != null ? image.getViewCount() : 0;
+            image.setViewCount(currentViews + 1);
+            imageRepository.save(image);
+            log.info("图片 {} 预览次数 +1，当前: {}", id, image.getViewCount());
+        }
+    }
     
     @Override
     public void batchDelete(List<String> ids) {

@@ -66,10 +66,16 @@ public class DashboardStatsResponse {
         private Long favoritesCount;
         /** 回收站图片数 */
         private Long trashCount;
+        /** 今日上传数 */
+        private Long todayUploads;
         /** 近7天上传数 */
         private Long recentUploads7d;
         /** 近30天上传数 */
         private Long recentUploads30d;
+        /** 今日预览次数 */
+        private Long todayViews;
+        /** 今日下载次数 */
+        private Long todayDownloads;
     }
 
     /**

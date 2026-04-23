@@ -48,6 +48,11 @@ public interface ImageService {
     void batchDelete(List<String> ids);
     
     /**
+     * 记录图片预览（增加预览次数）
+     */
+    void recordView(String id);
+    
+    /**
      * 永久删除图片
      * @param id 图片ID
      * @return 删除的图片数量（主图+详情图）

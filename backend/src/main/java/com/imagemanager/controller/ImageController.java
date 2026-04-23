@@ -149,6 +149,17 @@ public class ImageController {
         Image image = imageService.toggleFavorite(id);
         return ApiResponse.success(image.getFavorite() ? "已收藏" : "已取消收藏", image);
     }
+
+    /**
+     * 记录图片预览（增加预览次数）
+     */
+    @PostMapping("/{id}/view")
+    @Operation(summary = "记录预览", description = "记录图片预览，增加预览次数")
+    public ApiResponse<Void> recordView(
+            @Parameter(description = "图片ID") @PathVariable String id) {
+        imageService.recordView(id);
+        return ApiResponse.success("预览已记录", null);
+    }
     
     /**
      * 批量操作
