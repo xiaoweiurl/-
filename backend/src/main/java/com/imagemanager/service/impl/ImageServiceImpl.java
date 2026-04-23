@@ -478,14 +478,39 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 4. 处理相册ID（支持多个，兼容单个的情况）
+            // 如果传入的是父相册ID，需要查询该父相册下所有子相册的ID
             List<String> albumIds = null;
             if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
+                List<String> targetAlbumIds = new java.util.ArrayList<>();
+                
                 if (request.getAlbumId().contains(",")) {
-                    albumIds = java.util.Arrays.asList(request.getAlbumId().split(","));
+                    // 多个相册ID
+                    for (String albumId : request.getAlbumId().split(",")) {
+                        targetAlbumIds.add(albumId.trim());
+                    }
                 } else {
-                    albumIds = java.util.Collections.singletonList(request.getAlbumId());
+                    // 单个相册ID
+                    targetAlbumIds.add(request.getAlbumId());
                 }
-                log.info("相册ID筛选: {}", albumIds);
+                
+                // 查询每个目标相册的子相册ID
+                for (String albumId : targetAlbumIds) {
+                    // 把自己加进去
+                    albumIds = albumIds == null ? new java.util.ArrayList<>() : albumIds;
+                    if (!albumIds.contains(albumId)) {
+                        albumIds.add(albumId);
+                    }
+                    // 查询子相册
+                    List<Album> childAlbums = albumRepository.findByUserIdAndParentIdOrderBySortOrderAsc(
+                        request.getUserId() != null ? request.getUserId() : "default", albumId);
+                    for (Album child : childAlbums) {
+                        if (!albumIds.contains(child.getId())) {
+                            albumIds.add(child.getId());
+                        }
+                    }
+                }
+                
+                log.info("相册ID筛选（含子相册）: {}", albumIds);
             }
             
             // 5. 处理标签
