@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { backendFetch, handleBackendResponse } from '@/lib/backend-proxy';
+import { backendFetch } from '@/lib/backend-proxy';
 
 /**
  * @swagger
@@ -24,14 +24,15 @@ import { backendFetch, handleBackendResponse } from '@/lib/backend-proxy';
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<Response> {
   const { id } = await params;
   
   const response = await backendFetch(`/images/${id}/view`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
   });
   
-  return handleBackendResponse(response);
+  // 转发响应
+  const data = await response.json();
+  return NextResponse.json(data, { status: response.status });
 }

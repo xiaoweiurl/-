@@ -869,7 +869,7 @@ export default function Home() {
   // 登出
   const handleLogout = async () => {
     try {
-      await backendFetch('/auth/login', { method: 'DELETE', credentials: 'include' });
+      await backendFetch('/auth/login', { method: 'DELETE' });
       // 清除 localStorage 中的 session
       localStorage.removeItem('session_id');
       localStorage.removeItem('session_expires');
@@ -1415,7 +1415,7 @@ export default function Home() {
       console.log('[Home] 请求图片列表...');
 
       // 获取图片列表（用于当前视图显示）
-      const response = await backendFetch(`/images?${params}`, { credentials: 'include' });
+      const response = await backendFetch(`/images?${params}`);
       const result = await response.json();
 
       console.log('[Home] 图片列表响应:', result);
@@ -1431,7 +1431,7 @@ export default function Home() {
       }
 
       // 获取标签列表
-      const tagsResponse = await backendFetch('/images/tags', { credentials: 'include' });
+      const tagsResponse = await backendFetch('/images/tags');
       const tagsResult = await tagsResponse.json();
 
       if (tagsResult.success) {
@@ -1468,7 +1468,7 @@ export default function Home() {
       console.log('[Home] 请求图片列表...');
       
       // 获取图片列表
-      const response = await backendFetch(`/images?${params}`, { credentials: 'include' });
+      const response = await backendFetch(`/images?${params}`);
       const result = await response.json();
       
       console.log('[Home] 图片列表响应:', result);
@@ -1484,7 +1484,7 @@ export default function Home() {
       }
       
       // 获取标签列表
-      const tagsResponse = await backendFetch('/images/tags', { credentials: 'include' });
+      const tagsResponse = await backendFetch('/images/tags');
       const tagsResult = await tagsResponse.json();
       
       if (tagsResult.success) {
