@@ -52,6 +52,7 @@ export interface AlbumInfo {
   parentId?: string;
   path?: string;
   count: number;
+  isSystem?: boolean;
   children?: AlbumInfo[];
 }
 
@@ -62,6 +63,7 @@ interface MenuItem {
   count?: number;
   children?: MenuItem[];
   showAddButton?: boolean;
+  isSystem?: boolean;
 }
 
 /**
@@ -95,6 +97,7 @@ function buildAlbumHierarchy(albums: AlbumInfo[]): MenuItem[] {
       label: album.fullName || album.name,
       icon: Image as React.ElementType, // 图标组件
       count: album.count,
+      isSystem: album.isSystem,
       children: album.children?.map(child => albumToMenuItem(child)),
     };
   }
@@ -109,16 +112,19 @@ function SubMenuItem({
   item,
   activeItem,
   onItemClick,
+  onDelete,
   level = 1,
 }: {
   item: MenuItem;
   activeItem: string;
   onItemClick: (id: string) => void;
+  onDelete?: (item: MenuItem, e: React.MouseEvent) => void;
   level?: number;
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isExpanded, setIsExpanded] = React.useState(level <= 1);
   const isActive = activeItem === item.id;
+  const [showActions, setShowActions] = React.useState(false);
 
   return (
     <div>
@@ -131,6 +137,8 @@ function SubMenuItem({
             : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
         )}
         style={{ paddingLeft: `${level > 0 ? level * 12 + 12 : 12}px` }}
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
       >
         {/* 展开/折叠按钮 */}
         {hasChildren && (
@@ -157,6 +165,20 @@ function SubMenuItem({
             <span className="text-xs text-slate-400">{item.count}</span>
           )}
         </button>
+
+        {/* 删除按钮 */}
+        {showActions && onDelete && !item.isSystem && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(item, e);
+            }}
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+            title="删除相册"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* 递归渲染子项 */}
@@ -168,6 +190,7 @@ function SubMenuItem({
               item={child}
               activeItem={activeItem}
               onItemClick={onItemClick}
+              onDelete={onDelete}
               level={level + 1}
             />
           ))}
@@ -403,8 +426,15 @@ export default function Sidebar({
     }
   };
 
-  const openDeleteDialog = (album: AlbumInfo, e: React.MouseEvent) => {
+  const openDeleteDialog = (menuItem: MenuItem, e: React.MouseEvent) => {
     e.stopPropagation();
+    // 将 MenuItem 转换为 AlbumInfo 格式
+    const album: AlbumInfo = {
+      id: menuItem.id,
+      name: menuItem.label,
+      count: menuItem.count || 0,
+      isSystem: menuItem.isSystem,
+    };
     setAlbumToDelete(album);
     setIsDeleteDialogOpen(true);
   };
@@ -883,6 +913,7 @@ export default function Sidebar({
                         item={child}
                         activeItem={activeItem}
                         onItemClick={onItemClick}
+                        onDelete={openDeleteDialog}
                         level={1}
                       />
                     ))}

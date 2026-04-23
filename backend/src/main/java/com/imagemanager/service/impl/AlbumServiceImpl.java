@@ -221,8 +221,18 @@ public class AlbumServiceImpl implements AlbumService {
         log.info("删除相册：{}", id);
         
         Album album = albumRepository.findById(id).orElse(null);
-        if (album != null && album.getIsSystem()) {
+        if (album == null) {
+            throw new RuntimeException("相册不存在");
+        }
+        
+        if (album.getIsSystem()) {
             throw new RuntimeException("系统预置相册不允许删除");
+        }
+        
+        // 检查是否有子相册
+        List<Album> childAlbums = albumRepository.findByParentIdOrderBySortOrderAsc(id);
+        if (!childAlbums.isEmpty()) {
+            throw new RuntimeException("该相册下还有 " + childAlbums.size() + " 个子相册，请先删除子相册后再删除当前相册");
         }
         
         // 检查相册下是否有图片
