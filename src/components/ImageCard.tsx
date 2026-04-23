@@ -45,6 +45,9 @@ export interface ImageItem {
   createdAt?: string; // 后端返回的日期字段
   productId?: string; // 商品ID（用于关联主图和详情图）
   isMainImage?: boolean; // 是否为主图
+  // 浏览和下载统计
+  viewCount?: number;
+  downloadCount?: number;
 }
 
 export interface AlbumItem {
