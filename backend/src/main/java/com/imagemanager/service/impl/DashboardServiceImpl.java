@@ -95,9 +95,10 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDateTime thirtyDaysAgo = now.minusDays(30);
 
         // 今日上传数
-        long todayUploads = allImages.stream()
+        List<Image> todayImages = allImages.stream()
             .filter(img -> img.getCreatedAt() != null && !img.getCreatedAt().isBefore(todayStart))
-            .count();
+            .collect(Collectors.toList());
+        long todayUploadsCount = todayImages.size();
 
         long recentUploads7d = allImages.stream()
             .filter(img -> img.getCreatedAt() != null && img.getCreatedAt().isAfter(sevenDaysAgo))
@@ -107,13 +108,13 @@ public class DashboardServiceImpl implements DashboardService {
             .filter(img -> img.getCreatedAt() != null && img.getCreatedAt().isAfter(thirtyDaysAgo))
             .count();
 
-        // 今日预览次数（所有图片的 viewCount 累加）
-        long todayViews = allImages.stream()
+        // 今日预览次数（今日上传图片的 viewCount 累加）
+        long todayViews = todayImages.stream()
             .mapToLong(img -> img.getViewCount() != null ? img.getViewCount() : 0)
             .sum();
 
-        // 今日下载次数（所有图片的 downloadCount 累加）
-        long todayDownloads = allImages.stream()
+        // 今日下载次数（今日上传图片的 downloadCount 累加）
+        long todayDownloads = todayImages.stream()
             .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
             .sum();
 
@@ -133,7 +134,7 @@ public class DashboardServiceImpl implements DashboardService {
             totalTags,
             favoritesCount,
             (long) trashImages.size(),
-            todayUploads,
+            todayUploadsCount,
             recentUploads7d,
             recentUploads30d,
             todayViews,
@@ -390,13 +391,16 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 今日统计
         Long todayUploads = (long) todayImages.size();
-        Long todayViews = allImages.stream()
+        // 今日浏览 = 今日上传图片的浏览次数之和
+        Long todayViews = todayImages.stream()
                 .mapToLong(img -> img.getViewCount() != null ? img.getViewCount() : 0)
                 .sum();
-        Long todayDownloads = allImages.stream()
+        // 今日下载 = 今日上传图片的下载次数之和
+        Long todayDownloads = todayImages.stream()
                 .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
                 .sum();
-        Long todayFavorites = allImages.stream()
+        // 今日收藏 = 今日上传图片中收藏的数量
+        Long todayFavorites = todayImages.stream()
                 .filter(img -> img.getFavorite() != null && img.getFavorite())
                 .count();
 

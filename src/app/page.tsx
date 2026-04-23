@@ -1572,6 +1572,16 @@ export default function Home() {
       return imgDate >= sevenDaysAgo;
     }).length;
 
+    // 今日上传（只统计主图）
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayImages = mainImages.filter(img => {
+      const dateStr = img.date || img.createdAt;
+      if (!dateStr) return false;
+      const imgDate = new Date(dateStr);
+      return imgDate >= todayStart;
+    });
+
     // 回收站数量（使用后端获取的数量，更准确）
     // 注意：trashCount 现在由后端 API 直接提供，不再从 allImages 计算
 
@@ -1604,6 +1614,11 @@ export default function Home() {
       favoritesCount,
       recentCount,
       albumStats,
+      // 今日统计
+      todayUploads: todayImages.length,
+      todayViews: todayImages.reduce((sum, img) => sum + (img.viewCount || 0), 0),
+      todayDownloads: todayImages.reduce((sum, img) => sum + (img.downloadCount || 0), 0),
+      todayFavorites: todayImages.filter(img => img.favorite).length,
     };
   }, [allImages, albums]);
 
