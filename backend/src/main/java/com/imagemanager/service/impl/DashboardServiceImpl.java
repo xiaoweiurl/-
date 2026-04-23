@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,6 +36,9 @@ public class DashboardServiceImpl implements DashboardService {
 
     private final ImageRepository imageRepository;
     private final AlbumRepository albumRepository;
+    
+    // 使用北京时区（与数据库保持一致）
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Override
     public DashboardStatsResponse getDashboardStats(String period) {
@@ -54,7 +58,7 @@ public class DashboardServiceImpl implements DashboardService {
         response.setOverview(getOverviewStats());
 
         // 2. 上传趋势和存储趋势
-        LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+        LocalDateTime startDate = LocalDateTime.now(BEIJING_ZONE).minusDays(days);
         List<DashboardStatsResponse.TrendData> trendData = getTrendData(startDate, days);
         response.setUploadTrend(trendData);
         response.setStorageTrend(trendData);
@@ -89,7 +93,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<Image> trashImages = imageRepository.findByDeletedTrueAndIsMainImageTrueList();
 
         // 近7天和30天上传
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(BEIJING_ZONE);
         LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
         LocalDateTime sevenDaysAgo = now.minusDays(7);
         LocalDateTime thirtyDaysAgo = now.minusDays(30);
@@ -373,7 +377,7 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardStatsResponse.ActivityStats getActivityStats() {
         log.info("[Dashboard] 获取活跃度统计");
 
-        LocalDateTime today = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime today = LocalDateTime.now(BEIJING_ZONE).withHour(0).withMinute(0).withSecond(0);
         LocalDateTime yesterday = today.minusDays(1);
 
         // 获取今日图片

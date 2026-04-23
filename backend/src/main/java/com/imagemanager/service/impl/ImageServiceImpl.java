@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -45,6 +46,9 @@ import java.util.zip.ZipOutputStream;
 @Slf4j
 @Service
 public class ImageServiceImpl implements ImageService {
+    
+    // 使用北京时区（与数据库保持一致）
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
     
     @Value("${app.upload.path:./uploads}")
     private String uploadPath;
@@ -174,8 +178,8 @@ public class ImageServiceImpl implements ImageService {
                 .userId("user-1")
                 .coverImageId("1")
                 .imageCount(1)
-                .createdAt(LocalDateTime.now().minusDays(5))
-                .updatedAt(LocalDateTime.now().minusDays(5))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(5))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(5))
                 .build();
         productRepository.save(product1);
 
@@ -189,8 +193,8 @@ public class ImageServiceImpl implements ImageService {
                 .userId("user-1")
                 .coverImageId("2")
                 .imageCount(1)
-                .createdAt(LocalDateTime.now().minusDays(4))
-                .updatedAt(LocalDateTime.now().minusDays(4))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(4))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(4))
                 .build();
         productRepository.save(product2);
 
@@ -204,8 +208,8 @@ public class ImageServiceImpl implements ImageService {
                 .userId("user-1")
                 .coverImageId("3")
                 .imageCount(1)
-                .createdAt(LocalDateTime.now().minusDays(3))
-                .updatedAt(LocalDateTime.now().minusDays(3))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(3))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(3))
                 .build();
         productRepository.save(product3);
 
@@ -219,8 +223,8 @@ public class ImageServiceImpl implements ImageService {
                 .userId("user-1")
                 .coverImageId("4")
                 .imageCount(1)
-                .createdAt(LocalDateTime.now().minusDays(2))
-                .updatedAt(LocalDateTime.now().minusDays(2))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(2))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(2))
                 .build();
         productRepository.save(product4);
 
@@ -234,8 +238,8 @@ public class ImageServiceImpl implements ImageService {
                 .userId("user-1")
                 .coverImageId("5")
                 .imageCount(1)
-                .createdAt(LocalDateTime.now().minusDays(1))
-                .updatedAt(LocalDateTime.now().minusDays(1))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(1))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(1))
                 .build();
         productRepository.save(product5);
 
@@ -265,8 +269,8 @@ public class ImageServiceImpl implements ImageService {
                 .displayOrder(0)
                 .productId("product-1")
                 .classifyMethod("filename")
-                .createdAt(LocalDateTime.now().minusDays(5))
-                .updatedAt(LocalDateTime.now().minusDays(5))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(5))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(5))
                 .userId("user-1")
                 .deleted(false)
                 .viewCount(0)
@@ -294,8 +298,8 @@ public class ImageServiceImpl implements ImageService {
                 .displayOrder(0)
                 .productId("product-2")
                 .classifyMethod("filename")
-                .createdAt(LocalDateTime.now().minusDays(4))
-                .updatedAt(LocalDateTime.now().minusDays(4))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(4))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(4))
                 .userId("user-1")
                 .deleted(false)
                 .viewCount(0)
@@ -323,8 +327,8 @@ public class ImageServiceImpl implements ImageService {
                 .displayOrder(0)
                 .productId("product-3")
                 .classifyMethod("filename")
-                .createdAt(LocalDateTime.now().minusDays(3))
-                .updatedAt(LocalDateTime.now().minusDays(3))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(3))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(3))
                 .userId("user-1")
                 .deleted(false)
                 .viewCount(0)
@@ -352,8 +356,8 @@ public class ImageServiceImpl implements ImageService {
                 .displayOrder(0)
                 .productId("product-4")
                 .classifyMethod("filename")
-                .createdAt(LocalDateTime.now().minusDays(2))
-                .updatedAt(LocalDateTime.now().minusDays(2))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(2))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(2))
                 .userId("user-1")
                 .deleted(false)
                 .viewCount(0)
@@ -381,8 +385,8 @@ public class ImageServiceImpl implements ImageService {
                 .displayOrder(0)
                 .productId("product-5")
                 .classifyMethod("filename")
-                .createdAt(LocalDateTime.now().minusDays(1))
-                .updatedAt(LocalDateTime.now().minusDays(1))
+                .createdAt(LocalDateTime.now(BEIJING_ZONE).minusDays(1))
+                .updatedAt(LocalDateTime.now(BEIJING_ZONE).minusDays(1))
                 .userId("user-1")
                 .deleted(false)
                 .viewCount(0)
@@ -394,7 +398,7 @@ public class ImageServiceImpl implements ImageService {
         albumRepository.findAll().forEach(album -> {
             long count = imageRepository.countMainImagesByAlbumId(album.getId());
             album.setImageCount((int) count);
-            album.setUpdatedAt(LocalDateTime.now());
+            album.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
             albumRepository.save(album);
         });
 
@@ -783,8 +787,8 @@ public class ImageServiceImpl implements ImageService {
                     .tags(finalTags != null ? new java.util.ArrayList<>(finalTags) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
+                    .createdAt(LocalDateTime.now(BEIJING_ZONE))
+                    .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId("user-1")
                     .deleted(false)
                     .viewCount(0)
@@ -829,7 +833,7 @@ public class ImageServiceImpl implements ImageService {
         }
         if (tags != null) image.setTags(new java.util.ArrayList<>(tags));
         if (description != null) image.setDescription(description);
-        image.setUpdatedAt(LocalDateTime.now());
+        image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
         
         image = imageRepository.save(image);
         
@@ -856,14 +860,14 @@ public class ImageServiceImpl implements ImageService {
             List<Image> relatedImages = imageRepository.findByProductIdAndDeleted(image.getProductId(), false);
             for (Image relatedImage : relatedImages) {
                 relatedImage.setDeleted(true);
-                relatedImage.setDeletedAt(LocalDateTime.now());
+                relatedImage.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(relatedImage);
             }
             log.info("同时删除了 {} 张关联的详情图", relatedImages.size());
         }
         
         image.setDeleted(true);
-        image.setDeletedAt(LocalDateTime.now());
+        image.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
         imageRepository.save(image);
         
         // 更新相册图片数量
@@ -997,7 +1001,7 @@ public class ImageServiceImpl implements ImageService {
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         image.setFavorite(!image.getFavorite());
-        image.setUpdatedAt(LocalDateTime.now());
+        image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
         
         return imageRepository.save(image);
     }
@@ -1008,7 +1012,7 @@ public class ImageServiceImpl implements ImageService {
         ids.forEach(id -> {
             imageRepository.findById(id).ifPresent(image -> {
                 image.setFavorite(true);
-                image.setUpdatedAt(LocalDateTime.now());
+                image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(image);
             });
         });
@@ -1028,7 +1032,7 @@ public class ImageServiceImpl implements ImageService {
                 String oldAlbumId = image.getAlbumId();
                 image.setAlbumId(albumId);
                 image.setAlbumName(albumName);
-                image.setUpdatedAt(LocalDateTime.now());
+                image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(image);
                 
                 // 如果是主图，同时移动所有关联的详情图
@@ -1037,7 +1041,7 @@ public class ImageServiceImpl implements ImageService {
                     for (Image relatedImage : relatedImages) {
                         relatedImage.setAlbumId(albumId);
                         relatedImage.setAlbumName(albumName);
-                        relatedImage.setUpdatedAt(LocalDateTime.now());
+                        relatedImage.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                         imageRepository.save(relatedImage);
                     }
                     log.info("同时移动了 {} 张关联的详情图", relatedImages.size());
@@ -1093,7 +1097,7 @@ public class ImageServiceImpl implements ImageService {
         log.info("获取最近上传图片列表（只返回主图）");
         
         // 计算7天前的日期
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        LocalDateTime sevenDaysAgo = LocalDateTime.now(BEIJING_ZONE).minusDays(7);
         
         Pageable pageable = PageRequest.of(page - 1, pageSize, 
                 Sort.by("createdAt").descending());
@@ -1232,8 +1236,8 @@ public class ImageServiceImpl implements ImageService {
                     .aiConfidence(result.getConfidence())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
+                    .createdAt(LocalDateTime.now(BEIJING_ZONE))
+                    .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId("user-1")
                     .deleted(false)
                     .viewCount(0)
@@ -1261,7 +1265,7 @@ public class ImageServiceImpl implements ImageService {
             // 只统计主图数量（商品数量）
             long count = imageRepository.countMainImagesByAlbumId(albumId);
             album.setImageCount((int) count);
-            album.setUpdatedAt(LocalDateTime.now());
+            album.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
             albumRepository.save(album);
             log.debug("更新相册图片数量: albumId={}, count={} (主图数量)", albumId, count);
         });
@@ -1893,8 +1897,8 @@ public class ImageServiceImpl implements ImageService {
                     .tags(finalTags != null ? new java.util.ArrayList<>(finalTags) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
+                    .createdAt(LocalDateTime.now(BEIJING_ZONE))
+                    .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId("user-1")
                     .deleted(false)
                     .viewCount(0)
