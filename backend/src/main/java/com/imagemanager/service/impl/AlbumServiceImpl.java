@@ -370,6 +370,26 @@ public class AlbumServiceImpl implements AlbumService {
             return existing.get();
         }
         
+        // 精确匹配失败，尝试模糊匹配（处理文件名包含父相册名称的情况）
+        // 例如：文件名"松野湃（2）"应该匹配已存在的"松野湃"相册
+        String normalizedPath = fullPath.replaceAll("[（(][0-9]+[)）]$", "").replaceAll("-[0-9]+$", "").trim();
+        
+        if (!normalizedPath.equals(fullPath)) {
+            // 尝试用规范化后的名称查找
+            Optional<Album> fuzzyMatch = albumRepository.findByUserIdAndPath(userId, normalizedPath);
+            if (fuzzyMatch.isPresent()) {
+                log.info("模糊匹配到已有相册：{} -> {}", fullPath, normalizedPath);
+                return fuzzyMatch.get();
+            }
+            
+            // 尝试查找路径中包含该名称的相册
+            List<Album> matches = albumRepository.findByUserIdAndPathContaining(userId, normalizedPath);
+            if (!matches.isEmpty()) {
+                log.info("从 {} 个匹配中找到相册：{}", matches.size(), matches.get(0).getPath());
+                return matches.get(0);
+            }
+        }
+        
         // 解析路径创建层级相册
         String[] parts = fullPath.split("/");
         String parentId = null;

@@ -85,6 +85,16 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     Optional<Album> findByUserIdAndPath(String userId, String path);
     
     /**
+     * 根据路径前缀模糊查找相册（用于处理文件名包含父相册名称的情况）
+     */
+    Optional<Album> findByUserIdAndPathStartingWith(String userId, String pathPrefix);
+    
+    /**
+     * 根据路径关键字模糊查找相册（用于处理文件名包含父相册名称的情况）
+     */
+    List<Album> findByUserIdAndPathContaining(String userId, String pathKeyword);
+    
+    /**
      * 查询所有子相册（包括深层级）
      */
     @Query("SELECT a FROM Album a WHERE a.path LIKE CONCAT(:pathPrefix, '%') AND a.userId = :userId")
