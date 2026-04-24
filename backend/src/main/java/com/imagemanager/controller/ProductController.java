@@ -36,6 +36,8 @@ public class ProductController {
 
     @Autowired
     private ImageRepository imageRepository;
+    @Autowired
+    private ImageService imageService;
 
     /**
      * 获取商品主图列表（用于全部图片展示）
@@ -113,6 +115,12 @@ public class ProductController {
         ProductDetailResponse response = new ProductDetailResponse();
         response.setProduct(product);
         response.setImages(images);
+        
+        // 记录浏览次数（给主图增加浏览）
+        if (!images.isEmpty()) {
+            Image mainImage = images.get(0);
+            imageService.recordView(mainImage.getId());
+        }
 
         return ApiResponse.success(response);
     }
