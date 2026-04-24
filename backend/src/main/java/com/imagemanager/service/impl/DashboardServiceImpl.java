@@ -396,15 +396,15 @@ public class DashboardServiceImpl implements DashboardService {
         // 今日统计
         Long todayUploads = (long) todayImages.size();
         // 今日浏览 = 今日上传图片的浏览次数之和
-        Long todayViews = todayImages.stream()
+        Long todayViews = allImages.stream()
                 .mapToLong(img -> img.getViewCount() != null ? img.getViewCount() : 0)
                 .sum();
         // 今日下载 = 今日上传图片的下载次数之和
-        Long todayDownloads = todayImages.stream()
+        Long todayDownloads = allImages.stream()
                 .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
                 .sum();
         // 今日收藏 = 今日上传图片中收藏的数量
-        Long todayFavorites = todayImages.stream()
+        Long todayFavorites = allImages.stream()
                 .filter(img -> img.getFavorite() != null && img.getFavorite())
                 .count();
 
