@@ -19,7 +19,9 @@ public class CorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
         
-        // 允许的域名
+        // 允许的域名（开发环境用 *，生产环境应该指定具体域名）
+        config.addAllowedOrigin("http://localhost:5000");
+        config.addAllowedOrigin("http://localhost:3000");
         config.addAllowedOriginPattern("*");
         
         // 允许的请求方法
@@ -28,7 +30,7 @@ public class CorsConfig {
         // 允许的请求头
         config.addAllowedHeader("*");
         
-        // 允许携带凭证
+        // 允许携带凭证（允许 cookies）
         config.setAllowCredentials(true);
         
         // 预检请求的有效期（秒）
