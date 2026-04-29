@@ -30,13 +30,23 @@ public class CharsetUtil {
     /**
      * 检测字符串的真实编码并转换为 UTF-8
      * 优先处理 URL 编码的字符串
+     * 支持以下格式：
+     * 1. 直接的 URL 编码字符串：%CC%F9%C9%ED%B2%E3
+     * 2. 完整的 URL：http://xxx?catName=%CC%F9%C9%ED#bd
      */
     public static String convertToUtf8(String input) {
         if (input == null || input.isEmpty()) {
             return input;
         }
 
-        // 首先尝试 URL 解码（处理 %CC%F9%C9%ED 格式的 URL 编码）
+        // 首先检查是否是完整的 URL，如果是则提取 catName 参数
+        String extractedValue = extractUrlParamValue(input, "catName");
+        if (extractedValue != null) {
+            input = extractedValue;
+            log.info("从URL中提取catName参数: {}", input);
+        }
+
+        // 尝试 URL 解码（处理 %CC%F9%C9%ED 格式的 URL 编码）
         String urlDecoded = tryUrlDecode(input);
         if (urlDecoded != null && !urlDecoded.equals(input)) {
             log.info("URL解码成功: {} -> {}", input, urlDecoded);
@@ -65,6 +75,44 @@ public class CharsetUtil {
         }
 
         return input;
+    }
+
+    /**
+     * 从 URL 中提取指定参数的值
+     * 例如：输入 "http://xxx?catName=%CC%F9&C&D#bd"，返回 "%CC%F9"
+     */
+    private static String extractUrlParamValue(String url, String paramName) {
+        if (url == null || !url.contains(paramName + "=")) {
+            return null;
+        }
+
+        try {
+            // 查找参数名的位置
+            int paramIndex = url.indexOf(paramName + "=");
+            // 跳过参数名和等号
+            int valueStart = paramIndex + paramName.length() + 1;
+            
+            // 找到参数的结束位置（& 或 # 或 URL 结尾）
+            int valueEnd = url.length();
+            for (int i = valueStart; i < url.length(); i++) {
+                char c = url.charAt(i);
+                if (c == '&' || c == '#' || c == '?') {
+                    valueEnd = i;
+                    break;
+                }
+            }
+            
+            String value = url.substring(valueStart, valueEnd);
+            
+            // 如果提取到的值包含 %（URL 编码），则返回
+            if (value.contains("%")) {
+                return value;
+            }
+        } catch (Exception e) {
+            log.warn("提取URL参数失败: {}", e.getMessage());
+        }
+        
+        return null;
     }
 
     /**
