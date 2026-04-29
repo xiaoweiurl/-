@@ -230,18 +230,18 @@ export default function ExcelBatchUpload({
           console.log(`[ExcelUpload] 第${rowIndex}行解析结果:`, {
             productName,
             mainImageUrl: mainImageUrl ? mainImageUrl.substring(0, 50) + '...' : '无',
-            detailImageCount: filteredDetailImageUrls.length,
-            firstDetailUrl: filteredDetailImageUrls[0] ? filteredDetailImageUrls[0].substring(0, 50) + '...' : '无'
+            detailImageCount: detailImageUrls.length,
+            firstDetailUrl: detailImageUrls[0] ? detailImageUrls[0].substring(0, 50) + '...' : '无'
           });
         }
         
         // 过滤无效行
-        if (productName && productName.trim() && (mainImageUrl || filteredDetailImageUrls.length > 0)) {
+        if (productName && productName.trim() && (mainImageUrl || detailImageUrls.length > 0)) {
           rows.push({
             id: `${Date.now()}_${rowIndex}`,
             productName: productName.trim(),
             mainImageUrl: mainImageUrl ? mainImageUrl.trim() : '',
-            detailImageUrls: filteredDetailImageUrls,
+            detailImageUrls: detailImageUrls,
             category: category && category.trim() ? category.trim() : undefined,
             description: description && description.trim() ? description.trim() : undefined,
             status: 'pending' as const,
