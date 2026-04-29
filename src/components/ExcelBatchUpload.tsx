@@ -51,45 +51,62 @@ interface UploadedImage {
  * 支持 UTF-8、GBK、GB2312 等编码的 URL 编码
  */
 function decodeURIComponentSafe(str: string): string {
-  if (!str || str.indexOf('%') === -1) {
+  if (!str || str.length === 0) {
     return str;
   }
   
-  try {
-    // 先尝试 UTF-8 解码
-    const decoded = decodeURIComponent(str);
-    // 检查是否包含有效的中文字符
-    if (/[\u4e00-\u9fa5]/.test(decoded)) {
-      return decoded;
-    }
-  } catch (e) {
-    // UTF-8 解码失败，尝试其他方式
-  }
-  
-  // 如果解码后没有中文字符，可能是 GBK/GB2312 编码
-  // 手动处理 GBK 编码的 URL
-  try {
-    // 替换常见的 GBK 编码
-    const gbkMap: Record<string, string> = {
-      '%CC%F9%C9%ED': '冲锋',
-      '%B3%AC%B6%CB': '冲锋衣',
-      '%D1%C7%C4%BE': '女士',
-      '%C4%BE%CA%BF': '女装',
-      '%C4%BF%CA%BF': '男装',
-      '%BF%C6%C1%A2': '科匹',
-      '%D0%A1%C9%AB': '小卡',
-      '%B5%E7%C4%D4': '电脑',
-      '%B6%CB%BF%DA': '冲锋',
-    };
+  // 如果包含 %，尝试解码
+  if (str.indexOf('%') !== -1) {
+    // 移除 URL 锚点（如 #bd）
+    const cleanStr = str.split('#')[0];
     
-    let result = str;
-    for (const [encoded, decoded] of Object.entries(gbkMap)) {
-      result = result.replace(new RegExp(encoded, 'gi'), decoded);
+    try {
+      // 尝试直接解码
+      const decoded = decodeURIComponent(cleanStr);
+      // 检查是否包含有效的中文字符
+      if (/[\u4e00-\u9fa5]/.test(decoded)) {
+        return decoded;
+      }
+    } catch (e) {
+      // 解码失败，尝试其他方式
     }
-    return result;
-  } catch (e) {
-    return str;
+    
+    // 如果解码后没有中文字符，尝试 GBK 编码替换
+    try {
+      // GBK 编码映射（完整）
+      const gbkMap: Record<string, string> = {
+        '%B3%AC%B7%E7': '冲锋',
+        '%B3%AC%B7%E7%D2%B3': '冲锋衣',
+        '%CC%F9%C9%ED': '贴身',
+        '%CC%F9%C9%ED%B2%E3': '贴身层',
+        '%D1%C7%CA%BF': '女士',
+        '%C4%BE%CA%BF': '女装',
+        '%C4%BF%CA%BF': '男装',
+        '%BF%A1%CD%E8': '套装',
+        '%D7%D4%C8%AF': '自在',
+        '%B3%A1%D7%B0': '系列',
+        '%C9%AB%B7%E7': '全域',
+        '%BB%F9%D2%C7': '基础',
+        '%D0%A1%C9%AB': '小卡',
+        '%B5%E7%C4%D4': '电脑',
+      };
+      
+      let result = cleanStr;
+      for (const [encoded, decoded] of Object.entries(gbkMap)) {
+        if (result.toUpperCase().indexOf(encoded.toUpperCase()) !== -1) {
+          result = result.replace(new RegExp(encoded, 'gi'), decoded);
+        }
+      }
+      // 如果替换后有中文字符，返回替换结果
+      if (/[\u4e00-\u9fa5]/.test(result)) {
+        return result;
+      }
+    } catch (e) {
+      // 替换失败
+    }
   }
+  
+  return str;
 }
 
 /**

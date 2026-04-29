@@ -1226,6 +1226,7 @@ public class ImageServiceImpl implements ImageService {
                 
                 // 如果没有匹配到，尝试创建/获取层级相册
                 if (albumId == null) {
+                    log.info("Excel导入 - 未匹配到相册，开始创建层级相册: {}", fullCategoryPath);
                     try {
                         // 尝试解析层级结构并创建相册
                         Album hierarchyAlbum = albumService.getOrCreateAlbumByPath(fullCategoryPath);
@@ -1234,10 +1235,12 @@ public class ImageServiceImpl implements ImageService {
                             albumName = hierarchyAlbum.getFullName() != null ? hierarchyAlbum.getFullName() : hierarchyAlbum.getName();
                             // 刷新相册列表
                             albums = albumService.getAllAlbums();
-                            log.info("Excel导入 - 创建/获取层级相册: ID={}, 名称={}", albumId, albumName);
+                            log.info("Excel导入 - 创建/获取层级相册成功: ID={}, 名称={}, path={}", albumId, albumName, hierarchyAlbum.getPath());
+                        } else {
+                            log.warn("Excel导入 - 创建层级相册返回null: {}", fullCategoryPath);
                         }
                     } catch (Exception e) {
-                        log.warn("Excel导入 - 创建层级相册失败: {}", e.getMessage());
+                        log.error("Excel导入 - 创建层级相册失败: {}", e.getMessage(), e);
                     }
                 }
             }
