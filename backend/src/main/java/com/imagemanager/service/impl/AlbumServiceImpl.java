@@ -5,7 +5,6 @@ import com.imagemanager.repository.AlbumRepository;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.service.AlbumService;
 import com.imagemanager.util.CharsetUtil;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -30,103 +29,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Autowired
     private ImageRepository imageRepository;
-    
-    /**
-     * 初始化预置相册
-     */
-    @PostConstruct
-    public void initDefaultAlbums() {
-        // 检查是否已有系统预置相册
-        List<Album> systemAlbums = albumRepository.findByIsSystemTrue();
-        if (!systemAlbums.isEmpty()) {
-            log.info("系统预置相册已存在，跳过初始化");
-            return;
-        }
-        
-        log.info("初始化预置户外服装分类相册...");
-        
-        // T恤
-        Album tshirt = Album.builder()
-                .id("album-tshirt")
-                .name("T恤")
-                .description("短袖/长袖T恤、速干衣")
-                .coverUrl("/assets/【经典款】HELLYHANSEN_HH 男款吸湿速干轻户外都市休闲长袖T恤_372.png")
-                .keywords(Arrays.asList("T恤", "t恤"))
-                .isSystem(true)
-                .imageCount(0)
-                .sortOrder(1)
-                .createdAt(LocalDateTime.now().minusDays(10))
-                .updatedAt(LocalDateTime.now().minusDays(5))
-                .userId("system")
-                .build();
-        albumRepository.save(tshirt);
-        
-        // 内衣
-        Album underwear = Album.builder()
-                .id("album-underwear")
-                .name("内衣")
-                .description("贴身内衣、打底衣")
-                .coverUrl("/assets/【单依纯同款】icebreaker美利奴羊毛女200 Oasis吸湿长袖T恤徒步_4.png")
-                .keywords(Arrays.asList("内衣"))
-                .isSystem(true)
-                .imageCount(0)
-                .sortOrder(2)
-                .createdAt(LocalDateTime.now().minusDays(10))
-                .updatedAt(LocalDateTime.now().minusDays(5))
-                .userId("system")
-                .build();
-        albumRepository.save(underwear);
-        
-        // 抓绒衣
-        Album fleece = Album.builder()
-                .id("album-fleece")
-                .name("抓绒衣")
-                .description("抓绒衣、保暖中层")
-                .coverUrl("/assets/「折扣」patagonia巴塔R1AIR抓绒衣男女户外透气排汗保暖速干圆领_619.png")
-                .keywords(Arrays.asList("抓绒衣", "抓绒"))
-                .isSystem(true)
-                .imageCount(0)
-                .sortOrder(3)
-                .createdAt(LocalDateTime.now().minusDays(10))
-                .updatedAt(LocalDateTime.now().minusDays(5))
-                .userId("system")
-                .build();
-        albumRepository.save(fleece);
-        
-        // 冲锋衣
-        Album jacket = Album.builder()
-                .id("album-jacket")
-                .name("冲锋衣")
-                .description("防风防雨冲锋衣、硬壳外套")
-                .coverUrl("/assets/【王一博同款】HELLY HANSEN_HH 专业Ⅰ级登山3L防风防雨冲锋衣_371.png")
-                .keywords(Arrays.asList("冲锋衣"))
-                .isSystem(true)
-                .imageCount(0)
-                .sortOrder(4)
-                .createdAt(LocalDateTime.now().minusDays(10))
-                .updatedAt(LocalDateTime.now().minusDays(5))
-                .userId("system")
-                .build();
-        albumRepository.save(jacket);
-        
-        // 软壳
-        Album softshell = Album.builder()
-                .id("album-softshell")
-                .name("软壳")
-                .description("软壳外套、防泼水外套")
-                .coverUrl("/assets/【经典CREW】 HELLY HANSEN_HH男款户外软壳防泼水保暖登山服抓绒_98.png")
-                .keywords(Arrays.asList("软壳"))
-                .isSystem(true)
-                .imageCount(0)
-                .sortOrder(5)
-                .createdAt(LocalDateTime.now().minusDays(10))
-                .updatedAt(LocalDateTime.now().minusDays(5))
-                .userId("system")
-                .build();
-        albumRepository.save(softshell);
-        
-        log.info("预置相册初始化完成，共 5 个");
-    }
     
     @Override
     public List<Album> getAllAlbums() {
@@ -203,11 +105,6 @@ public class AlbumServiceImpl implements AlbumService {
         
         Album album = albumRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("相册不存在"));
-        
-        // 系统预置相册不允许修改名称
-        if (album.getIsSystem() && name != null && !name.equals(album.getName())) {
-            throw new RuntimeException("系统预置相册不允许修改名称");
-        }
         
         if (name != null) album.setName(name);
         if (description != null) album.setDescription(description);
