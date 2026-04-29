@@ -137,6 +137,7 @@ export default function ExcelBatchUpload({
   const [excelData, setExcelData] = React.useState<ExcelRow[]>([]);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [excelFileName, setExcelFileName] = React.useState<string>(''); // 保存Excel文件名
+  const excelFileNameRef = React.useRef<string>(''); // 使用 ref 保存文件名（同步访问）
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { addNotification } = useNotifications();
 
@@ -164,6 +165,7 @@ export default function ExcelBatchUpload({
       
       // 保存Excel文件名（用于创建层级相册）
       setExcelFileName(file.name);
+      excelFileNameRef.current = file.name; // 同步更新 ref
       console.log('[ExcelUpload] 选择的文件:', file.name);
 
       // 读取Excel文件
@@ -386,7 +388,7 @@ export default function ExcelBatchUpload({
         },
         body: JSON.stringify({ 
           images: imagesToDownload,
-          parentAlbumName: excelFileName, // 传递文件名作为父相册名称
+          parentAlbumName: excelFileNameRef.current, // 使用 ref 获取文件名（确保同步访问）
         }),
       });
 

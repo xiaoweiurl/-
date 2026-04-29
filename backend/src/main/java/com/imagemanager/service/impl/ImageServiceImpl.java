@@ -1201,6 +1201,10 @@ public class ImageServiceImpl implements ImageService {
                     if (dotIndex > 0) {
                         cleanParentName = cleanParentName.substring(0, dotIndex);
                     }
+                    // 移除可能的 assets/ 或 assets\ 前缀
+                    if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
+                        cleanParentName = cleanParentName.substring(7);
+                    }
                     // 处理父相册名称的 URL 编码
                     cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
                     fullCategoryPath = cleanParentName + "/" + category;
@@ -1244,6 +1248,10 @@ public class ImageServiceImpl implements ImageService {
                 int dotIndex = cleanParentName.lastIndexOf('.');
                 if (dotIndex > 0) {
                     cleanParentName = cleanParentName.substring(0, dotIndex);
+                }
+                // 移除可能的 assets/ 或 assets\ 前缀
+                if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
+                    cleanParentName = cleanParentName.substring(7);
                 }
                 try {
                     Album parentAlbum = albumService.getOrCreateAlbumByPath(cleanParentName);
