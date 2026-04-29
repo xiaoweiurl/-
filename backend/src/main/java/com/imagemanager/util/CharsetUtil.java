@@ -4,11 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.mozilla.universalchardet.UniversalDetector;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.charset.UnsupportedCharsetException;
 
 /**
  * 字符编码检测与转换工具类
@@ -118,43 +115,89 @@ public class CharsetUtil {
     /**
      * 尝试 URL 解码
      * 支持 GBK、GB2312、UTF-8 等编码的 URL 编码字符串
+     * 
+     * 关键：URL 编码的 %CC%F9 是 GBK 字节的编码
+     * 需要先 URL 解码得到字节，再用 GBK 解码字节
      */
     private static String tryUrlDecode(String input) {
         if (input == null || !input.contains("%")) {
             return input;
         }
 
-        // 尝试用 UTF-8 解码
-        try {
-            String decoded = URLDecoder.decode(input, StandardCharsets.UTF_8.name());
-            if (isValidChinese(decoded)) {
-                return decoded;
-            }
-        } catch (Exception e) {
-            // 忽略，继续尝试其他编码
+        // 第一步：URL 解码（将 %CC 转为字节 0xCC）
+        // Java URLDecoder 默认用 UTF-8 解码，但我们的输入是 GBK 编码的字节
+        // 所以需要手动解析 %XX 格式
+        
+        byte[] rawBytes = decodePercentEncoding(input);
+        if (rawBytes == null || rawBytes.length == 0) {
+            return input;
         }
-
-        // 尝试用 GBK 解码
-        try {
-            String decoded = URLDecoder.decode(input, "GBK");
-            if (isValidChinese(decoded)) {
-                return decoded;
-            }
-        } catch (Exception e) {
-            // 忽略
+        
+        // 第二步：用中文编码解读字节
+        // 尝试 GBK（最常用）
+        if (isValidChinese(new String(rawBytes, Charset.forName("GBK")))) {
+            return new String(rawBytes, Charset.forName("GBK"));
         }
-
-        // 尝试用 GB2312 解码
+        
+        // 尝试 GB2312
         try {
-            String decoded = URLDecoder.decode(input, "GB2312");
-            if (isValidChinese(decoded)) {
-                return decoded;
+            if (isValidChinese(new String(rawBytes, Charset.forName("GB2312")))) {
+                return new String(rawBytes, Charset.forName("GB2312"));
             }
         } catch (Exception e) {
             // 忽略
         }
-
+        
+        // 尝试 UTF-8
+        try {
+            String utf8Result = new String(rawBytes, StandardCharsets.UTF_8);
+            if (isValidChinese(utf8Result)) {
+                return utf8Result;
+            }
+        } catch (Exception e) {
+            // 忽略
+        }
+        
         return input;
+    }
+    
+    /**
+     * 手动解析 %XX 格式的 URL 编码，转为字节数组
+     * 例如：%CC%F9%C9%ED -> byte[]{0xCC, 0xF9, 0xC9, 0xED}
+     */
+    private static byte[] decodePercentEncoding(String input) {
+        if (input == null) {
+            return null;
+        }
+        
+        // 计算 %XX 的数量
+        int count = 0;
+        for (int i = 0; i < input.length() - 2; i++) {
+            if (input.charAt(i) == '%') {
+                count++;
+                i += 2; // 跳过两个十六进制字符
+            }
+        }
+        
+        if (count == 0) {
+            return null;
+        }
+        
+        byte[] result = new byte[count];
+        int index = 0;
+        
+        for (int i = 0; i < input.length() - 2 && index < count; i++) {
+            if (input.charAt(i) == '%') {
+                try {
+                    String hex = input.substring(i + 1, i + 3);
+                    result[index++] = (byte) Integer.parseInt(hex, 16);
+                } catch (NumberFormatException e) {
+                    // 不是有效的 %XX 格式，跳过
+                }
+            }
+        }
+        
+        return result;
     }
 
     /**
