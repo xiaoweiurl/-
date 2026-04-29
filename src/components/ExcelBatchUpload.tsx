@@ -658,6 +658,11 @@ export default function ExcelBatchUpload({
                       <p className="text-xs text-slate-400">
                         主图 {row.mainImageUrl ? '✓' : '✗'} · 详情图 {row.detailImageUrls.length > 0 ? `${row.detailImageUrls.length}张` : '✗'}
                       </p>
+                      {row.mainImageUrl && (
+                        <p className="text-xs text-slate-500 truncate font-mono" title={row.mainImageUrl}>
+                          主图: Image: [{row.mainImageUrl.substring(0, 30)}...]
+                        </p>
+                      )}
                       {row.category && (
                         <p className="text-xs text-violet-600">
                           分类: {row.category}
