@@ -2,7 +2,6 @@ package com.imagemanager.util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.mozilla.universalchardet.CharsetDetector;
 import org.mozilla.universalchardet.UniversalDetector;
 
 import java.nio.charset.Charset;
@@ -27,16 +26,13 @@ public class CharsetUtil {
 
     /**
      * 检测字符串的真实编码并转换为 UTF-8
-     *
-     * @param input 可能包含乱码或非UTF-8编码的字符串
-     * @return UTF-8编码的中文字符串
      */
     public static String convertToUtf8(String input) {
         if (input == null || input.isEmpty()) {
             return input;
         }
 
-        // 首先检测是否为乱码（包含大量 ? 或 锟斤拷 等典型乱码字符）
+        // 首先检测是否为乱码
         if (looksLikeGarbled(input)) {
             return fixGarbledString(input);
         }
@@ -62,9 +58,6 @@ public class CharsetUtil {
 
     /**
      * 检测字节数组的真实编码并转换为 UTF-8
-     *
-     * @param bytes 原始字节数组
-     * @return UTF-8编码的字符串
      */
     public static String convertBytesToUtf8(byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
@@ -75,7 +68,6 @@ public class CharsetUtil {
         try {
             Charset charset = (detectedCharset != null) ? Charset.forName(detectedCharset) : StandardCharsets.UTF_8;
             String result = new String(bytes, charset);
-            // 如果检测到的不是UTF-8，尝试转换为UTF-8
             if (!"UTF-8".equalsIgnoreCase(detectedCharset) && isValidChinese(result)) {
                 return result;
             }
@@ -94,15 +86,7 @@ public class CharsetUtil {
             return "UTF-8";
         }
 
-        try {
-            CharsetDetector detector = new CharsetDetector();
-            detector.setText(text.getBytes(StandardCharsets.ISO_8859_1));
-            String detected = detector.detect().getName();
-            return detected != null ? detected : "UTF-8";
-        } catch (Exception e) {
-            log.warn("编码检测失败: {}", e.getMessage());
-            return "UTF-8";
-        }
+        return detectCharsetFromBytes(text.getBytes(StandardCharsets.ISO_8859_1));
     }
 
     /**
@@ -131,35 +115,29 @@ public class CharsetUtil {
             return false;
         }
 
-        // 统计乱码特征字符
         int garbledCount = 0;
         for (char c : text.toCharArray()) {
-            // 问号、乱码符号、方框等
-            if (c == '?' || c == '\uFFFD' ||  // � 替换字符
-                    (c >= '\u0080' && c <= '\u00A0') ||  // 控制字符区
-                    (c >= '\u2000' && c <= '\u206F') ||  // 特殊符号区
-                    (c >= '\u2500' && c <= '\u257F')) {   // 制表符/方框符
+            if (c == '?' || c == '\uFFFD' ||
+                    (c >= '\u0080' && c <= '\u00A0') ||
+                    (c >= '\u2000' && c <= '\u206F') ||
+                    (c >= '\u2500' && c <= '\u257F')) {
                 garbledCount++;
             }
         }
 
-        // 乱码字符超过10%认为是乱码
         return garbledCount > text.length() * 0.1;
     }
 
     /**
      * 修复乱码字符串
-     * 尝试用不同的编码解读ISO-8859-1编码的字节
      */
     private static String fixGarbledString(String garbledText) {
         if (garbledText == null) {
             return null;
         }
 
-        // 将字符串视为ISO-8859-1编码，获取其字节
         byte[] bytes = garbledText.getBytes(StandardCharsets.ISO_8859_1);
 
-        // 尝试用中文编码解读
         for (Charset charset : CHINESE_CHARSETS) {
             try {
                 String converted = new String(bytes, charset);
@@ -188,17 +166,14 @@ public class CharsetUtil {
 
         for (char c : text.toCharArray()) {
             totalCount++;
-            // CJK统一汉字范围: \u4E00-\u9FFF
             if (c >= '\u4E00' && c <= '\u9FFF') {
                 chineseCount++;
             }
-            // CJK统一汉字扩展范围
             if (c >= '\u3400' && c <= '\u4DBF') {
                 chineseCount++;
             }
         }
 
-        // 如果包含超过20%的汉字，认为是有效中文
         return totalCount > 0 && chineseCount >= totalCount * 0.2;
     }
 
