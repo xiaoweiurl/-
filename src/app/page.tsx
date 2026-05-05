@@ -799,6 +799,15 @@ export default function Home() {
     }
   }, [pageSize]);
 
+  // 监听筛选条件变化，自动重新加载数据（非高级搜索模式）
+  React.useEffect(() => {
+    // 只有在筛选条件变化且不是高级搜索模式时才重新加载
+    if (!showAdvancedSearch && activeMenuItem !== 'trash' && activeMenuItem !== 'recent' && activeMenuItem !== 'favorites') {
+      console.log('[Home] 筛选条件变化，重新加载数据:', filterState);
+      fetchImages(1, false);
+    }
+  }, [filterState.dateFilter, filterState.typeFilter, filterState.albumFilter, filterState.tagFilter, filterState.keyword]);
+
   // 获取商品的所有图片
   // 加载更多图片
   const handleLoadMore = React.useCallback(() => {
