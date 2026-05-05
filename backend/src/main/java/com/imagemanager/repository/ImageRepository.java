@@ -227,7 +227,7 @@ public interface ImageRepository extends JpaRepository<Image, String> {
      */
     @Query("SELECT i FROM Image i WHERE i.productId IN :productIds AND i.isMainImage = :isMainImage AND i.deleted = :deleted " +
            "AND (:startDate IS NULL OR i.createdAt >= :startDate) " +
-           "AND (:contentType IS NULL OR i.fileType = :contentType)")
+           "AND (:fileType IS NULL OR i.fileType = :fileType)")
     Page<Image> findByProductIdInAndFilters(
         @Param("productIds") List<String> productIds,
         @Param("startDate") LocalDateTime startDate,
@@ -241,7 +241,7 @@ public interface ImageRepository extends JpaRepository<Image, String> {
      */
     @Query("SELECT i FROM Image i WHERE i.isMainImage = :isMainImage AND i.deleted = :deleted " +
            "AND (:startDate IS NULL OR i.createdAt >= :startDate) " +
-           "AND (:contentType IS NULL OR i.fileType = :contentType)")
+           "AND (:fileType IS NULL OR i.fileType = :fileType)")
     Page<Image> findByFilters(
         @Param("startDate") LocalDateTime startDate,
         @Param("fileType") String contentType,
