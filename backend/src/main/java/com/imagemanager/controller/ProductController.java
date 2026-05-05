@@ -113,11 +113,11 @@ public class ProductController {
             // 调用 repository 查询
             if (productIds != null) {
                 result = imageRepository.findByProductIdInAndFilters(
-                    productIds, startDate, contentType, true, false, pageRequest
+                    productIds, startDate, fileType, true, false, pageRequest
                 );
             } else {
                 result = imageRepository.findByFilters(
-                    startDate, contentType, true, false, pageRequest
+                    startDate, fileType, true, false, pageRequest
                 );
             }
         }
