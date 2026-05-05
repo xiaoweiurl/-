@@ -114,8 +114,17 @@ public class ProductController {
             if (productIds != null) {
                 // 有商品筛选，使用简单查询
                 result = imageRepository.findByProductIdInAndIsMainImageAndDeleted(productIds, true, false, pageRequest);
+            } else if (startDate != null && contentType != null) {
+                // 既有日期筛选又有类型筛选
+                result = imageRepository.findByCreatedAtAfterAndFileTypeAndDeletedFalseAndIsMainImageTrue(startDate, contentType, pageRequest);
+            } else if (startDate != null) {
+                // 只有日期筛选
+                result = imageRepository.findByCreatedAtAfterAndDeletedFalseAndIsMainImageTrue(startDate, pageRequest);
+            } else if (contentType != null) {
+                // 只有类型筛选
+                result = imageRepository.findByFileTypeAndDeletedFalseAndIsMainImageTrue(contentType, pageRequest);
             } else {
-                // 没有商品筛选，直接查询所有主图
+                // 没有筛选，直接查询所有主图
                 result = imageRepository.findByIsMainImageAndDeleted(true, false, pageRequest);
             }
         }

@@ -130,6 +130,12 @@ public interface ImageRepository extends JpaRepository<Image, String> {
     Page<Image> findByCreatedAtAfterAndDeletedFalseAndIsMainImageTrue(@Param("createdAt") LocalDateTime createdAt, Pageable pageable);
     
     /**
+     * 按日期和文件类型查询主图
+     */
+    @Query("SELECT i FROM Image i WHERE i.deleted = false AND i.isMainImage = true AND i.createdAt > :createdAt AND i.fileType = :fileType")
+    Page<Image> findByCreatedAtAfterAndFileTypeAndDeletedFalseAndIsMainImageTrue(@Param("createdAt") LocalDateTime createdAt, @Param("fileType") String fileType, Pageable pageable);
+    
+    /**
      * 按文件类型查询
      */
     Page<Image> findByFileTypeAndDeletedFalse(String fileType, Pageable pageable);
