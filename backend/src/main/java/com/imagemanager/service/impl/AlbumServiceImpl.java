@@ -212,51 +212,23 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public Map<String, Object> batchDeleteAlbums(List<String> ids) {
-        log.info("批量删除相册，数量：{}", ids.size());
+        log.info("批量删除相册（级联删除），数量：{}", ids.size());
         
         int successCount = 0;
         int failCount = 0;
+        int deletedAlbumCount = 0;
+        int deletedImageCount = 0;
         List<Map<String, String>> failedItems = new ArrayList<>();
+        Set<String> processedAlbumIds = new HashSet<>();
         
         for (String id : ids) {
             try {
-                Album album = albumRepository.findById(id).orElse(null);
-                if (album == null) {
-                    failCount++;
-                    Map<String, String> failItem = new HashMap<>();
-                    failItem.put("id", id);
-                    failItem.put("reason", "相册不存在");
-                    failedItems.add(failItem);
-                    continue;
-                }
-                
-                // 检查是否有子相册
-                List<Album> childAlbums = albumRepository.findByParentIdOrderBySortOrderAsc(id);
-                if (!childAlbums.isEmpty()) {
-                    failCount++;
-                    Map<String, String> failItem = new HashMap<>();
-                    failItem.put("id", id);
-                    failItem.put("name", album.getName());
-                    failItem.put("reason", "该相册下还有 " + childAlbums.size() + " 个子相册");
-                    failedItems.add(failItem);
-                    continue;
-                }
-                
-                // 检查相册下是否有图片
-                int imageCount = imageRepository.countByAlbumIdAndDeletedFalse(id);
-                if (imageCount > 0) {
-                    failCount++;
-                    Map<String, String> failItem = new HashMap<>();
-                    failItem.put("id", id);
-                    failItem.put("name", album.getName());
-                    failItem.put("reason", "相册下仍有 " + imageCount + " 张图片");
-                    failedItems.add(failItem);
-                    continue;
-                }
-                
-                albumRepository.deleteById(id);
+                // 递归删除相册及其所有子相册（包括图片）
+                int[] counts = deleteAlbumRecursively(id, processedAlbumIds);
+                deletedAlbumCount += counts[0];
+                deletedImageCount += counts[1];
                 successCount++;
-                log.info("删除相册成功：{} ({})", album.getName(), id);
+                log.info("级联删除相册成功：{}，删除相册数：{}，图片数：{}", id, counts[0], counts[1]);
             } catch (Exception e) {
                 failCount++;
                 Map<String, String> failItem = new HashMap<>();
@@ -270,10 +242,53 @@ public class AlbumServiceImpl implements AlbumService {
         Map<String, Object> result = new HashMap<>();
         result.put("successCount", successCount);
         result.put("failCount", failCount);
+        result.put("deletedAlbumCount", deletedAlbumCount);
+        result.put("deletedImageCount", deletedImageCount);
         result.put("failedItems", failedItems);
-        log.info("批量删除完成，成功：{} 张，失败：{} 张", successCount, failCount);
+        log.info("批量删除完成，成功：{} 个主相册，删除了 {} 个相册和 {} 张图片",
+                 successCount, deletedAlbumCount, deletedImageCount);
         
         return result;
+    }
+    
+    /**
+     * 递归删除相册及其所有子相册和图片
+     * @param albumId 相册ID
+     * @param processedAlbumIds 已处理的相册ID集合（防止重复处理）
+     * @return int[] [删除的相册数, 删除的图片数]
+     */
+    private int[] deleteAlbumRecursively(String albumId, Set<String> processedAlbumIds) {
+        if (processedAlbumIds.contains(albumId)) {
+            return new int[]{0, 0};
+        }
+        
+        int totalAlbumCount = 0;
+        int totalImageCount = 0;
+        
+        // 1. 先递归删除所有子相册（从最深层开始）
+        List<Album> childAlbums = albumRepository.findByParentIdOrderBySortOrderAsc(albumId);
+        for (Album childAlbum : childAlbums) {
+            int[] counts = deleteAlbumRecursively(childAlbum.getId(), processedAlbumIds);
+            totalAlbumCount += counts[0];
+            totalImageCount += counts[1];
+        }
+        
+        // 2. 删除当前相册下的所有图片（批量软删除）
+        List<Image> images = imageRepository.findByAlbumIdAndDeletedFalse(albumId);
+        if (!images.isEmpty()) {
+            List<String> imageIds = images.stream().map(Image::getId).collect(Collectors.toList());
+            imageRepository.softDeleteByIds(imageIds);
+            totalImageCount += images.size();
+        }
+        
+        // 3. 删除当前相册本身
+        albumRepository.findById(albumId).ifPresent(album -> {
+            albumRepository.deleteById(albumId);
+            processedAlbumIds.add(albumId);
+        });
+        totalAlbumCount++;
+        
+        return new int[]{totalAlbumCount, totalImageCount};
     }
     
     @Override

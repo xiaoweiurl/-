@@ -91,6 +91,11 @@ public interface ImageRepository extends JpaRepository<Image, String> {
      * 按相册查询未删除的图片
      */
     Page<Image> findByAlbumIdAndDeletedFalse(String albumId, Pageable pageable);
+    
+    /**
+     * 按相册查询未删除的图片（无分页，用于级联删除）
+     */
+    List<Image> findByAlbumIdAndDeletedFalse(String albumId);
 
     /**
      * 按相册查询未删除的主图（商品数量）
