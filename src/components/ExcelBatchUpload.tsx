@@ -34,7 +34,7 @@ interface ExcelRow {
   detailImageUrls: string[]; // 图片地址（详情图，可能多张）
   category?: string;
   description?: string;
-  status: 'pending' | 'downloading' | 'success' | 'error';
+  status: 'pending' | 'downloading' | 'success' | 'error' | 'skipped';
   error?: string;
 }
 
@@ -513,7 +513,7 @@ export default function ExcelBatchUpload({
             if (status.success === 0 && status.skipped > 0 && status.fail === 0) {
               return {
                 ...row,
-                status: 'success' as const,
+                status: 'skipped' as const,
                 error: `图片已存在（跳过${status.skipped}张）`,
               };
             }
@@ -718,6 +718,13 @@ export default function ExcelBatchUpload({
                           下载成功（主图 + {row.detailImageUrls.length}张详情图）
                         </p>
                       )}
+                      {row.status === 'skipped' && (
+                        <p className="text-xs text-amber-500 flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {row.error}
+                        </p>
+                      )}
+
                       {row.status === 'error' && !row.error?.includes('已存在') && (
                         <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
                           <AlertCircle className="w-3 h-3" />
