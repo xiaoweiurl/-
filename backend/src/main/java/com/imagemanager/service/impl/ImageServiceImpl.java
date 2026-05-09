@@ -1317,6 +1317,16 @@ public class ImageServiceImpl implements ImageService {
                 boolean isMainImage = (i == 0); // 第一张是主图
                 
                 try {
+                    // 检查图片URL是否已存在，避免重复下载
+                    if (imageRepository.existsByUrlAndDeletedFalse(imageUrl)) {
+                        log.info("图片URL已存在，跳过: {}", imageUrl);
+                        response.setSuccess(true);
+                        response.setMessage("图片已存在，跳过");
+                        successCount++;
+                        results.add(response);
+                        continue;
+                    }
+                    
                     // 从URL下载图片
                     java.net.URL url = new java.net.URL(imageUrl);
                     java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
