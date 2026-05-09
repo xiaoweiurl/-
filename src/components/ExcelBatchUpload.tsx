@@ -217,10 +217,11 @@ export default function ExcelBatchUpload({
         const firstLevel = excelFileNameRef.current ? excelFileNameRef.current.replace(/\.xlsx$/i, '') : '';
         const categoryColumn = String(row[0] || '').trim(); // A列: 功能内衣_男士专区_
         
-        // 分割类别列（下划线分隔），过滤空值
-        const subCategories = categoryColumn.split('_').map(s => s.trim()).filter(s => s);
+        // 分割类别列（下划线分隔），反转顺序后连接
+        // A列值: 功能内衣_男士专区_ → 反转后: 男士专区_功能内衣
+        const subCategories = categoryColumn.split('_').map(s => s.trim()).filter(s => s).reverse();
         
-        // 构建完整分类路径: X-BIONIC-功能内衣-男士专区
+        // 构建完整分类路径: X-BIONIC-男士专区-功能内衣
         const categoryParts = [firstLevel, ...subCategories];
         const category = categoryParts.join('-');
         
