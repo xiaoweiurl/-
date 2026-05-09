@@ -490,7 +490,7 @@ export default function ExcelBatchUpload({
                   });
                 }
               }
-            } else if (item.skipped) {
+            } else if (item.skipped || (item.error && item.error.includes('已存在'))) {
               // 图片已存在，跳过
               status.skipped++;
             } else {
@@ -509,11 +509,11 @@ export default function ExcelBatchUpload({
             const status = productStatus.get(row.id);
             if (!status) return row;
 
-            // 如果全部跳过，显示"已跳过"
+            // 如果全部跳过，显示"已存在"
             if (status.success === 0 && status.skipped > 0 && status.fail === 0) {
               return {
                 ...row,
-                status: 'error' as const,
+                status: 'success' as const,
                 error: `图片已存在（跳过${status.skipped}张）`,
               };
             }
@@ -525,7 +525,7 @@ export default function ExcelBatchUpload({
             // 构建错误消息
             let errorMsg: string | undefined;
             if (status.hasError) {
-              errorMsg = `部分失败（成功${status.success}张，失败${status.fail}张）`;
+              errorMsg = `部分失败（成功${status.success}张，失败${status.fail}张，跳过${status.skipped}张）`;
             } else if (status.skipped > 0) {
               errorMsg = `成功${status.success}张，跳过${status.skipped}张`;
             }
@@ -718,10 +718,16 @@ export default function ExcelBatchUpload({
                           下载成功（主图 + {row.detailImageUrls.length}张详情图）
                         </p>
                       )}
-                      {row.status === 'error' && (
+                      {row.status === 'error' && !row.error?.includes('已存在') && (
                         <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
                           <AlertCircle className="w-3 h-3" />
                           {row.error || '下载失败'}
+                        </p>
+                      )}
+                      {row.status === 'error' && row.error?.includes('已存在') && (
+                        <p className="text-xs text-amber-500 flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {row.error}
                         </p>
                       )}
                     </div>
