@@ -210,9 +210,22 @@ export default function ExcelBatchUpload({
         // 按列索引提取数据（根据实际表头）
         // 列A(0): 分类, 列B(1): 商品名称, 列C(2): 价格, 列D(3): 商品详情（主图）, 列E+(4): 详情图
         
-        // 解析分类 - 直接发送原始值，让后端处理 URL 编码
-        const rawCategory = String(row[0] || '').trim();
-        const category = rawCategory; // 不在前端解码，后端统一处理
+        // 解析分类层级 - 把所有分类列（A、B、C...）用 - 连接
+        // 格式: X-BIONIC-男士专区-功能内衣
+        const categoryParts: string[] = [];
+        // 假设前几列都是分类，直到遇到商品名称或价格列
+        // A列(0): 一级分类, B列(1): 二级分类, C列(2): 三级分类
+        for (let colIndex = 0; colIndex < Math.min(row.length, 10); colIndex++) {
+          const value = String(row[colIndex] || '').trim();
+          // 如果该列有值且不是URL（URL格式特殊判断）
+          if (value && !value.startsWith('Image:') && !value.startsWith('//') && !value.startsWith('http')) {
+            // 检查是否是数字（价格）或其他非分类内容
+            if (!/^\d+(\.\d+)?$/.test(value)) {
+              categoryParts.push(value);
+            }
+          }
+        }
+        const category = categoryParts.join('-'); // 用 - 连接: X-BIONIC-男士专区-功能内衣
         
         // 解析商品名称 - 直接发送原始值，让后端处理 URL 编码
         const rawProductName = String(row[1] || '').trim();
