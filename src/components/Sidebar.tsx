@@ -95,9 +95,13 @@ function buildAlbumHierarchy(albums: AlbumInfo[]): MenuItem[] {
   
   // 转换为 MenuItem 格式
   function albumToMenuItem(album: AlbumInfo): MenuItem {
+    // 从 name 中提取最后一部分作为显示名称（如 "松野湃/速干T恤" -> "速干T恤"）
+    const displayName = album.name.includes('/') 
+      ? album.name.split('/').pop() || album.name 
+      : album.name;
     return {
       id: album.id,
-      label: album.name,
+      label: displayName,
       icon: Image as React.ElementType, // 图标组件
       count: album.count,
       isSystem: album.isSystem,
