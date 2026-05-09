@@ -330,8 +330,7 @@ public class ImageServiceImpl implements ImageService {
         } else if (request.getFileType() != null) {
             imagePage = imageRepository.findByFileTypeAndDeletedFalseAndIsMainImageTrue(request.getFileType(), pageable);
         } else {
-            // 默认查询所有未删除的图片（包括主图和详情图）
-            imagePage = imageRepository.findByDeletedFalse(pageable);
+            imagePage = imageRepository.findByDeletedFalseAndIsMainImageTrue(pageable);
         }
         
         log.info("查询完成，返回 {} 条记录，总计 {} 条", 
