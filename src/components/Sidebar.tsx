@@ -390,12 +390,16 @@ export default function Sidebar({
       
       if (result.success) {
         const successCount = result.data?.successCount || 0;
+        // 关闭对话框
+        setIsBatchDeleteDialogOpen(false);
+        
         const failCount = result.data?.failCount || 0;
         
-        // 成功提示使用绿色
-        toast.success(`成功删除 ${successCount} 个相册`, {
+        // 显示成功提示
+        toast(`成功删除 ${successCount} 个相册`, {
           style: { background: '#22c55e', color: 'white' },
         });
+        
         if (failCount > 0) {
           const failedItems = result.data?.failedItems || [];
           const reasons = failedItems.slice(0, 3).map((item: any) => `${item.name || item.id}: ${item.reason}`).join('；');
@@ -405,7 +409,6 @@ export default function Sidebar({
         // 清空选择并退出批量模式
         setSelectedAlbumIds(new Set());
         setBatchSelectMode(false);
-        setIsBatchDeleteDialogOpen(false);
         
         // 刷新相册列表和图片数据
         if (onAlbumCreated) {
