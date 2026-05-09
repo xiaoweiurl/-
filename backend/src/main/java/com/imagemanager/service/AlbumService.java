@@ -3,6 +3,7 @@ package com.imagemanager.service;
 import com.imagemanager.entity.Album;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 相册服务接口
@@ -21,6 +22,11 @@ public interface AlbumService {
      * 根据ID获取相册
      */
     Album getAlbumById(String id);
+    
+    /**
+     * 根据名称查找相册（精确匹配）
+     */
+    Optional<Album> findByName(String name);
     
     /**
      * 创建相册

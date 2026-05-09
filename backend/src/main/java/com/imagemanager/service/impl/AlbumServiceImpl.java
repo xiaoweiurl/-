@@ -43,6 +43,14 @@ public class AlbumServiceImpl implements AlbumService {
                 .orElseThrow(() -> new RuntimeException("相册不存在"));
     }
     
+    /**
+     * 根据名称查找相册（精确匹配）
+     */
+    @Override
+    public Optional<Album> findByName(String name) {
+        return albumRepository.findByUserIdAndName("user-1", name);
+    }
+    
     @Override
     public Album createAlbum(String name, String description) {
         return createAlbum(name, description, null, null);

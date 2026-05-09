@@ -23,6 +23,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -1193,41 +1195,34 @@ public class ImageServiceImpl implements ImageService {
                 log.info("Excel导入 - 原始分类: '{}', 解码后: '{}'", item.getCategory().trim(), category);
                 log.info("Excel导入 - 处理分类: {}, 父相册: {}", category, parentAlbumName);
                 
-                // 构建完整层级路径：如果有父相册名称，分类在父相册下创建
-                String fullCategoryPath = category;
-                if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
-                    // 移除文件名中的扩展名（如 .xlsx）
-                    String cleanParentName = parentAlbumName;
-                    int dotIndex = cleanParentName.lastIndexOf('.');
-                    if (dotIndex > 0) {
-                        cleanParentName = cleanParentName.substring(0, dotIndex);
+                // 首先检查数据库中是否已有该名称的相册（精确匹配名称）
+                Optional<Album> existingByName = albumService.findByName(category);
+                if (existingByName.isPresent()) {
+                    Album album = existingByName.get();
+                    albumId = album.getId();
+                    albumName = album.getFullName() != null ? album.getFullName() : album.getName();
+                    log.info("Excel导入 - 精确匹配到已有相册: ID={}, 名称={}", albumId, albumName);
+                } else {
+                    // 数据库中没有该名称的相册，构建完整层级路径并创建
+                    String fullCategoryPath = category;
+                    if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
+                        // 移除文件名中的扩展名（如 .xlsx）
+                        String cleanParentName = parentAlbumName;
+                        int dotIndex = cleanParentName.lastIndexOf('.');
+                        if (dotIndex > 0) {
+                            cleanParentName = cleanParentName.substring(0, dotIndex);
+                        }
+                        // 移除可能的 assets/ 或 assets\ 前缀
+                        if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
+                            cleanParentName = cleanParentName.substring(7);
+                        }
+                        // 处理父相册名称的 URL 编码
+                        cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
+                        fullCategoryPath = cleanParentName + "/" + category;
+                        log.info("Excel导入 - 构建层级路径: {}", fullCategoryPath);
                     }
-                    // 移除可能的 assets/ 或 assets\ 前缀
-                    if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
-                        cleanParentName = cleanParentName.substring(7);
-                    }
-                    // 处理父相册名称的 URL 编码
-                    cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
-                    fullCategoryPath = cleanParentName + "/" + category;
-                    log.info("Excel导入 - 构建层级路径: {}", fullCategoryPath);
-                }
-                
-                // 首先尝试匹配已有相册（精确匹配或包含匹配）
-                for (Album album : albums) {
-                    String albumPath = album.getPath() != null ? album.getPath() : album.getName();
-                    // 尝试匹配原始分类名或完整层级路径
-                    if (albumPath.equals(fullCategoryPath) || albumPath.equals(category) || 
-                        album.getName().equals(category) || album.getName().contains(category)) {
-                        albumId = album.getId();
-                        albumName = album.getFullName() != null ? album.getFullName() : album.getName();
-                        log.info("Excel导入 - 匹配到已有相册: ID={}, 名称={}", albumId, albumName);
-                        break;
-                    }
-                }
-                
-                // 如果没有匹配到，尝试创建/获取层级相册
-                if (albumId == null) {
-                    log.info("Excel导入 - 未匹配到相册，开始创建层级相册: {}", fullCategoryPath);
+                    
+                    log.info("Excel导入 - 数据库中没有该相册，开始创建: {}", fullCategoryPath);
                     try {
                         // 尝试解析层级结构并创建相册
                         Album hierarchyAlbum = albumService.getOrCreateAlbumByPath(fullCategoryPath);
