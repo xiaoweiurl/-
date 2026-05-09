@@ -62,7 +62,7 @@ public class AlbumServiceImpl implements AlbumService {
         Album parent;
         if (parentOpt.isEmpty()) {
             // 父相册不存在，创建
-            parent = createAlbum(parentName, userId, null, 0);
+            parent = createAlbum(parentName, null, new ArrayList<>(), null);
             log.info("创建父相册: {}", parentName);
         } else {
             parent = parentOpt.get();
@@ -77,7 +77,7 @@ public class AlbumServiceImpl implements AlbumService {
         }
         
         // 3. 子相册不存在，创建新的
-        Album child = createAlbum(childName, userId, parent.getId(), parent.getId() != null ? parent.getSortOrder() : 0);
+        Album child = createAlbum(childName, null, new ArrayList<>(), null);
         log.info("创建子相册: {}/{}", parentName, childName);
         return child;
     }
