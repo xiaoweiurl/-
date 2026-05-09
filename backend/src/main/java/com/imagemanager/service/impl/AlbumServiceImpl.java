@@ -211,6 +211,72 @@ public class AlbumServiceImpl implements AlbumService {
     }
     
     @Override
+    public Map<String, Object> batchDeleteAlbums(List<String> ids) {
+        log.info("批量删除相册，数量：{}", ids.size());
+        
+        int successCount = 0;
+        int failCount = 0;
+        List<Map<String, String>> failedItems = new ArrayList<>();
+        
+        for (String id : ids) {
+            try {
+                Album album = albumRepository.findById(id).orElse(null);
+                if (album == null) {
+                    failCount++;
+                    Map<String, String> failItem = new HashMap<>();
+                    failItem.put("id", id);
+                    failItem.put("reason", "相册不存在");
+                    failedItems.add(failItem);
+                    continue;
+                }
+                
+                // 检查是否有子相册
+                List<Album> childAlbums = albumRepository.findByParentIdOrderBySortOrderAsc(id);
+                if (!childAlbums.isEmpty()) {
+                    failCount++;
+                    Map<String, String> failItem = new HashMap<>();
+                    failItem.put("id", id);
+                    failItem.put("name", album.getName());
+                    failItem.put("reason", "该相册下还有 " + childAlbums.size() + " 个子相册");
+                    failedItems.add(failItem);
+                    continue;
+                }
+                
+                // 检查相册下是否有图片
+                int imageCount = imageRepository.countByAlbumIdAndDeletedFalse(id);
+                if (imageCount > 0) {
+                    failCount++;
+                    Map<String, String> failItem = new HashMap<>();
+                    failItem.put("id", id);
+                    failItem.put("name", album.getName());
+                    failItem.put("reason", "相册下仍有 " + imageCount + " 张图片");
+                    failedItems.add(failItem);
+                    continue;
+                }
+                
+                albumRepository.deleteById(id);
+                successCount++;
+                log.info("删除相册成功：{} ({})", album.getName(), id);
+            } catch (Exception e) {
+                failCount++;
+                Map<String, String> failItem = new HashMap<>();
+                failItem.put("id", id);
+                failItem.put("reason", e.getMessage());
+                failedItems.add(failItem);
+                log.error("删除相册失败：{}，错误：{}", id, e.getMessage());
+            }
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("successCount", successCount);
+        result.put("failCount", failCount);
+        result.put("failedItems", failedItems);
+        log.info("批量删除完成，成功：{} 张，失败：{} 张", successCount, failCount);
+        
+        return result;
+    }
+    
+    @Override
     public Integer getImageCount(String albumId) {
         return (int) imageRepository.countByAlbumIdAndDeletedFalse(albumId);
     }

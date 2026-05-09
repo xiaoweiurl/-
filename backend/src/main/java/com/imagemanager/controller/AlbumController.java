@@ -94,6 +94,17 @@ public class AlbumController {
     }
     
     /**
+     * 批量删除相册
+     */
+    @PostMapping("/batch-delete")
+    @Operation(summary = "批量删除相册", description = "批量删除多个相册，返回删除结果")
+    public ApiResponse<Map<String, Object>> batchDeleteAlbums(@RequestBody BatchDeleteRequest request) {
+        log.info("批量删除相册，数量：{}", request.getIds().size());
+        Map<String, Object> result = albumService.batchDeleteAlbums(request.getIds());
+        return ApiResponse.success("批量删除完成", result);
+    }
+    
+    /**
      * 批量更新所有相册的匹配模式
      */
     @PutMapping("/matching-mode")
@@ -189,4 +200,11 @@ class GetOrCreateByPathRequest {
     
     public String getPath() { return path; }
     public void setPath(String path) { this.path = path; }
+}
+
+class BatchDeleteRequest {
+    private List<String> ids;
+    
+    public List<String> getIds() { return ids; }
+    public void setIds(List<String> ids) { this.ids = ids; }
 }

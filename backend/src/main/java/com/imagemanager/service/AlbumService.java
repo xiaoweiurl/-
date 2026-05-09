@@ -112,4 +112,11 @@ public interface AlbumService {
      * @return 子相册列表
      */
     List<Album> getChildAlbums(String parentId);
+    
+    /**
+     * 批量删除相册
+     * @param ids 相册ID列表
+     * @return 删除结果：成功数量、失败数量、失败原因
+     */
+    java.util.Map<String, Object> batchDeleteAlbums(java.util.List<String> ids);
 }
