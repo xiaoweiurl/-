@@ -1195,49 +1195,39 @@ public class ImageServiceImpl implements ImageService {
                 log.info("Excel导入 - 原始分类: '{}', 解码后: '{}'", item.getCategory().trim(), category);
                 log.info("Excel导入 - 处理分类: {}, 父相册: {}", category, parentAlbumName);
                 
-                // 首先检查数据库中是否已有该名称的相册（精确匹配名称）
-                Optional<Album> existingByName = albumService.findByName(category);
-                if (existingByName.isPresent()) {
-                    Album album = existingByName.get();
-                    albumId = album.getId();
-                    albumName = album.getFullName() != null ? album.getFullName() : album.getName();
-                    log.info("Excel导入 - 精确匹配到已有相册: ID={}, 名称={}", albumId, albumName);
-                } else {
-                    // 数据库中没有该名称的相册，构建完整层级路径并创建
-                    String fullCategoryPath = category;
-                    if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
-                        // 移除文件名中的扩展名（如 .xlsx）
-                        String cleanParentName = parentAlbumName;
-                        int dotIndex = cleanParentName.lastIndexOf('.');
-                        if (dotIndex > 0) {
-                            cleanParentName = cleanParentName.substring(0, dotIndex);
-                        }
-                        // 移除可能的 assets/ 或 assets\ 前缀
-                        if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
-                            cleanParentName = cleanParentName.substring(7);
-                        }
-                        // 处理父相册名称的 URL 编码
-                        cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
-                        fullCategoryPath = cleanParentName + "/" + category;
-                        log.info("Excel导入 - 构建层级路径: {}", fullCategoryPath);
+                // 处理父相册名称
+                String cleanParentName = null;
+                if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
+                    // 移除文件名中的扩展名（如 .xlsx）
+                    cleanParentName = parentAlbumName;
+                    int dotIndex = cleanParentName.lastIndexOf('.');
+                    if (dotIndex > 0) {
+                        cleanParentName = cleanParentName.substring(0, dotIndex);
                     }
-                    
-                    log.info("Excel导入 - 数据库中没有该相册，开始创建: {}", fullCategoryPath);
-                    try {
-                        // 尝试解析层级结构并创建相册
-                        Album hierarchyAlbum = albumService.getOrCreateAlbumByPath(fullCategoryPath);
-                        if (hierarchyAlbum != null) {
-                            albumId = hierarchyAlbum.getId();
-                            albumName = hierarchyAlbum.getFullName() != null ? hierarchyAlbum.getFullName() : hierarchyAlbum.getName();
-                            // 刷新相册列表
-                            albums = albumService.getAllAlbums();
-                            log.info("Excel导入 - 创建/获取层级相册成功: ID={}, 名称={}, path={}", albumId, albumName, hierarchyAlbum.getPath());
-                        } else {
-                            log.warn("Excel导入 - 创建层级相册返回null: {}", fullCategoryPath);
-                        }
-                    } catch (Exception e) {
-                        log.error("Excel导入 - 创建层级相册失败: {}", e.getMessage(), e);
+                    // 移除可能的 assets/ 或 assets\ 前缀
+                    if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
+                        cleanParentName = cleanParentName.substring(7);
                     }
+                    // 处理父相册名称的 URL 编码
+                    cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
+                }
+                
+                // 使用新的方法：先查找父相册+子相册组合，如果存在就直接复用
+                try {
+                    Album targetAlbum = albumService.getOrCreateAlbumByParentAndName(
+                            cleanParentName != null ? cleanParentName : "", 
+                            category, 
+                            "user-1"
+                    );
+                    if (targetAlbum != null) {
+                        albumId = targetAlbum.getId();
+                        albumName = targetAlbum.getFullName() != null ? targetAlbum.getFullName() : targetAlbum.getName();
+                        // 刷新相册列表
+                        albums = albumService.getAllAlbums();
+                        log.info("Excel导入 - 获取/创建相册成功: ID={}, 名称={}", albumId, albumName);
+                    }
+                } catch (Exception e) {
+                    log.error("Excel导入 - 获取/创建相册失败: {}", e.getMessage(), e);
                 }
             }
             

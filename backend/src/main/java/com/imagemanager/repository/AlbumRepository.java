@@ -95,6 +95,12 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     List<Album> findByUserIdAndPathContaining(String userId, String pathKeyword);
     
     /**
+     * 根据父相册名称+子相册名称精确查找相册
+     * 用于判断导入时相册是否已存在
+     */
+    Optional<Album> findByUserIdAndNameAndParentId(String userId, String name, String parentId);
+    
+    /**
      * 查询所有子相册（包括深层级）
      */
     @Query("SELECT a FROM Album a WHERE a.path LIKE CONCAT(:pathPrefix, '%') AND a.userId = :userId")

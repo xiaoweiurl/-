@@ -51,6 +51,37 @@ public class AlbumServiceImpl implements AlbumService {
         return albumRepository.findByUserIdAndName("user-1", name);
     }
     
+    /**
+     * 根据父相册和子相册名称查找或创建相册
+     * 如果父相册+子相册组合已存在，直接返回；否则创建新的
+     */
+    @Override
+    public Album getOrCreateAlbumByParentAndName(String parentName, String childName, String userId) {
+        // 1. 查找父相册
+        Optional<Album> parentOpt = albumRepository.findByUserIdAndName(userId, parentName);
+        Album parent;
+        if (parentOpt.isEmpty()) {
+            // 父相册不存在，创建
+            parent = createAlbum(parentName, userId, null, 0);
+            log.info("创建父相册: {}", parentName);
+        } else {
+            parent = parentOpt.get();
+        }
+        
+        // 2. 查找子相册（通过父相册ID精确匹配）
+        Optional<Album> childOpt = albumRepository.findByUserIdAndNameAndParentId(userId, childName, parent.getId());
+        if (childOpt.isPresent()) {
+            // 子相册已存在，直接返回
+            log.info("找到已有子相册: {}/{}", parentName, childName);
+            return childOpt.get();
+        }
+        
+        // 3. 子相册不存在，创建新的
+        Album child = createAlbum(childName, userId, parent.getId(), parent.getId() != null ? parent.getSortOrder() : 0);
+        log.info("创建子相册: {}/{}", parentName, childName);
+        return child;
+    }
+    
     @Override
     public Album createAlbum(String name, String description) {
         return createAlbum(name, description, null, null);

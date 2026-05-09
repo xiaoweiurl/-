@@ -29,6 +29,12 @@ public interface AlbumService {
     Optional<Album> findByName(String name);
     
     /**
+     * 根据父相册和子相册名称查找或创建相册
+     * 如果父相册+子相册组合已存在，直接返回；否则创建新的
+     */
+    Album getOrCreateAlbumByParentAndName(String parentName, String childName, String userId);
+    
+    /**
      * 创建相册
      */
     Album createAlbum(String name, String description, List<String> keywords);
