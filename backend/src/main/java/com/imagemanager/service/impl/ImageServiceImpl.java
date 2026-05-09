@@ -1321,7 +1321,8 @@ public class ImageServiceImpl implements ImageService {
                     if (imageRepository.existsByUrlAndDeletedFalse(imageUrl)) {
                         log.info("图片URL已存在，跳过: {}", imageUrl);
                         response.setSuccess(true);
-                        response.setMessage("图片已存在，跳过");
+                        response.setSkipped(true);
+                        response.setError("图片已存在，跳过");
                         successCount++;
                         results.add(response);
                         continue;
