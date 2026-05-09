@@ -210,20 +210,10 @@ export default function ExcelBatchUpload({
         // 按列索引提取数据（根据实际表头）
         // 列A(0): 分类, 列B(1): 商品名称, 列C(2): 价格, 列D(3): 商品详情（主图）, 列E+(4): 详情图
         
-        // 解析分类层级 - 根据实际数据结构：
-        // 文件名(X-BIONIC) = 第一层父相册
-        // A列值(功能内衣_男士专区_) = 用下划线分隔的子相册
-        // 完整路径: X-BIONIC-功能内衣-男士专区
-        const firstLevel = excelFileNameRef.current ? excelFileNameRef.current.replace(/\.xlsx$/i, '') : '';
-        const categoryColumn = String(row[0] || '').trim(); // A列: 功能内衣_男士专区_
-        
-        // 分割类别列（下划线分隔），反转顺序后连接
-        // A列值: 功能内衣_男士专区_ → 反转后: 男士专区_功能内衣
-        const subCategories = categoryColumn.split('_').map(s => s.trim()).filter(s => s).reverse();
-        
-        // 构建完整分类路径: X-BIONIC-男士专区-功能内衣
-        const categoryParts = [firstLevel, ...subCategories];
-        const category = categoryParts.join('-');
+        // 分类 - 直接使用 A 列的值作为第二层级相册名称
+        // 避免拼接文件名和分类，导致出现 "松野湃 - 副本-速干T恤" 这样的重复名称
+        const categoryColumn = String(row[0] || '').trim(); // A列: 速干T恤
+        const category = categoryColumn || undefined;
         
         // 商品名称 - B列才是商品名称
         const rawProductName = String(row[1] || '').trim(); // B列
