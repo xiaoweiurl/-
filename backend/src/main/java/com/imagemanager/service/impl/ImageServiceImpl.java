@@ -462,7 +462,7 @@ public class ImageServiceImpl implements ImageService {
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
-                    .originalUrl(imageUrl)
+                    .originalUrl(originalUrl != null ? originalUrl : imageUrl)
                     .build();
             
             image = imageRepository.save(image);
@@ -912,7 +912,7 @@ public class ImageServiceImpl implements ImageService {
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
-                    .originalUrl(imageUrl)
+                    .originalUrl(originalUrl != null ? originalUrl : imageUrl)
                     .build();
             
             image = imageRepository.save(image);
@@ -1406,7 +1406,7 @@ public class ImageServiceImpl implements ImageService {
                             );
 
                         // 保存图片
-                        Image image = uploadSingleImageWithAI(file, albums, fileName, albumId, null);
+                        Image image = uploadSingleImageWithAI(file, albums, fileName, albumId, null, imageUrl);
                         
                         // 更新商品相关信息
                         if (image != null) {
@@ -1603,7 +1603,7 @@ public class ImageServiceImpl implements ImageService {
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
-                    .originalUrl(imageUrl)
+                    .originalUrl(originalUrl != null ? originalUrl : imageUrl)
                     .build();
             
             image = imageRepository.save(image);
