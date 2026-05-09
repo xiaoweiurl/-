@@ -62,8 +62,27 @@ public class AlbumServiceImpl implements AlbumService {
         Album parent;
         if (parentOpt.isEmpty()) {
             // 父相册不存在，创建
-            parent = createAlbum(parentName, null, new ArrayList<>(), null);
-            log.info("创建父相册: {}", parentName);
+            if (parentName == null || parentName.trim().isEmpty()) {
+                // 没有父相册名，作为顶级相册
+                parent = null;
+            } else {
+                parent = Album.builder()
+                        .id("album-" + UUID.randomUUID().toString().substring(0, 8))
+                        .name(parentName)
+                        .fullName(parentName)
+                        .parentId(null)
+                        .path(parentName)
+                        .keywords(Arrays.asList(parentName))
+                        .isSystem(false)
+                        .imageCount(0)
+                        .sortOrder((int) albumRepository.count())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .userId(userId)
+                        .build();
+                parent = albumRepository.save(parent);
+                log.info("创建父相册: {}", parentName);
+            }
         } else {
             parent = parentOpt.get();
         }
@@ -77,7 +96,21 @@ public class AlbumServiceImpl implements AlbumService {
         }
         
         // 3. 子相册不存在，创建新的
-        Album child = createAlbum(childName, null, new ArrayList<>(), null);
+        Album child = Album.builder()
+                .id("album-" + UUID.randomUUID().toString().substring(0, 8))
+                .name(childName)
+                .fullName(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .parentId(parent.getId())
+                .path(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .keywords(Arrays.asList(childName))
+                .isSystem(false)
+                .imageCount(0)
+                .sortOrder((int) albumRepository.count())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .userId(userId)
+                .build();
+        child = albumRepository.save(child);
         log.info("创建子相册: {}/{}", parentName, childName);
         return child;
     }
