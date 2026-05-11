@@ -29,13 +29,16 @@ export async function POST(request: NextRequest) {
       headers['X-Session-Id'] = sessionId;
     }
     
-    const response = await fetch(`${BACKEND_API_URL}/batch-download/tasks`, {
+    // TODO: 暂时直接调用同步接口，绕过异步任务逻辑
+    // 后续如果异步任务工作正常，可以改回调用 /batch-download/tasks
+    const response = await fetch(`${BACKEND_API_URL}/images/batch-download`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
     });
     
     const data = await response.json();
+    console.log('[batch-download/tasks] Response:', JSON.stringify(data).substring(0, 200));
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('提交异步任务失败:', error);
