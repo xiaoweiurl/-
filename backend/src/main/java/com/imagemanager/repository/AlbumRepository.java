@@ -44,6 +44,11 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     Optional<Album> findByUserIdAndName(String userId, String name);
     
     /**
+     * 按用户和完整名称查询（精确匹配）
+     */
+    Optional<Album> findByUserIdAndFullName(String userId, String fullName);
+    
+    /**
      * 检查相册名称是否存在
      */
     boolean existsByName(String name);

@@ -57,8 +57,13 @@ public class AlbumServiceImpl implements AlbumService {
      */
     @Override
     public Album getOrCreateAlbumByParentAndName(String parentName, String childName, String userId) {
-        // 1. 查找父相册
-        Optional<Album> parentOpt = albumRepository.findByUserIdAndName(userId, parentName);
+        // 1. 查找父相册，使用 fullName 精确匹配
+        Optional<Album> parentOpt;
+        if (parentName != null && !parentName.isEmpty()) {
+            parentOpt = albumRepository.findByUserIdAndFullName(userId, parentName);
+        } else {
+            parentOpt = Optional.empty();
+        }
         Album parent;
         if (parentOpt.isEmpty()) {
             // 父相册不存在，创建
