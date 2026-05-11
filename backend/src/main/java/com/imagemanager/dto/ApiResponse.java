@@ -39,24 +39,29 @@ public class ApiResponse<T> {
     private Long timestamp;
     
     /**
+     * 兼容前端 success 字段
+     */
+    private Boolean success;
+    
+    /**
      * 成功响应
      */
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(200, "操作成功", data, System.currentTimeMillis());
+        return new ApiResponse<>(200, "操作成功", data, System.currentTimeMillis(), true);
     }
     
     /**
      * 成功响应（带消息）
      */
     public static <T> ApiResponse<T> success(String message, T data) {
-        return new ApiResponse<>(200, message, data, System.currentTimeMillis());
+        return new ApiResponse<>(200, message, data, System.currentTimeMillis(), true);
     }
     
     /**
      * 失败响应
      */
     public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(500, message, null, System.currentTimeMillis());
+        return new ApiResponse<>(500, message, null, System.currentTimeMillis(), false);
     }
     
     /**
