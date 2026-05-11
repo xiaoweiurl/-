@@ -172,6 +172,7 @@ export default function ExcelBatchUpload({
   const [downloadStatus, setDownloadStatus] = React.useState<'idle' | 'pending' | 'processing' | 'completed' | 'failed'>('idle');
   const [progress, setProgress] = React.useState({ total: 0, processed: 0, success: 0, fail: 0, skip: 0 });
   const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isUnmountedRef = React.useRef(false); // 防止组件卸载后更新状态
 
   // 处理Excel文件选择
   const handleFileSelect = async (files: FileList | null) => {
@@ -383,25 +384,32 @@ export default function ExcelBatchUpload({
         if (result.success && result.data) {
           const task = result.data;
 
+          // 检查组件是否已卸载
+          if (isUnmountedRef.current) return;
+
           // 更新任务状态
-          setTaskProgress((prev: Record<string, any>) => ({
-            ...prev,
-            [taskId]: {
-              progress: task.processedCount || 0,
-              total: task.totalCount || 0,
-              success: task.successCount || 0,
-              failed: task.failedCount || 0,
-              skipped: task.skippedCount || 0,
-              status: task.status === 'COMPLETED' ? 'completed' : 
-                      task.status === 'FAILED' ? 'failed' : 
-                      task.status === 'PROCESSING' ? 'processing' : 'pending',
-              error: task.error,
-            }
-          }));
+          setTaskProgress((prev: Record<string, any>) => {
+            if (isUnmountedRef.current) return prev;
+            return {
+              ...prev,
+              [taskId]: {
+                progress: task.processedCount || 0,
+                total: task.totalCount || 0,
+                success: task.successCount || 0,
+                failed: task.failedCount || 0,
+                skipped: task.skippedCount || 0,
+                status: task.status === 'COMPLETED' ? 'completed' : 
+                        task.status === 'FAILED' ? 'failed' : 
+                        task.status === 'PROCESSING' ? 'processing' : 'pending',
+                error: task.error,
+              }
+            };
+          });
 
           // 更新 Excel 行的状态
           if (task.results && task.results.length > 0) {
             setExcelData((prev: typeof excelData) => {
+              if (isUnmountedRef.current) return prev;
               const productStatus = new Map<string, { success: number; fail: number; skipped: number; hasError: boolean }>();
               
               pendingRowsRef.current.forEach(row => {
@@ -712,6 +720,19 @@ export default function ExcelBatchUpload({
       onOpenChange(false);
     }
   };
+
+  // 组件卸载时清理
+  React.useEffect(() => {
+    isUnmountedRef.current = false;
+    return () => {
+      isUnmountedRef.current = true;
+      // 清理轮询
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, []);
 
   // 处理任务完成后的逻辑（当任务完成但对话框未关闭时）
   React.useEffect(() => {
