@@ -1188,54 +1188,58 @@ public class ImageServiceImpl implements ImageService {
 
             // 获取父相册名称（来自 Excel 文件名）
             String parentAlbumName = request.getParentAlbumName();
-            
+
+            // 处理父相册名称
+            String cleanParentName = null;
+            if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
+                // 移除文件名中的扩展名（如 .xlsx）
+                cleanParentName = parentAlbumName;
+                int dotIndex = cleanParentName.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    cleanParentName = cleanParentName.substring(0, dotIndex);
+                }
+                // 移除可能的 assets/ 或 assets\ 前缀
+                if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
+                    cleanParentName = cleanParentName.substring(7);
+                }
+                // 处理父相册名称的 URL 编码
+                cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
+            }
+
             // 如果指定了分类，查找或创建对应的相册（支持层级目录）
             String albumId = null;
             String albumName = null;
-            if (item.getCategory() != null && !item.getCategory().isEmpty()) {
+            String category = item.getCategory();
+            String subCategory = item.getSubCategory();
+
+            // 只要有 category 或 subCategory 其中一个，就创建相册
+            if ((category != null && !category.isEmpty()) || (subCategory != null && !subCategory.isEmpty())) {
                 // 尝试解析 URL 编码的中文字符（如 %CC%F9%C9%ED 格式）
-                String category = CharsetUtil.convertToUtf8(item.getCategory().trim());
-                log.info("Excel导入 - 原始分类: '{}', 解码后: '{}'", item.getCategory().trim(), category);
-                log.info("Excel导入 - 处理分类: {}, 父相册: {}", category, parentAlbumName);
-                
-                // 处理父相册名称
-                String cleanParentName = null;
-                if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
-                    // 移除文件名中的扩展名（如 .xlsx）
-                    cleanParentName = parentAlbumName;
-                    int dotIndex = cleanParentName.lastIndexOf('.');
-                    if (dotIndex > 0) {
-                        cleanParentName = cleanParentName.substring(0, dotIndex);
-                    }
-                    // 移除可能的 assets/ 或 assets\ 前缀
-                    if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
-                        cleanParentName = cleanParentName.substring(7);
-                    }
-                    // 处理父相册名称的 URL 编码
-                    cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
-                }
-                
+                String decodedCategory = category != null ? CharsetUtil.convertToUtf8(category.trim()) : null;
+                log.info("Excel导入 - 原始分类: '{}', 解码后: '{}'", category, decodedCategory);
+                log.info("Excel导入 - 原始子分类: '{}'", subCategory);
+                log.info("Excel导入 - 处理分类: {}, 父相册: {}", decodedCategory, parentAlbumName);
+
                 // 使用新的方法：支持三级相册层级
                 // 分类格式: 羽绒服_女士专区_
                 // 第一层: 文件名 (X-BIONIC)
                 // 第二层: subCategory (女士专区) 或 category（只有单层时）
                 // 第三层: category (羽绒服)
                 try {
-                    String subCategory = item.getSubCategory();
                     String secondLevelName = null; // 第二层级名称
                     String thirdLevelName = null;  // 第三层级名称
                     Album targetAlbum = null;
 
                     // 统一处理分类层级逻辑
-                    if (category != null && !category.isEmpty()) {
+                    if (decodedCategory != null && !decodedCategory.isEmpty()) {
                         // 有第三层分类
                         if (subCategory != null && !subCategory.isEmpty()) {
                             // 三级分类：X-BIONIC -> subCategory -> category
                             secondLevelName = subCategory;
-                            thirdLevelName = category;
+                            thirdLevelName = decodedCategory;
                         } else {
                             // 只有一层分类：X-BIONIC -> category（把category作为第二层）
-                            secondLevelName = category;
+                            secondLevelName = decodedCategory;
                             thirdLevelName = null;
                         }
                     } else if (subCategory != null && !subCategory.isEmpty()) {
@@ -1283,18 +1287,9 @@ public class ImageServiceImpl implements ImageService {
                     log.error("Excel导入 - 获取/创建相册失败: {}", e.getMessage(), e);
                 }
             }
-            
+
             // 如果没有指定分类但有父相册名称，创建父相册（作为根相册）
             if (albumId == null && parentAlbumName != null && !parentAlbumName.isEmpty()) {
-                String cleanParentName = parentAlbumName;
-                int dotIndex = cleanParentName.lastIndexOf('.');
-                if (dotIndex > 0) {
-                    cleanParentName = cleanParentName.substring(0, dotIndex);
-                }
-                // 移除可能的 assets/ 或 assets\ 前缀
-                if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
-                    cleanParentName = cleanParentName.substring(7);
-                }
                 try {
                     Album parentAlbum = albumService.getOrCreateAlbumByPath(cleanParentName);
                     if (parentAlbum != null) {
