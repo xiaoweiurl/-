@@ -556,6 +556,14 @@ export default function ExcelBatchUpload({
       });
 
     console.log('[ExcelUpload] 准备下载的商品数量:', imagesToDownload.length);
+    const totalUrls = imagesToDownload.reduce((acc, item) => 
+      acc + 1 + (item.detailImageUrls?.length || 0), 0);
+    console.log('[ExcelUpload] 准备下载的图片总数:', totalUrls);
+    console.log('[ExcelUpload] 每行商品数据:', imagesToDownload.map(item => ({
+      productName: item.productName,
+      mainImage: item.mainImageUrl ? '有' : '无',
+      detailCount: item.detailImageUrls?.length || 0
+    })));
 
     if (imagesToDownload.length === 0) {
       addNotification({
