@@ -1514,7 +1514,7 @@ public class ImageServiceImpl implements ImageService {
         // 更新受影响的相册图片数量
         Set<String> affectedAlbumIds = new HashSet<>();
         for (com.imagemanager.dto.BatchDownloadResponse resp : results) {
-            if (resp.getSuccess() && resp.getImageId() != null) {
+            if (resp.isSuccess() && resp.getImageId() != null) {
                 imageRepository.findById(resp.getImageId()).ifPresent(img -> {
                     if (img.getAlbumId() != null) {
                         affectedAlbumIds.add(img.getAlbumId());
@@ -1527,16 +1527,16 @@ public class ImageServiceImpl implements ImageService {
             updateAlbumImageCount(albumId);
         }
         
-        long successCountTotal = results.stream().filter(r -> Boolean.TRUE.equals(r.getSuccess()) && !Boolean.TRUE.equals(r.getSkipped())).count();
-        long skippedCount = results.stream().filter(r -> Boolean.TRUE.equals(r.getSkipped())).count();
-        long failedCount = results.stream().filter(r -> !Boolean.TRUE.equals(r.getSuccess())).count();
+        long successCountTotal = results.stream().filter(r -> Boolean.TRUE.equals(r.isSuccess()) && !Boolean.TRUE.equals(r.isSkipped())).count();
+        long skippedCount = results.stream().filter(r -> Boolean.TRUE.equals(r.isSkipped())).count();
+        long failedCount = results.stream().filter(r -> !Boolean.TRUE.equals(r.isSuccess())).count();
         log.info("批量下载完成，成功：{} 张，跳过（已存在）：{} 张，失败：{} 张", 
             successCountTotal, skippedCount, failedCount);
         
         // 如果有失败，打印失败原因
         if (failedCount > 0) {
             for (var resp : results) {
-                if (!Boolean.TRUE.equals(resp.getSuccess()) && !Boolean.TRUE.equals(resp.getSkipped())) {
+                if (!resp.isSuccess() && !resp.isSkipped()) {
                     log.warn("下载失败 - URL: {}, 错误: {}", resp.getOriginalUrl(), resp.getError());
                 }
             }

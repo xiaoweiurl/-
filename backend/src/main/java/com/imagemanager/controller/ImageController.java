@@ -448,9 +448,9 @@ public class ImageController {
 
         List<BatchDownloadResponse> results = imageService.batchDownloadImages(request);
 
-        long successCount = results.stream().filter(r -> Boolean.TRUE.equals(r.getSuccess())).count();
-        long skipCount = results.stream().filter(r -> Boolean.TRUE.equals(r.getSkipped())).count();
-        long failCount = results.stream().filter(r -> !Boolean.TRUE.equals(r.getSuccess()) && !Boolean.TRUE.equals(r.getSkipped())).count();
+        long successCount = results.stream().filter(r -> r.isSuccess()).count();
+        long skipCount = results.stream().filter(r -> r.isSkipped()).count();
+        long failCount = results.stream().filter(r -> !r.isSuccess() && !r.isSkipped()).count();
 
         String message = String.format("导入完成：成功 %d 张，跳过 %d 张，失败 %d 张", successCount, skipCount, failCount);
         if (skipCount > 0) {
