@@ -62,7 +62,7 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
             // 验证 session
             LoginResponse.UserInfo userInfo = authService.validateSession(sessionId);
             
-            if (userInfo != null) {
+            if (userInfo != null && userInfo.getUsername() != null) {
                 log.info("Session 验证成功，用户: {}", userInfo.getUsername());
                 
                 // 将用户信息存储到 request 属性中，供后续使用
