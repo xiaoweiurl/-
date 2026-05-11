@@ -33,6 +33,12 @@ public interface AlbumService {
      * 如果父相册+子相册组合已存在，直接返回；否则创建新的
      */
     Album getOrCreateAlbumByParentAndName(String parentName, String childName, String userId);
+
+    /**
+     * 根据父相册ID和子相册名称查找或创建相册（避免名称歧义）
+     * 如果父相册+子相册组合已存在，直接返回；否则创建新的
+     */
+    Album getOrCreateAlbumByParentIdAndName(String parentId, String childName, String userId);
     
     /**
      * 创建相册

@@ -1229,18 +1229,18 @@ public class ImageServiceImpl implements ImageService {
                         if (category != null && !category.isEmpty()) {
                             // 三级层级：X-BIONIC -> subCategory -> category
                             // 先创建/获取第二层相册 (在 X-BIONIC 下)
-                            albumService.getOrCreateAlbumByParentAndName(
+                            Album subCategoryAlbum = albumService.getOrCreateAlbumByParentAndName(
                                     cleanParentName != null ? cleanParentName : "",
                                     subCategory,
                                     "user-1"
                             );
-                            // 再创建/获取第三层相册 (在 subCategory 下)
-                            targetAlbum = albumService.getOrCreateAlbumByParentAndName(
-                                    subCategory,
+                            // 再创建/获取第三层相册 (在 subCategory 下)，使用父相册ID避免名称歧义
+                            targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                    subCategoryAlbum.getId(),
                                     category,
                                     "user-1"
                             );
-                            log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}", 
+                            log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}",
                                     cleanParentName, subCategory, category);
                         } else {
                             // 两级层级：X-BIONIC -> subCategory（只有一层子分类）

@@ -57,10 +57,15 @@ public class AlbumServiceImpl implements AlbumService {
      */
     @Override
     public Album getOrCreateAlbumByParentAndName(String parentName, String childName, String userId) {
-        // 1. 查找父相册，使用 fullName 精确匹配
+        // 1. 查找父相册
         Optional<Album> parentOpt;
         if (parentName != null && !parentName.isEmpty()) {
-            parentOpt = albumRepository.findByUserIdAndName(userId, parentName);
+            // 优先通过 fullName 精确匹配，因为 name 可能存在重复
+            parentOpt = albumRepository.findByUserIdAndFullName(userId, parentName);
+            // 如果 fullName 匹配不到，再尝试 name 匹配
+            if (parentOpt.isEmpty()) {
+                parentOpt = albumRepository.findByUserIdAndName(userId, parentName);
+            }
         } else {
             parentOpt = Optional.empty();
         }
@@ -119,7 +124,55 @@ public class AlbumServiceImpl implements AlbumService {
         log.info("创建子相册: {}/{}", parentName, childName);
         return child;
     }
-    
+
+    /**
+     * 根据父相册ID和子相册名称查找或创建相册（避免名称歧义）
+     * 如果父相册+子相册组合已存在，直接返回；否则创建新的
+     */
+    public Album getOrCreateAlbumByParentIdAndName(String parentId, String childName, String userId) {
+        // 1. 查找子相册（通过父相册ID精确匹配）
+        Optional<Album> childOpt;
+        if (parentId != null && !parentId.isEmpty()) {
+            childOpt = albumRepository.findByUserIdAndNameAndParentId(userId, childName, parentId);
+        } else {
+            childOpt = albumRepository.findByUserIdAndNameAndParentId(userId, childName, null);
+        }
+
+        if (childOpt.isPresent()) {
+            // 子相册已存在，直接返回
+            log.info("找到已有子相册: parentId={}, childName={}", parentId, childName);
+            return childOpt.get();
+        }
+
+        // 2. 子相册不存在，创建新的
+        // 获取父相册信息
+        String parentName = "";
+        if (parentId != null && !parentId.isEmpty()) {
+            Optional<Album> parentOpt = albumRepository.findById(parentId);
+            if (parentOpt.isPresent()) {
+                parentName = parentOpt.get().getFullName();
+            }
+        }
+
+        Album child = Album.builder()
+                .id("album-" + UUID.randomUUID().toString().substring(0, 8))
+                .name(childName)
+                .fullName(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .parentId(parentId)
+                .path(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .keywords(Arrays.asList(childName))
+                .isSystem(false)
+                .imageCount(0)
+                .sortOrder((int) albumRepository.count())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .userId(userId)
+                .build();
+        child = albumRepository.save(child);
+        log.info("创建子相册: parentId={}, childName={}, fullName={}", parentId, childName, child.getFullName());
+        return child;
+    }
+
     @Override
     public Album createAlbum(String name, String description) {
         return createAlbum(name, description, null, null);
