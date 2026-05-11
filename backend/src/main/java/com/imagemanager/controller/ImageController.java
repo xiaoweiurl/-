@@ -482,41 +482,42 @@ public class ImageController {
             request.setUserId(userId);
             
             System.out.println("开始创建任务...");
-            BatchDownloadTask task = new BatchDownloadTask();
-            task.setUserId(userId);
-            task.setStatus("running");
-            task.setTotalCount(request.getImages().size());
-            task.setProcessedCount(0);
-            task.setSuccessCount(0);
-            task.setFailedCount(0);
-            task.setCreatedAt(LocalDateTime.now());
-            task.setUpdatedAt(LocalDateTime.now());
-            
-            BatchDownloadTask savedTask = batchDownloadTaskService.createTask(task);
-            System.out.println("任务ID: " + savedTask.getId());
+            String taskId = batchDownloadTaskService.createTask(userId, "批量下载", request.getImages().size());
+            System.out.println("任务ID: " + taskId);
             System.out.println("任务创建成功！");
             
             // 异步执行
-            final String taskId = savedTask.getId();
+            final String finalTaskId = taskId;
             final BatchDownloadRequest finalRequest = request;
             
             System.out.println("启动异步线程...");
             CompletableFuture.runAsync(() -> {
                 try {
-                    System.out.println("[Task " + taskId + "] 开始异步执行...");
+                    System.out.println("[Task " + finalTaskId + "] 开始异步执行...");
                     List<BatchDownloadResponse> results = imageService.batchDownloadImages(finalRequest);
-                    batchDownloadTaskService.updateTaskCompleted(taskId, results);
-                    System.out.println("[Task " + taskId + "] 异步执行完成！");
+                    
+                    // 统计结果
+                    long successCount = results.stream().filter(r -> "success".equals(r.getStatus())).count();
+                    long failCount = results.stream().filter(r -> "failed".equals(r.getStatus())).count();
+                    long skipCount = results.stream().filter(r -> "skipped".equals(r.getStatus())).count();
+                    
+                    batchDownloadTaskService.updateTaskCompleted(finalTaskId, (int) successCount, (int) failCount, (int) skipCount);
+                    System.out.println("[Task " + finalTaskId + "] 异步执行完成！成功:" + successCount + " 失败:" + failCount + " 跳过:" + skipCount);
                 } catch (Exception e) {
-                    System.out.println("!!! [Task " + taskId + "] 异步执行失败: " + e.getMessage());
+                    System.out.println("!!! [Task " + finalTaskId + "] 异步执行失败: " + e.getMessage());
                     e.printStackTrace();
-                    batchDownloadTaskService.updateTaskFailed(taskId, e.getMessage());
+                    batchDownloadTaskService.updateTaskFailed(finalTaskId, e.getMessage());
                 }
             });
             
-            System.out.println("立即返回任务ID: " + savedTask.getId());
+            // 立即返回任务信息
+            BatchDownloadTask task = new BatchDownloadTask();
+            task.setTaskId(taskId);
+            task.setStatus("pending");
+            task.setTotalCount(request.getImages().size());
+            System.out.println("立即返回任务ID: " + taskId);
             System.out.println("========== 异步批量下载任务结束 ==========\n");
-            return ApiResponse.success(savedTask);
+            return ApiResponse.success(task);
         } catch (Exception e) {
             System.out.println("!!! 异步批量下载任务失败: " + e.getMessage());
             e.printStackTrace();
@@ -535,9 +536,8 @@ public class ImageController {
         System.out.println("任务ID: " + taskId);
         
         try {
-            Optional<BatchDownloadTask> taskOpt = batchDownloadTaskService.getTask(taskId);
-            if (taskOpt.isPresent()) {
-                BatchDownloadTask task = taskOpt.get();
+            BatchDownloadTask task = batchDownloadTaskService.getTask(taskId);
+            if (task != null) {
                 System.out.println("任务状态: " + task.getStatus());
                 System.out.println("进度: " + task.getProcessedCount() + "/" + task.getTotalCount());
                 System.out.println("========== 查询完成 ==========\n");

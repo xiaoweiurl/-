@@ -371,7 +371,7 @@ export default function ExcelBatchUpload({
   const pollTaskProgress = async (taskId: string) => {
     const poll = async () => {
       try {
-        const response = await fetch(`/api/images/batch-download-tasks/${taskId}`, {
+        const response = await fetch(`/api/batch-download/tasks/${taskId}`, {
           credentials: 'include',
         });
 
@@ -396,11 +396,11 @@ export default function ExcelBatchUpload({
                 progress: task.processedCount || 0,
                 total: task.totalCount || 0,
                 success: task.successCount || 0,
-                failed: task.failedCount || 0,
-                skipped: task.skippedCount || 0,
-                status: task.status === 'COMPLETED' ? 'completed' : 
-                        task.status === 'FAILED' ? 'failed' : 
-                        task.status === 'PROCESSING' ? 'processing' : 'pending',
+                failed: task.failCount || 0,
+                skipped: task.skipCount || 0,
+                status: task.status === 'completed' ? 'completed' : 
+                        task.status === 'failed' ? 'failed' : 
+                        task.status === 'processing' ? 'processing' : 'pending',
                 error: task.error,
               }
             };
@@ -459,7 +459,7 @@ export default function ExcelBatchUpload({
 
                 // 确定最终状态
                 let newStatus: ExcelRow['status'];
-                if (task.status === 'COMPLETED') {
+                if (task.status === 'completed') {
                   if (status.success === 0 && status.skipped > 0 && status.fail === 0) {
                     newStatus = 'skipped';
                   } else if (status.success > 0) {
@@ -467,7 +467,7 @@ export default function ExcelBatchUpload({
                   } else {
                     newStatus = 'error';
                   }
-                } else if (task.status === 'FAILED') {
+                } else if (task.status === 'failed') {
                   newStatus = 'error';
                 } else {
                   newStatus = 'downloading';
@@ -475,7 +475,7 @@ export default function ExcelBatchUpload({
 
                 // 构建错误消息
                 let errorMsg: string | undefined;
-                if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+                if (task.status === 'completed' || task.status === 'failed') {
                   if (status.hasError) {
                     errorMsg = `部分失败（成功${status.success}张，失败${status.fail}张，跳过${status.skipped}张）`;
                   } else if (status.skipped > 0 && status.success === 0) {
@@ -493,7 +493,7 @@ export default function ExcelBatchUpload({
           }
 
           // 如果任务完成或失败，停止轮询
-          if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+          if (task.status === 'completed' || task.status === 'failed') {
             return true; // 停止轮询
           }
         }
