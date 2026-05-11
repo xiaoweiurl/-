@@ -1333,18 +1333,36 @@ public class ImageServiceImpl implements ImageService {
             List<String> allUrls = new ArrayList<>();
             Set<String> urlSet = new java.util.LinkedHashSet<>(); // 使用 LinkedHashSet 保持顺序并去重
             
-            // 辅助方法：规范化URL，添加协议头
+            // 辅助方法：规范化URL，添加协议头并优化获取高质量图片
             java.util.function.Function<String, String> normalizeUrl = url -> {
                 String normalized = url.trim();
                 // 如果URL以 // 开头，添加 https:
                 if (normalized.startsWith("//")) {
                     normalized = "https:" + normalized;
                 }
+                
+                // 京东图片优化：移除尺寸限制后缀，获取原始高质量图片
+                // 京东图片URL格式: /n7/jfs/.../xxx.jpg!cc_200x200.png
+                // 尺寸标识: !cc_xxx, !mq_xxx, !cr_xxx 等
+                // 移除这些后缀后可以获取更大尺寸的图片
+                if (normalized.contains("360buyimg.com") || normalized.contains("jd.com")) {
+                    // 移除京东图片的尺寸后缀 (!cc_200x200.png, !mq130.jpg 等)
+                    normalized = normalized.replaceAll("!cc_\\d+x\\d+_pr_asp\\.jpg", ".jpg");
+                    normalized = normalized.replaceAll("!cc_\\d+x\\d+_pr_asp\\.png", ".png");
+                    normalized = normalized.replaceAll("!cr_\\d+x\\d+_pr_asp\\.jpg", ".jpg");
+                    normalized = normalized.replaceAll("!mq\\d+\\.jpg", ".jpg");
+                    normalized = normalized.replaceAll("!n\\d+\\.jpg", ".jpg");
+                    normalized = normalized.replaceAll("!wq\\d+\\.jpg", ".jpg");
+                    normalized = normalized.replaceAll("\\.jpg!\\w+\\.jpg", ".jpg");
+                    normalized = normalized.replaceAll("\\.png!\\w+\\.png", ".png");
+                }
+                
                 // 如果是京东的 .avif 格式，尝试获取更高质量的版本
                 // 京东的 .avif 图片可以用 .jpg 替代，质量更好
                 if (normalized.contains(".avif")) {
                     normalized = normalized.replace(".avif", ".jpg");
                 }
+                
                 return normalized;
             };
             
@@ -1379,6 +1397,7 @@ public class ImageServiceImpl implements ImageService {
             // 下载所有图片
             for (int i = 0; i < allUrls.size(); i++) {
                 String imageUrl = allUrls.get(i);
+                log.info("开始下载图片 {}/{}: {}", i + 1, totalImages, imageUrl);
                 com.imagemanager.dto.BatchDownloadResponse response = new com.imagemanager.dto.BatchDownloadResponse();
                 response.setOriginalUrl(imageUrl);
                 
