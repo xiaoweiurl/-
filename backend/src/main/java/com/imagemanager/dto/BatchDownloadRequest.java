@@ -56,9 +56,14 @@ public class BatchDownloadRequest {
         private java.util.List<String> detailImageUrls;
 
         /**
-         * 分类
+         * 分类（用于第三层级相册，如：羽绒服）
          */
         private String category;
+
+        /**
+         * 子分类（用于第二层级相册，如：女士专区）
+         */
+        private String subCategory;
 
         /**
          * 描述

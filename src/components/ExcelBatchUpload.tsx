@@ -210,10 +210,16 @@ export default function ExcelBatchUpload({
         // 按列索引提取数据（根据实际表头）
         // 列A(0): 分类, 列B(1): 商品名称, 列C(2): 价格, 列D(3): 商品详情（主图）, 列E+(4): 详情图
         
-        // 分类 - 直接使用 A 列的值作为第二层级相册名称
-        // 避免拼接文件名和分类，导致出现 "松野湃 - 副本-速干T恤" 这样的重复名称
-        const categoryColumn = String(row[0] || '').trim(); // A列: 速干T恤
-        const category = categoryColumn || undefined;
+        // 分类解析 - 支持多层分类格式：
+        // A列格式: 羽绒服_女士专区_
+        // 第一层: 文件名 (X-BIONIC)
+        // 第二层: A列分割后第二部分 (女士专区)
+        // 第三层: A列分割后第一部分 (羽绒服)
+        const categoryColumn = String(row[0] || '').trim(); // A列: 羽绒服_女士专区_
+        const parts = categoryColumn.split('_').map(s => s.trim()).filter(s => s);
+        // parts[0] = '羽绒服', parts[1] = '女士专区'
+        const category = parts.length > 0 ? parts[0] : undefined;
+        const subCategory = parts.length > 1 ? parts[1] : undefined;
         
         // 商品名称 - B列才是商品名称
         const rawProductName = String(row[1] || '').trim(); // B列

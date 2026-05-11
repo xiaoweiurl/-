@@ -1215,13 +1215,41 @@ public class ImageServiceImpl implements ImageService {
                     cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
                 }
                 
-                // 使用新的方法：先查找父相册+子相册组合，如果存在就直接复用
+                // 使用新的方法：支持三级相册层级
+                // 分类格式: 羽绒服_女士专区_
+                // 第一层: 文件名 (X-BIONIC)
+                // 第二层: subCategory (女士专区)
+                // 第三层: category (羽绒服)
                 try {
-                    Album targetAlbum = albumService.getOrCreateAlbumByParentAndName(
-                            cleanParentName != null ? cleanParentName : "", 
-                            category, 
-                            "user-1"
-                    );
+                    String subCategory = item.getSubCategory();
+                    Album targetAlbum;
+                    
+                    if (subCategory != null && !subCategory.isEmpty()) {
+                        // 三级层级：父相册 -> 子相册(第二层) -> 子相册(第三层)
+                        // 先创建/获取第二层相册
+                        Album secondLevel = albumService.getOrCreateAlbumByParentAndName(
+                                cleanParentName != null ? cleanParentName : "",
+                                subCategory,
+                                "user-1"
+                        );
+                        // 再创建/获取第三层相册
+                        targetAlbum = albumService.getOrCreateAlbumByParentAndName(
+                                cleanParentName + "/" + subCategory,
+                                category,
+                                "user-1"
+                        );
+                        log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}", 
+                                cleanParentName, subCategory, category);
+                    } else {
+                        // 两级层级：父相册 -> 子相册
+                        targetAlbum = albumService.getOrCreateAlbumByParentAndName(
+                                cleanParentName != null ? cleanParentName : "", 
+                                category, 
+                                "user-1"
+                        );
+                        log.info("Excel导入 - 两级相册: 第一层={}, 第二层={}", cleanParentName, category);
+                    }
+                    
                     if (targetAlbum != null) {
                         albumId = targetAlbum.getId();
                         albumName = targetAlbum.getFullName() != null ? targetAlbum.getFullName() : targetAlbum.getName();
