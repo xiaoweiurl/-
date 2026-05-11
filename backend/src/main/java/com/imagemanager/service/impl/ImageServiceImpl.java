@@ -1225,22 +1225,33 @@ public class ImageServiceImpl implements ImageService {
                     Album targetAlbum;
                     
                     if (subCategory != null && !subCategory.isEmpty()) {
-                        // 三级层级：父相册 -> 子相册(第二层) -> 子相册(第三层)
-                        // 先创建/获取第二层相册
-                        Album secondLevel = albumService.getOrCreateAlbumByParentAndName(
-                                cleanParentName != null ? cleanParentName : "",
-                                subCategory,
-                                "user-1"
-                        );
-                        // 再创建/获取第三层相册，parentName 是第二层相册的名称
-                        targetAlbum = albumService.getOrCreateAlbumByParentAndName(
-                                subCategory,  // "男士专区" - 第二层相册的名称
-                                category,      // "功能内衣" - 第三层相册的名称
-                                "user-1"
-                        );
-                        log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}", 
-                                cleanParentName, subCategory, category);
-                    } else {
+                        // 有第二层分类
+                        if (category != null && !category.isEmpty()) {
+                            // 三级层级：X-BIONIC -> subCategory -> category
+                            // 先创建/获取第二层相册 (在 X-BIONIC 下)
+                            albumService.getOrCreateAlbumByParentAndName(
+                                    cleanParentName != null ? cleanParentName : "",
+                                    subCategory,
+                                    "user-1"
+                            );
+                            // 再创建/获取第三层相册 (在 subCategory 下)
+                            targetAlbum = albumService.getOrCreateAlbumByParentAndName(
+                                    subCategory,
+                                    category,
+                                    "user-1"
+                            );
+                            log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}", 
+                                    cleanParentName, subCategory, category);
+                        } else {
+                            // 两级层级：X-BIONIC -> subCategory（只有一层子分类）
+                            targetAlbum = albumService.getOrCreateAlbumByParentAndName(
+                                    cleanParentName != null ? cleanParentName : "",
+                                    subCategory,
+                                    "user-1"
+                            );
+                            log.info("Excel导入 - 两级相册: 第一层={}, 第二层={}", cleanParentName, subCategory);
+                        }
+                    } else if (category != null && !category.isEmpty()) {
                         // 两级层级：父相册 -> 子相册
                         targetAlbum = albumService.getOrCreateAlbumByParentAndName(
                                 cleanParentName != null ? cleanParentName : "", 
