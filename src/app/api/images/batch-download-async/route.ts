@@ -67,11 +67,16 @@ import { backendFetch } from '@/lib/backend-proxy';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const cookieHeader = request.headers.get('cookie') || '';
+    
     console.log('[API] 异步批量下载请求:', body);
     
     const response = await backendFetch('/images/batch-download-async', {
       method: 'POST',
       body: body,
+      requestHeaders: {
+        cookie: cookieHeader,
+      },
     });
     
     const data = await response.json();
