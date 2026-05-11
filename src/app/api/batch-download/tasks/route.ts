@@ -29,9 +29,8 @@ export async function POST(request: NextRequest) {
       headers['X-Session-Id'] = sessionId;
     }
     
-    // TODO: 暂时直接调用同步接口，绕过异步任务逻辑
-    // 后续如果异步任务工作正常，可以改回调用 /batch-download/tasks
-    const response = await fetch(`${BACKEND_API_URL}/images/batch-download`, {
+    // 调用异步任务接口
+    const response = await fetch(`${BACKEND_API_URL}/batch-download/tasks`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
