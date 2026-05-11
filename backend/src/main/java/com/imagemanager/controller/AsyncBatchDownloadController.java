@@ -65,38 +65,40 @@ public class AsyncBatchDownloadController {
             HttpServletRequest httpRequest,
             @RequestBody BatchDownloadRequest request) {
         try {
-            // 调试：打印请求头
-            log.info("=== 异步批量下载任务调试开始 ===");
-            log.info("X-Session-Id header: {}", httpRequest.getHeader("X-Session-Id"));
-            log.info("Content-Type: {}", httpRequest.getContentType());
+            // 使用 System.out.println 直接输出，不会被日志覆盖
+            System.out.println("========== 异步批量下载任务开始 ==========");
+            System.out.println("X-Session-Id: " + httpRequest.getHeader("X-Session-Id"));
+            System.out.println("Content-Type: " + httpRequest.getContentType());
             
             String userId = getCurrentUserId(httpRequest);
-            log.info("获取到的用户ID: {}", userId);
-            log.info("请求图片数量: {}", request.getImages() != null ? request.getImages().size() : 0);
-            
+            System.out.println("用户ID: " + userId);
+            System.out.println("图片数量: " + (request.getImages() != null ? request.getImages().size() : 0));
             if (request.getImages() != null && !request.getImages().isEmpty()) {
-                log.info("第一张图片: {}", request.getImages().get(0));
+                System.out.println("第一张图片: " + request.getImages().get(0));
             }
-            log.info("=== 异步批量下载任务调试结束 ===");
             
             // 创建任务
+            System.out.println("开始创建任务...");
             String taskId = taskService.createTask(
                     userId,
                     request.getParentAlbumName(),
                     request.getImages() != null ? request.getImages().size() : 0
             );
-            log.info("任务创建成功，taskId: {}", taskId);
+            System.out.println("任务ID: " + taskId);
+            System.out.println("任务创建成功！");
 
             // 异步处理
             final String finalUserId = userId;
+            System.out.println("启动异步线程...");
             CompletableFuture.runAsync(() -> {
                 try {
-                    log.info("异步线程开始执行，taskId: {}", taskId);
+                    System.out.println(">>> 异步线程开始执行，taskId: " + taskId);
                     taskService.updateTaskProcessing(taskId);
 
                     // 调用原有的批量下载逻辑
+                    System.out.println(">>> 开始调用 batchDownloadImagesSync...");
                     List<BatchDownloadResponse> results = imageService.batchDownloadImagesSync(request);
-                    log.info("批量下载完成，返回结果数量: {}", results.size());
+                    System.out.println(">>> 批量下载完成，返回结果数量: " + results.size());
 
                     // 统计结果
                     int successCount = 0, failCount = 0, skipCount = 0;
@@ -114,26 +116,30 @@ public class AsyncBatchDownloadController {
 
                     // 标记完成
                     taskService.updateTaskCompleted(taskId, successCount, failCount, skipCount);
-                    log.info("异步任务完成：taskId={}, success={}, fail={}, skip={}", taskId, successCount, failCount, skipCount);
+                    System.out.println(">>> 异步任务完成：taskId=" + taskId + ", success=" + successCount + ", fail=" + failCount + ", skip=" + skipCount);
+                    System.out.println("========== 异步任务执行完成 ==========");
 
                 } catch (Exception e) {
-                    log.error("异步任务执行出错：taskId={}, 错误: {}", taskId, e.getMessage(), e);
+                    System.out.println(">>> 异步任务执行出错：taskId=" + taskId + ", 错误: " + e.getMessage());
                     e.printStackTrace();
                     taskService.updateTaskFailed(taskId, e.getMessage());
                 }
             });
 
             // 立即返回任务ID
+            System.out.println("立即返回任务ID: " + taskId);
             Map<String, Object> result = new HashMap<>();
             result.put("taskId", taskId);
             result.put("totalCount", request.getImages() != null ? request.getImages().size() : 0);
             result.put("message", "任务已提交，正在后台处理");
+            System.out.println("========== 异步批量下载任务结束 ==========");
 
             return ApiResponse.success(result);
 
         } catch (Exception e) {
-            log.error("提交异步任务失败，错误: {}", e.getMessage(), e);
+            System.out.println("!!! 提交异步任务失败，错误: " + e.getMessage());
             e.printStackTrace();
+            System.out.println("========== 异常结束 ==========");
             return ApiResponse.error("提交任务失败：" + e.getMessage());
         }
     }
