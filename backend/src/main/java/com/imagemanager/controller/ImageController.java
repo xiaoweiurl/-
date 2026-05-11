@@ -497,9 +497,9 @@ public class ImageController {
                     List<BatchDownloadResponse> results = imageService.batchDownloadImages(finalRequest);
                     
                     // 统计结果
-                    long successCount = results.stream().filter(r -> "success".equals(r.getStatus())).count();
-                    long failCount = results.stream().filter(r -> "failed".equals(r.getStatus())).count();
-                    long skipCount = results.stream().filter(r -> "skipped".equals(r.getStatus())).count();
+                    long successCount = results.stream().filter(BatchDownloadResponse::isSuccess).count();
+                    long failCount = results.stream().filter(r -> !r.isSuccess() && !r.isSkipped()).count();
+                    long skipCount = results.stream().filter(BatchDownloadResponse::isSkipped).count();
                     
                     batchDownloadTaskService.updateTaskCompleted(finalTaskId, (int) successCount, (int) failCount, (int) skipCount);
                     System.out.println("[Task " + finalTaskId + "] 异步执行完成！成功:" + successCount + " 失败:" + failCount + " 跳过:" + skipCount);
