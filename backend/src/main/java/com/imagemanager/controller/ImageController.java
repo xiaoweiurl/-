@@ -91,10 +91,7 @@ public class ImageController {
                 return;
             }
             
-            String contentType = image.getContentType();
-            if (contentType == null || contentType.isEmpty()) {
-                contentType = "image/" + (image.getFileType() != null ? image.getFileType() : "png");
-            }
+            String contentType = "image/" + (image.getFileType() != null ? image.getFileType() : "png");
             
             response.setContentType(contentType);
             response.setContentLengthLong(file.length());
