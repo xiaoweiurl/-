@@ -410,24 +410,38 @@ export default function ExcelBatchUpload({
         );
       }
 
-      // 调用后端API批量下载（传递文件名用于创建层级相册）
-      const response = await fetch('/api/images/batch-download', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          images: imagesToDownload,
-          parentAlbumName: excelFileNameRef.current, // 使用 ref 获取文件名（确保同步访问）
-        }),
-      });
+      // 设置超时控制器（5分钟超时）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 
-      const result = await response.json();
+      try {
+        // 调用后端API批量下载（传递文件名用于创建层级相册）
+        // 使用 keepalive 确保页面关闭时请求仍能完成
+        const response = await fetch('/api/images/batch-download', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            images: imagesToDownload,
+            parentAlbumName: excelFileNameRef.current, // 使用 ref 获取文件名（确保同步访问）
+          }),
+          signal: controller.signal,
+          keepalive: true,
+        });
 
-      console.log('[ExcelUpload] 批量下载响应:', result);
+        clearTimeout(timeoutId);
 
-      if (result.success && result.data) {
+        if (!response.ok) {
+          throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        console.log('[ExcelUpload] 批量下载响应:', result);
+
+        if (result.success && result.data) {
         // 创建一个映射来跟踪每个商品的成功/失败/跳过状态
         const productStatus = new Map<string, { success: number; fail: number; skipped: number; hasError: boolean }>();
         
@@ -555,7 +569,17 @@ export default function ExcelBatchUpload({
       }
     } catch (error) {
       console.error('[ExcelUpload] 批量下载失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '网络错误';
+      let errorMessage = '网络错误';
+
+      // 检查是否是超时错误
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = '下载超时（图片数量过多，请分批导入或减少图片数量）';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       setExcelData(prev =>
         prev.map(row => ({
           ...row,
