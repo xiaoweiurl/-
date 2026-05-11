@@ -23,12 +23,12 @@ public class BatchDownloadResponse {
     /**
      * 是否成功
      */
-    private Boolean success;
+    private boolean success;
     
     /**
      * 是否跳过（已存在）
      */
-    private Boolean skipped;
+    private boolean skipped;
     
     /**
      * 错误信息
