@@ -414,34 +414,33 @@ export default function ExcelBatchUpload({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 
-      try {
-        // 调用后端API批量下载（传递文件名用于创建层级相册）
-        // 使用 keepalive 确保页面关闭时请求仍能完成
-        const response = await fetch('/api/images/batch-download', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            images: imagesToDownload,
-            parentAlbumName: excelFileNameRef.current, // 使用 ref 获取文件名（确保同步访问）
-          }),
-          signal: controller.signal,
-          keepalive: true,
-        });
+      // 调用后端API批量下载（传递文件名用于创建层级相册）
+      // 使用 keepalive 确保页面关闭时请求仍能完成
+      const response = await fetch('/api/images/batch-download', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          images: imagesToDownload,
+          parentAlbumName: excelFileNameRef.current, // 使用 ref 获取文件名（确保同步访问）
+        }),
+        signal: controller.signal,
+        keepalive: true,
+      });
 
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          throw new Error(`请求失败: ${response.status} ${response.statusText}`);
-        }
+      if (!response.ok) {
+        throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+      }
 
-        const result = await response.json();
+      const result = await response.json();
 
-        console.log('[ExcelUpload] 批量下载响应:', result);
+      console.log('[ExcelUpload] 批量下载响应:', result);
 
-        if (result.success && result.data) {
+      if (result.success && result.data) {
         // 创建一个映射来跟踪每个商品的成功/失败/跳过状态
         const productStatus = new Map<string, { success: number; fail: number; skipped: number; hasError: boolean }>();
         
