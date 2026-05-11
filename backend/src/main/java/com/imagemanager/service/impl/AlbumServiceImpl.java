@@ -60,7 +60,7 @@ public class AlbumServiceImpl implements AlbumService {
         // 1. 查找父相册，使用 fullName 精确匹配
         Optional<Album> parentOpt;
         if (parentName != null && !parentName.isEmpty()) {
-            parentOpt = albumRepository.findByUserIdAndFullName(userId, parentName);
+            parentOpt = albumRepository.findByUserIdAndName(userId, parentName);
         } else {
             parentOpt = Optional.empty();
         }
