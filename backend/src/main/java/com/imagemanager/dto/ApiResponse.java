@@ -47,21 +47,39 @@ public class ApiResponse<T> {
      * 成功响应
      */
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(200, "操作成功", data, System.currentTimeMillis(), true);
+        ApiResponse<T> response = new ApiResponse<>();
+        response.setCode(200);
+        response.setMessage("操作成功");
+        response.setData(data);
+        response.setTimestamp(System.currentTimeMillis());
+        response.setSuccess(true);
+        return response;
     }
     
     /**
      * 成功响应（带消息）
      */
     public static <T> ApiResponse<T> success(String message, T data) {
-        return new ApiResponse<>(200, message, data, System.currentTimeMillis(), true);
+        ApiResponse<T> response = new ApiResponse<>();
+        response.setCode(200);
+        response.setMessage(message);
+        response.setData(data);
+        response.setTimestamp(System.currentTimeMillis());
+        response.setSuccess(true);
+        return response;
     }
     
     /**
      * 失败响应
      */
     public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(500, message, null, System.currentTimeMillis(), false);
+        ApiResponse<T> response = new ApiResponse<>();
+        response.setCode(500);
+        response.setMessage(message);
+        response.setData(null);
+        response.setTimestamp(System.currentTimeMillis());
+        response.setSuccess(false);
+        return response;
     }
     
     /**
