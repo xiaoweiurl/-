@@ -211,15 +211,15 @@ export default function ExcelBatchUpload({
         // 列A(0): 分类, 列B(1): 商品名称, 列C(2): 价格, 列D(3): 商品详情（主图）, 列E+(4): 详情图
         
         // 分类解析 - 支持多层分类格式：
-        // A列格式: 功能内衣_男士专区_
-        // 第一层: 文件名 (X-BIONIC)
-        // 第二层: A列分割后第一部分 (男士专区)
-        // 第三层: A列分割后第二部分 (功能内衣)
+        // A列格式: 功能内衣_男士专区_  或  男士专区_
+        // 分割后: ['功能内衣', '男士专区'] 或 ['男士专区']
+        // - parts[0] = 最后一部分 = 最深层
+        // - parts[1] = 倒数第二部分 = 第二层
         const categoryColumn = String(row[0] || '').trim(); // A列: 功能内衣_男士专区_
         const parts = categoryColumn.split('_').map(s => s.trim()).filter(s => s);
-        // parts[0] = '男士专区', parts[1] = '功能内衣'
-        const subCategory = parts.length > 0 ? parts[0] : undefined;  // 第二层
-        const category = parts.length > 1 ? parts[1] : undefined;      // 第三层
+        // parts = ['功能内衣', '男士专区'] (两层) 或 ['男士专区'] (一层)
+        const category = parts.length > 0 ? parts[0] : undefined;     // 最深层 (第三层或第二层)
+        const subCategory = parts.length > 1 ? parts[1] : undefined;   // 第二层
         
         // 商品名称 - B列才是商品名称
         const rawProductName = String(row[1] || '').trim(); // B列
