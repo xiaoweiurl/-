@@ -84,6 +84,12 @@ public class ApiResponse<T> {
      * 失败响应（带错误码）
      */
     public static <T> ApiResponse<T> error(Integer code, String message) {
-        return new ApiResponse<>(code, message, null, System.currentTimeMillis());
+        ApiResponse<T> response = new ApiResponse<>();
+        response.setCode(code);
+        response.setMessage(message);
+        response.setData(null);
+        response.setTimestamp(System.currentTimeMillis());
+        response.setSuccess(false);
+        return response;
     }
 }
