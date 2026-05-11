@@ -1544,7 +1544,17 @@ public class ImageServiceImpl implements ImageService {
         
         return results;
     }
-    
+
+    /**
+     * 批量下载网络图片（同步版本，用于异步任务调用）
+     */
+    @Override
+    public List<com.imagemanager.dto.BatchDownloadResponse> batchDownloadImagesSync(
+            com.imagemanager.dto.BatchDownloadRequest request) {
+        // 直接调用原有逻辑
+        return batchDownloadImages(request);
+    }
+
     /**
      * 上传单张图片并使用AI分析（带自定义参数）
      */

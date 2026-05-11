@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -158,7 +158,20 @@ export default function ExcelBatchUpload({
   const [excelFileName, setExcelFileName] = React.useState<string>(''); // 保存Excel文件名
   const excelFileNameRef = React.useRef<string>(''); // 使用 ref 保存文件名（同步访问）
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const pendingRowsRef = React.useRef<typeof excelData>([]); // 保存待处理行用于轮询
+  const taskIntervalRef = React.useRef<NodeJS.Timeout | null>(null); // 保存轮询 intervalId
   const { addNotification } = useNotifications();
+
+  // 可选的回调函数，用于保存轮询 intervalId（用于清理）
+  const setTaskIntervalId = (intervalId: NodeJS.Timeout | null) => {
+    taskIntervalRef.current = intervalId;
+  };
+
+  // 异步任务状态
+  const [taskId, setTaskId] = React.useState<string | null>(null);
+  const [downloadStatus, setDownloadStatus] = React.useState<'idle' | 'pending' | 'processing' | 'completed' | 'failed'>('idle');
+  const [progress, setProgress] = React.useState({ total: 0, processed: 0, success: 0, fail: 0, skip: 0 });
+  const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // 处理Excel文件选择
   const handleFileSelect = async (files: FileList | null) => {
@@ -342,6 +355,159 @@ export default function ExcelBatchUpload({
     setExcelData(prev => prev.filter(row => row.id !== id));
   };
 
+  // 任务进度映射
+  const [taskProgress, setTaskProgress] = useState<Record<string, {
+    progress: number;
+    total: number;
+    success: number;
+    failed: number;
+    skipped: number;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    error?: string;
+  }>>({});
+
+  // 轮询任务进度的函数
+  const pollTaskProgress = async (taskId: string) => {
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/batch-download/tasks/${taskId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('获取任务状态失败');
+        }
+
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const task = result.data;
+
+          // 更新任务状态
+          setTaskProgress((prev: Record<string, any>) => ({
+            ...prev,
+            [taskId]: {
+              progress: task.processedCount || 0,
+              total: task.totalCount || 0,
+              success: task.successCount || 0,
+              failed: task.failedCount || 0,
+              skipped: task.skippedCount || 0,
+              status: task.status === 'COMPLETED' ? 'completed' : 
+                      task.status === 'FAILED' ? 'failed' : 
+                      task.status === 'PROCESSING' ? 'processing' : 'pending',
+              error: task.error,
+            }
+          }));
+
+          // 更新 Excel 行的状态
+          if (task.results && task.results.length > 0) {
+            setExcelData((prev: typeof excelData) => {
+              const productStatus = new Map<string, { success: number; fail: number; skipped: number; hasError: boolean }>();
+              
+              pendingRowsRef.current.forEach(row => {
+                productStatus.set(row.id, { success: 0, fail: 0, skipped: 0, hasError: false });
+              });
+
+              task.results.forEach((item: { originalUrl: string; success: boolean; skipped?: boolean; error?: string }) => {
+                let matchedRowId: string | null = null;
+
+                // 匹配主图
+                for (const row of prev) {
+                  if (row.mainImageUrl === item.originalUrl) {
+                    matchedRowId = row.id;
+                    break;
+                  }
+                }
+
+                // 匹配详情图
+                if (!matchedRowId) {
+                  for (const row of prev) {
+                    if (row.detailImageUrls.includes(item.originalUrl)) {
+                      matchedRowId = row.id;
+                      break;
+                    }
+                  }
+                }
+
+                if (matchedRowId) {
+                  const status = productStatus.get(matchedRowId);
+                  if (!status) return;
+
+                  if (item.success) {
+                    status.success++;
+                  } else if (item.skipped || (item.error && item.error.includes('已存在'))) {
+                    status.skipped++;
+                  } else {
+                    status.fail++;
+                    status.hasError = true;
+                  }
+                  productStatus.set(matchedRowId, status);
+                }
+              });
+
+              return prev.map(row => {
+                const status = productStatus.get(row.id);
+                if (!status) return row;
+
+                // 确定最终状态
+                let newStatus: ExcelRow['status'];
+                if (task.status === 'COMPLETED') {
+                  if (status.success === 0 && status.skipped > 0 && status.fail === 0) {
+                    newStatus = 'skipped';
+                  } else if (status.success > 0) {
+                    newStatus = 'success';
+                  } else {
+                    newStatus = 'error';
+                  }
+                } else if (task.status === 'FAILED') {
+                  newStatus = 'error';
+                } else {
+                  newStatus = 'downloading';
+                }
+
+                // 构建错误消息
+                let errorMsg: string | undefined;
+                if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+                  if (status.hasError) {
+                    errorMsg = `部分失败（成功${status.success}张，失败${status.fail}张，跳过${status.skipped}张）`;
+                  } else if (status.skipped > 0 && status.success === 0) {
+                    errorMsg = `图片已存在（跳过${status.skipped}张）`;
+                  }
+                }
+
+                return {
+                  ...row,
+                  status: newStatus,
+                  error: errorMsg,
+                };
+              });
+            });
+          }
+
+          // 如果任务完成或失败，停止轮询
+          if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+            return true; // 停止轮询
+          }
+        }
+
+        return false; // 继续轮询
+      } catch (error) {
+        console.error('[ExcelUpload] 轮询任务进度失败:', error);
+        return false;
+      }
+    };
+
+    // 轮询间隔：1秒
+    const intervalId = setInterval(async () => {
+      const shouldStop = await poll();
+      if (shouldStop) {
+        clearInterval(intervalId);
+      }
+    }, 1000);
+
+    return intervalId;
+  };
+
   // 批量下载图片
   const downloadImages = async () => {
     if (excelData.length === 0) return;
@@ -353,6 +519,9 @@ export default function ExcelBatchUpload({
 
     // 过滤出待处理的行
     const pendingRows = excelData.filter(row => row.status === 'pending');
+    
+    // 保存待处理行引用，用于轮询时更新状态
+    pendingRowsRef.current = pendingRows;
 
     // 构造请求数据，过滤掉无效数据
     const imagesToDownload: UploadedImage[] = pendingRows
@@ -398,25 +567,20 @@ export default function ExcelBatchUpload({
       return;
     }
 
+    // 逐个更新状态为下载中
+    for (const row of pendingRows) {
+      setExcelData(prev =>
+        prev.map(r =>
+          r.id === row.id ? { ...r, status: 'downloading' as const } : r
+        )
+      );
+    }
+
     try {
-      console.log('[ExcelUpload] 开始批量下载图片，数量:', imagesToDownload.length);
+      console.log('[ExcelUpload] 提交异步批量下载任务，数量:', imagesToDownload.length);
 
-      // 逐个更新状态为下载中
-      for (const row of pendingRows) {
-        setExcelData(prev =>
-          prev.map(r =>
-            r.id === row.id ? { ...r, status: 'downloading' as const } : r
-          )
-        );
-      }
-
-      // 设置超时控制器（5分钟超时）
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-
-      // 调用后端API批量下载（传递文件名用于创建层级相册）
-      // 使用 keepalive 确保页面关闭时请求仍能完成
-      const response = await fetch('/api/images/batch-download', {
+      // 调用后端API提交异步任务
+      const response = await fetch('/api/batch-download/tasks', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -424,13 +588,9 @@ export default function ExcelBatchUpload({
         },
         body: JSON.stringify({
           images: imagesToDownload,
-          parentAlbumName: excelFileNameRef.current, // 使用 ref 获取文件名（确保同步访问）
+          parentAlbumName: excelFileNameRef.current,
         }),
-        signal: controller.signal,
-        keepalive: true,
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`请求失败: ${response.status} ${response.statusText}`);
@@ -438,145 +598,37 @@ export default function ExcelBatchUpload({
 
       const result = await response.json();
 
-      console.log('[ExcelUpload] 批量下载响应:', result);
+      console.log('[ExcelUpload] 异步任务创建响应:', result);
 
-      if (result.success && result.data) {
-        // 创建一个映射来跟踪每个商品的成功/失败/跳过状态
-        const productStatus = new Map<string, { success: number; fail: number; skipped: number; hasError: boolean }>();
-        
-        // 初始化所有商品的状态
-        pendingRows.forEach(row => {
-          productStatus.set(row.id, { success: 0, fail: 0, skipped: 0, hasError: false });
-        });
-        
-        // 记录每个商品的总图片数（1张主图 + N张详情图）
-        const productTotalCounts = new Map<string, number>();
-        excelData.forEach(row => {
-          productTotalCounts.set(row.id, 1 + row.detailImageUrls.length);
-        });
+      if (result.success && result.data && result.data.taskId) {
+        const taskId = result.data.taskId;
 
-        // 记录每个商品已下载成功的图片数
-        const productSuccessCounts = new Map<string, number>();
-
-        // 处理每个图片的响应
-        result.data.forEach((item: { originalUrl: string; success: boolean; skipped?: boolean; error?: string; imageId?: string }) => {
-          // 根据originalUrl找到对应的商品
-          let matchedRowId: string | null = null;
-
-          // 首先尝试匹配主图
-          for (const row of excelData) {
-            if (row.mainImageUrl === item.originalUrl) {
-              matchedRowId = row.id;
-              break;
-            }
-          }
-
-          // 如果没匹配到主图，尝试匹配详情图
-          if (!matchedRowId) {
-            for (const row of excelData) {
-              if (row.detailImageUrls.includes(item.originalUrl)) {
-                matchedRowId = row.id;
-                break;
-              }
-            }
-          }
-
-          if (matchedRowId) {
-            const status = productStatus.get(matchedRowId);
-            if (!status) return;
-
-            if (item.success) {
-              status.success++;
-              successCount++;
-
-              // 更新该商品已下载成功的图片数
-              const currentSuccessCount = productSuccessCounts.get(matchedRowId) || 0;
-              productSuccessCounts.set(matchedRowId, currentSuccessCount + 1);
-
-              // 检查该商品的所有图片是否都已下载完成
-              const totalCount = productTotalCounts.get(matchedRowId) || 0;
-              if (currentSuccessCount + 1 >= totalCount) {
-                // 所有图片都下载完成，显示一次成功通知
-                const row = excelData.find(r => r.id === matchedRowId);
-                if (row) {
-                  addNotification({
-                    type: 'success',
-                    title: '图片下载成功',
-                    message: `商品「${row.productName}」下载成功（主图 + ${row.detailImageUrls.length}张详情图）`,
-                  });
-                }
-              }
-            } else if (item.skipped || (item.error && item.error.includes('已存在'))) {
-              // 图片已存在，跳过
-              status.skipped++;
-            } else {
-              // 真正的失败
-              status.fail++;
-              status.hasError = true;
-              failCount++;
-            }
-            productStatus.set(matchedRowId, status);
+        // 初始化任务状态
+        setTaskProgress({
+          [taskId]: {
+            progress: 0,
+            total: imagesToDownload.length,
+            success: 0,
+            failed: 0,
+            skipped: 0,
+            status: 'processing',
           }
         });
-        
-        // 更新每个商品的状态
-        setExcelData(prev => {
-          const updatedRows = prev.map(row => {
-            const status = productStatus.get(row.id);
-            if (!status) return row;
 
-            // 如果全部跳过，显示"已存在"
-            if (status.success === 0 && status.skipped > 0 && status.fail === 0) {
-              return {
-                ...row,
-                status: 'skipped' as const,
-                error: `图片已存在（跳过${status.skipped}张）`,
-              };
-            }
-            
-            // 如果至少有一张成功，则标记为成功（即使部分失败）
-            const hasSuccess = status.success > 0;
-            const newStatus: ExcelRow['status'] = hasSuccess ? 'success' : 'error';
-            
-            // 构建错误消息
-            let errorMsg: string | undefined;
-            if (status.hasError) {
-              errorMsg = `部分失败（成功${status.success}张，失败${status.fail}张，跳过${status.skipped}张）`;
-            } else if (status.skipped > 0) {
-              errorMsg = `成功${status.success}张，跳过${status.skipped}张`;
-            }
+        // 开始轮询任务进度
+        const intervalId = await pollTaskProgress(taskId);
 
-            return {
-              ...row,
-              status: newStatus,
-              error: errorMsg,
-            };
-          });
-
-          return updatedRows;
-        });
+        // 保存 intervalId 用于清理（需要在外层组件处理）
+        setTaskIntervalId?.(intervalId);
       } else {
-        // 整体失败
-        setExcelData(prev =>
-          prev.map(row => ({
-            ...row,
-            status: 'error' as const,
-            error: result.error || '下载失败',
-          }))
-        );
-        failCount = pendingRows.length;
+        throw new Error(result.error || '创建异步任务失败');
       }
     } catch (error) {
       console.error('[ExcelUpload] 批量下载失败:', error);
       let errorMessage = '网络错误';
 
-      // 检查是否是超时错误
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = '下载超时（图片数量过多，请分批导入或减少图片数量）';
-        } else {
-          errorMessage = error.message;
-        }
+        errorMessage = error.message;
       }
 
       setExcelData(prev =>
@@ -587,52 +639,82 @@ export default function ExcelBatchUpload({
         }))
       );
       failCount = pendingRows.length;
-    }
-
-    setIsProcessing(false);
-
-    // 如果有成功的或跳过的，显示通知
-    if (successCount > 0 || skipCount > 0) {
-      let message = '';
-      if (successCount > 0) {
-        message = `成功下载 ${successCount} 张图片`;
-      }
-      if (skipCount > 0) {
-        message += message ? `，` : '';
-        message += `跳过 ${skipCount} 张（图片已存在）`;
-      }
-      if (failCount > 0) {
-        message += `，${failCount} 张失败`;
-      }
-      
-      addNotification({
-        type: 'upload',
-        title: '图片导入完成',
-        message,
-      });
-
-      // 延迟关闭并刷新
-      setTimeout(() => {
-        setExcelData([]);
-        onOpenChange(false);
-        onUploadSuccess();
-      }, 1500);
-    } else {
-      addNotification({
-        type: 'warning',
-        title: '下载失败',
-        message: `所有图片下载失败，请检查图片URL是否有效`,
-      });
+      setIsProcessing(false);
     }
   };
 
   // 关闭时清理
   const handleClose = () => {
+    // 清理轮询 interval
+    if (taskIntervalRef.current) {
+      clearInterval(taskIntervalRef.current);
+      taskIntervalRef.current = null;
+    }
+
     if (!isProcessing) {
       setExcelData([]);
+      setTaskProgress({});
       onOpenChange(false);
     }
   };
+
+  // 处理任务完成后的逻辑（当任务完成但对话框未关闭时）
+  React.useEffect(() => {
+    // 检查是否有已完成的任务
+    const completedTasks = Object.entries(taskProgress).filter(
+      ([, task]) => task.status === 'completed' || task.status === 'failed'
+    );
+
+    if (completedTasks.length > 0 && isProcessing) {
+      // 计算总计
+      let totalSuccess = 0;
+      let totalFailed = 0;
+      let totalSkipped = 0;
+
+      completedTasks.forEach(([, task]) => {
+        totalSuccess += task.success;
+        totalFailed += task.failed;
+        totalSkipped += task.skipped;
+      });
+
+      // 显示最终通知
+      if (totalSuccess > 0 || totalSkipped > 0) {
+        let message = '';
+        if (totalSuccess > 0) {
+          message = `成功下载 ${totalSuccess} 张图片`;
+        }
+        if (totalSkipped > 0) {
+          message += message ? `，` : '';
+          message += `跳过 ${totalSkipped} 张（图片已存在）`;
+        }
+        if (totalFailed > 0) {
+          message += `，${totalFailed} 张失败`;
+        }
+
+        addNotification({
+          type: 'upload',
+          title: '图片导入完成',
+          message,
+        });
+
+        // 延迟关闭并刷新
+        setTimeout(() => {
+          setExcelData([]);
+          setTaskProgress({});
+          onOpenChange(false);
+          onUploadSuccess();
+        }, 2000);
+      } else if (totalFailed > 0) {
+        addNotification({
+          type: 'warning',
+          title: '下载失败',
+          message: `所有图片下载失败，请检查图片URL是否有效`,
+        });
+      }
+
+      setIsProcessing(false);
+    }
+  }, [taskProgress, isProcessing, addNotification, onOpenChange, onUploadSuccess]);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

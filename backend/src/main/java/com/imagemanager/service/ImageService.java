@@ -126,7 +126,14 @@ public interface ImageService {
      * @return 下载结果列表
      */
     List<BatchDownloadResponse> batchDownloadImages(BatchDownloadRequest request);
-    
+
+    /**
+     * 批量下载网络图片（同步版本，用于异步任务调用）
+     * @param request 批量下载请求
+     * @return 下载结果列表
+     */
+    List<BatchDownloadResponse> batchDownloadImagesSync(BatchDownloadRequest request);
+
     /**
      * 导出单个相册的所有图片
      * @param albumId 相册ID
