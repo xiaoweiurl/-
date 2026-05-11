@@ -12,6 +12,7 @@ import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ProductRepository;
 import com.imagemanager.service.AIRecognitionService;
 import com.imagemanager.service.AlbumService;
+import com.imagemanager.service.ImageEnhancementService;
 import com.imagemanager.service.ImageService;
 import com.imagemanager.service.StorageService;
 import com.imagemanager.util.CharsetUtil;
@@ -36,6 +37,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.awt.image.BufferedImage;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -76,6 +78,15 @@ public class ImageServiceImpl implements ImageService {
 
     @Autowired(required = false)
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ImageEnhancementService imageEnhancementService;
+
+    @Value("${app.image.enhance:true}")
+    private boolean enableImageEnhance;
+
+    @Value("${app.image.super-resolution:false}")
+    private boolean enableSuperResolution;
     
     
     @Override
@@ -1513,6 +1524,26 @@ public class ImageServiceImpl implements ImageService {
                             fileName += (isMainImage ? "" : "_" + i);
                         }
                         fileName += extension;
+
+                        // 图片增强处理（如果启用）
+                        if (enableImageEnhance && imageData.length > 0) {
+                            try {
+                                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageData);
+                                BufferedImage originalImage = javax.imageio.ImageIO.read(bais);
+                                if (originalImage != null) {
+                                    BufferedImage enhancedImage = imageEnhancementService.enhance(originalImage, enableSuperResolution);
+                                    if (enhancedImage != null) {
+                                        imageData = imageEnhancementService.toByteArray(enhancedImage, "jpg");
+                                        log.info("图片增强完成, 原尺寸: {}x{}, 新尺寸: {}x{}, 大小: {} bytes",
+                                                originalImage.getWidth(), originalImage.getHeight(),
+                                                enhancedImage.getWidth(), enhancedImage.getHeight(),
+                                                imageData.length);
+                                    }
+                                }
+                            } catch (Exception e) {
+                                log.warn("图片增强失败，使用原图: {}", e.getMessage());
+                            }
+                        }
 
                         // 创建MultipartFile
                         com.imagemanager.util.ByteArrayMultipartFile file =
