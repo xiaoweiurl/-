@@ -27,7 +27,7 @@ export async function GET(
       headers['X-Session-Id'] = sessionId;
     }
     
-    const response = await fetch(`${BACKEND_API_URL}/images/batch-download-tasks/${taskId}`, {
+    const response = await fetch(`${BACKEND_API_URL}/images/batch-download/tasks/${taskId}`, {
       method: 'GET',
       headers,
     });

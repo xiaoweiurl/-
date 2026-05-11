@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     
     console.log('[API] 异步批量下载请求:', body);
     
-    const response = await backendFetch('/images/batch-download-async', {
+    const response = await backendFetch('/images/batch-download/tasks', {
       method: 'POST',
       body: body,
       requestHeaders: {

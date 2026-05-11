@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 调用异步任务接口
-    const response = await fetch(`${BACKEND_API_URL}/images/batch-download-async`, {
+    const response = await fetch(`${BACKEND_API_URL}/images/batch-download/tasks`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
