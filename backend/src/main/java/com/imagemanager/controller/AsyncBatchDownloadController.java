@@ -8,9 +8,10 @@ import com.imagemanager.service.BatchDownloadTaskService;
 import com.imagemanager.service.ImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -34,23 +35,48 @@ public class AsyncBatchDownloadController {
     private BatchDownloadTaskService taskService;
 
     /**
+     * 从请求中获取当前用户ID
+     */
+    private String getCurrentUserId(HttpServletRequest request) {
+        // 优先从 X-Session-Id header 获取会话（前端传递方式）
+        String sessionId = request.getHeader("X-Session-Id");
+        
+        // 如果 header 没有，再从 Cookie 获取
+        if (sessionId == null && request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("session_id".equals(cookie.getName())) {
+                    sessionId = cookie.getValue();
+                    break;
+                }
+            }
+        }
+        
+        // 临时返回固定值，后续需要根据session获取真实用户ID
+        // TODO: 实现根据session获取用户ID的逻辑
+        return sessionId != null ? sessionId : "user-1";
+    }
+
+    /**
      * 提交异步批量下载任务
      */
     @PostMapping("/tasks")
     @Operation(summary = "提交异步批量下载任务", description = "提交任务后立即返回任务ID，后台异步处理")
     public ApiResponse<Map<String, Object>> submitBatchDownloadTask(
+            HttpServletRequest httpRequest,
             @RequestBody BatchDownloadRequest request) {
         try {
-            log.info("提交异步批量下载任务，图片数量：{}", request.getImages() != null ? request.getImages().size() : 0);
+            String userId = getCurrentUserId(httpRequest);
+            log.info("提交异步批量下载任务，用户ID：{}，图片数量：{}", userId, request.getImages() != null ? request.getImages().size() : 0);
 
             // 创建任务
             String taskId = taskService.createTask(
-                    "user-1",
+                    userId,
                     request.getParentAlbumName(),
                     request.getImages() != null ? request.getImages().size() : 0
             );
 
             // 异步处理
+            final String finalUserId = userId;
             CompletableFuture.runAsync(() -> {
                 try {
                     taskService.updateTaskProcessing(taskId);
@@ -101,7 +127,9 @@ public class AsyncBatchDownloadController {
      */
     @GetMapping("/tasks/{taskId}")
     @Operation(summary = "获取任务进度", description = "轮询获取批量下载任务进度")
-    public ApiResponse<Map<String, Object>> getTaskProgress(@PathVariable String taskId) {
+    public ApiResponse<Map<String, Object>> getTaskProgress(
+            HttpServletRequest httpRequest,
+            @PathVariable String taskId) {
         try {
             BatchDownloadTask task = taskService.getTask(taskId);
 
@@ -119,14 +147,12 @@ public class AsyncBatchDownloadController {
             progress.put("skipCount", task.getSkipCount());
             progress.put("progressPercent", taskService.getProgressPercent(taskId));
             progress.put("errorMessage", task.getErrorMessage());
-            progress.put("createdAt", task.getCreatedAt());
-            progress.put("completedAt", task.getCompletedAt());
 
             return ApiResponse.success(progress);
 
         } catch (Exception e) {
-            log.error("获取任务进度失败：taskId={}", taskId, e);
-            return ApiResponse.error("获取进度失败：" + e.getMessage());
+            log.error("获取任务进度失败", e);
+            return ApiResponse.error("获取任务进度失败：" + e.getMessage());
         }
     }
 }
