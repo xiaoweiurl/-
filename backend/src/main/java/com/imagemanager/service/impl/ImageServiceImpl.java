@@ -1329,18 +1329,20 @@ public class ImageServiceImpl implements ImageService {
                 log.info("复用商品记录重新导入图片: ID={}, 名称={}", product.getId(), productName);
             }
 
-            // 合并所有需要下载的URL（主图 + 详情图）
+            // 合并所有需要下载的URL（主图 + 详情图），并去重
             List<String> allUrls = new ArrayList<>();
+            Set<String> urlSet = new java.util.LinkedHashSet<>(); // 使用 LinkedHashSet 保持顺序并去重
             if (item.getMainImageUrl() != null && !item.getMainImageUrl().isEmpty() && !item.getMainImageUrl().trim().isEmpty()) {
-                allUrls.add(item.getMainImageUrl().trim());
+                urlSet.add(item.getMainImageUrl().trim());
             }
             if (item.getDetailImageUrls() != null && !item.getDetailImageUrls().isEmpty()) {
                 // 过滤空URL和无效URL
                 item.getDetailImageUrls().stream()
                     .filter(url -> url != null && !url.isEmpty() && !url.trim().isEmpty())
                     .map(String::trim)
-                    .forEach(allUrls::add);
+                    .forEach(urlSet::add);
             }
+            allUrls.addAll(urlSet);
 
             // 检查是否有有效的URL
             if (allUrls.isEmpty()) {
@@ -1355,6 +1357,7 @@ public class ImageServiceImpl implements ImageService {
 
             int totalImages = allUrls.size();
             int successCount = 0;
+            int skippedCount = 0; // 统计跳过的图片数量
             String mainImageId = null; // 记录主图ID
 
             // 下载所有图片
@@ -1368,11 +1371,12 @@ public class ImageServiceImpl implements ImageService {
                 try {
                     // 检查图片URL是否已存在，避免重复下载
                     if (imageRepository.existsByOriginalUrlAndDeletedFalse(imageUrl)) {
-                        log.info("图片URL已存在，跳过: {}", imageUrl);
+                        log.info("图片URL已存在于数据库，跳过: {}", imageUrl);
                         response.setSuccess(true);
                         response.setSkipped(true);
-                        response.setError("图片已存在，跳过");
+                        response.setError("图片已存在于数据库，跳过");
                         successCount++;
+                        skippedCount++;
                         results.add(response);
                         continue;
                     }
@@ -1507,8 +1511,8 @@ public class ImageServiceImpl implements ImageService {
                 log.warn("删除无效商品记录: ID={}, 原因: 没有下载成功任何图片", productId);
             }
 
-            log.info("商品 {} 下载完成：成功 {}/{}",
-                item.getProductName(), successCount, totalImages);
+            log.info("商品 {} 下载完成：成功 {}/{}，跳过 {}", 
+                item.getProductName(), successCount, totalImages, skippedCount);
         }
         
         // 更新受影响的相册图片数量
