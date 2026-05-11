@@ -1232,10 +1232,10 @@ public class ImageServiceImpl implements ImageService {
                                 subCategory,
                                 "user-1"
                         );
-                        // 再创建/获取第三层相册
+                        // 再创建/获取第三层相册，parentName 是第二层相册的名称
                         targetAlbum = albumService.getOrCreateAlbumByParentAndName(
-                                cleanParentName + "/" + subCategory,
-                                category,
+                                subCategory,  // "男士专区" - 第二层相册的名称
+                                category,      // "功能内衣" - 第三层相册的名称
                                 "user-1"
                         );
                         log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}", 
