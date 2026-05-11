@@ -1473,7 +1473,7 @@ public class ImageServiceImpl implements ImageService {
 
                         // 创建文件名：商品名称 + (序号) + 扩展名
                         String extension = getFileExtensionFromUrl(imageUrl);
-                        fileName = sanitizeFileName(productName);
+                        String fileName = sanitizeFileName(productName);
                         if (totalImages > 1) {
                             fileName += (isMainImage ? "" : "_" + i);
                         }
