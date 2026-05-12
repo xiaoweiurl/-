@@ -61,7 +61,7 @@ public class ImageEnhancementService {
                 int g = clamp((int) rgb[1]);
                 int b = clamp((int) rgb[2]);
 
-                result.setRGB(x, y, new Color(r, g, g).getRGB());
+                result.setRGB(x, y, new Color(r, g, b).getRGB());
             }
         }
 
