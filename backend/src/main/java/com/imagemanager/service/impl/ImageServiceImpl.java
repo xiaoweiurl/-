@@ -1622,6 +1622,9 @@ public class ImageServiceImpl implements ImageService {
                                 image.setDescription(item.getDescription());
                             }
                             image = imageRepository.save(image);
+                            
+                            log.info("保存图片成功: id={}, title={}, productId={}, isMainImage={}", 
+                                image.getId(), image.getTitle(), image.getProductId(), image.getIsMainImage());
 
                             successCount++;
                             response.setSuccess(true);
