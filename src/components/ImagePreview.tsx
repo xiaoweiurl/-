@@ -195,6 +195,7 @@ export default function ImagePreview({
 
   // 如果有 productId，加载该商品的所有图片
   React.useEffect(() => {
+    console.log('[ImagePreview] useEffect productId:', productId, 'image:', image);
     if (productId) {
       loadProductImages(productId);
     }
