@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
-import { ArrowLeft, Heart, Share2, Download, Grid3X3, ChevronLeft, ChevronRight, DownloadCloud, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, Download, Grid3X3, ChevronLeft, ChevronRight, DownloadCloud, Image as ImageIcon, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { downloadSingleFile, downloadProductImages } from './download-utils';
@@ -36,6 +36,7 @@ interface ProductImage {
   favorite: boolean;
   tags?: string[];
   isMainImage?: boolean;
+  productId?: string;
   displayOrder: number;
   description?: string;
 }
@@ -115,6 +116,33 @@ export default function ProductDetailPage() {
       toast.error('下载失败', {
         description: fileName,
       });
+    }
+  };
+
+  // 设为主图
+  const handleSetAsMainImage = async (imageId: string) => {
+    try {
+      const response = await fetch(`/api/images/${imageId}/set-main`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // 更新本地状态：将该商品的所有图片设为非主图，然后将选中的图片设为主图
+        setImages(images.map(img => ({
+          ...img,
+          isMainImage: img.id === imageId
+        })));
+        toast.success('已设为主图');
+      } else {
+        toast.error(data.message || '设置失败');
+      }
+    } catch (error) {
+      console.error('设为主图失败:', error);
+      toast.error('设为主图失败');
     }
   };
 
@@ -337,6 +365,16 @@ export default function ProductDetailPage() {
                         >
                           <Heart className={cn('w-5 h-5', selectedImage.favorite && 'fill-current')} />
                         </button>
+                        {/* 设为主图按钮 - 只在非主图时显示 */}
+                        {selectedImage && !selectedImage.isMainImage && selectedImage.productId && (
+                          <button
+                            onClick={() => handleSetAsMainImage(selectedImage.id)}
+                            className="p-2 bg-white rounded-lg shadow-lg text-slate-600 hover:bg-violet-50 hover:text-violet-600 transition-all"
+                            title="设为主图"
+                          >
+                            <Star className="w-5 h-5" />
+                          </button>
+                        )}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="p-2 bg-white rounded-lg shadow-lg text-slate-600 hover:bg-slate-50 transition-all">
