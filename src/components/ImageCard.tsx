@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { getSessionId } from '@/lib/auth-client';
 import { 
   Heart, Download, MoreVertical, Check, Trash2, Move, Copy, ExternalLink, Share2,
-  Twitter, Facebook, Linkedin, CheckCheck, ArrowLeft, ChevronRight, FolderOpen, Edit3
+  Twitter, Facebook, Linkedin, CheckCheck, ArrowLeft, ChevronRight, FolderOpen, Edit3, Star
 } from 'lucide-react';
 import { toast } from 'sonner';
 import HighlightedText, { HighlightedTags } from './HighlightedText';
@@ -246,6 +246,37 @@ export default function ImageCard({
     setShowMoreMenu(false);
     setMenuView('main');
     router.push(`/edit/${image.id}`);
+  };
+
+  // 设为主图
+  const handleSetMain = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMoreMenu(false);
+    setMenuView('main');
+    
+    try {
+      const sessionId = getSessionId();
+      const response = await fetch(`/api/images/${image.id}/set-main`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+        },
+      });
+      
+      const result = await response.json();
+      
+      if (result.success || result.code === 200) {
+        toast.success('已设为主图');
+        // 刷新页面或更新状态
+        window.location.reload();
+      } else {
+        toast.error(result.message || '操作失败');
+      }
+    } catch (error) {
+      console.error('设为主图失败:', error);
+      toast.error('操作失败，请重试');
+    }
   };
 
   // 打开移动到相册子菜单
@@ -665,6 +696,16 @@ export default function ImageCard({
                   <span className="text-sm text-slate-700 flex-1">移动到相册</span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>
+                {/* 设为主图按钮 - 只在非主图时显示 */}
+                {image.productId && !image.isMainImage && (
+                  <button
+                    onClick={handleSetMain}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-amber-50 transition-colors text-left group"
+                  >
+                    <Star className="w-4 h-4 text-slate-500 group-hover:text-amber-500" />
+                    <span className="text-sm text-slate-700 group-hover:text-amber-600">设为主图</span>
+                  </button>
+                )}
                 <button
                   onClick={handleCopyLink}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left"

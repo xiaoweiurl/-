@@ -203,6 +203,18 @@ public class ImageController {
         Image image = imageService.toggleFavorite(id);
         return ApiResponse.success(image.getFavorite() ? "已收藏" : "已取消收藏", image);
     }
+    
+    /**
+     * 设为主图
+     */
+    @PostMapping("/{id}/set-main")
+    @Operation(summary = "设为主图", description = "将当前图片设为商品主图，原主图自动变为详情图")
+    public ApiResponse<Image> setMainImage(
+            @Parameter(description = "图片ID") @PathVariable String id) {
+        log.info("设为主图：{}", id);
+        Image image = imageService.setMainImage(id);
+        return ApiResponse.success("已设为主图", image);
+    }
 
     
     /**

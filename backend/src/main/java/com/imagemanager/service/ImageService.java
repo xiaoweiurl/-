@@ -77,6 +77,12 @@ public interface ImageService {
     Image toggleFavorite(String id);
     
     /**
+     * 设为主图
+     * 将指定图片设为主图，同一商品的原主图自动变为详情图
+     */
+    Image setMainImage(String id);
+    
+    /**
      * 批量收藏
      */
     void batchFavorite(List<String> ids);

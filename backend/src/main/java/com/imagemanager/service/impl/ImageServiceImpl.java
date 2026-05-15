@@ -688,6 +688,58 @@ public class ImageServiceImpl implements ImageService {
     }
     
     @Override
+    public Image setMainImage(String id) {
+        log.info("设为主图，ID：{}", id);
+        
+        // 获取当前图片
+        Image newMainImage = imageRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("图片不存在"));
+        
+        // 如果已经是主图，直接返回
+        if (Boolean.TRUE.equals(newMainImage.getIsMainImage())) {
+            log.info("图片 {} 已经是主图", id);
+            return newMainImage;
+        }
+        
+        String productId = newMainImage.getProductId();
+        String albumId = newMainImage.getAlbumId();
+        
+        // 查找同一商品的原主图，将其设为详情图
+        if (productId != null) {
+            // 通过 productId 查找原主图
+            List<Image> productImages = imageRepository.findByProductIdAndDeletedOrderByDisplayOrderAsc(productId, false);
+            for (Image img : productImages) {
+                if (Boolean.TRUE.equals(img.getIsMainImage())) {
+                    img.setIsMainImage(false);
+                    img.setDisplayOrder(1); // 设为第一张详情图
+                    img.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
+                    imageRepository.save(img);
+                    log.info("原主图 {} 已变为详情图", img.getId());
+                }
+            }
+        } else if (albumId != null) {
+            // 如果没有 productId，通过 albumId 查找原主图
+            List<Image> albumImages = imageRepository.findByAlbumIdAndDeletedFalse(albumId);
+            for (Image img : albumImages) {
+                if (Boolean.TRUE.equals(img.getIsMainImage())) {
+                    img.setIsMainImage(false);
+                    img.setDisplayOrder(1);
+                    img.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
+                    imageRepository.save(img);
+                    log.info("原主图 {} 已变为详情图", img.getId());
+                }
+            }
+        }
+        
+        // 将当前图片设为主图
+        newMainImage.setIsMainImage(true);
+        newMainImage.setDisplayOrder(0); // 主图排序为 0
+        newMainImage.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
+        
+        return imageRepository.save(newMainImage);
+    }
+    
+    @Override
     public void batchFavorite(List<String> ids) {
         log.info("批量收藏图片，数量：{}", ids.size());
         ids.forEach(id -> {
