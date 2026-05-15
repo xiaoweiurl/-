@@ -598,112 +598,65 @@ export default function ExcelBatchUpload({
     try {
       console.log('[ExcelUpload] 提交批量下载任务，数量:', imagesToDownload.length);
 
-      // 首先尝试异步接口
-      let successCount = 0;
-      let failCountLocal = 0;
-      let skippedCount = 0;
+      // 分批处理配置：每批处理的商品数量
+      const BATCH_SIZE = 100; // 每批100个商品
+      const batches: UploadedImage[][] = [];
+      
+      // 将数据分批
+      for (let i = 0; i < imagesToDownload.length; i += BATCH_SIZE) {
+        batches.push(imagesToDownload.slice(i, i + BATCH_SIZE));
+      }
+      
+      console.log(`[ExcelUpload] 数据已分为 ${batches.length} 批次处理`);
+      
+      // 显示后台下载提示
+      const totalImages = imagesToDownload.reduce((acc, item) => 
+        acc + 1 + (item.detailImageUrls?.length || 0), 0);
+      
+      addNotification({
+        type: 'download',
+        title: '后台下载中',
+        message: `已提交 ${imagesToDownload.length} 个商品（${totalImages} 张图片）的下载任务，分 ${batches.length} 批次后台处理，请稍后刷新查看`,
+      });
 
-      try {
-        // 调用后端API提交异步任务
-        const response = await fetch('/api/images/batch-download-async', {
+      // 逐批提交任务（不等待结果，后台处理）
+      let submittedCount = 0;
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`[ExcelUpload] 提交第 ${i + 1}/${batches.length} 批次，商品数: ${batch.length}`);
+        
+        // 异步提交，不等待结果
+        fetch('/api/images/batch-download-async', {
           method: 'POST',
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            images: imagesToDownload,
+            images: batch,
             parentAlbumName: excelFileNameRef.current,
           }),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log('[ExcelUpload] 异步任务创建响应:', result);
-
-          if (result.success && result.data && result.data.taskId) {
-            const taskId = result.data.taskId;
-            const totalImages = imagesToDownload.reduce((acc, item) => 
-              acc + 1 + (item.detailImageUrls?.length || 0), 0);
-
-            // 显示后台下载提示
-            addNotification({
-              type: 'download',
-              title: '后台下载中',
-              message: `已提交 ${imagesToDownload.length} 个商品（${totalImages} 张图片）的下载任务，请稍后刷新查看`,
-            });
-
-            // 通知父组件刷新
-            onUploadSuccess();
-
-            // 关闭弹窗（放在最后，关闭后组件可能被卸载）
-            onOpenChange(false);
-            return; // 异步任务成功启动，后续由后台处理
+        }).then(response => {
+          if (response.ok) {
+            submittedCount++;
+            console.log(`[ExcelUpload] 第 ${i + 1} 批次提交成功`);
+          } else {
+            console.error(`[ExcelUpload] 第 ${i + 1} 批次提交失败`);
           }
-        }
-        // 如果响应不成功，继续使用同步接口 fallback
-        console.log('[ExcelUpload] 异步接口不可用，使用同步接口 fallback');
-      } catch (asyncError) {
-        console.log('[ExcelUpload] 异步接口调用失败，使用同步接口 fallback:', asyncError);
+        }).catch(error => {
+          console.error(`[ExcelUpload] 第 ${i + 1} 批次提交异常:`, error);
+        });
       }
 
-      // Fallback: 使用同步接口
-      const syncResponse = await fetch('/api/images/batch-download', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          images: imagesToDownload,
-          parentAlbumName: excelFileNameRef.current,
-        }),
-      });
+      // 关闭弹窗
+      onOpenChange(false);
 
-      if (!syncResponse.ok) {
-        throw new Error(`请求失败: ${syncResponse.status} ${syncResponse.statusText}`);
-      }
-
-      const syncResult = await syncResponse.json();
-      console.log('[ExcelUpload] 同步批量下载响应:', syncResult);
-
-      // 处理同步响应结果 - 假设所有待处理的行都成功
-      if (syncResult.success) {
-        setExcelData(prev =>
-          prev.map(row => {
-            if (row.status !== 'pending') return row;
-            return { ...row, status: 'success' as const };
-          })
-        );
-      } else {
-        setExcelData(prev =>
-          prev.map(row => {
-            if (row.status !== 'pending') return row;
-            return { ...row, status: 'error' as const, error: syncResult.message || '下载失败' };
-          })
-        );
-      }
+      // 通知父组件刷新
+      onUploadSuccess();
+      
+      setIsProcessing(false);
     } catch (error) {
       console.error('[ExcelUpload] 批量下载失败:', error);
-      let errorMessage = '网络错误';
-
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = '下载超时（图片数量过多，请分批导入）';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-
-      setExcelData(prev =>
-        prev.map(row => ({
-          ...row,
-          status: 'error' as const,
-          error: errorMessage,
-        }))
-      );
-      failCount = pendingRows.length;
-    } finally {
       setIsProcessing(false);
     }
   };
