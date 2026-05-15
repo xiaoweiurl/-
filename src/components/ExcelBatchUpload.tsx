@@ -623,6 +623,18 @@ export default function ExcelBatchUpload({
 
           if (result.success && result.data && result.data.taskId) {
             const taskId = result.data.taskId;
+            const totalImages = imagesToDownload.reduce((acc, item) => 
+              acc + 1 + (item.detailImageUrls?.length || 0), 0);
+
+            // 显示后台下载提示
+            addNotification({
+              type: 'download',
+              title: '后台下载中',
+              message: `已提交 ${imagesToDownload.length} 个商品（${totalImages} 张图片）的下载任务，请稍后刷新查看`,
+            });
+
+            // 关闭弹窗
+            onOpenChange(false);
 
             // 初始化任务状态
             setTaskProgress({
@@ -636,9 +648,11 @@ export default function ExcelBatchUpload({
               }
             });
 
-            // 开始轮询任务进度
-            const intervalId = await pollTaskProgress(taskId);
-            setTaskIntervalId?.(intervalId);
+            // 开始轮询任务进度（不需要等待，后台执行）
+            pollTaskProgress(taskId);
+            
+            // 通知父组件刷新
+            onUploadSuccess();
             return; // 异步任务成功启动，后续由轮询处理
           }
         }
