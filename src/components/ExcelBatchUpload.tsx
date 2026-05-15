@@ -633,27 +633,12 @@ export default function ExcelBatchUpload({
               message: `已提交 ${imagesToDownload.length} 个商品（${totalImages} 张图片）的下载任务，请稍后刷新查看`,
             });
 
-            // 关闭弹窗
-            onOpenChange(false);
-
-            // 初始化任务状态
-            setTaskProgress({
-              [taskId]: {
-                progress: 0,
-                total: imagesToDownload.length,
-                success: 0,
-                failed: 0,
-                skipped: 0,
-                status: 'processing',
-              }
-            });
-
-            // 开始轮询任务进度（不需要等待，后台执行）
-            pollTaskProgress(taskId);
-            
             // 通知父组件刷新
             onUploadSuccess();
-            return; // 异步任务成功启动，后续由轮询处理
+
+            // 关闭弹窗（放在最后，关闭后组件可能被卸载）
+            onOpenChange(false);
+            return; // 异步任务成功启动，后续由后台处理
           }
         }
         // 如果响应不成功，继续使用同步接口 fallback
