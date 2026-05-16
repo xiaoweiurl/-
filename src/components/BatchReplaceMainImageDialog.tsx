@@ -70,10 +70,8 @@ export function BatchReplaceMainImageDialog({
           productId: group.productId,
           mainImage: group.mainImage,
           detailImages: group.detailImages || [],
-          // 默认选中 displayOrder=1 的详情图
-          selectedImageId: group.detailImages?.find((img: ImageData) => img.displayOrder === 1)?.imgId ||
-            group.detailImages?.[0]?.imgId ||
-            null,
+          // 默认选中 displayOrder=1 的详情图，如果没有则保持当前主图不变（null）
+          selectedImageId: group.detailImages?.find((img: ImageData) => img.displayOrder === 1)?.imgId || null,
         })) || [];
         setProductGroups(groups);
       } else {
@@ -87,12 +85,12 @@ export function BatchReplaceMainImageDialog({
     }
   };
 
-  // 选择要设为主图的图片
+  // 选择要设为主图的图片（点击已选中的可取消选择）
   const handleSelectImage = (productId: string, imageId: string) => {
     setProductGroups((prev) =>
       prev.map((group) =>
         group.productId === productId
-          ? { ...group, selectedImageId: imageId }
+          ? { ...group, selectedImageId: group.selectedImageId === imageId ? null : imageId }
           : group
       )
     );
@@ -105,8 +103,11 @@ export function BatchReplaceMainImageDialog({
       .filter((group) => group.selectedImageId)
       .map((group) => group.selectedImageId as string);
 
+    // 检查是否有可替换的商品
+    const keepUnchangedCount = productGroups.filter((g) => !g.selectedImageId).length;
+    
     if (imageIdsToReplace.length === 0) {
-      toast.error("请选择要设为主图的图片");
+      toast.warning("没有可替换的商品（所有商品都保持当前主图不变）");
       return;
     }
 
@@ -120,7 +121,11 @@ export function BatchReplaceMainImageDialog({
       const result = await response.json();
 
       if (result.success || result.code === 200) {
-        toast.success(result.data?.message || `成功替换 ${imageIdsToReplace.length} 个商品的主图`);
+        let message = `成功替换 ${imageIdsToReplace.length} 个商品的主图`;
+        if (keepUnchangedCount > 0) {
+          message += `，${keepUnchangedCount} 个商品保持不变`;
+        }
+        toast.success(result.data?.message || message);
         onOpenChange(false);
         onSuccess();
       } else {
@@ -169,6 +174,11 @@ export function BatchReplaceMainImageDialog({
                   <Badge variant="outline" className="text-xs">
                     {group.detailImages.length} 张详情图
                   </Badge>
+                  {group.selectedImageId === null && (
+                    <Badge variant="secondary" className="text-xs bg-gray-200">
+                      保持不变
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -197,41 +207,47 @@ export function BatchReplaceMainImageDialog({
                   <div>
                     <p className="text-xs text-gray-500 mb-2">
                       选择新主图
-                      <span className="text-orange-500 ml-1">(点击选择)</span>
+                      <span className="text-orange-500 ml-1">(点击选择/取消)</span>
                     </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {group.detailImages.map((img, imgIndex) => (
-                        <div
-                          key={img.imgId || `detail-${groupIndex}-${imgIndex}`}
-                          onClick={() => handleSelectImage(group.productId, img.imgId)}
-                          className={`
-                            relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer
-                            transition-all duration-200 hover:ring-2 hover:ring-violet-300
-                            ${group.selectedImageId === img.imgId
-                              ? "border-orange-500 ring-2 ring-orange-300"
-                              : "border-gray-200"
-                            }
-                          `}
-                        >
-                          <img
-                            src={img.url}
-                            alt={`详情图 ${img.displayOrder}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <Badge
-                            variant="secondary"
-                            className="absolute bottom-1 left-1 text-xs"
+                    {group.detailImages.length === 0 ? (
+                      <div className="flex items-center justify-center h-24 border rounded-lg bg-gray-50 text-gray-400 text-sm">
+                        无详情图，保持当前主图不变
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {group.detailImages.map((img, imgIndex) => (
+                          <div
+                            key={img.imgId || `detail-${groupIndex}-${imgIndex}`}
+                            onClick={() => handleSelectImage(group.productId, img.imgId)}
+                            className={`
+                              relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer
+                              transition-all duration-200 hover:ring-2 hover:ring-violet-300
+                              ${group.selectedImageId === img.imgId
+                                ? "border-orange-500 ring-2 ring-orange-300"
+                                : "border-gray-200"
+                              }
+                            `}
                           >
-                            顺序 {img.displayOrder}
-                          </Badge>
-                          {group.selectedImageId === img.imgId && (
-                            <div className="absolute top-1 right-1 bg-orange-500 rounded-full p-0.5">
-                              <Check className="h-3 w-3 text-white" />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                            <img
+                              src={img.url}
+                              alt={`详情图 ${img.displayOrder}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <Badge
+                              variant="secondary"
+                              className="absolute bottom-1 left-1 text-xs"
+                            >
+                              顺序 {img.displayOrder}
+                            </Badge>
+                            {group.selectedImageId === img.imgId && (
+                              <div className="absolute top-1 right-1 bg-orange-500 rounded-full p-0.5">
+                                <Check className="h-3 w-3 text-white" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
