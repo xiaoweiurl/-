@@ -160,13 +160,13 @@ export function BatchReplaceMainImageDialog({
           </div>
         ) : (
           <div className="space-y-6">
-            {productGroups.map((group) => (
+            {productGroups.map((group, groupIndex) => (
               <div
-                key={group.productId}
+                key={group.productId || `product-${groupIndex}`}
                 className="border rounded-lg p-4 bg-slate-50/50"
               >
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="font-medium text-sm">商品ID: {group.productId}</span>
+                  <span className="font-medium text-sm">商品ID: {group.productId || '未知'}</span>
                   <Badge variant="outline" className="text-xs">
                     {group.detailImages.length} 张详情图
                   </Badge>
@@ -202,9 +202,9 @@ export function BatchReplaceMainImageDialog({
                       <span className="text-orange-500 ml-1">(点击选择)</span>
                     </p>
                     <div className="grid grid-cols-3 gap-2">
-                      {group.detailImages.map((img) => (
+                      {group.detailImages.map((img, imgIndex) => (
                         <div
-                          key={img.imgId}
+                          key={img.imgId || `detail-${groupIndex}-${imgIndex}`}
                           onClick={() => handleSelectImage(group.productId, img.imgId)}
                           className={`
                             relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer
