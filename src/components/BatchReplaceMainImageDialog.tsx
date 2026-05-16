@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Check, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import Image from "next/image";
 
 interface ImageData {
   imgId: string;
@@ -178,11 +177,10 @@ export function BatchReplaceMainImageDialog({
                     <p className="text-xs text-gray-500 mb-2">当前主图</p>
                     <div className="relative aspect-square rounded-lg overflow-hidden border bg-white">
                       {group.mainImage ? (
-                        <Image
+                        <img
                           src={group.mainImage.url}
                           alt="当前主图"
-                          fill
-                          className="object-cover"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full text-gray-400">
@@ -215,11 +213,10 @@ export function BatchReplaceMainImageDialog({
                             }
                           `}
                         >
-                          <Image
+                          <img
                             src={img.url}
                             alt={`详情图 ${img.displayOrder}`}
-                            fill
-                            className="object-cover"
+                            className="w-full h-full object-cover"
                           />
                           <Badge
                             variant="secondary"
