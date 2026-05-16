@@ -4,6 +4,7 @@ import com.imagemanager.entity.Image;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,7 +20,7 @@ import java.util.List;
  * @version 1.0.0
  */
 @Repository
-public interface ImageRepository extends JpaRepository<Image, String> {
+public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecificationExecutor<Image> {
     
     /**
      * 查询未删除的图片（立即加载tags）

@@ -1901,6 +1901,76 @@ export default function Home() {
                 ? (showAdvancedSearch ? advancedFilters.keyword : searchQuery) 
                 : ''}
             />
+
+            {/* 分页组件 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-6 mb-4">
+                {/* 上一页 */}
+                <button
+                  onClick={() => {
+                    if (currentPage > 1) {
+                      setCurrentPage(currentPage - 1);
+                      fetchImages(currentPage - 1, false);
+                    }
+                  }}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-slate-100 hover:bg-slate-200 text-slate-700"
+                >
+                  上一页
+                </button>
+
+                {/* 页码按钮 */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => {
+                          setCurrentPage(pageNum);
+                          fetchImages(pageNum, false);
+                        }}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-violet-500 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 下一页 */}
+                <button
+                  onClick={() => {
+                    if (currentPage < totalPages) {
+                      setCurrentPage(currentPage + 1);
+                      fetchImages(currentPage + 1, false);
+                    }
+                  }}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-slate-100 hover:bg-slate-200 text-slate-700"
+                >
+                  下一页
+                </button>
+
+                {/* 分页信息 */}
+                <span className="text-sm text-slate-500 ml-4">
+                  共 {totalCount} 条，第 {currentPage}/{totalPages} 页
+                </span>
+              </div>
+            )}
             </div>
           )}
         </main>
