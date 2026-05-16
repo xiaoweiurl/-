@@ -182,11 +182,29 @@ export function BatchReplaceMainImageDialog({
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  {/* 当前主图 */}
+                  {/* 主图预览 */}
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">当前主图</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      {group.selectedImageId ? '替换后主图预览' : '当前主图'}
+                    </p>
                     <div className="relative aspect-square rounded-lg overflow-hidden border bg-white">
-                      {group.mainImage ? (
+                      {/* 如果选中了详情图，显示选中的图片；否则显示当前主图 */}
+                      {group.selectedImageId ? (
+                        (() => {
+                          const selectedImg = group.detailImages.find(img => img.imgId === group.selectedImageId);
+                          return selectedImg ? (
+                            <img
+                              src={selectedImg.url}
+                              alt="替换后主图"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full text-gray-400">
+                              <ImageIcon className="h-8 w-8" />
+                            </div>
+                          );
+                        })()
+                      ) : group.mainImage ? (
                         <img
                           src={group.mainImage.url}
                           alt="当前主图"
@@ -197,9 +215,14 @@ export function BatchReplaceMainImageDialog({
                           <ImageIcon className="h-8 w-8" />
                         </div>
                       )}
-                      <Badge className="absolute top-2 left-2 bg-violet-500 text-white text-xs">
-                        主图
+                      <Badge className={`absolute top-2 left-2 text-xs ${group.selectedImageId ? 'bg-orange-500' : 'bg-violet-500'} text-white`}>
+                        {group.selectedImageId ? '新主图' : '主图'}
                       </Badge>
+                      {group.selectedImageId && (
+                        <div className="absolute bottom-2 left-2 right-2 bg-orange-100 text-orange-700 text-xs rounded px-2 py-1 text-center">
+                          点击右侧取消选择
+                        </div>
+                      )}
                     </div>
                   </div>
 
