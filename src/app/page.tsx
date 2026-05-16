@@ -475,6 +475,8 @@ export default function Home() {
   const [pageSize, setPageSize] = React.useState(settings?.pageSize || 40);
   const [hasMore, setHasMore] = React.useState(false);
   const [loadingMore, setLoadingMore] = React.useState(false);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [totalPages, setTotalPages] = React.useState(0);
   
   // 当设置变化时更新状态
   React.useEffect(() => {
@@ -675,8 +677,11 @@ export default function Home() {
         } else {
           setImages(imageList);
         }
-        setHasMore(result.pagination?.hasMore || false);
+        // 设置分页信息
+        setHasMore(result.pagination?.hasMore || result.data?.hasNext || false);
         setCurrentPage(page);
+        setTotalCount(result.data?.total || result.pagination?.total || 0);
+        setTotalPages(result.data?.totalPages || result.pagination?.totalPages || 0);
       } else {
         console.error('[Home] API 返回失败:', result);
       }
@@ -1896,6 +1901,69 @@ export default function Home() {
                 ? (showAdvancedSearch ? advancedFilters.keyword : searchQuery) 
                 : ''}
             />
+            </div>
+          )}
+
+          {/* 分页组件 */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 py-4 border-t bg-white/50">
+              <button
+                onClick={() => {
+                  if (currentPage > 1) {
+                    fetchImages(currentPage - 1, false);
+                  }
+                }}
+                disabled={currentPage <= 1}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                上一页
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {/* 页码按钮 */}
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => fetchImages(pageNum, false)}
+                      className={`w-8 h-8 text-sm rounded-lg transition-colors ${
+                        currentPage === pageNum
+                          ? 'bg-violet-600 text-white'
+                          : 'bg-white border border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <span className="text-sm text-gray-500">
+                共 {totalCount} 条，{totalPages} 页
+              </span>
+              
+              <button
+                onClick={() => {
+                  if (currentPage < totalPages) {
+                    fetchImages(currentPage + 1, false);
+                  }
+                }}
+                disabled={currentPage >= totalPages}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                下一页
+              </button>
             </div>
           )}
         </main>
