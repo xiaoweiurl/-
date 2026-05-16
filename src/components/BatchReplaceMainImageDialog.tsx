@@ -185,7 +185,7 @@ export function BatchReplaceMainImageDialog({
                 className="border rounded-lg p-4 bg-slate-50/50"
               >
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="font-medium text-sm">商品ID: {group.productId || '未知'}</span>
+                  <span className="font-medium text-sm">{group.mainImage?.title || group.productId || '未知商品'}</span>
                   <Badge variant="outline" className="text-xs">
                     {group.detailImages.length} 张详情图
                   </Badge>
