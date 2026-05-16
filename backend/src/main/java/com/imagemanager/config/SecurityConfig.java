@@ -133,6 +133,9 @@ public class SecurityConfig {
                 .requestMatchers("/auth/session").permitAll()
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                // 静态资源（图片、文件）- 无需认证
+                .requestMatchers("/api/uploads/**").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
                 // API 文档
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // 管理员端点需要 ADMIN 角色
