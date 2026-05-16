@@ -132,14 +132,14 @@ public class ImageServiceImpl implements ImageService {
             request.getOnlyMainImage() != null;
 
         if (hasAdvancedFilters) {
-            // 使用安全的 Stream 过滤进行高级搜索
-            log.info("使用Stream过滤进行高级搜索，参数: {}", request);
+            // 优化：使用分批查询代替获取全部数据
+            log.info("使用优化的分批查询进行高级搜索，参数: {}", request);
             
-            // 1. 先获取所有未删除的主图（只查主图，不查详情图），EAGER fetch自动加载tags
-            List<Image> allImages = imageRepository.findByDeletedFalseAndIsMainImageTrue();
-            log.info("从数据库获取主图总数: {}", allImages.size());
+            // 目标页码和每页大小
+            int targetPage = request.getPage() != null ? request.getPage() - 1 : 0;
+            int targetPageSize = request.getPageSize() != null ? request.getPageSize() : 20;
             
-            // 2. 处理日期范围
+            // 处理日期范围
             LocalDateTime startDate = null;
             LocalDateTime endDate = null;
             
@@ -219,95 +219,136 @@ public class ImageServiceImpl implements ImageService {
             final String finalSortBy = request.getSortBy();
             final String finalSortOrder = request.getSortOrder();
             
-            // 7. 使用 Stream 进行过滤
-            List<Image> filteredImages = allImages.stream()
-                .filter(img -> {
-                    // 关键词筛选
-                    if (finalKeyword != null && !finalKeyword.isEmpty()) {
-                        String lowerKeyword = finalKeyword.toLowerCase();
-                        boolean titleMatch = img.getTitle() != null && img.getTitle().toLowerCase().contains(lowerKeyword);
-                        boolean descMatch = img.getDescription() != null && img.getDescription().toLowerCase().contains(lowerKeyword);
-                        if (!titleMatch && !descMatch) return false;
-                    }
-                    
-                    // 标签筛选
-                    if (finalTags != null && !finalTags.isEmpty()) {
-                        if (img.getTags() == null || img.getTags().isEmpty()) return false;
-                        boolean tagMatch = finalTags.stream().anyMatch(tag -> img.getTags().contains(tag));
-                        if (!tagMatch) return false;
-                    }
-                    
-                    // 日期范围筛选
-                    if (finalStartDate != null && img.getCreatedAt().isBefore(finalStartDate)) return false;
-                    if (finalEndDate != null && img.getCreatedAt().isAfter(finalEndDate)) return false;
-                    
-                    // 文件类型筛选
-                    if (finalFileTypes != null && !finalFileTypes.isEmpty()) {
-                        if (img.getFileType() == null) return false;
-                        boolean typeMatch = finalFileTypes.stream().anyMatch(ft -> ft.equalsIgnoreCase(img.getFileType()));
-                        if (!typeMatch) return false;
-                    }
-                    
-                    // 相册ID筛选
-                    if (finalAlbumIds != null && !finalAlbumIds.isEmpty()) {
-                        if (!finalAlbumIds.contains(img.getAlbumId())) return false;
-                    }
-                    
-                    // 收藏筛选
-                    if (finalFavorite != null && !finalFavorite.equals(img.getFavorite())) return false;
-                    
-                    // 主图筛选
-                    if (finalOnlyMainImage != null && !finalOnlyMainImage.equals(img.getIsMainImage())) return false;
-                    
-                    return true;
-                })
-                // 排序
-                .sorted((a, b) -> {
-                    String sortByField = finalSortBy != null ? finalSortBy : "createdAt";
-                    boolean isAsc = "asc".equalsIgnoreCase(finalSortOrder);
-                    
-                    int comparison = 0;
-                    if ("date".equals(sortByField) || "createdAt".equals(sortByField)) {
-                        LocalDateTime dateA = a.getCreatedAt();
-                        LocalDateTime dateB = b.getCreatedAt();
-                        if (dateA != null && dateB != null) {
-                            comparison = dateA.compareTo(dateB);
-                        } else if (dateA != null) {
-                            comparison = 1;
-                        } else if (dateB != null) {
-                            comparison = -1;
+            // 7. 使用分批查询 + 内存过滤的方式
+            // 每次查询 BATCH_SIZE 条数据，最多查询 MAX_BATCHES 次
+            final int BATCH_SIZE = 500;
+            final int MAX_BATCHES = 20;  // 最多查询 10000 条数据
+            
+            List<Image> filteredImages = new java.util.ArrayList<>();
+            int batchCount = 0;
+            long totalCount = 0;
+            
+            // 先获取总数用于估算
+            long estimatedTotal = imageRepository.countByDeletedFalseAndIsMainImageTrue();
+            log.info("主图总数: {}", estimatedTotal);
+            
+            // 分批查询数据
+            while (batchCount < MAX_BATCHES) {
+                int batchPage = batchCount;
+                Pageable batchPageable = PageRequest.of(batchPage, BATCH_SIZE);
+                Page<Image> batchResult = imageRepository.findByDeletedFalseAndIsMainImageTrue(batchPageable);
+                List<Image> batchImages = batchResult.getContent();
+                
+                if (batchImages.isEmpty()) {
+                    break;  // 没有更多数据了
+                }
+                
+                // 过滤当前批次的数据
+                List<Image> batchFiltered = batchImages.stream()
+                    .filter(img -> {
+                        // 关键词筛选
+                        if (finalKeyword != null && !finalKeyword.isEmpty()) {
+                            String lowerKeyword = finalKeyword.toLowerCase();
+                            boolean titleMatch = img.getTitle() != null && img.getTitle().toLowerCase().contains(lowerKeyword);
+                            boolean descMatch = img.getDescription() != null && img.getDescription().toLowerCase().contains(lowerKeyword);
+                            if (!titleMatch && !descMatch) return false;
                         }
-                    } else if ("name".equals(sortByField)) {
-                        String titleA = a.getTitle() != null ? a.getTitle() : "";
-                        String titleB = b.getTitle() != null ? b.getTitle() : "";
-                        comparison = titleA.compareTo(titleB);
-                    } else if ("size".equals(sortByField)) {
-                        Long sizeA = a.getSize() != null ? a.getSize() : 0L;
-                        Long sizeB = b.getSize() != null ? b.getSize() : 0L;
-                        comparison = sizeA.compareTo(sizeB);
+                        
+                        // 标签筛选
+                        if (finalTags != null && !finalTags.isEmpty()) {
+                            if (img.getTags() == null || img.getTags().isEmpty()) return false;
+                            boolean tagMatch = finalTags.stream().anyMatch(tag -> img.getTags().contains(tag));
+                            if (!tagMatch) return false;
+                        }
+                        
+                        // 日期范围筛选
+                        if (finalStartDate != null && img.getCreatedAt().isBefore(finalStartDate)) return false;
+                        if (finalEndDate != null && img.getCreatedAt().isAfter(finalEndDate)) return false;
+                        
+                        // 文件类型筛选
+                        if (finalFileTypes != null && !finalFileTypes.isEmpty()) {
+                            if (img.getFileType() == null) return false;
+                            boolean typeMatch = finalFileTypes.stream().anyMatch(ft -> ft.equalsIgnoreCase(img.getFileType()));
+                            if (!typeMatch) return false;
+                        }
+                        
+                        // 相册ID筛选
+                        if (finalAlbumIds != null && !finalAlbumIds.isEmpty()) {
+                            if (!finalAlbumIds.contains(img.getAlbumId())) return false;
+                        }
+                        
+                        // 收藏筛选
+                        if (finalFavorite != null && !finalFavorite.equals(img.getFavorite())) return false;
+                        
+                        // 主图筛选
+                        if (finalOnlyMainImage != null && !finalOnlyMainImage.equals(img.getIsMainImage())) return false;
+                        
+                        return true;
+                    })
+                    .toList();
+                
+                filteredImages.addAll(batchFiltered);
+                batchCount++;
+                
+                log.info("批次 {}: 查询 {} 条, 过滤后 {} 条, 累计 {} 条", 
+                    batchCount, batchImages.size(), batchFiltered.size(), filteredImages.size());
+                
+                // 如果已经获取了足够的数据（目标页之后再多一页），停止查询
+                if (filteredImages.size() >= (targetPage + 2) * targetPageSize) {
+                    break;
+                }
+                
+                // 如果这是最后一页数据，停止查询
+                if (!batchResult.hasNext()) {
+                    break;
+                }
+            }
+            
+            log.info("分批查询完成，共 {} 批次，过滤后总数: {}", batchCount, filteredImages.size());
+            
+            // 8. 排序
+            filteredImages.sort((a, b) -> {
+                String sortByField = finalSortBy != null ? finalSortBy : "createdAt";
+                boolean isAsc = "asc".equalsIgnoreCase(finalSortOrder);
+                
+                int comparison = 0;
+                if ("date".equals(sortByField) || "createdAt".equals(sortByField)) {
+                    LocalDateTime dateA = a.getCreatedAt();
+                    LocalDateTime dateB = b.getCreatedAt();
+                    if (dateA != null && dateB != null) {
+                        comparison = dateA.compareTo(dateB);
+                    } else if (dateA != null) {
+                        comparison = 1;
+                    } else if (dateB != null) {
+                        comparison = -1;
                     }
-                    
-                    return isAsc ? comparison : -comparison;
-                })
-                .toList();
+                } else if ("name".equals(sortByField)) {
+                    String titleA = a.getTitle() != null ? a.getTitle() : "";
+                    String titleB = b.getTitle() != null ? b.getTitle() : "";
+                    comparison = titleA.compareTo(titleB);
+                } else if ("size".equals(sortByField)) {
+                    Long sizeA = a.getSize() != null ? a.getSize() : 0L;
+                    Long sizeB = b.getSize() != null ? b.getSize() : 0L;
+                    comparison = sizeA.compareTo(sizeB);
+                }
+                
+                return isAsc ? comparison : -comparison;
+            });
             
-            log.info("Stream过滤完成，筛选后数量: {}", filteredImages.size());
-            
-            // 8. 手动分页（复用已定义的pageSize变量）
-            page = request.getPage() != null ? request.getPage() - 1 : 0;
-            pageSize = request.getPageSize() != null ? request.getPageSize() : 20;
+            // 9. 手动分页
             int totalElements = filteredImages.size();
-            int start = page * pageSize;
-            int end = Math.min(start + pageSize, totalElements);
+            int start = targetPage * targetPageSize;
+            int end = Math.min(start + targetPageSize, totalElements);
             
             List<Image> pageContent = start < end 
                 ? filteredImages.subList(start, end) 
                 : new java.util.ArrayList<>();
             
+            // 使用之前的 pageable（已在方法开头创建）
             imagePage = new org.springframework.data.domain.PageImpl<>(pageContent, pageable, totalElements);
             
             log.info("分页结果: 第{}页, 每页{}条, 当前页{}条, 总计{}条", 
-                page + 1, pageSize, pageContent.size(), totalElements);
+                targetPage + 1, targetPageSize, pageContent.size(), totalElements);
         } else if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
             // 简单关键词搜索
             if (request.getAlbumId() != null) {

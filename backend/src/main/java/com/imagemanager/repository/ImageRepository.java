@@ -53,9 +53,35 @@ public interface ImageRepository extends JpaRepository<Image, String> {
     
     /**
      * 查询所有未删除的主图（不带分页，用于高级搜索）
+     * 注意：此方法在数据量大时会有性能问题，建议使用分页版本
      */
     @Query("SELECT i FROM Image i WHERE i.deleted = false AND i.isMainImage = true")
     List<Image> findByDeletedFalseAndIsMainImageTrue();
+    
+    /**
+     * 查询未删除的主图 - 带条件查询（数据库分页）
+     */
+    @Query("SELECT i FROM Image i WHERE i.deleted = false AND i.isMainImage = true " +
+           "AND (:albumId IS NULL OR i.albumId = :albumId) " +
+           "AND (:favorite IS NULL OR i.favorite = :favorite) " +
+           "AND (:fileType IS NULL OR i.fileType = :fileType)")
+    Page<Image> findMainImagesWithFilters(
+        @Param("albumId") String albumId,
+        @Param("favorite") Boolean favorite,
+        @Param("fileType") String fileType,
+        Pageable pageable);
+    
+    /**
+     * 统计未删除的主图数量 - 带条件
+     */
+    @Query("SELECT COUNT(i) FROM Image i WHERE i.deleted = false AND i.isMainImage = true " +
+           "AND (:albumId IS NULL OR i.albumId = :albumId) " +
+           "AND (:favorite IS NULL OR i.favorite = :favorite) " +
+           "AND (:fileType IS NULL OR i.fileType = :fileType)")
+    long countMainImagesWithFilters(
+        @Param("albumId") String albumId,
+        @Param("favorite") Boolean favorite,
+        @Param("fileType") String fileType);
     
     /**
      * 查询回收站主图（只查主图）
