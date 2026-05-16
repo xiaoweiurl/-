@@ -251,24 +251,6 @@ public class ImageServiceImpl implements ImageService {
             
             log.info("数据库分页查询完成: 第{}页, 每页{}条, 当前页{}条, 总计{}条", 
                 request.getPage(), request.getPageSize(), imagePage.getContent().size(), imagePage.getTotalElements());
-                
-                return isAsc ? comparison : -comparison;
-            });
-            
-            // 9. 手动分页
-            int totalElements = filteredImages.size();
-            int start = targetPage * targetPageSize;
-            int end = Math.min(start + targetPageSize, totalElements);
-            
-            List<Image> pageContent = start < end 
-                ? filteredImages.subList(start, end) 
-                : new java.util.ArrayList<>();
-            
-            // 使用之前的 pageable（已在方法开头创建）
-            imagePage = new org.springframework.data.domain.PageImpl<>(pageContent, pageable, totalElements);
-            
-            log.info("分页结果: 第{}页, 每页{}条, 当前页{}条, 总计{}条", 
-                targetPage + 1, targetPageSize, pageContent.size(), totalElements);
         } else if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
             // 简单关键词搜索
             if (request.getAlbumId() != null) {
