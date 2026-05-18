@@ -2415,16 +2415,26 @@ public class ImageServiceImpl implements ImageService {
         try {
             byte[] imageData = null;
             
-            // 方式1：从本地存储读取（thumbnailUrl存储了本地路径）
+            // 方式1：从本地存储读取（thumbnailUrl存储了完整URL或本地路径）
             if (image.getThumbnailUrl() != null && !image.getThumbnailUrl().isEmpty()) {
                 try {
                     String localPath = image.getThumbnailUrl();
+                    
+                    // 如果是完整URL（如 http://localhost:8080/api/uploads/images/xxx.jpg）
+                    // 提取路径部分
+                    if (localPath.startsWith("http://") || localPath.startsWith("https://")) {
+                        java.net.URL url = new java.net.URL(localPath);
+                        localPath = url.getPath(); // 提取 /api/uploads/images/xxx.jpg
+                    }
+                    
                     // 去掉开头的 /uploads/ 或 /api/uploads/ 前缀，获取相对路径
                     if (localPath.startsWith("/api/uploads/")) {
                         localPath = localPath.substring("/api/uploads/".length());
                     } else if (localPath.startsWith("/uploads/")) {
                         localPath = localPath.substring("/uploads/".length());
                     }
+                    
+                    log.info("尝试从本地存储读取图片：thumbnailUrl={}, 提取路径={}", image.getThumbnailUrl(), localPath);
                     java.io.InputStream inputStream = storageService.getFileInputStream(localPath);
                     if (inputStream != null) {
                         imageData = inputStream.readAllBytes();
