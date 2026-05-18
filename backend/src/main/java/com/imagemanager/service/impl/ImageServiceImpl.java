@@ -2161,7 +2161,7 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public void exportAlbumImages(String albumId, java.io.OutputStream outputStream) throws Exception {
+    public void exportAlbumImages(String albumId, ZipOutputStream zos) throws Exception {
         log.info("导出相册图片：{}", albumId);
         
         // 获取相册信息
@@ -2172,19 +2172,71 @@ public class ImageServiceImpl implements ImageService {
         List<String> allAlbumIds = new ArrayList<>();
         collectAllAlbumIds(albumId, allAlbumIds);
         
-        // 创建ZIP文件，使用UTF-8编码支持中文文件名
-        ZipOutputStream zos = new ZipOutputStream(outputStream, java.nio.charset.StandardCharsets.UTF_8);
+        int totalImages = 0;
+        int errorCount = 0;
+        
+        for (String currentAlbumId : allAlbumIds) {
+            Album currentAlbum = albumService.getAlbumById(currentAlbumId);
+            String currentAlbumName = currentAlbum != null ? sanitizeFileName(currentAlbum.getName()) : "unknown";
+            
+            // 获取当前相册下的所有图片
+            Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(currentAlbumId, false, PageRequest.of(0, 10000));
+            List<Image> images = imagePage.getContent();
+            
+            if (images.isEmpty()) {
+                continue;
+            }
+            
+            // 按商品ID分组
+            Map<String, List<Image>> productImages = images.stream()
+                    .collect(Collectors.groupingBy(img -> img.getProductId() != null ? img.getProductId() : img.getId()));
+            
+            for (Map.Entry<String, List<Image>> entry : productImages.entrySet()) {
+                String productId = entry.getKey();
+                List<Image> productImageList = entry.getValue();
+                
+                // 获取商品名称（使用主图的title）
+                String productName = getProductTitle(productImageList, productId);
+                
+                // 文件夹结构：父相册/子相册/商品名称
+                String productFolderName = currentAlbumName + "/" + sanitizeFileName(productName);
+                
+                // 导出该商品的图片
+                ExportResult result = exportProductImages(zos, productImageList, productFolderName);
+                totalImages += result.successCount;
+                errorCount += result.errorCount;
+            }
+        }
+        
+        if (totalImages == 0) {
+            throw new RuntimeException("相册及其子相册中没有图片");
+        }
+        
+        log.info("导出完成，共导出 {} 张图片，失败 {} 张", totalImages, errorCount);
+    }
+    
+    @Override
+    public void exportMultipleAlbums(List<String> albumIds, ZipOutputStream zos) throws Exception {
+        log.info("批量导出多个相册，数量：{}", albumIds.size());
         
         int totalImages = 0;
         int errorCount = 0;
         
-        try {
-            for (String currentAlbumId : allAlbumIds) {
-                Album currentAlbum = albumService.getAlbumById(currentAlbumId);
-                String currentAlbumName = currentAlbum != null ? sanitizeFileName(currentAlbum.getName()) : "unknown";
+        for (String albumId : albumIds) {
+            // 获取相册信息
+            Album album = albumService.getAlbumById(albumId);
+            String albumName = album != null ? sanitizeFileName(album.getName()) : "unknown";
+            
+            // 递归获取所有子相册ID（包含当前相册）
+            List<String> allSubAlbumIds = new ArrayList<>();
+            collectAllAlbumIds(albumId, allSubAlbumIds);
+            
+            for (String subAlbumId : allSubAlbumIds) {
+                Album subAlbum = albumService.getAlbumById(subAlbumId);
+                String subAlbumName = subAlbum != null ? sanitizeFileName(subAlbum.getName()) : "unknown";
                 
-                // 获取当前相册下的所有图片
-                Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(currentAlbumId, false, PageRequest.of(0, 10000));
+                // 获取相册下的所有图片
+                Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(subAlbumId, false, PageRequest.of(0, 10000));
                 List<Image> images = imagePage.getContent();
                 
                 if (images.isEmpty()) {
@@ -2203,7 +2255,7 @@ public class ImageServiceImpl implements ImageService {
                     String productName = getProductTitle(productImageList, productId);
                     
                     // 文件夹结构：父相册/子相册/商品名称
-                    String productFolderName = currentAlbumName + "/" + sanitizeFileName(productName);
+                    String productFolderName = albumName + "/" + subAlbumName + "/" + sanitizeFileName(productName);
                     
                     // 导出该商品的图片
                     ExportResult result = exportProductImages(zos, productImageList, productFolderName);
@@ -2211,84 +2263,9 @@ public class ImageServiceImpl implements ImageService {
                     errorCount += result.errorCount;
                 }
             }
-            
-            // 完成ZIP写入（不关闭底层流，让调用者关闭）
-            zos.finish();
-            
-            if (totalImages == 0) {
-                throw new RuntimeException("相册及其子相册中没有图片");
-            }
-            
-            log.info("导出完成，共导出 {} 张图片，失败 {} 张", totalImages, errorCount);
-        } catch (Exception e) {
-            log.error("导出ZIP失败", e);
-            throw e;
         }
-    }
-    
-    @Override
-    public void exportMultipleAlbums(List<String> albumIds, java.io.OutputStream outputStream) throws Exception {
-        log.info("批量导出多个相册，数量：{}", albumIds.size());
         
-        // 创建ZIP文件，使用UTF-8编码支持中文文件名
-        // 不设置压缩方法，使用默认设置，避免潜在的兼容性问题
-        ZipOutputStream zos = new ZipOutputStream(outputStream, java.nio.charset.StandardCharsets.UTF_8);
-        
-        int totalImages = 0;
-        int errorCount = 0;
-        
-        try {
-            for (String albumId : albumIds) {
-                // 获取相册信息
-                Album album = albumService.getAlbumById(albumId);
-                String albumName = album != null ? sanitizeFileName(album.getName()) : "unknown";
-                
-                // 递归获取所有子相册ID（包含当前相册）
-                List<String> allSubAlbumIds = new ArrayList<>();
-                collectAllAlbumIds(albumId, allSubAlbumIds);
-                
-                for (String subAlbumId : allSubAlbumIds) {
-                    Album subAlbum = albumService.getAlbumById(subAlbumId);
-                    String subAlbumName = subAlbum != null ? sanitizeFileName(subAlbum.getName()) : "unknown";
-                    
-                    // 获取相册下的所有图片
-                    Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(subAlbumId, false, PageRequest.of(0, 10000));
-                    List<Image> images = imagePage.getContent();
-                    
-                    if (images.isEmpty()) {
-                        continue;
-                    }
-                    
-                    // 按商品ID分组
-                    Map<String, List<Image>> productImages = images.stream()
-                            .collect(Collectors.groupingBy(img -> img.getProductId() != null ? img.getProductId() : img.getId()));
-                    
-                    for (Map.Entry<String, List<Image>> entry : productImages.entrySet()) {
-                        String productId = entry.getKey();
-                        List<Image> productImageList = entry.getValue();
-                        
-                        // 获取商品名称（使用主图的title）
-                        String productName = getProductTitle(productImageList, productId);
-                        
-                        // 文件夹结构：父相册/子相册/商品名称
-                        String productFolderName = albumName + "/" + subAlbumName + "/" + sanitizeFileName(productName);
-                        
-                        // 导出该商品的图片
-                        ExportResult result = exportProductImages(zos, productImageList, productFolderName);
-                        totalImages += result.successCount;
-                        errorCount += result.errorCount;
-                    }
-                }
-            }
-            
-            // 完成ZIP写入（不关闭底层流，让调用者关闭）
-            zos.finish();
-            
-            log.info("批量导出完成，共导出 {} 张图片，失败 {} 张", totalImages, errorCount);
-        } catch (Exception e) {
-            log.error("批量导出ZIP失败", e);
-            throw e;
-        }
+        log.info("批量导出完成，共导出 {} 张图片，失败 {} 张", totalImages, errorCount);
     }
     
     /**

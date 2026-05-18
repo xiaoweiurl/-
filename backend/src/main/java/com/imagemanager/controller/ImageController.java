@@ -648,35 +648,6 @@ public class ImageController {
     }
     
     /**
-     * 批量导出相册图片
-     * 按相册分组，每个相册一个文件夹，文件夹内按商品ID再分小文件夹
-     * 主图命名 main.{ext}，详情图命名 detail_1.{ext}、detail_2.{ext} 等
-     */
-    @GetMapping("/export/{albumId}")
-    @Operation(summary = "批量导出相册图片", description = "导出指定相册的所有图片为ZIP文件，按商品分组")
-    public org.springframework.http.ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> exportAlbumImages(
-            @Parameter(description = "相册ID") @PathVariable String albumId) {
-        log.info("批量导出相册图片：{}", albumId);
-        
-        String fileName = "album_" + albumId + "_export.zip";
-        
-        org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody stream = outputStream -> {
-            try {
-                imageService.exportAlbumImages(albumId, outputStream);
-            } catch (Exception e) {
-                log.error("导出失败", e);
-                throw new RuntimeException("导出失败: " + e.getMessage(), e);
-            }
-        };
-        
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", new String(fileName.getBytes(java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.ISO_8859_1));
-        
-        return new org.springframework.http.ResponseEntity<>(stream, headers, org.springframework.http.HttpStatus.OK);
-    }
-    
-    /**
      * 从请求中获取当前用户ID
      */
     private String getCurrentUserId(HttpServletRequest request) {
@@ -706,6 +677,35 @@ public class ImageController {
     }
     
     /**
+     * 导出单个相册图片
+     */
+    @GetMapping("/export/{albumId}")
+    @Operation(summary = "导出单个相册", description = "导出单个相册的所有图片为ZIP文件")
+    public org.springframework.http.ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> exportAlbumImages(
+            @PathVariable String albumId) {
+        log.info("导出单个相册：{}", albumId);
+        
+        String fileName = "album_" + albumId + "_export.zip";
+        
+        org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody stream = outputStream -> {
+            // Controller 负责创建和关闭 ZipOutputStream
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(outputStream, java.nio.charset.StandardCharsets.UTF_8)) {
+                imageService.exportAlbumImages(albumId, zos);
+                // try-with-resources 会自动调用 zos.close()，内部会调用 finish()
+            } catch (Exception e) {
+                log.error("导出失败", e);
+                throw new RuntimeException("导出失败: " + e.getMessage(), e);
+            }
+        };
+        
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("attachment", new String(fileName.getBytes(java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.ISO_8859_1));
+        
+        return new org.springframework.http.ResponseEntity<>(stream, headers, org.springframework.http.HttpStatus.OK);
+    }
+    
+    /**
      * 批量导出多个相册图片
      * 按相册分组，每个相册一个文件夹
      */
@@ -718,8 +718,10 @@ public class ImageController {
         String fileName = "albums_export.zip";
         
         org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody stream = outputStream -> {
-            try {
-                imageService.exportMultipleAlbums(albumIds, outputStream);
+            // Controller 负责创建和关闭 ZipOutputStream
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(outputStream, java.nio.charset.StandardCharsets.UTF_8)) {
+                imageService.exportMultipleAlbums(albumIds, zos);
+                // try-with-resources 会自动调用 zos.close()，内部会调用 finish()
             } catch (Exception e) {
                 log.error("批量导出失败", e);
                 throw new RuntimeException("批量导出失败: " + e.getMessage(), e);
