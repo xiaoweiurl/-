@@ -2432,6 +2432,9 @@ public class ImageServiceImpl implements ImageService {
         
         // 添加到ZIP - 确保条目正确关闭
         ZipEntry entry = new ZipEntry(fileName);
+        // 设置已知的文件大小，让 ZipOutputStream 可以正确启用 ZIP64 扩展
+        entry.setSize(imageData.length);
+        entry.setCompressedSize(-1);  // 让系统自动计算压缩大小
         try {
             zos.putNextEntry(entry);
             zos.write(imageData);

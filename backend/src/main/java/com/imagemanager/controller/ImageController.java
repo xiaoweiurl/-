@@ -696,6 +696,8 @@ public class ImageController {
         java.util.zip.ZipOutputStream zos = null;
         try {
             zos = new java.util.zip.ZipOutputStream(response.getOutputStream(), java.nio.charset.StandardCharsets.UTF_8);
+            // 启用 ZIP64 扩展支持大文件（超过4GB）
+            zos.setMethod(java.util.zip.ZipOutputStream.DEFLATED);
             imageService.exportAlbumImages(albumId, zos);
             // 显式调用 finish() 完成 ZIP 结构
             zos.finish();
@@ -734,6 +736,8 @@ public class ImageController {
         java.util.zip.ZipOutputStream zos = null;
         try {
             zos = new java.util.zip.ZipOutputStream(response.getOutputStream(), java.nio.charset.StandardCharsets.UTF_8);
+            // 启用 ZIP64 扩展支持大文件（超过4GB）
+            zos.setMethod(java.util.zip.ZipOutputStream.DEFLATED);
             imageService.exportMultipleAlbums(albumIds, zos);
             // 显式调用 finish() 完成 ZIP 结构
             zos.finish();
