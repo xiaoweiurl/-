@@ -2,7 +2,9 @@ package com.imagemanager.controller;
 
 import com.imagemanager.dto.*;
 import com.imagemanager.entity.Image;
+import com.imagemanager.entity.Album;
 import com.imagemanager.repository.ImageRepository;
+import com.imagemanager.repository.AlbumRepository;
 import com.imagemanager.entity.BatchDownloadTask;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.BatchDownloadTaskService;
@@ -38,6 +40,9 @@ public class ImageController {
     
     @Autowired
     private ImageService imageService;
+    
+    @Autowired
+    private AlbumRepository albumRepository;
     
     @Autowired
     private ImageRepository imageRepository;
@@ -683,10 +688,16 @@ public class ImageController {
     @Operation(summary = "导出单个相册", description = "导出单个相册的所有图片为ZIP文件")
     public void exportAlbumImages(
             @PathVariable String albumId,
-            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+            HttpServletResponse response) throws Exception {
         log.info("导出单个相册：{}", albumId);
         
-        String fileName = "album_" + albumId + "_export.zip";
+        // 获取相册名称作为文件名
+        String albumName = albumId;
+        Album album = albumRepository.findById(albumId).orElse(null);
+        if (album != null && album.getName() != null) {
+            albumName = album.getName();
+        }
+        String fileName = albumName + ".zip";
         
         // 设置响应头
         response.setContentType("application/zip");
@@ -729,10 +740,18 @@ public class ImageController {
     @Operation(summary = "批量导出多个相册", description = "导出多个相册的图片为ZIP文件")
     public void exportMultipleAlbums(
             @RequestBody java.util.List<String> albumIds,
-            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+            HttpServletResponse response) throws Exception {
         log.info("批量导出多个相册，数量：{}", albumIds.size());
         
-        String fileName = "albums_export.zip";
+        // 获取第一个相册（父相册）名称作为文件名
+        String albumName = "albums_export";
+        if (!albumIds.isEmpty()) {
+            Album firstAlbum = albumRepository.findById(albumIds.get(0)).orElse(null);
+            if (firstAlbum != null && firstAlbum.getName() != null) {
+                albumName = firstAlbum.getName();
+            }
+        }
+        String fileName = albumName + ".zip";
         
         // 设置响应头
         response.setContentType("application/zip");
