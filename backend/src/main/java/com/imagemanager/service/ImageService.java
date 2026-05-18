@@ -8,6 +8,7 @@ import com.imagemanager.entity.Image;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 图片服务接口
