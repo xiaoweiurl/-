@@ -2174,12 +2174,9 @@ public class ImageServiceImpl implements ImageService {
         
         // 创建ZIP文件，使用UTF-8编码支持中文文件名
         ZipOutputStream zos = new ZipOutputStream(outputStream, java.nio.charset.StandardCharsets.UTF_8);
-        zos.setMethod(ZipOutputStream.DEFLATED);
-        zos.setLevel(java.util.zip.Deflater.BEST_SPEED);
         
         int totalImages = 0;
         int errorCount = 0;
-        boolean zosClosed = false;
         
         try {
             for (String currentAlbumId : allAlbumIds) {
@@ -2215,10 +2212,8 @@ public class ImageServiceImpl implements ImageService {
                 }
             }
             
-            // 确保关闭 ZipOutputStream
+            // 完成ZIP写入（不关闭底层流，让调用者关闭）
             zos.finish();
-            zos.close();
-            zosClosed = true;
             
             if (totalImages == 0) {
                 throw new RuntimeException("相册及其子相册中没有图片");
@@ -2228,15 +2223,6 @@ public class ImageServiceImpl implements ImageService {
         } catch (Exception e) {
             log.error("导出ZIP失败", e);
             throw e;
-        } finally {
-            if (zos != null && !zosClosed) {
-                try {
-                    zos.finish();
-                    zos.close();
-                } catch (Exception e) {
-                    log.error("关闭ZIP流出错", e);
-                }
-            }
         }
     }
     
@@ -2245,13 +2231,11 @@ public class ImageServiceImpl implements ImageService {
         log.info("批量导出多个相册，数量：{}", albumIds.size());
         
         // 创建ZIP文件，使用UTF-8编码支持中文文件名
+        // 不设置压缩方法，使用默认设置，避免潜在的兼容性问题
         ZipOutputStream zos = new ZipOutputStream(outputStream, java.nio.charset.StandardCharsets.UTF_8);
-        zos.setMethod(ZipOutputStream.DEFLATED);
-        zos.setLevel(java.util.zip.Deflater.BEST_SPEED);
         
         int totalImages = 0;
         int errorCount = 0;
-        boolean zosClosed = false;
         
         try {
             for (String albumId : albumIds) {
@@ -2297,24 +2281,13 @@ public class ImageServiceImpl implements ImageService {
                 }
             }
             
-            // 确保关闭 ZipOutputStream
+            // 完成ZIP写入（不关闭底层流，让调用者关闭）
             zos.finish();
-            zos.close();
-            zosClosed = true;
             
             log.info("批量导出完成，共导出 {} 张图片，失败 {} 张", totalImages, errorCount);
         } catch (Exception e) {
             log.error("批量导出ZIP失败", e);
             throw e;
-        } finally {
-            if (zos != null && !zosClosed) {
-                try {
-                    zos.finish();
-                    zos.close();
-                } catch (Exception e) {
-                    log.error("关闭ZIP流出错", e);
-                }
-            }
         }
     }
     
