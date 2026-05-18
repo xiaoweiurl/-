@@ -693,15 +693,22 @@ public class ImageController {
         response.setHeader("Content-Disposition", "attachment; filename=\"" + 
                 new String(fileName.getBytes(java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.ISO_8859_1) + "\"");
         
-        // 同步写入ZIP
-        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(response.getOutputStream(), java.nio.charset.StandardCharsets.UTF_8)) {
+        java.util.zip.ZipOutputStream zos = null;
+        try {
+            zos = new java.util.zip.ZipOutputStream(response.getOutputStream(), java.nio.charset.StandardCharsets.UTF_8);
             imageService.exportAlbumImages(albumId, zos);
+            // 显式调用 finish() 完成 ZIP 结构
+            zos.finish();
             zos.flush();
+            log.info("导出成功：{}", albumId);
         } catch (Exception e) {
             log.error("导出失败", e);
-            // 如果响应还未提交，返回错误
-            if (!response.isCommitted()) {
-                response.setStatus(500);
+            throw e;
+        } finally {
+            if (zos != null) {
+                try {
+                    zos.close();
+                } catch (Exception ignored) {}
             }
         }
     }
@@ -724,15 +731,22 @@ public class ImageController {
         response.setHeader("Content-Disposition", "attachment; filename=\"" + 
                 new String(fileName.getBytes(java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.ISO_8859_1) + "\"");
         
-        // 同步写入ZIP
-        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(response.getOutputStream(), java.nio.charset.StandardCharsets.UTF_8)) {
+        java.util.zip.ZipOutputStream zos = null;
+        try {
+            zos = new java.util.zip.ZipOutputStream(response.getOutputStream(), java.nio.charset.StandardCharsets.UTF_8);
             imageService.exportMultipleAlbums(albumIds, zos);
+            // 显式调用 finish() 完成 ZIP 结构
+            zos.finish();
             zos.flush();
+            log.info("批量导出成功，数量：{}", albumIds.size());
         } catch (Exception e) {
             log.error("批量导出失败", e);
-            // 如果响应还未提交，返回错误
-            if (!response.isCommitted()) {
-                response.setStatus(500);
+            throw e;
+        } finally {
+            if (zos != null) {
+                try {
+                    zos.close();
+                } catch (Exception ignored) {}
             }
         }
     }

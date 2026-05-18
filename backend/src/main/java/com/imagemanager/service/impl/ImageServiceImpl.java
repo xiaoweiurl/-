@@ -2356,92 +2356,94 @@ public class ImageServiceImpl implements ImageService {
      * @return 是否成功添加
      */
     private boolean addImageToZip(ZipOutputStream zos, Image image, String folderName, String prefix, Integer detailIndex) {
+        byte[] imageData = null;
+        
+        // 方式1：从本地存储读取（thumbnailUrl存储了完整URL或本地路径）
+        if (image.getThumbnailUrl() != null && !image.getThumbnailUrl().isEmpty()) {
+            try {
+                String localPath = image.getThumbnailUrl();
+                
+                // 如果是完整URL（如 http://localhost:8080/api/uploads/images/xxx.jpg）
+                // 提取路径部分
+                if (localPath.startsWith("http://") || localPath.startsWith("https://")) {
+                    java.net.URL url = new java.net.URL(localPath);
+                    localPath = url.getPath(); // 提取 /api/uploads/images/xxx.jpg
+                }
+                
+                // 去掉开头的 /uploads/ 或 /api/uploads/ 前缀，获取相对路径
+                if (localPath.startsWith("/api/uploads/")) {
+                    localPath = localPath.substring("/api/uploads/".length());
+                } else if (localPath.startsWith("/uploads/")) {
+                    localPath = localPath.substring("/uploads/".length());
+                }
+                
+                log.debug("尝试从本地存储读取图片：thumbnailUrl={}, 提取路径={}", image.getThumbnailUrl(), localPath);
+                java.io.InputStream inputStream = storageService.getFileInputStream(localPath);
+                if (inputStream != null) {
+                    imageData = inputStream.readAllBytes();
+                    inputStream.close();
+                }
+            } catch (Exception e) {
+                log.warn("从本地存储读取失败，尝试从URL下载：{} - {}", image.getThumbnailUrl(), e.getMessage());
+            }
+        }
+        
+        // 方式2：从URL下载（如果本地存储失败）
+        if ((imageData == null || imageData.length == 0) && image.getUrl() != null && !image.getUrl().isEmpty()) {
+            try {
+                imageData = downloadImageFromUrl(image.getUrl());
+                log.debug("从URL下载图片成功：{}", image.getUrl());
+            } catch (Exception e) {
+                log.error("从URL下载图片失败：{} - {}", image.getUrl(), e.getMessage());
+            }
+        }
+        
+        // 检查是否成功获取图片数据
+        if (imageData == null || imageData.length == 0) {
+            log.warn("无法获取图片数据，跳过：{} (fileKey={}, url={})", 
+                image.getId(), image.getFileKey(), image.getUrl());
+            return false;
+        }
+        
+        // 获取文件扩展名
+        String originalName = image.getOriginalName();
+        String extension = ".jpg";
+        if (originalName != null && originalName.contains(".")) {
+            extension = originalName.substring(originalName.lastIndexOf("."));
+        } else if (image.getFileType() != null) {
+            extension = "." + image.getFileType().toLowerCase();
+        }
+        
+        // 获取原始文件名（去掉扩展名）
+        String baseName = "未命名";
+        if (originalName != null && originalName.contains(".")) {
+            baseName = originalName.substring(0, originalName.lastIndexOf("."));
+        } else if (image.getTitle() != null && !image.getTitle().isEmpty()) {
+            baseName = image.getTitle();
+        }
+        
+        // 构建文件名：主图_原始名称.png 或 详情图_1_原始名称.png
+        String fileName;
+        if (detailIndex != null) {
+            fileName = String.format("%s/详情图_%d_%s%s", folderName, detailIndex, baseName, extension);
+        } else {
+            fileName = String.format("%s/主图_%s%s", folderName, baseName, extension);
+        }
+        
+        // 添加到ZIP - 确保条目正确关闭
+        ZipEntry entry = new ZipEntry(fileName);
         try {
-            byte[] imageData = null;
-            
-            // 方式1：从本地存储读取（thumbnailUrl存储了完整URL或本地路径）
-            if (image.getThumbnailUrl() != null && !image.getThumbnailUrl().isEmpty()) {
-                try {
-                    String localPath = image.getThumbnailUrl();
-                    
-                    // 如果是完整URL（如 http://localhost:8080/api/uploads/images/xxx.jpg）
-                    // 提取路径部分
-                    if (localPath.startsWith("http://") || localPath.startsWith("https://")) {
-                        java.net.URL url = new java.net.URL(localPath);
-                        localPath = url.getPath(); // 提取 /api/uploads/images/xxx.jpg
-                    }
-                    
-                    // 去掉开头的 /uploads/ 或 /api/uploads/ 前缀，获取相对路径
-                    if (localPath.startsWith("/api/uploads/")) {
-                        localPath = localPath.substring("/api/uploads/".length());
-                    } else if (localPath.startsWith("/uploads/")) {
-                        localPath = localPath.substring("/uploads/".length());
-                    }
-                    
-                    log.info("尝试从本地存储读取图片：thumbnailUrl={}, 提取路径={}", image.getThumbnailUrl(), localPath);
-                    java.io.InputStream inputStream = storageService.getFileInputStream(localPath);
-                    if (inputStream != null) {
-                        imageData = inputStream.readAllBytes();
-                        inputStream.close();
-                        log.debug("从本地存储读取图片：{} -> {}", image.getThumbnailUrl(), localPath);
-                    }
-                } catch (Exception e) {
-                    log.warn("从本地存储读取失败，尝试从URL下载：{} - {}", image.getThumbnailUrl(), e.getMessage());
-                }
-            }
-            
-            // 方式2：从URL下载（如果本地存储失败）
-            if ((imageData == null || imageData.length == 0) && image.getUrl() != null && !image.getUrl().isEmpty()) {
-                try {
-                    imageData = downloadImageFromUrl(image.getUrl());
-                    log.info("从URL下载图片成功：{}", image.getUrl());
-                } catch (Exception e) {
-                    log.error("从URL下载图片失败：{} - {}", image.getUrl(), e.getMessage());
-                }
-            }
-            
-            // 检查是否成功获取图片数据
-            if (imageData == null || imageData.length == 0) {
-                log.warn("无法获取图片数据，跳过：{} (fileKey={}, url={})", 
-                    image.getId(), image.getFileKey(), image.getUrl());
-                return false;
-            }
-            
-            // 获取文件扩展名
-            String originalName = image.getOriginalName();
-            String extension = ".jpg";
-            if (originalName != null && originalName.contains(".")) {
-                extension = originalName.substring(originalName.lastIndexOf("."));
-            } else if (image.getFileType() != null) {
-                extension = "." + image.getFileType().toLowerCase();
-            }
-            
-            // 获取原始文件名（去掉扩展名）
-            String baseName = "未命名";
-            if (originalName != null && originalName.contains(".")) {
-                baseName = originalName.substring(0, originalName.lastIndexOf("."));
-            } else if (image.getTitle() != null && !image.getTitle().isEmpty()) {
-                baseName = image.getTitle();
-            }
-            
-            // 构建文件名：主图_原始名称.png 或 详情图_1_原始名称.png
-            String fileName;
-            if (detailIndex != null) {
-                fileName = String.format("%s/详情图_%d_%s%s", folderName, detailIndex, baseName, extension);
-            } else {
-                fileName = String.format("%s/主图_%s%s", folderName, baseName, extension);
-            }
-            
-            // 添加到ZIP
-            ZipEntry entry = new ZipEntry(fileName);
             zos.putNextEntry(entry);
             zos.write(imageData);
             zos.closeEntry();
-            
-            log.info("添加图片到ZIP：{} ({} bytes)", fileName, imageData.length);
+            log.debug("添加图片到ZIP：{} ({} bytes)", fileName, imageData.length);
             return true;
         } catch (Exception e) {
             log.error("添加图片到ZIP失败：{}", image.getId(), e);
+            // 尝试关闭当前条目以避免损坏ZIP
+            try {
+                zos.closeEntry();
+            } catch (Exception ignored) {}
             return false;
         }
     }
