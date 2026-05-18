@@ -2168,76 +2168,21 @@ public class ImageServiceImpl implements ImageService {
         Album album = albumService.getAlbumById(albumId);
         String albumName = album != null ? album.getName() : "unknown";
         
-        // 获取相册下的所有图片
-        ImageQueryRequest request = new ImageQueryRequest();
-        request.setAlbumId(albumId);
-        request.setPage(1);
-        request.setPageSize(10000);
-        Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(albumId, false, PageRequest.of(0, 10000));
-        
-        List<Image> images = imagePage.getContent();
-        if (images.isEmpty()) {
-            throw new RuntimeException("相册中没有图片");
-        }
-        
-        // 按商品ID分组
-        Map<String, List<Image>> productImages = images.stream()
-                .collect(Collectors.groupingBy(img -> img.getProductId() != null ? img.getProductId() : img.getId()));
+        // 递归获取所有子相册ID（包含当前相册）
+        List<String> allAlbumIds = new ArrayList<>();
+        collectAllAlbumIds(albumId, allAlbumIds);
         
         // 创建ZIP文件
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            for (Map.Entry<String, List<Image>> entry : productImages.entrySet()) {
-                String productId = entry.getKey();
-                List<Image> productImageList = entry.getValue();
+            int totalImages = 0;
+            
+            for (String currentAlbumId : allAlbumIds) {
+                Album currentAlbum = albumService.getAlbumById(currentAlbumId);
+                String currentAlbumName = currentAlbum != null ? sanitizeFileName(currentAlbum.getName()) : "unknown";
                 
-                // 商品文件夹名称
-                String productFolderName = sanitizeFileName(productId);
-                
-                // 按主图和详情图分组
-                List<Image> mainImages = productImageList.stream()
-                        .filter(img -> Boolean.TRUE.equals(img.getIsMainImage()))
-                        .collect(Collectors.toList());
-                List<Image> detailImages = productImageList.stream()
-                        .filter(img -> !Boolean.TRUE.equals(img.getIsMainImage()))
-                        .sorted(Comparator.comparing(img -> img.getDisplayOrder() != null ? img.getDisplayOrder() : 0))
-                        .collect(Collectors.toList());
-                
-                // 如果没有主图，使用第一张详情图作为主图
-                if (mainImages.isEmpty() && !productImageList.isEmpty()) {
-                    mainImages.add(productImageList.get(0));
-                    detailImages = productImageList.subList(1, productImageList.size());
-                }
-                
-                // 添加主图
-                int detailIndex = 1;
-                for (Image img : mainImages) {
-                    addImageToZip(zos, img, productFolderName, "主图", null);
-                }
-                
-                // 添加详情图
-                for (Image img : detailImages) {
-                    addImageToZip(zos, img, productFolderName, "详情图", detailIndex++);
-                }
-            }
-        }
-        
-        return baos.toByteArray();
-    }
-    
-    @Override
-    public byte[] exportMultipleAlbums(List<String> albumIds) throws Exception {
-        log.info("批量导出多个相册，数量：{}", albumIds.size());
-        
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            for (String albumId : albumIds) {
-                // 获取相册信息
-                Album album = albumService.getAlbumById(albumId);
-                String albumName = album != null ? sanitizeFileName(album.getName()) : "unknown";
-                
-                // 获取相册下的所有图片
-                Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(albumId, false, PageRequest.of(0, 10000));
+                // 获取当前相册下的所有图片
+                Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(currentAlbumId, false, PageRequest.of(0, 10000));
                 List<Image> images = imagePage.getContent();
                 
                 if (images.isEmpty()) {
@@ -2252,43 +2197,118 @@ public class ImageServiceImpl implements ImageService {
                     String productId = entry.getKey();
                     List<Image> productImageList = entry.getValue();
                     
-                    // 商品文件夹名称（在相册子目录下）
-                    String productFolderName = albumName + "/" + sanitizeFileName(productId);
+                    // 文件夹结构：父相册/子相册/商品ID
+                    String productFolderName = currentAlbumName + "/" + sanitizeFileName(productId);
                     
-                    // 按主图和详情图分组
-                    List<Image> mainImages = productImageList.stream()
-                            .filter(img -> Boolean.TRUE.equals(img.getIsMainImage()))
-                            .collect(Collectors.toList());
-                    List<Image> detailImages = productImageList.stream()
-                            .filter(img -> !Boolean.TRUE.equals(img.getIsMainImage()))
-                            .sorted(Comparator.comparing(img -> img.getDisplayOrder() != null ? img.getDisplayOrder() : 0))
-                            .collect(Collectors.toList());
-                    
-                    // 如果没有主图，使用第一张详情图作为主图
-                    if (mainImages.isEmpty() && !productImageList.isEmpty()) {
-                        mainImages.add(productImageList.get(0));
-                        if (productImageList.size() > 1) {
-                            detailImages = productImageList.subList(1, productImageList.size());
-                        } else {
-                            detailImages = Collections.emptyList();
-                        }
-                    }
-                    
-                    // 添加主图
-                    int detailIndex = 1;
-                    for (Image img : mainImages) {
-                        addImageToZip(zos, img, productFolderName, "主图", null);
-                    }
-                    
-                    // 添加详情图
-                    for (Image img : detailImages) {
-                        addImageToZip(zos, img, productFolderName, "详情图", detailIndex++);
-                    }
+                    // 导出该商品的图片
+                    int exported = exportProductImages(zos, productImageList, productFolderName);
+                    totalImages += exported;
                 }
             }
+            
+            if (totalImages == 0) {
+                throw new RuntimeException("相册及其子相册中没有图片");
+            }
+            
+            log.info("导出完成，共导出 {} 张图片", totalImages);
         }
         
         return baos.toByteArray();
+    }
+    
+    @Override
+    public byte[] exportMultipleAlbums(List<String> albumIds) throws Exception {
+        log.info("批量导出多个相册，数量：{}", albumIds.size());
+        
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            int totalImages = 0;
+            
+            for (String albumId : albumIds) {
+                // 获取相册信息
+                Album album = albumService.getAlbumById(albumId);
+                String albumName = album != null ? sanitizeFileName(album.getName()) : "unknown";
+                
+                // 递归获取所有子相册ID（包含当前相册）
+                List<String> allSubAlbumIds = new ArrayList<>();
+                collectAllAlbumIds(albumId, allSubAlbumIds);
+                
+                for (String subAlbumId : allSubAlbumIds) {
+                    Album subAlbum = albumService.getAlbumById(subAlbumId);
+                    String subAlbumName = subAlbum != null ? sanitizeFileName(subAlbum.getName()) : "unknown";
+                    
+                    // 获取相册下的所有图片
+                    Page<Image> imagePage = imageRepository.findByAlbumIdAndDeleted(subAlbumId, false, PageRequest.of(0, 10000));
+                    List<Image> images = imagePage.getContent();
+                    
+                    if (images.isEmpty()) {
+                        continue;
+                    }
+                    
+                    // 按商品ID分组
+                    Map<String, List<Image>> productImages = images.stream()
+                            .collect(Collectors.groupingBy(img -> img.getProductId() != null ? img.getProductId() : img.getId()));
+                    
+                    for (Map.Entry<String, List<Image>> entry : productImages.entrySet()) {
+                        String productId = entry.getKey();
+                        List<Image> productImageList = entry.getValue();
+                        
+                        // 文件夹结构：父相册/子相册/商品ID
+                        String productFolderName = albumName + "/" + subAlbumName + "/" + sanitizeFileName(productId);
+                        
+                        // 导出该商品的图片
+                        int exported = exportProductImages(zos, productImageList, productFolderName);
+                        totalImages += exported;
+                    }
+                }
+            }
+            
+            log.info("批量导出完成，共导出 {} 张图片", totalImages);
+        }
+        
+        return baos.toByteArray();
+    }
+    
+    /**
+     * 导出单个商品的图片到ZIP
+     * @return 导出的图片数量
+     */
+    private int exportProductImages(ZipOutputStream zos, List<Image> productImageList, String productFolderName) throws Exception {
+        // 按主图和详情图分组
+        List<Image> mainImages = productImageList.stream()
+                .filter(img -> Boolean.TRUE.equals(img.getIsMainImage()))
+                .collect(Collectors.toList());
+        List<Image> detailImages = productImageList.stream()
+                .filter(img -> !Boolean.TRUE.equals(img.getIsMainImage()))
+                .sorted(Comparator.comparing(img -> img.getDisplayOrder() != null ? img.getDisplayOrder() : 0))
+                .collect(Collectors.toList());
+        
+        // 如果没有主图，使用第一张详情图作为主图
+        if (mainImages.isEmpty() && !productImageList.isEmpty()) {
+            mainImages.add(productImageList.get(0));
+            if (productImageList.size() > 1) {
+                detailImages = productImageList.subList(1, productImageList.size());
+            } else {
+                detailImages = Collections.emptyList();
+            }
+        }
+        
+        int count = 0;
+        
+        // 添加主图
+        for (Image img : mainImages) {
+            addImageToZip(zos, img, productFolderName, "主图", null);
+            count++;
+        }
+        
+        // 添加详情图
+        int detailIndex = 1;
+        for (Image img : detailImages) {
+            addImageToZip(zos, img, productFolderName, "详情图", detailIndex++);
+            count++;
+        }
+        
+        return count;
     }
     
     /**
