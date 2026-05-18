@@ -129,7 +129,7 @@ export default function ExportDialog({ albums, trigger, open, onOpenChange }: Ex
         
         blob = await response.blob();
         const album = albums.find((a) => a.id === albumId);
-        filename = `${album?.name || 'album'}_export.zip`;
+        filename = `${album?.name || 'album'}.zip`;
       } else {
         // 多个相册导出
         const response = await fetch('/api/images/export/batch', {
@@ -147,7 +147,20 @@ export default function ExportDialog({ albums, trigger, open, onOpenChange }: Ex
         }
         
         blob = await response.blob();
-        filename = 'albums_export.zip';
+        
+        // 找到父相册名称作为文件名
+        // 父相册是那些 parentId 为空或者 parentId 不在选中列表中的相册
+        const parentAlbums = selectedAlbums
+          .map(id => albums.find(a => a.id === id))
+          .filter((album): album is Album => album !== undefined)
+          .filter(album => !album.parentId || !selectedAlbums.includes(album.parentId));
+        
+        // 使用第一个父相册的名称
+        if (parentAlbums.length > 0 && parentAlbums[0].name) {
+          filename = `${parentAlbums[0].name}.zip`;
+        } else {
+          filename = 'albums_export.zip';
+        }
       }
 
       // 创建下载链接
