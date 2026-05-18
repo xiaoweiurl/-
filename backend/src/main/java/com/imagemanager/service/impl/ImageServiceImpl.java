@@ -2415,21 +2415,28 @@ public class ImageServiceImpl implements ImageService {
         try {
             byte[] imageData = null;
             
-            // 方式1：从本地存储读取（fileKey）
-            if (image.getFileKey() != null && !image.getFileKey().isEmpty()) {
+            // 方式1：从本地存储读取（thumbnailUrl存储了本地路径）
+            if (image.getThumbnailUrl() != null && !image.getThumbnailUrl().isEmpty()) {
                 try {
-                    java.io.InputStream inputStream = storageService.getFileInputStream(image.getFileKey());
+                    String localPath = image.getThumbnailUrl();
+                    // 去掉开头的 /uploads/ 或 /api/uploads/ 前缀，获取相对路径
+                    if (localPath.startsWith("/api/uploads/")) {
+                        localPath = localPath.substring("/api/uploads/".length());
+                    } else if (localPath.startsWith("/uploads/")) {
+                        localPath = localPath.substring("/uploads/".length());
+                    }
+                    java.io.InputStream inputStream = storageService.getFileInputStream(localPath);
                     if (inputStream != null) {
                         imageData = inputStream.readAllBytes();
                         inputStream.close();
-                        log.debug("从本地存储读取图片：{}", image.getFileKey());
+                        log.debug("从本地存储读取图片：{} -> {}", image.getThumbnailUrl(), localPath);
                     }
                 } catch (Exception e) {
-                    log.warn("从本地存储读取失败，尝试从URL下载：{}", image.getFileKey());
+                    log.warn("从本地存储读取失败，尝试从URL下载：{} - {}", image.getThumbnailUrl(), e.getMessage());
                 }
             }
             
-            // 方式2：从URL下载（如果本地存储失败或fileKey为空）
+            // 方式2：从URL下载（如果本地存储失败）
             if ((imageData == null || imageData.length == 0) && image.getUrl() != null && !image.getUrl().isEmpty()) {
                 try {
                     imageData = downloadImageFromUrl(image.getUrl());
