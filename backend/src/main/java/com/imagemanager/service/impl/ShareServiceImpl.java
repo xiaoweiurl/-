@@ -47,7 +47,7 @@ public class ShareServiceImpl implements ShareService {
         // 检查用户是否已有该资源的分享链接
         List<ShareLink> existingLinks = shareLinkRepository.findByResourceIdAndDeletedFalse(request.getResourceId());
         for (ShareLink link : existingLinks) {
-            if (link.getCreatedBy().equals(userId) && !link.isExpired()) {
+            if (userId.equals(link.getCreatedBy()) && !link.isExpired()) {
                 // 返回已存在的链接
                 return toDTO(link, baseUrl);
             }
@@ -288,8 +288,10 @@ public class ShareServiceImpl implements ShareService {
         }
 
         // 获取创建者名称
-        userRepository.findById(shareLink.getCreatedBy())
-                .ifPresent(user -> dto.setCreatedByName(user.getUsername()));
+        if (shareLink.getCreatedBy() != null) {
+            userRepository.findById(shareLink.getCreatedBy())
+                    .ifPresent(user -> dto.setCreatedByName(user.getUsername()));
+        }
 
         return dto;
     }
