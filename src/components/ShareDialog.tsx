@@ -21,7 +21,7 @@ import { Switch } from '@/components/ui/switch';
 import { Copy, Link, Lock, Calendar, Eye, Share2, Trash2 } from 'lucide-react';
 
 interface ShareDialogProps {
-  open: boolean;
+  open?: boolean;
   onClose: () => void;
   resourceId: string;
   resourceName: string;
@@ -41,12 +41,14 @@ interface ShareLink {
 }
 
 export default function ShareDialog({
-  open,
+  open: externalOpen,
   onClose,
   resourceId,
   resourceName,
   resourceType,
 }: ShareDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen ?? internalOpen;
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);

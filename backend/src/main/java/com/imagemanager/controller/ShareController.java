@@ -61,7 +61,7 @@ public class ShareController {
     }
 
     /**
-     * 访问分享链接
+     * 访问分享链接 (POST方式)
      */
     @PostMapping("/access")
     public ResponseEntity<Map<String, Object>> accessShare(
@@ -79,6 +79,41 @@ public class ShareController {
                     ip, userAgent, referer);
             
             if (result.containsKey("error")) {
+                return ResponseEntity.badRequest().body(result);
+            }
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Access share failed", e);
+            Map<String, Object> result = new HashMap<>();
+            result.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(result);
+        }
+    }
+
+    /**
+     * 访问分享链接 (GET方式，用于公开访问页面)
+     */
+    @GetMapping("/access/{shareCode}")
+    public ResponseEntity<Map<String, Object>> accessShareByCode(
+            @PathVariable String shareCode,
+            @RequestParam(required = false) String password,
+            HttpServletRequest httpRequest) {
+        
+        try {
+            String ip = getClientIp(httpRequest);
+            String userAgent = httpRequest.getHeader("User-Agent");
+            String referer = httpRequest.getHeader("Referer");
+            
+            Map<String, Object> result = shareService.accessShare(
+                    shareCode, 
+                    password != null ? password : "", 
+                    ip, userAgent, referer);
+            
+            if (result.containsKey("error")) {
+                if (result.get("error").equals("需要密码")) {
+                    result.put("needPassword", true);
+                }
                 return ResponseEntity.badRequest().body(result);
             }
             

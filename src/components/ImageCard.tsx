@@ -12,6 +12,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import HighlightedText, { HighlightedTags } from './HighlightedText';
+import dynamic from 'next/dynamic';
+
+// 动态导入 ShareDialog 避免 SSR 问题
+const ShareDialog = dynamic(() => import('./ShareDialog'), { ssr: false });
 
 // 后端静态资源 URL（用于图片等静态文件）
 const BACKEND_STATIC_URL = process.env.NEXT_PUBLIC_BACKEND_STATIC_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL?.replace('/api', '') || 'http://localhost:8080';
@@ -98,6 +102,7 @@ export default function ImageCard({
   const [showMoreMenu, setShowMoreMenu] = React.useState(false);
   const [menuView, setMenuView] = React.useState<'main' | 'share' | 'albums'>('main');
   const [menuPosition, setMenuPosition] = React.useState({ top: 0, left: 0 });
+  const [showShareDialog, setShowShareDialog] = React.useState(false);
   const cardRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -371,6 +376,14 @@ export default function ImageCard({
     toast.success('分享链接已复制到剪贴板');
     setShowMoreMenu(false);
     setMenuView('main');
+  };
+
+  // 打开创建分享链接弹窗
+  const openCreateShareLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMoreMenu(false);
+    setMenuView('main');
+    setShowShareDialog(true);
   };
 
   return (
@@ -796,6 +809,13 @@ export default function ImageCard({
                   <Copy className="w-6 h-6 text-slate-500" />
                   <span className="text-sm text-slate-700 group-hover:text-violet-600">复制分享链接</span>
                 </button>
+                <button
+                  onClick={openCreateShareLink}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-violet-50 transition-colors text-left group"
+                >
+                  <Share2 className="w-6 h-6 text-violet-500" />
+                  <span className="text-sm text-slate-700 group-hover:text-violet-600">创建分享链接</span>
+                </button>
               </div>
             </>
           ) : menuView === 'albums' ? (
@@ -878,6 +898,17 @@ export default function ImageCard({
             </span>
           ))}
         </div>
+      )}
+
+      {/* 创建分享链接弹窗 */}
+      {showShareDialog && (
+        <ShareDialog
+          open={showShareDialog}
+          resourceType="image"
+          resourceId={image.id}
+          resourceName={image.title}
+          onClose={() => setShowShareDialog(false)}
+        />
       )}
 
     </div>
