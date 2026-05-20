@@ -9,7 +9,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -27,7 +26,8 @@ public class ShareController {
             @Valid @RequestBody CreateShareRequest request,
             HttpServletRequest httpRequest) {
         String userId = (String) httpRequest.getAttribute("userId");
-        ShareLinkDTO share = shareService.createShare(request, userId);
+        String baseUrl = getBaseUrl(httpRequest);
+        ShareLinkDTO share = shareService.createShare(request, userId, baseUrl);
         return ResponseEntity.ok(share);
     }
 
@@ -36,13 +36,14 @@ public class ShareController {
      */
     @GetMapping("/my")
     public ResponseEntity<Page<ShareLinkDTO>> getMyShares(
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String resourceId,
             HttpServletRequest httpRequest) {
         String userId = (String) httpRequest.getAttribute("userId");
-        Page<ShareLinkDTO> shares = shareService.getSharesByUser(userId, resourceType, resourceId, page, pageSize);
+        // 调用接口中定义的方法
+        Page<ShareLinkDTO> shares = shareService.getUserShares(userId, resourceType, page, pageSize);
         return ResponseEntity.ok(shares);
     }
 
@@ -54,7 +55,8 @@ public class ShareController {
             @PathVariable String id,
             HttpServletRequest httpRequest) {
         String userId = (String) httpRequest.getAttribute("userId");
-        ShareLinkDTO share = shareService.getShareById(id, userId);
+        // 调用接口中定义的方法
+        ShareLinkDTO share = shareService.getShareDetail(id, userId);
         return ResponseEntity.ok(share);
     }
 
@@ -91,7 +93,10 @@ public class ShareController {
             @RequestParam(required = false) String password,
             HttpServletRequest httpRequest) {
         String visitorIp = getClientIp(httpRequest);
-        Map<String, Object> result = shareService.accessShare(shareCode, password, visitorIp);
+        String userAgent = httpRequest.getHeader("User-Agent");
+        String referer = httpRequest.getHeader("Referer");
+        // 调用接口中定义的方法
+        Map<String, Object> result = shareService.accessShare(shareCode, password, visitorIp, userAgent, referer);
         return ResponseEntity.ok(result);
     }
 
@@ -103,35 +108,39 @@ public class ShareController {
             @RequestBody AccessShareRequest request,
             HttpServletRequest httpRequest) {
         String visitorIp = getClientIp(httpRequest);
-        Map<String, Object> result = shareService.accessShare(request.getShareCode(), request.getPassword(), visitorIp);
+        String userAgent = httpRequest.getHeader("User-Agent");
+        String referer = httpRequest.getHeader("Referer");
+        // 调用接口中定义的方法
+        Map<String, Object> result = shareService.accessShare(request.getShareCode(), request.getPassword(), visitorIp, userAgent, referer);
         return ResponseEntity.ok(result);
     }
 
     /**
-     * 获取分享统计信息
+     * 获取资源分享统计
      */
     @GetMapping("/stats")
-    public ResponseEntity<ShareStatsRequest> getShareStats(
-            @RequestParam(required = false) String resourceType,
+    public ResponseEntity<Map<String, Object>> getShareStats(
             @RequestParam(required = false) String resourceId,
             HttpServletRequest httpRequest) {
-        String userId = (String) httpRequest.getAttribute("userId");
-        ShareStatsRequest stats = shareService.getShareStats(userId, resourceType, resourceId);
-        return ResponseEntity.ok(stats);
+        if (resourceId != null && !resourceId.isEmpty()) {
+            // 调用接口中定义的方法
+            Map<String, Object> stats = shareService.getResourceShareStats(resourceId);
+            return ResponseEntity.ok(stats);
+        }
+        return ResponseEntity.ok(Map.of("message", "请提供 resourceId"));
     }
 
     /**
-     * 获取分享访问记录
+     * 获取分享访问统计
      */
-    @GetMapping("/{id}/access-logs")
-    public ResponseEntity<Page<ShareAccessLogDTO>> getAccessLogs(
+    @GetMapping("/{id}/access-stats")
+    public ResponseEntity<Map<String, Object>> getAccessStats(
             @PathVariable String id,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(defaultValue = "week") String period,
             HttpServletRequest httpRequest) {
-        String userId = (String) httpRequest.getAttribute("userId");
-        Page<ShareAccessLogDTO> logs = shareService.getAccessLogs(id, userId, page, pageSize);
-        return ResponseEntity.ok(logs);
+        // 调用接口中定义的方法
+        Map<String, Object> stats = shareService.getShareAccessStats(id, period);
+        return ResponseEntity.ok(stats);
     }
 
     /**
@@ -153,5 +162,24 @@ public class ShareController {
             ip = ip.split(",")[0].trim();
         }
         return ip;
+    }
+
+    /**
+     * 获取基础URL
+     */
+    private String getBaseUrl(HttpServletRequest request) {
+        String scheme = request.getScheme();
+        String serverName = request.getServerName();
+        int serverPort = request.getServerPort();
+        
+        StringBuilder baseUrl = new StringBuilder();
+        baseUrl.append(scheme).append("://").append(serverName);
+        
+        if ((scheme.equals("http") && serverPort != 80) || 
+            (scheme.equals("https") && serverPort != 443)) {
+            baseUrl.append(":").append(serverPort);
+        }
+        
+        return baseUrl.toString();
     }
 }
