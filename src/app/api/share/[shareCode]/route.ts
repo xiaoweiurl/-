@@ -75,6 +75,13 @@ export async function GET(
     });
 
     const data = await response.json();
+    
+    // 确保返回数据格式正确
+    // 后端可能返回 requirePassword，前端页面需要这个字段
+    if (data.requirePassword && !data.error) {
+      data.error = data.error || '请输入访问密码';
+    }
+    
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Access share error:', error);

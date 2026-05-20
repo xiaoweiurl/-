@@ -100,6 +100,10 @@ public class ShareServiceImpl implements ShareService {
             if (password == null || !password.equals(shareLink.getPassword())) {
                 result.put("requirePassword", true);
                 result.put("error", "请输入正确的访问密码");
+                // 返回基本信息供前端显示
+                result.put("shareCode", shareLink.getShareCode());
+                result.put("resourceType", shareLink.getResourceType());
+                result.put("resourceName", shareLink.getResourceName());
                 return result;
             }
         }
@@ -117,13 +121,34 @@ public class ShareServiceImpl implements ShareService {
         shareLink.setViewCount(shareLink.getViewCount() + 1);
         shareLinkRepository.save(shareLink);
 
-        // 获取资源内容
-        Object resourceContent = getResourceContent(shareLink.getResourceType(), shareLink.getResourceId());
-        
+        // 返回前端期望的数据格式
         result.put("success", true);
+        result.put("shareCode", shareLink.getShareCode());
         result.put("resourceType", shareLink.getResourceType());
-        result.put("resourceContent", resourceContent);
+        result.put("resourceId", shareLink.getResourceId());
+        result.put("resourceName", getResourceName(shareLink.getResourceType(), shareLink.getResourceId()));
+        result.put("hasPassword", shareLink.isPasswordProtected());
+        result.put("expiresAt", shareLink.getExpireAt());
+        result.put("isExpired", shareLink.isExpired());
         result.put("shareLinkId", shareLink.getId());
+
+        // 获取资源内容并直接放入顶层
+        if ("album".equals(shareLink.getResourceType())) {
+            Album album = albumRepository.findById(shareLink.getResourceId()).orElse(null);
+            if (album != null) {
+                result.put("album", Map.of(
+                    "id", album.getId(),
+                    "name", album.getName(),
+                    "description", album.getDescription() != null ? album.getDescription() : ""
+                ));
+                result.put("images", imageRepository.findMainImagesByAlbumIdAndDeletedFalse(shareLink.getResourceId()));
+            }
+        } else if ("image".equals(shareLink.getResourceType())) {
+            Image image = imageRepository.findById(shareLink.getResourceId()).orElse(null);
+            if (image != null) {
+                result.put("images", java.util.List.of(image));
+            }
+        }
 
         return result;
     }

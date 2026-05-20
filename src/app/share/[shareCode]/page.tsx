@@ -53,18 +53,50 @@ export default function SharePage() {
     setError(null);
 
     try {
-      const url = new URL(`/api/share/${shareCode}`, window.location.origin);
+      // 如果提供了密码，使用 POST 请求验证
       if (pwd) {
-        url.searchParams.set('password', pwd);
+        const response = await fetch(`/api/share/${shareCode}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password: pwd }),
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          // 密码验证成功，重新获取分享内容
+          await loadShareData();
+          return;
+        } else {
+          setError(data.error || '密码验证失败');
+          setNeedPassword(true);
+        }
+        return;
       }
 
+      // 无密码，直接获取分享内容
+      const url = new URL(`/api/share/${shareCode}`, window.location.origin);
       const response = await fetch(url.toString());
       const data = await response.json();
 
       if (data.error) {
-        if (data.needPassword) {
+        if (data.requirePassword) {
           setNeedPassword(true);
-          setShareData(null);
+          // 保存基本信息用于显示
+          if (data.shareCode || data.resourceName) {
+            setShareData({
+              shareCode: data.shareCode || shareCode,
+              resourceType: data.resourceType || 'unknown',
+              resourceId: data.resourceId || '',
+              resourceName: data.resourceName || '分享内容',
+              hasPassword: true,
+              expiresAt: data.expiresAt || null,
+              isExpired: false,
+            });
+          } else {
+            setShareData(null);
+          }
         } else {
           setError(data.error);
         }
@@ -116,6 +148,9 @@ export default function SharePage() {
         <div className="text-center max-w-md p-8 bg-white rounded-xl shadow-lg">
           <Lock className="w-16 h-16 text-violet-600 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-900 mb-2">需要密码</h1>
+          {shareData?.resourceName && (
+            <p className="text-violet-600 font-medium mb-2">{shareData.resourceName}</p>
+          )}
           <p className="text-gray-500 mb-6">此分享链接需要密码才能访问</p>
           <form onSubmit={handleSubmitPassword}>
             <div className="flex gap-2">
@@ -125,8 +160,9 @@ export default function SharePage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="flex-1"
+                autoFocus
               />
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || !password.trim()}>
                 {submitting ? '验证中...' : '验证'}
               </Button>
             </div>
