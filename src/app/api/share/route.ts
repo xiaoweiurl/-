@@ -80,11 +80,17 @@ export async function POST(request: NextRequest) {
         ? `https://${frontendDomain}/share/${data.shareCode}`
         : `/share/${data.shareCode}`;
       
+      // 统一字段名：后端 expireAt -> 前端 expiresAt
+      const shareLink = {
+        ...data,
+        expiresAt: data.expireAt || null,
+      };
+      
       return NextResponse.json({
         success: true,
         shareCode: data.shareCode,
         shareUrl,
-        shareLink: data,
+        shareLink,
         message: '分享链接创建成功'
       });
     }
@@ -155,6 +161,12 @@ export async function GET(request: NextRequest) {
       shareLinks = data;
       total = data.length;
     }
+    
+    // 统一字段名：后端 expireAt -> 前端 expiresAt
+    shareLinks = shareLinks.map((link: { expireAt?: string; expiresAt?: string }) => ({
+      ...link,
+      expiresAt: link.expireAt || link.expiresAt || null,
+    }));
     
     // 如果指定了 resourceId，过滤结果
     if (resourceId) {

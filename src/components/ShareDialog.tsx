@@ -121,7 +121,12 @@ export default function ShareDialog({
         // 显示成功提示
         alert(`分享链接创建成功！\n\n链接已复制到剪贴板：\n${shareUrl}`);
         
-        await loadShareLinks();
+        // 将新创建的链接添加到列表顶部
+        const newLink = data.shareLink;
+        if (newLink) {
+          setShareLinks(prev => [newLink, ...prev]);
+        }
+        
         setShowCreateForm(false);
         setHasPassword(false);
         setPassword('');
