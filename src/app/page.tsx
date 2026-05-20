@@ -608,9 +608,13 @@ export default function Home() {
         // 收藏 - 使用主图片API加筛选
         params.append('favorite', 'true');
         apiUrl = `/images?${params}`;
-      } else if (activeMenuItem.startsWith('album-')) {
+      } else if (activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)) {
         // 相册筛选 - 只显示主图
-        params.append('albumId', activeMenuItem);
+        // 兼容两种格式：带 album- 前缀的 mock 数据，以及真实数据库的 UUID 格式
+        const albumId = activeMenuItem.startsWith('album-') 
+          ? activeMenuItem.replace('album-', '') 
+          : activeMenuItem;
+        params.append('albumId', albumId);
         params.append('onlyMainImage', 'true');
         apiUrl = `/images?${params}`;
       } else {
@@ -712,10 +716,14 @@ export default function Home() {
           // 收藏：显示收藏的主图
           filteredImages = sourceImages.filter(img => img.favorite === true && img.isMainImage === true);
           console.log('[Home] 收藏过滤后:', filteredImages.length, '张');
-        } else if (activeMenuItem.startsWith('album-')) {
+        } else if (activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)) {
           // 相册：只显示该相册及其子相册的主图
           // 如果有子相册，使用 selectedAlbumIds 来筛选
-          const albumIdsToFilter = selectedAlbumIds.length > 0 ? selectedAlbumIds : [activeMenuItem];
+          // 兼容两种格式：带 album- 前缀的 mock 数据，以及真实数据库的 UUID 格式
+          const pureAlbumId = activeMenuItem.startsWith('album-') 
+            ? activeMenuItem.replace('album-', '') 
+            : activeMenuItem;
+          const albumIdsToFilter = selectedAlbumIds.length > 0 ? selectedAlbumIds : [pureAlbumId];
           filteredImages = sourceImages.filter(img =>
             img.albumId && albumIdsToFilter.includes(img.albumId) &&
             img.isMainImage === true &&
@@ -1416,8 +1424,9 @@ export default function Home() {
     setCurrentPage(1);
     setHasMore(false);
     
-    // 非知识分类页面关闭高级搜索
-    if (item !== 'all' && !item.startsWith('album-')) {
+    // 非知识分类页面关闭高级搜索（相册页面保留高级搜索）
+    const isAlbumPage = item.startsWith('album-') || albums.some(a => a.id === item);
+    if (item !== 'all' && !isAlbumPage) {
       if (showAdvancedSearch) {
         setShowAdvancedSearch(false);
         setAdvancedFilters(DEFAULT_FILTERS);
@@ -1756,7 +1765,7 @@ export default function Home() {
             }
           }}
           showAdvancedSearch={showAdvancedSearch}
-          showSearch={activeMenuItem === 'all' || activeMenuItem.startsWith('album-')}
+          showSearch={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)}
         />
 
         {/* 主内容 */}
@@ -1784,8 +1793,10 @@ export default function Home() {
                       ? '最近上传'
                       : activeMenuItem === 'trash'
                       ? '回收站'
-                      : activeMenuItem.startsWith('album-')
-                      ? albums.find(a => a.id === activeMenuItem)?.name || '相册'
+                      : (activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem))
+                      ? (activeMenuItem.startsWith('album-') 
+                          ? albums.find(a => a.id === activeMenuItem.replace('album-', ''))?.name 
+                          : albums.find(a => a.id === activeMenuItem)?.name) || '相册'
                       : '图片'}
                   </h1>
                   <div className="text-sm text-slate-500">
@@ -1824,7 +1835,7 @@ export default function Home() {
               </div>
 
               {/* 高级搜索组件 - 仅在知识分类下显示 */}
-              {showAdvancedSearch && (activeMenuItem === 'all' || activeMenuItem.startsWith('album-')) && (
+              {showAdvancedSearch && (activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)) && (
                 <div className="mb-6">
                   <AdvancedSearch
                     filters={advancedFilters}
@@ -1882,7 +1893,7 @@ export default function Home() {
               loading={loadingMore}
               compactMode={settings?.compactMode}
               showFileInfo={settings?.showFileInfo}
-              searchQuery={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') 
+              searchQuery={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)
                 ? (showAdvancedSearch ? advancedFilters.keyword : searchQuery) 
                 : ''}
             />
