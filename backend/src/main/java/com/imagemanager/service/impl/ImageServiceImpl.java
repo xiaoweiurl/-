@@ -264,7 +264,9 @@ public class ImageServiceImpl implements ImageService {
             log.info("查询相册，albumId={}", albumId);
             
             // 递归获取所有子相册ID
-            List<String> allAlbumIds = collectAllAlbumIds(albumId);
+            List<String> allAlbumIds = new ArrayList<>();
+            allAlbumIds.add(albumId);  // 先添加当前相册
+            collectAllAlbumIds(albumId, allAlbumIds);  // 递归收集子相册
             log.info("层级查询：找到 {} 个相册（包含子相册）", allAlbumIds.size());
 
             // 如果 onlyMainImage 为 true，只查询主图
