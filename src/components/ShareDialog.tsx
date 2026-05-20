@@ -245,16 +245,22 @@ export default function ShareDialog({
                       </div>
 
                       <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {link.expiresAt ? (
+                            <span title={`过期时间: ${new Date(link.expiresAt).toLocaleString('zh-CN')}`}>
+                              {new Date(link.expiresAt) < new Date() ? '已过期' : `${Math.ceil((new Date(link.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} 天后过期`}
+                            </span>
+                          ) : (
+                            <span>永久有效</span>
+                          )}
+                        </span>
                         {link.password && (
                           <span className="flex items-center gap-1">
                             <Lock className="w-3 h-3" />
                             密码保护
                           </span>
                         )}
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(link.expiresAt)}
-                        </span>
                         <span className="flex items-center gap-1">
                           <Eye className="w-3 h-3" />
                           {link.accessCount} 次访问
@@ -294,31 +300,39 @@ export default function ShareDialog({
               )}
 
               {/* 有效期 */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <Label htmlFor="expiry-toggle">设置有效期</Label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <Label htmlFor="expiry-toggle">设置有效期</Label>
+                  </div>
+                  <Switch
+                    id="expiry-toggle"
+                    checked={hasExpiry}
+                    onCheckedChange={setHasExpiry}
+                  />
                 </div>
-                <Switch
-                  id="expiry-toggle"
-                  checked={hasExpiry}
-                  onCheckedChange={setHasExpiry}
-                />
-              </div>
 
-              {hasExpiry && (
-                <Select value={expiryDays} onValueChange={setExpiryDays}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 天</SelectItem>
-                    <SelectItem value="7">7 天</SelectItem>
-                    <SelectItem value="30">30 天</SelectItem>
-                    <SelectItem value="90">90 天</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
+                {!hasExpiry ? (
+                  <p className="text-sm text-gray-500">未设置有效期，链接将永久有效</p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">有效期：</span>
+                    <Select value={expiryDays} onValueChange={setExpiryDays}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 天</SelectItem>
+                        <SelectItem value="7">7 天</SelectItem>
+                        <SelectItem value="30">30 天</SelectItem>
+                        <SelectItem value="90">90 天</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+              </div>
 
               <Button
                 className="w-full"
