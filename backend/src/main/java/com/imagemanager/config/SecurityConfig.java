@@ -133,10 +133,9 @@ public class SecurityConfig {
                 .requestMatchers("/auth/session").permitAll()
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
-                // 分享链接公开访问 - 无需认证
-                .requestMatchers("/api/share/access/**").permitAll()
+                // 分享链接公开访问 - 无需认证（context-path 已去掉 /api 前缀）
+                .requestMatchers("/share/access/**").permitAll()
                 // 静态资源（图片、文件）- 无需认证
-                .requestMatchers("/api/uploads/**").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 // API 文档
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
