@@ -26,12 +26,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
             .excludePathPatterns(
                 "/auth/login",
                 "/auth/session",
+                "/api/share/access/**",  // 分享链接公开访问
                 "/api-docs/**",
                 "/swagger-ui/**",
                 "/v3/api-docs/**",
                 "/health",
                 "/actuator/health",
-                "/uploads/**"  // 静态资源不需要认证
+                "/uploads/**",  // 静态资源不需要认证
+                "/api/uploads/**"  // API 形式访问静态资源
             );
     }
     

@@ -104,12 +104,13 @@ export async function POST(
     }
     
     // 后端可用，调用后端 API
-    const response = await backendFetch(`/share/access/${shareCode}`, {
+    // 后端路由: POST /api/share/access，请求体包含 shareCode 和 password
+    const response = await backendFetch('/share/access', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ shareCode, password }),
     });
 
     const data = await response.json();
@@ -117,5 +118,43 @@ export async function POST(
   } catch (error) {
     console.error('Verify share password error:', error);
     return NextResponse.json({ error: '验证失败' }, { status: 500 });
+  }
+}
+
+// 删除分享链接
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ shareCode: string }> }
+) {
+  try {
+    const { shareCode } = await params;
+    
+    // 检查后端是否可用
+    const backendAvailable = await isBackendAvailable();
+    
+    if (!backendAvailable) {
+      // 降级模式：模拟删除成功
+      return NextResponse.json({
+        success: true,
+        message: '删除成功（降级模式）',
+      });
+    }
+    
+    // 后端可用，调用后端 API
+    // 后端路由: DELETE /api/share/code/{shareCode}
+    const response = await backendFetch(`/share/code/${shareCode}`, {
+      method: 'DELETE',
+    });
+
+    // 后端返回 204 No Content，需要转换为 JSON
+    if (response.status === 204) {
+      return NextResponse.json({ success: true, message: '删除成功' });
+    }
+    
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error('Delete share error:', error);
+    return NextResponse.json({ error: '删除分享失败' }, { status: 500 });
   }
 }

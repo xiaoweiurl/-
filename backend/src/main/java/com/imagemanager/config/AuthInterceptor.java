@@ -159,9 +159,11 @@ public class AuthInterceptor implements HandlerInterceptor {
     private boolean isPublicEndpoint(String path) {
         return path.startsWith("/auth/login") ||
                path.startsWith("/auth/session") ||
+               path.startsWith("/api/share/access") ||  // 分享链接公开访问
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||
                path.startsWith("/v3/api-docs") ||
+               path.startsWith("/api/uploads/") ||  // 公开访问上传的文件
                path.equals("/health") ||
                path.equals("/actuator/health");
     }
