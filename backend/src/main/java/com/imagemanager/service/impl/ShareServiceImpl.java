@@ -147,7 +147,7 @@ public class ShareServiceImpl implements ShareService {
         Page<ShareLink> shares;
 
         if (resourceType != null && !resourceType.isEmpty()) {
-            shares = shareLinkRepository.findByResourceTypeAndResourceIdAndDeletedFalse(resourceType, null, pageable);
+            shares = shareLinkRepository.findByResourceTypeAndCreatedByAndDeletedFalse(resourceType, userId, pageable);
         } else {
             shares = shareLinkRepository.findByCreatedByOrderByCreatedAtDesc(userId, pageable);
         }
@@ -228,7 +228,7 @@ public class ShareServiceImpl implements ShareService {
     private String getResourceName(String resourceType, String resourceId) {
         return switch (resourceType) {
             case "album" -> albumRepository.findById(resourceId).map(Album::getName).orElse(null);
-            case "image" -> imageRepository.findById(resourceId).map(Image::getName).orElse(null);
+            case "image" -> imageRepository.findById(resourceId).map(Image::getTitle).orElse(null);
             default -> null;
         };
     }

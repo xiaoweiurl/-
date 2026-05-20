@@ -21,6 +21,8 @@ public interface ShareLinkRepository extends JpaRepository<ShareLink, String> {
     
     List<ShareLink> findByResourceTypeAndResourceIdAndDeletedFalse(String resourceType, String resourceId);
     
+    Page<ShareLink> findByResourceTypeAndCreatedByAndDeletedFalse(String resourceType, String createdBy, Pageable pageable);
+    
     Page<ShareLink> findByCreatedByAndDeletedFalse(String createdBy, Pageable pageable);
     
     @Query("SELECT s FROM ShareLink s WHERE s.createdBy = :userId AND s.deleted = false ORDER BY s.createdAt DESC")
