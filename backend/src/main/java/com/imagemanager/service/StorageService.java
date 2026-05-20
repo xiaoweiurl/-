@@ -1,83 +1,57 @@
 package com.imagemanager.service;
 
-import org.springframework.web.multipart.MultipartFile;
+import com.imagemanager.dto.StorageQuotaDTO;
+import org.springframework.data.domain.Page;
 
-import java.io.InputStream;
+import java.util.Map;
 
 /**
  * 存储服务接口
- * 
- * @author Image Manager Team
- * @version 1.0.0
  */
 public interface StorageService {
     
     /**
-     * 上传文件
-     * 
-     * @param file 文件
-     * @param path 存储路径（如 images/2024/01/）
-     * @return 文件访问URL
+     * 获取用户存储配额
      */
-    String uploadFile(MultipartFile file, String path);
+    StorageQuotaDTO getUserQuota(String userId);
     
     /**
-     * 上传文件（字节数组）
-     * 
-     * @param data 文件数据
-     * @param fileName 文件名
-     * @param contentType 内容类型
-     * @return 文件访问URL
+     * 更新用户存储配额
      */
-    String uploadFile(byte[] data, String fileName, String contentType);
+    void updateQuota(String userId, Long maxStorageBytes);
     
     /**
-     * 获取文件访问URL
-     * 
-     * @param fileKey 文件Key
-     * @return 访问URL
+     * 检查用户是否有足够空间
      */
-    String getFileUrl(String fileKey);
+    boolean hasEnoughSpace(String userId, Long bytes);
     
     /**
-     * 生成预签名URL（用于临时访问）
-     * 
-     * @param fileKey 文件Key
-     * @param expireSeconds 过期时间（秒）
-     * @return 预签名URL
+     * 增加已使用空间
      */
-    String generatePresignedUrl(String fileKey, int expireSeconds);
+    void addUsedStorage(String userId, Long bytes);
     
     /**
-     * 删除文件
-     * 
-     * @param fileKey 文件Key
-     * @return 是否成功
+     * 减少已使用空间
      */
-    boolean deleteFile(String fileKey);
+    void subtractUsedStorage(String userId, Long bytes);
     
     /**
-     * 获取文件存储Key
-     * 
-     * @param fileKey 文件Key
-     * @return 存储Key（用于数据库存储）
+     * 重新计算用户存储使用量
      */
-    String getStorageKey(String fileKey);
+    void recalculateUsedStorage(String userId);
     
     /**
-     * 获取文件输入流
-     * 
-     * @param fileKey 文件Key
-     * @return 文件输入流
-     * @throws Exception 如果文件不存在或读取失败
+     * 获取系统存储统计
      */
-    InputStream getFileInputStream(String fileKey) throws Exception;
+    Map<String, Object> getSystemStorageStats();
     
     /**
-     * 检查文件是否存在
-     * 
-     * @param fileKey 文件Key
-     * @return 是否存在
+     * 获取所有用户的存储使用情况（管理员）
      */
-    boolean fileExists(String fileKey);
+    Page<StorageQuotaDTO> getAllUserQuotas(int page, int pageSize);
+    
+    /**
+     * 初始化用户存储配额
+     */
+    void initializeUserQuota(String userId);
 }

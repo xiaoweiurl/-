@@ -1,139 +1,97 @@
 package com.imagemanager.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
 import java.time.LocalDateTime;
-import java.util.Map;
 
 /**
- * 审计日志实体
- * 
- * @author Image Manager Team
- * @version 1.0.0
+ * 操作日志实体
  */
 @Data
 @Entity
-@Table(name = "audit_log", indexes = {
-    @Index(name = "idx_audit_log_table_name", columnList = "table_name"),
-    @Index(name = "idx_audit_log_operation", columnList = "operation"),
-    @Index(name = "idx_audit_log_record_id", columnList = "record_id"),
-    @Index(name = "idx_audit_log_changed_by", columnList = "changed_by"),
-    @Index(name = "idx_audit_log_changed_at", columnList = "changed_at")
-})
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Table(name = "audit_logs")
 public class AuditLog {
-    
     @Id
-    @Column(length = 36)
     private String id;
-    
-    /**
-     * 表名
-     */
-    @Column(name = "table_name", length = 100, nullable = false)
-    private String tableName;
-    
-    /**
-     * 操作类型：INSERT, UPDATE, DELETE
-     */
-    @Column(length = 20, nullable = false)
-    private String operation;
-    
-    /**
-     * 记录ID
-     */
-    @Column(name = "record_id", length = 36)
-    private String recordId;
-    
-    /**
-     * 修改前的值（JSON格式）
-     */
-    @Column(name = "old_value", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
-    private Map<String, Object> oldValue;
-    
-    /**
-     * 修改后的值（JSON格式）
-     */
-    @Column(name = "new_value", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
-    private Map<String, Object> newValue;
-    
-    /**
-     * 操作用户ID
-     */
-    @Column(name = "changed_by", length = 36)
-    private String changedBy;
-    
-    /**
-     * 操作用户名（冗余字段）
-     */
-    @Column(name = "changed_by_username", length = 100)
-    private String changedByUsername;
-    
-    /**
-     * 操作时间
-     */
-    @Column(name = "changed_at", nullable = false)
-    private LocalDateTime changedAt;
-    
-    /**
-     * 客户端IP
-     */
-    @Column(name = "client_ip", length = 50)
-    private String clientIp;
-    
-    /**
-     * 用户代理
-     */
-    @Column(name = "user_agent", columnDefinition = "text")
+
+    @Column(name = "user_id", length = 36)
+    private String userId;
+
+    @Column(name = "username", length = 100)
+    private String username;
+
+    @Column(name = "action", nullable = false, length = 50)
+    private String action;
+
+    @Column(name = "resource_type", length = 20)
+    private String resourceType;
+
+    @Column(name = "resource_id", length = 36)
+    private String resourceId;
+
+    @Column(name = "resource_name", length = 255)
+    private String resourceName;
+
+    @Column(name = "details", columnDefinition = "JSON")
+    private String details;
+
+    @Column(name = "ip_address", length = 50)
+    private String ipAddress;
+
+    @Column(name = "user_agent", length = 500)
     private String userAgent;
-    
-    /**
-     * 请求路径
-     */
-    @Column(name = "request_path", length = 255)
-    private String requestPath;
-    
-    /**
-     * 请求方法
-     */
-    @Column(name = "request_method", length = 10)
-    private String requestMethod;
-    
-    /**
-     * 描述
-     */
-    @Column(columnDefinition = "text")
-    private String description;
-    
-    /**
-     * 创建时间
-     */
-    @Column(name = "created_at", nullable = false)
+
+    @Column(name = "status", length = 20)
+    private String status = "success";
+
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
-    /**
-     * 在保存前设置创建时间
-     */
+
     @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        if (changedAt == null) {
-            changedAt = LocalDateTime.now();
-        }
-        if (id == null) {
-            id = java.util.UUID.randomUUID().toString();
-        }
+    public void prePersist() {
+        if (id == null) id = java.util.UUID.randomUUID().toString();
+        if (createdAt == null) createdAt = LocalDateTime.now();
+    }
+
+    /**
+     * 操作类型枚举
+     */
+    public static class ActionType {
+        // 用户相关
+        public static final String LOGIN = "login";
+        public static final String LOGOUT = "logout";
+        public static final String REGISTER = "register";
+        public static final String CHANGE_PASSWORD = "change_password";
+        public static final String UPDATE_PROFILE = "update_profile";
+
+        // 图片相关
+        public static final String UPLOAD_IMAGE = "upload_image";
+        public static final String DELETE_IMAGE = "delete_image";
+        public static final String RESTORE_IMAGE = "restore_image";
+        public static final String DOWNLOAD_IMAGE = "download_image";
+        public static final String EDIT_IMAGE = "edit_image";
+        public static final String MOVE_IMAGE = "move_image";
+        public static final String BATCH_DELETE = "batch_delete";
+        public static final String BATCH_DOWNLOAD = "batch_download";
+
+        // 相册相关
+        public static final String CREATE_ALBUM = "create_album";
+        public static final String DELETE_ALBUM = "delete_album";
+        public static final String UPDATE_ALBUM = "update_album";
+        public static final String SHARE_ALBUM = "share_album";
+
+        // 分享相关
+        public static final String CREATE_SHARE = "create_share";
+        public static final String ACCESS_SHARE = "access_share";
+        public static final String DOWNLOAD_SHARE = "download_share";
+
+        // 系统相关
+        public static final String BACKUP_DATA = "backup_data";
+        public static final String RESTORE_DATA = "restore_data";
+        public static final String UPDATE_SETTINGS = "update_settings";
+        public static final String MANAGE_USER = "manage_user";
     }
 }

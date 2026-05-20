@@ -123,6 +123,26 @@ public class Album {
     private String userId;
     
     /**
+     * 相册可见性：private（私密）, public（公开）, password_protected（密码保护）
+     */
+    @Column(length = 20)
+    @Builder.Default
+    private String visibility = "private";
+    
+    /**
+     * 分享密码（当visibility为password_protected时使用）
+     */
+    @Column(name = "share_password", length = 50)
+    private String sharePassword;
+    
+    /**
+     * 是否开启分享
+     */
+    @Column(name = "share_enabled")
+    @Builder.Default
+    private Boolean shareEnabled = false;
+    
+    /**
      * 获取匹配配置对象
      */
     @Transient

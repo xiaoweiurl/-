@@ -3,7 +3,8 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  User, Lock, Bell, Palette, Image, Camera, Loader2, Save, Eye, EyeOff
+  User, Lock, Bell, Palette, Image, Camera, Loader2, Save, Eye, EyeOff,
+  HardDrive, FileText, Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,9 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSettings, type AppSettings } from '@/contexts/SettingsContext';
+import StorageStats from '@/components/StorageStats';
+import AuditLogs from '@/components/AuditLogs';
+import BackupRestore from '@/components/BackupRestore';
 
 interface UserInfo {
   id: string;
@@ -26,7 +30,7 @@ interface UserInfo {
   lastLoginAt?: string;
 }
 
-type SettingsTab = 'profile' | 'security' | 'notifications' | 'appearance' | 'display';
+type SettingsTab = 'profile' | 'security' | 'notifications' | 'appearance' | 'display' | 'storage' | 'audit' | 'backup';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -235,6 +239,9 @@ export default function SettingsPage() {
     { id: 'notifications', label: '通知设置', icon: <Bell className="w-5 h-5" /> },
     { id: 'appearance', label: '外观设置', icon: <Palette className="w-5 h-5" /> },
     { id: 'display', label: '显示设置', icon: <Image className="w-5 h-5" /> },
+    { id: 'storage', label: '存储管理', icon: <HardDrive className="w-5 h-5" /> },
+    { id: 'audit', label: '操作日志', icon: <FileText className="w-5 h-5" /> },
+    { id: 'backup', label: '备份恢复', icon: <Database className="w-5 h-5" /> },
   ];
 
   return (
@@ -764,6 +771,21 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* 存储管理 */}
+            {activeTab === 'storage' && (
+              <StorageStats />
+            )}
+
+            {/* 操作日志 */}
+            {activeTab === 'audit' && (
+              <AuditLogs />
+            )}
+
+            {/* 备份恢复 */}
+            {activeTab === 'backup' && (
+              <BackupRestore />
             )}
           </main>
         </div>

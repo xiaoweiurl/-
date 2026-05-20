@@ -450,4 +450,15 @@ public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecif
      * 统计所有未删除图片数量
      */
     long countByDeletedFalse();
+    
+    /**
+     * 查找已删除且超过保留期的图片
+     */
+    List<Image> findByDeletedTrueAndDeletedAtBefore(LocalDateTime deletedAtBefore);
+    
+    /**
+     * 获取所有有图片的用户ID列表
+     */
+    @Query("SELECT DISTINCT i.userId FROM Image i WHERE i.userId IS NOT NULL")
+    List<String> findDistinctUserIds();
 }
