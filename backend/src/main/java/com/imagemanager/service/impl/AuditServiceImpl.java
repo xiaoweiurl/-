@@ -50,7 +50,8 @@ public class AuditServiceImpl implements AuditService {
             auditLog.setResourceType(resourceType);
             auditLog.setResourceId(resourceId);
             auditLog.setResourceName(resourceName);
-            auditLog.setDetails(details);
+            // 确保 details 是有效的 JSON 格式
+            auditLog.setDetails(toJsonDetails(details));
             auditLog.setIpAddress(ipAddress);
             auditLog.setUserAgent(userAgent);
             auditLog.setStatus("success");
@@ -68,6 +69,28 @@ public class AuditServiceImpl implements AuditService {
         }
     }
 
+    /**
+     * 将详情字符串转换为 JSON 格式
+     */
+    private String toJsonDetails(String details) {
+        if (details == null || details.isEmpty()) {
+            return null;
+        }
+        // 如果已经是 JSON 格式（以 { 或 [ 开头），直接返回
+        String trimmed = details.trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            return details;
+        }
+        // 否则包装成 JSON 对象
+        try {
+            return objectMapper.writeValueAsString(new java.util.HashMap<String, String>() {{
+                put("message", details);
+            }});
+        } catch (Exception e) {
+            return "{\"message\":\"" + details.replace("\"", "\\\"") + "\"}";
+        }
+    }
+
     @Override
     @Async
     @Transactional
@@ -80,6 +103,8 @@ public class AuditServiceImpl implements AuditService {
             auditLog.setResourceType(resourceType);
             auditLog.setResourceId(resourceId);
             auditLog.setResourceName(resourceName);
+            // 构造错误详情 JSON
+            auditLog.setDetails(toJsonDetails("操作失败: " + errorMessage));
             auditLog.setIpAddress(ipAddress);
             auditLog.setUserAgent(userAgent);
             auditLog.setStatus("failed");

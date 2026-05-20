@@ -2,6 +2,8 @@ package com.imagemanager.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 /**
@@ -32,7 +34,8 @@ public class AuditLog {
     @Column(name = "resource_name", length = 255)
     private String resourceName;
 
-    @Column(name = "details", columnDefinition = "JSON")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "details", columnDefinition = "jsonb")
     private String details;
 
     @Column(name = "ip_address", length = 50)
