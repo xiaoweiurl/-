@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/share")
+@RequestMapping("/share")
 @RequiredArgsConstructor
 public class ShareController {
 
