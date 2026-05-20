@@ -16,12 +16,18 @@ export interface FilterState {
   keyword?: string;
 }
 
+interface Album {
+  id: string;
+  name: string;
+  parentId?: string;
+}
+
 interface FilterPanelProps {
   isOpen: boolean;
   onClose: () => void;
   filters: FilterState;
   onFilterChange: (filters: FilterState) => void;
-  albums: { id: string; name: string }[];
+  albums: Album[];
   tags: { name: string; count: number }[];
 }
 
@@ -34,6 +40,11 @@ export default function FilterPanel({
   tags,
 }: FilterPanelProps) {
   const [expandedSection, setExpandedSection] = React.useState<string | null>('date');
+
+  // 只显示父相册（parentId 为空的相册）
+  const parentAlbums = React.useMemo(() => {
+    return albums.filter(album => !album.parentId);
+  }, [albums]);
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -212,7 +223,7 @@ export default function FilterPanel({
                 >
                   全部相册
                 </button>
-                {albums.map((album) => (
+                {parentAlbums.map((album) => (
                   <button
                     key={album.id}
                     onClick={() => updateFilter('albumFilter', album.id)}

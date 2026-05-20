@@ -629,19 +629,24 @@ export default function Home() {
           console.log('[Home] 添加文件类型筛选:', filterState.typeFilter);
         }
         
-        // 添加相册筛选
+        // 添加相册筛选 - 使用 albumId 参数支持层级查询
         if (filterState.albumFilter !== 'all') {
-          // 转换相册ID到分类名称
-          const categoryName = mockAlbums.find(a => a.id === filterState.albumFilter)?.name || '';
-          if (categoryName) {
-            params.append('category', categoryName);
-          }
+          params.append('albumId', filterState.albumFilter);
+          params.append('onlyMainImage', 'true');
+          console.log('[Home] 添加相册筛选:', filterState.albumFilter);
         }
+        
         if (filterState.keyword && filterState.keyword.trim()) {
           params.append('keyword', filterState.keyword.trim());
           console.log('[Home] 添加关键词筛选:', filterState.keyword.trim());
         }
-        apiUrl = `/products/main-images?${params}`;
+        
+        // 如果有相册筛选，使用 images API；否则使用 products/main-images API
+        if (filterState.albumFilter !== 'all') {
+          apiUrl = `/images?${params}`;
+        } else {
+          apiUrl = `/products/main-images?${params}`;
+        }
         
         // 添加标签筛选（多标签支持）
         if (filterState.tagFilter && filterState.tagFilter.length > 0) {
