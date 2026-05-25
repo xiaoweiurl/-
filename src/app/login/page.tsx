@@ -72,8 +72,11 @@ export default function LoginPage() {
           localStorage.setItem('session_expires', String(Date.now() + maxAge * 1000));
           
           // 设置 Cookie（用于 API 请求自动携带）
+          const isHttps = window.location.protocol === 'https:';
           const cookieExpiry = new Date(Date.now() + maxAge * 1000).toUTCString();
-          document.cookie = `session_id=${sessionId}; path=/; expires=${cookieExpiry}; SameSite=Lax`;
+          // HTTPS 时需要 Secure 属性
+          const secureAttr = isHttps ? 'Secure;' : '';
+          document.cookie = `session_id=${sessionId}; path=/; expires=${cookieExpiry}; SameSite=Lax; ${secureAttr}`;
           
           console.log('[Login] 存储 sessionId:', sessionId.substring(0, 8) + '...');
         } else {
@@ -83,9 +86,21 @@ export default function LoginPage() {
         toast.success('登录成功', {
           description: `欢迎回来，${result.data.user?.username || '用户'}！`,
         });
-        // 跳转到首页
-        router.push('/');
-        router.refresh();
+        
+        // 跳转到首页（使用多种方式确保跳转成功）
+        setTimeout(() => {
+          // 方式1: router.push
+          router.push('/');
+          router.refresh();
+          
+          // 方式2: 如果 500ms 后还在登录页，使用 window.location 强制跳转
+          setTimeout(() => {
+            if (window.location.pathname === '/login') {
+              console.log('[Login] 使用 window.location 强制跳转');
+              window.location.href = '/';
+            }
+          }, 500);
+        }, 100);
       } else {
         toast.error('登录失败', {
           description: result.error || '用户名或密码错误',

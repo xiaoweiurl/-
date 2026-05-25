@@ -32,6 +32,7 @@ public class AuthController {
     @Operation(summary = "用户登录", description = "使用用户名密码登录")
     public ApiResponse<LoginResponse> login(
             @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
         log.info("收到登录请求: username={}, rememberMe={}", request.getUsername(), request.getRememberMe());
         
@@ -41,8 +42,14 @@ public class AuthController {
             String sessionId = loginResponse.getSessionId();
             log.info("登录成功，sessionId: {}", sessionId);
             
+            // 动态获取 Origin，支持 ngrok 等代理
+            String origin = httpRequest.getHeader("Origin");
+            if (origin == null || origin.isEmpty()) {
+                origin = "http://localhost:5000"; // 默认值
+            }
+            
             // 设置 CORS 响应头（关键：允许前端访问）
-            response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+            response.setHeader("Access-Control-Allow-Origin", origin);
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Access-Control-Expose-Headers", "X-Session-Id");
             // 将 sessionId 通过响应头返回
@@ -71,7 +78,12 @@ public class AuthController {
             authService.logout(sessionId);
         }
         
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+        // 动态获取 Origin
+        String origin = request.getHeader("Origin");
+        if (origin == null || origin.isEmpty()) {
+            origin = "http://localhost:5000";
+        }
+        response.setHeader("Access-Control-Allow-Origin", origin);
         response.setHeader("Access-Control-Allow-Credentials", "true");
         
         return ApiResponse.success("登出成功", null);
@@ -86,7 +98,12 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response) {
         
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+        // 动态获取 Origin
+        String origin = request.getHeader("Origin");
+        if (origin == null || origin.isEmpty()) {
+            origin = "http://localhost:5000";
+        }
+        response.setHeader("Access-Control-Allow-Origin", origin);
         response.setHeader("Access-Control-Allow-Credentials", "true");
         
         String sessionId = extractSessionId(request);

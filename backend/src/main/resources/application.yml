@@ -63,8 +63,9 @@ app:
   # Cookie 安全模式配置
   # true: 生产模式，sameSite=None, secure=true（需要 HTTPS）
   # false: 开发模式，sameSite=Lax, secure=false（localhost 不需要 HTTPS）
+  # ngrok 使用 HTTPS，建议设为 true
   cookie:
-    secure-mode: false
+    secure-mode: ${COOKIE_SECURE:true}
   
   upload:
     path: ${UPLOAD_PATH:./uploads}

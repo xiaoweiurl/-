@@ -169,10 +169,18 @@ export async function POST(request: NextRequest) {
         },
       });
       
+      // 判断是否使用 HTTPS（包括 ngrok）
+      const requestUrl = new URL(request.url);
+      const isHttps = requestUrl.protocol === 'https:' || 
+                      request.headers.get('x-forwarded-proto') === 'https' ||
+                      request.headers.get('host')?.includes('ngrok');
+      
+      console.log('[API] 协议检测 - isHttps:', isHttps, 'host:', request.headers.get('host'));
+      
       // 设置 session cookie（使用 ResponseCookies API）
       response.cookies.set('session_id', finalSessionId, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isHttps, // HTTPS 或 ngrok 时必须设置 Secure
         sameSite: 'lax',
         maxAge: rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60,
         path: '/',
