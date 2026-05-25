@@ -1,10 +1,80 @@
 /**
  * 后端 API 代理工具
  * 所有请求必须通过 Java 后端处理
+ * 
+ * 支持自动检测 ngrok 域名：
+ * - 如果通过 ngrok 访问，自动使用 ngrok 域名作为 API 地址
+ * - 无需手动配置环境变量
  */
 
-// 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+// ==========================================
+// 域名检测与配置
+// ==========================================
+
+/**
+ * 检测是否是 ngrok 域名
+ */
+function isNgrokDomain(host: string): boolean {
+  return host.includes('.ngrok-free.app') || 
+         host.includes('.ngrok.io') ||
+         host.includes('.ngrok.app');
+}
+
+/**
+ * 获取后端 API URL
+ * 优先级：
+ * 1. 环境变量 NEXT_PUBLIC_BACKEND_API_URL
+ * 2. ngrok 域名自动检测
+ * 3. 默认 localhost:8080
+ */
+function getBackendApiUrl(): string {
+  // 1. 优先使用环境变量
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // 2. 客户端：检测当前域名是否是 ngrok
+  if (typeof window !== 'undefined') {
+    const host = window.location.host;
+    if (isNgrokDomain(host)) {
+      const protocol = window.location.protocol; // http: 或 https:
+      const backendUrl = `${protocol}//${host}/api`;
+      console.log(`[Backend] 检测到 ngrok 域名，自动配置: ${backendUrl}`);
+      return backendUrl;
+    }
+  }
+  
+  // 3. 默认本地开发
+  return 'http://localhost:8080/api';
+}
+
+// 后端 API 基础 URL（动态获取）
+let _backendApiUrl: string | null = null;
+
+/**
+ * 获取后端 URL（带缓存）
+ */
+function getBackendUrl(): string {
+  if (!_backendApiUrl) {
+    _backendApiUrl = getBackendApiUrl();
+  }
+  return _backendApiUrl;
+}
+
+/**
+ * 重置后端 URL 缓存（用于域名变更时）
+ */
+export function resetBackendUrlCache(): void {
+  _backendApiUrl = null;
+}
+
+/**
+ * 获取当前的 API 基础 URL（供外部使用）
+ */
+export function getApiBaseUrl(): string {
+  return getBackendUrl();
+}
 
 /**
  * 获取 sessionId（从 localStorage 或请求头）
@@ -40,32 +110,31 @@ const CACHE_TTL = 30000; // 30秒缓存
  */
 export async function isBackendAvailable(): Promise<boolean> {
   const now = Date.now();
+  const backendUrl = getBackendUrl();
   
   try {
     // 调用后端健康检查端点（如果存在）
     // 使用 OPTIONS 请求避免发送 body
-    const response = await fetch(`${BACKEND_API_URL}/albums`, {
+    const response = await fetch(`${backendUrl}/albums`, {
       method: 'OPTIONS',
       signal: AbortSignal.timeout(3000),
     });
     backendAvailableCache = response.ok || response.status === 400; // 400 表示后端可达但参数错误
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务可用: ${BACKEND_API_URL} (status: ${response.status})`);
+    console.log(`[Backend] 后端服务可用: ${backendUrl} (status: ${response.status})`);
     return true;
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务不可用: ${BACKEND_API_URL}`, error instanceof Error ? error.message : error);
+    console.log(`[Backend] 后端服务不可用: ${backendUrl}`, error instanceof Error ? error.message : error);
     return false;
   }
 }
 
 /**
- * 获取后端 API URL
+ * 获取后端 API URL（导出）
  */
-export function getBackendUrl(): string {
-  return BACKEND_API_URL;
-}
+export { getBackendUrl };
 
 /**
  * 后端请求配置
@@ -80,6 +149,10 @@ interface BackendRequestOptions {
    * 请求头对象（用于服务端 API route 从请求中获取 sessionId）
    */
   requestHeaders?: Record<string, string | null>;
+  /**
+   * 自定义后端 URL（用于分享等公开访问场景）
+   */
+  backendUrl?: string;
 }
 
 /**
@@ -89,7 +162,8 @@ export async function backendFetch(
   endpoint: string,
   options: BackendRequestOptions = {}
 ): Promise<Response> {
-  const url = `${BACKEND_API_URL}${endpoint}`;
+  const baseUrl = options.backendUrl || getBackendUrl();
+  const url = `${baseUrl}${endpoint}`;
 
   // 初始化 fetchOptions
   const fetchOptions: RequestInit = {
@@ -157,7 +231,8 @@ export async function backendFetchFormData(
   formData: FormData,
   requestHeaders?: Record<string, string | null>
 ): Promise<Response> {
-  const url = `${BACKEND_API_URL}${endpoint}`;
+  const backendUrl = getBackendUrl();
+  const url = `${backendUrl}${endpoint}`;
   
   // 获取 sessionId（支持服务端和客户端）
   const sessionId = getSessionId(requestHeaders);
@@ -454,7 +529,7 @@ export const imageApi = {
   async restoreFromTrash(imageIds: string[]): Promise<Response> {
     return backendFetch('/images/trash/restore', {
       method: 'POST',
-      body: { imageIds },  // 修复：传递正确的请求体格式 { imageIds: [...] }
+      body: { imageIds },
     });
   },
   
