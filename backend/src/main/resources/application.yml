@@ -78,7 +78,9 @@ app:
     # 本地存储路径（绝对路径或相对路径）
     local-path: ${UPLOAD_PATH:./uploads}
     # 存储服务基础URL（用于生成文件访问URL）
-    # 部署时替换为实际的服务器地址，例如: https://your-domain.com/api
+    # 图片实际访问路径: {base-url}/uploads/{filePath}
+    # 由于 context-path 是 /api，静态资源 /uploads/** 实际路径是 /api/uploads/**
+    # 所以 base-url 应该是 http://localhost:8080/api
     base-url: ${STORAGE_BASE_URL:http://localhost:8080/api}
   
   # AI 配置
