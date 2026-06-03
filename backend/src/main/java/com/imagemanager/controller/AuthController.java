@@ -2,6 +2,7 @@ package com.imagemanager.controller;
 
 import com.imagemanager.dto.*;
 import com.imagemanager.service.AuthService;
+import com.imagemanager.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +25,9 @@ public class AuthController {
     
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private UserService userService;
     
     /**
      * 用户登录
@@ -37,17 +41,33 @@ public class AuthController {
         
         try {
             LoginResponse loginResponse = authService.login(request);
-            
+
             String sessionId = loginResponse.getSessionId();
             log.info("登录成功，sessionId: {}", sessionId);
-            
+
             // 设置 CORS 响应头（关键：允许前端访问）
             response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Access-Control-Expose-Headers", "X-Session-Id");
             // 将 sessionId 通过响应头返回
             response.setHeader("X-Session-Id", sessionId);
-            
+
+            // 创建登录通知
+            try {
+                if (loginResponse.getUser() != null) {
+                    String userId = loginResponse.getUser().getId();
+                    CreateNotificationRequest notifReq = new CreateNotificationRequest();
+                    notifReq.setType("user_login");
+                    notifReq.setTitle("登录成功");
+                    notifReq.setContent("欢迎回来，" + loginResponse.getUser().getNickname());
+                    notifReq.setResourceId(userId);
+                    notifReq.setTargetId(userId);
+                    userService.createNotification(notifReq);
+                }
+            } catch (Exception e) {
+                log.warn("创建登录通知失败: {}", e.getMessage());
+            }
+
             return ApiResponse.success("登录成功", loginResponse);
         } catch (Exception e) {
             log.error("登录失败: ", e);

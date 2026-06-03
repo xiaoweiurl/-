@@ -82,10 +82,22 @@ public class UserController {
             @RequestBody UpdateProfileRequest request,
             HttpServletRequest httpRequest) {
         log.info("更新用户资料: nickname={}, email={}", request.getNickname(), request.getEmail());
-        
+
         String userId = getCurrentUserId(httpRequest);
         authService.updateProfile(userId, request);
-        
+
+        // 创建通知
+        try {
+            CreateNotificationRequest notifReq = new CreateNotificationRequest();
+            notifReq.setType("user_profile_update");
+            notifReq.setTitle("资料更新成功");
+            notifReq.setContent("您的个人资料已更新");
+            notifReq.setResourceId(userId);
+            userService.createNotification(notifReq);
+        } catch (Exception e) {
+            log.warn("创建通知失败: {}", e.getMessage());
+        }
+
         User user = userService.getCurrentUser();
         return ApiResponse.success("更新成功", user);
     }
@@ -125,19 +137,31 @@ public class UserController {
         
         try {
             String userId = getCurrentUserId(httpRequest);
-            
+
             // 上传文件到 avatars 目录
             String avatarUrl = fileStorageService.uploadFile(file, "avatars");
             log.info("头像上传成功: {}", avatarUrl);
-            
+
             // 更新用户头像URL
             UpdateProfileRequest profileRequest = new UpdateProfileRequest();
             profileRequest.setAvatar(avatarUrl);
             authService.updateProfile(userId, profileRequest);
-            
+
+            // 创建通知
+            try {
+                CreateNotificationRequest notifReq = new CreateNotificationRequest();
+                notifReq.setType("user_avatar_update");
+                notifReq.setTitle("头像更新成功");
+                notifReq.setContent("您的头像已更新");
+                notifReq.setResourceId(userId);
+                userService.createNotification(notifReq);
+            } catch (Exception e) {
+                log.warn("创建通知失败: {}", e.getMessage());
+            }
+
             Map<String, String> result = new HashMap<>();
             result.put("avatarUrl", avatarUrl);
-            
+
             return ApiResponse.success("头像上传成功", result);
         } catch (Exception e) {
             log.error("上传头像失败", e);
@@ -168,6 +192,19 @@ public class UserController {
         String userId = getCurrentUserId(httpRequest);
         try {
             authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
+
+            // 创建通知
+            try {
+                CreateNotificationRequest notifReq = new CreateNotificationRequest();
+                notifReq.setType("user_password_change");
+                notifReq.setTitle("密码修改成功");
+                notifReq.setContent("您的密码已成功修改");
+                notifReq.setResourceId(userId);
+                userService.createNotification(notifReq);
+            } catch (Exception e) {
+                log.warn("创建通知失败: {}", e.getMessage());
+            }
+
             return ApiResponse.success("密码修改成功", null);
         } catch (Exception e) {
             return ApiResponse.error(400, e.getMessage());
