@@ -647,22 +647,27 @@ export default function Home() {
         
         // 优先从筛选面板获取
         if (filterState.albumFilter && filterState.albumFilter !== 'all') {
-          // 检查是否是截断ID，尝试匹配完整ID
-          const filterAlbumId = filterState.albumFilter;
-          const matchingAlbum = albums.find(a => a.id === filterAlbumId || a.id.startsWith(filterAlbumId));
-          albumId = matchingAlbum ? matchingAlbum.id : filterAlbumId;
+          // 筛选面板的 ID 可能带或不带 album- 前缀，统一处理
+          let filterAlbumId = filterState.albumFilter;
+          if (filterAlbumId.startsWith('album-')) {
+            // 已经是带前缀格式，直接使用
+            albumId = filterAlbumId;
+          } else {
+            // 尝试匹配完整 ID（可能带前缀）
+            const matchingAlbum = albums.find(a => a.id === filterAlbumId || a.id === `album-${filterAlbumId}` || a.id.startsWith(filterAlbumId));
+            albumId = matchingAlbum ? matchingAlbum.id : filterAlbumId;
+          }
         }
         // 其次从侧边栏获取
         else if (activeMenuItem) {
-          if (activeMenuItem.startsWith('album-')) {
-            albumId = activeMenuItem.replace('album-', '');
-          } else if (albums.some(a => a.id === activeMenuItem)) {
+          // 数据库中存储的是 album-{id} 格式，直接使用不截断
+          if (activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)) {
             albumId = activeMenuItem;
           } else {
-            // 尝试匹配截断ID：数据库中可能存储完整UUID，但前端传递的是截断格式
-            const matchingAlbum = albums.find(a => a.id.startsWith(activeMenuItem) || a.id === activeMenuItem);
+            // 尝试匹配截断ID
+            const matchingAlbum = albums.find(a => a.id.startsWith(activeMenuItem) || a.id === `album-${activeMenuItem}` || a.id === activeMenuItem);
             if (matchingAlbum) {
-              albumId = matchingAlbum.id; // 使用完整ID
+              albumId = matchingAlbum.id;
             }
           }
         }
