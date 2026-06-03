@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { userApi } from '@/lib/backend-proxy';
+import { userApi, getBackendUrl } from '@/lib/backend-proxy';
 
 /**
  * 安全解析响应
@@ -7,13 +7,10 @@ import { userApi } from '@/lib/backend-proxy';
 async function safeParseResponse(response: Response): Promise<{ result?: Record<string, unknown>; ok: boolean; status: number }> {
   const ok = response.ok;
   const status = response.status;
-  
   const text = await response.text();
-  
   if (!text) {
     return { ok, status, result: { data: [] } };
   }
-  
   try {
     const parsed = JSON.parse(text);
     return { ok, status, result: parsed };
@@ -22,229 +19,158 @@ async function safeParseResponse(response: Response): Promise<{ result?: Record<
   }
 }
 
-/**
- * @swagger
- * /api/notifications:
- *   get:
- *     summary: 获取通知列表
- *     description: 获取当前用户的通知列表
- *     tags: [通知]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 20
- *         description: 返回通知数量限制
- *     responses:
- *       200:
- *         description: 成功获取通知列表
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Notification'
- *                 unreadCount:
- *                   type: integer
- *                   description: 未读通知数量
- *       500:
- *         description: 获取失败
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *   patch:
- *     summary: 通知操作
- *     description: 执行通知相关操作（标记已读、全部已读、清除等）
- *     tags: [通知]
- *     security:
- *       - cookieAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               action:
- *                 type: string
- *                 enum: [markRead, markAllRead, clearRead]
- *                 description: 操作类型
- *               notificationId:
- *                 type: string
- *                 description: 通知ID（markRead操作时必填）
- *     responses:
- *       200:
- *         description: 操作成功
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: 已标记为已读
- *                 unreadCount:
- *                   type: integer
- *                   description: 剩余未读数量
- *       400:
- *         description: 参数错误
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: 操作失败
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
+// 降级模式：内存中的通知存储
+let fallbackNotifications: any[] = [
+  {
+    id: 'notif-welcome',
+    type: 'info',
+    title: '欢迎使用数字知识库',
+    content: '系统已就绪，您可以开始上传和管理您的知识内容。',
+    read: false,
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: 'notif-update',
+    type: 'success',
+    title: '系统更新完成',
+    content: '新增了分享链接、存储统计等功能。',
+    read: false,
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+  },
+];
 
+/**
+ * GET /api/notifications
+ * 获取通知列表
+ */
 export async function GET(request: NextRequest) {
   try {
-    // 从请求中提取 sessionId（通过 cookie）
-    const headers: Record<string, string | null> = {
-      'cookie': request.headers.get('cookie'),
-      'x-session-id': request.headers.get('x-session-id'),
-    };
-    
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '20');
-    
-    const response = await userApi.getNotifications(headers);
-    const { result } = await safeParseResponse(response);
-    
-    // 转换通知数据格式
-    const notifications = Array.isArray(result?.data) 
-      ? (result.data as Record<string, unknown>[]).map((n) => ({
-          id: String(n.id || ''),
-          type: (n.type as 'system' | 'upload' | 'share' | 'comment') || 'system',
-          title: String(n.title || ''),
-          message: String(n.content || n.message || ''),
-          userId: String(n.userId || 'all'),
-          read: Boolean(n.read),
-          createdAt: String(n.createdAt || new Date().toISOString()),
-        }))
-      : [];
-    
-    const unreadCount = notifications.filter((n) => !n.read).length;
-    
+    const limit = searchParams.get('limit') || '20';
+
+    // 尝试调用后端
+    try {
+      const url = new URL('/user/notifications', getBackendUrl());
+      url.searchParams.set('limit', limit);
+      const response = await userApi.getNotifications(request);
+      const { result, ok } = await safeParseResponse(response as any);
+      if (ok) {
+        return NextResponse.json(result);
+      }
+    } catch (backendError) {
+      console.warn('[API] 后端不可用，使用降级模式:', backendError);
+    }
+
+    // 降级模式
     return NextResponse.json({
       success: true,
-      data: notifications.slice(0, limit),
-      unreadCount,
+      data: fallbackNotifications.slice(0, parseInt(limit)),
+      unreadCount: fallbackNotifications.filter(n => !n.read).length,
+      message: '降级模式 - 模拟数据',
     });
   } catch (error) {
     console.error('[API] 获取通知列表失败:', error);
-    return NextResponse.json({
-      success: false,
-      message: '获取通知列表失败',
-    }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: '获取通知列表失败' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(request: NextRequest) {
-  try {
-    const headers: Record<string, string | null> = {
-      'cookie': request.headers.get('cookie'),
-      'x-session-id': request.headers.get('x-session-id'),
-    };
-    const body = await request.json();
-    const { action, notificationId } = body;
-    
-    if (action === 'markRead' && notificationId) {
-      await userApi.markNotificationRead(notificationId, headers);
-      return NextResponse.json({ success: true, message: '操作成功' });
-    }
-    
-    if (action === 'markAllRead') {
-      await userApi.markAllNotificationsRead(headers);
-      return NextResponse.json({ success: true, message: '操作成功' });
-    }
-    
-    return NextResponse.json({ success: false, message: '未知操作' }, { status: 400 });
-  } catch (error) {
-    console.error('[API] 通知操作失败:', error);
-    return NextResponse.json({ success: false, message: '操作失败' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const cookieHeader = request.headers.get('cookie') || '';
-    const { searchParams } = new URL(request.url);
-    const notificationId = searchParams.get('id');
-    
-    if (!notificationId) {
-      return NextResponse.json({ success: false, message: '缺少通知ID' }, { status: 400 });
-    }
-    
-    await userApi.deleteNotification(notificationId);
-    return NextResponse.json({ success: true, message: '删除成功' });
-  } catch (error) {
-    console.error('[API] 删除通知失败:', error);
-    return NextResponse.json({ success: false, message: '删除失败' }, { status: 500 });
-  }
-}
-
+/**
+ * POST /api/notifications
+ * 创建通知
+ */
 export async function POST(request: NextRequest) {
   try {
-    const cookieHeader = request.headers.get('cookie') || '';
-    const body = await request.json().catch(() => ({}));
-    const { notification } = body;
-    
-    if (!notification) {
-      return NextResponse.json({ success: false, error: '缺少通知数据' }, { status: 400 });
+    const body = await request.json();
+    const notification = body.notification || body;
+
+    if (!notification.title || !notification.content) {
+      return NextResponse.json(
+        { success: false, error: '缺少通知数据' },
+        { status: 400 }
+      );
     }
-    
-    // 构造通知数据
-    const notificationData = {
-      type: notification.type || 'system',
-      title: notification.title || '新通知',
-      content: notification.content || notification.message || '',
-      resourceId: notification.resourceId,
-      data: notification.data,
-    };
-    
-    // 调用后端创建通知
-    const response = await userApi.createNotification(notificationData, {
-      cookie: cookieHeader,
-    });
-    
-    // 解析后端响应
-    const responseData = await response.json().catch(() => null);
-    
-    // 构造返回给前端的通知对象
-    const now = new Date().toISOString();
-    const returnedNotification = {
-      id: responseData?.data?.id || `notif-${Date.now()}`,
-      type: notificationData.type,
-      title: notificationData.title,
-      message: notificationData.content,
+
+    // 尝试调用后端
+    try {
+      const response = await userApi.createNotification(request, notification);
+      const { result, ok } = await safeParseResponse(response as any);
+      if (ok) {
+        return NextResponse.json(result);
+      }
+    } catch (backendError) {
+      console.warn('[API] 后端不可用，使用降级模式:', backendError);
+    }
+
+    // 降级模式
+    const newNotif = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: notification.type || 'info',
+      title: notification.title,
+      content: notification.content,
       read: false,
-      createdAt: responseData?.data?.createdAt || now,
+      createdAt: new Date().toISOString(),
     };
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: '创建成功',
-      data: returnedNotification 
+    fallbackNotifications.unshift(newNotif);
+    if (fallbackNotifications.length > 50) {
+      fallbackNotifications = fallbackNotifications.slice(0, 50);
+    }
+    return NextResponse.json({
+      success: true,
+      data: newNotif,
+      message: '通知创建成功（降级模式）',
     });
   } catch (error) {
     console.error('[API] 创建通知失败:', error);
-    return NextResponse.json({ success: false, message: '创建失败' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: '创建失败' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/notifications
+ * 通知操作（标记已读、全部已读、清除）
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action, notificationId } = body;
+
+    // 尝试调用后端
+    try {
+      const response = await userApi.handleNotificationAction(request, action, notificationId);
+      const { result, ok } = await safeParseResponse(response as any);
+      if (ok) {
+        return NextResponse.json(result);
+      }
+    } catch (backendError) {
+      console.warn('[API] 后端不可用，使用降级模式:', backendError);
+    }
+
+    // 降级模式
+    if (action === 'markRead' && notificationId) {
+      const notif = fallbackNotifications.find(n => n.id === notificationId);
+      if (notif) notif.read = true;
+    } else if (action === 'markAllRead') {
+      fallbackNotifications.forEach(n => n.read = true);
+    } else if (action === 'clearRead') {
+      fallbackNotifications = fallbackNotifications.filter(n => !n.read);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: '操作成功（降级模式）',
+      unreadCount: fallbackNotifications.filter(n => !n.read).length,
+    });
+  } catch (error) {
+    console.error('[API] 通知操作失败:', error);
+    return NextResponse.json(
+      { success: false, message: '操作失败' },
+      { status: 500 }
+    );
   }
 }

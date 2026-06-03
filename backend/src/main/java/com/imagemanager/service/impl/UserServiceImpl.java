@@ -13,6 +13,7 @@ import com.imagemanager.repository.NotificationRepository;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.repository.UserSettingsRepository;
 import com.imagemanager.service.UserService;
+import com.imagemanager.util.SessionUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,8 +138,13 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public Notification createNotification(CreateNotificationRequest request) {
-        log.info("创建通知：type={}, title={}", request.getType(), request.getTitle());
-        
+        // 从session获取当前用户ID
+        String currentUserId = SessionUtil.getCurrentUserId();
+        if (currentUserId == null) {
+            currentUserId = "user-1"; // 降级默认
+        }
+        log.info("创建通知：userId={}, type={}, title={}", currentUserId, request.getType(), request.getTitle());
+
         Notification notification = Notification.builder()
                 .id(UUID.randomUUID().toString())
                 .type(request.getType() != null ? request.getType() : "system")
@@ -147,7 +153,7 @@ public class UserServiceImpl implements UserService {
                 .resourceId(request.getResourceId())
                 .read(false)
                 .createdAt(LocalDateTime.now())
-                .userId("user-1")
+                .userId(currentUserId)
                 .build();
         
         notification = notificationRepository.save(notification);
@@ -178,16 +184,20 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public void markAllNotificationsRead() {
-        log.info("标记所有通知为已读");
-        List<Notification> notifications = notificationRepository.findByUserIdAndReadFalse("user-1");
+        String userId = SessionUtil.getCurrentUserId();
+        if (userId == null) userId = "user-1";
+        log.info("标记所有通知为已读：{}", userId);
+        List<Notification> notifications = notificationRepository.findByUserIdAndReadFalse(userId);
         notifications.forEach(n -> n.setRead(true));
         notificationRepository.saveAll(notifications);
     }
-    
+
     @Override
     public Integer getUnreadCount() {
-        log.info("获取未读通知数量");
-        return notificationRepository.countByUserIdAndReadFalse("user-1");
+        String userId = SessionUtil.getCurrentUserId();
+        if (userId == null) userId = "user-1";
+        log.info("获取未读通知数量：{}", userId);
+        return notificationRepository.countByUserIdAndReadFalse(userId);
     }
     
     @Override

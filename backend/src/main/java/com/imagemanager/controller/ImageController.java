@@ -53,6 +53,24 @@ public class ImageController {
     @Autowired
     private AuthService authService;
     
+    @Autowired
+    private UserService userService;
+    
+    /**
+     * 创建通知（内部辅助方法）
+     */
+    private void createNotification(String type, String title, String content, String targetId) {
+        try {
+            CreateNotificationRequest request = new CreateNotificationRequest();
+            request.setType(type);
+            request.setTitle(title);
+            request.setContent(content);
+            request.setTargetId(targetId);
+            userService.createNotification(request);
+        } catch (Exception e) {
+            log.warn("创建通知失败: {}", e.getMessage());
+        }
+    }
     /**
      * 查询图片列表
      */
@@ -132,6 +150,10 @@ public class ImageController {
             @Parameter(description = "标签") @RequestParam(required = false) List<String> tags) {
         log.info("上传图片：{}", file.getOriginalFilename());
         Image image = imageService.uploadImage(file, title, albumId, tags);
+        // 创建通知
+        createNotification("image_upload", "上传成功", 
+            "图片 " + (title != null ? title : image.getOriginalFilename()) + " 上传成功", 
+            image.getId());
         return ApiResponse.success("上传成功", image);
     }
     
@@ -170,6 +192,9 @@ public class ImageController {
             @Parameter(description = "图片ID") @PathVariable String id) {
         log.info("删除图片：{}", id);
         imageService.deleteImage(id);
+        // 创建通知
+        createNotification("image_delete", "删除成功", 
+            "图片已移至回收站", id);
         return ApiResponse.success("删除成功", null);
     }
     
@@ -783,6 +808,22 @@ public class ImageController {
                     zos.close();
                 } catch (Exception ignored) {}
             }
+        }
+    }
+
+    /**
+     * 创建通知
+     */
+    private void createNotification(String type, String title, String content, String resourceId) {
+        try {
+            com.imagemanager.dto.NotificationDTO request = new com.imagemanager.dto.NotificationDTO();
+            request.setType(type);
+            request.setTitle(title);
+            request.setContent(content);
+            request.setResourceId(resourceId);
+            userService.createNotification(request);
+        } catch (Exception e) {
+            log.warn("创建通知失败: {}", e.getMessage());
         }
     }
 }

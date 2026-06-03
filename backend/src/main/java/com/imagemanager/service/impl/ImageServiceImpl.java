@@ -85,11 +85,34 @@ public class ImageServiceImpl implements ImageService {
     @Autowired
     private ImageEnhancementService imageEnhancementService;
 
+    @Autowired(required = false)
+    private UserService userService;
+
     @Value("${app.image.enhance:true}")
     private boolean enableImageEnhance;
 
     @Value("${app.image.super-resolution:false}")
     private boolean enableSuperResolution;
+
+    /**
+     * 创建通知（如果有UserService）
+     */
+    private void createNotificationSafe(String title, String content, String type) {
+        try {
+            String currentUserId = SessionUtil.getCurrentUserId();
+            if (userService != null && currentUserId != null) {
+                com.imagemanager.dto.NotificationDTO dto = new com.imagemanager.dto.NotificationDTO();
+                dto.setTitle(title);
+                dto.setContent(content);
+                dto.setType(type);
+                dto.setUserId(currentUserId);
+                userService.createNotification(dto);
+            }
+        } catch (Exception e) {
+            // 通知创建失败不影响主流程
+            org.slf4j.LoggerFactory.getLogger(ImageServiceImpl.class).warn("创建通知失败: {}", e.getMessage());
+        }
+    }
     
     
     @Override
