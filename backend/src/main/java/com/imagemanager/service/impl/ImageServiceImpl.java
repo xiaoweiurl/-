@@ -101,12 +101,11 @@ public class ImageServiceImpl implements ImageService {
         try {
             String currentUserId = SessionUtil.getCurrentUserId();
             if (userService != null && currentUserId != null) {
-                com.imagemanager.dto.NotificationDTO dto = new com.imagemanager.dto.NotificationDTO();
-                dto.setTitle(title);
-                dto.setContent(content);
-                dto.setType(type);
-                dto.setUserId(currentUserId);
-                userService.createNotification(dto);
+                com.imagemanager.dto.CreateNotificationRequest request = new com.imagemanager.dto.CreateNotificationRequest();
+                request.setTitle(title);
+                request.setContent(content);
+                request.setType(type);
+                userService.createNotification(request);
             }
         } catch (Exception e) {
             // 通知创建失败不影响主流程
