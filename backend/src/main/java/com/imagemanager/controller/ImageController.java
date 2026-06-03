@@ -152,7 +152,7 @@ public class ImageController {
         Image image = imageService.uploadImage(file, title, albumId, tags);
         // 创建通知
         createNotification("image_upload", "上传成功", 
-            "图片 " + (title != null ? title : image.getOriginalFilename()) + " 上传成功", 
+            "图片 " + (title != null ? title : image.getOriginalName()) + " 上传成功",
             image.getId());
         return ApiResponse.success("上传成功", image);
     }
