@@ -53,19 +53,10 @@ public class AuthController {
             response.setHeader("X-Session-Id", sessionId);
 
             // 创建登录通知
-            try {
-                if (loginResponse.getUser() != null) {
-                    String userId = loginResponse.getUser().getId();
-                    CreateNotificationRequest notifReq = new CreateNotificationRequest();
-                    notifReq.setType("user_login");
-                    notifReq.setTitle("登录成功");
-                    notifReq.setContent("欢迎回来，" + loginResponse.getUser().getNickname());
-                    notifReq.setResourceId(userId);
-                    notifReq.setTargetId(userId);
-                    userService.createNotification(notifReq);
-                }
-            } catch (Exception e) {
-                log.warn("创建登录通知失败: {}", e.getMessage());
+            if (loginResponse.getUser() != null) {
+                userService.notify("user_login", "登录成功",
+                    "欢迎回来，" + loginResponse.getUser().getNickname(),
+                    loginResponse.getUser().getId());
             }
 
             return ApiResponse.success("登录成功", loginResponse);

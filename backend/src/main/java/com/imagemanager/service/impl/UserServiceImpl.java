@@ -162,10 +162,25 @@ public class UserServiceImpl implements UserService {
         
         notification = notificationRepository.save(notification);
         log.info("通知创建成功，ID：{}", notification.getId());
-        
+
         return notification;
     }
-    
+
+    @Override
+    public void notify(String type, String title, String content, String targetId) {
+        try {
+            CreateNotificationRequest request = new CreateNotificationRequest();
+            request.setType(type);
+            request.setTitle(title);
+            request.setContent(content);
+            request.setTargetId(targetId);
+            createNotification(request);
+        } catch (Exception e) {
+            // 通知创建失败不能影响主业务
+            log.warn("通知创建失败（不影响主业务）：type={}, title={}, error={}", type, title, e.getMessage());
+        }
+    }
+
     @Override
     public void deleteNotification(String notificationId) {
         log.info("删除通知：{}", notificationId);

@@ -55,22 +55,7 @@ public class ImageController {
     
     @Autowired
     private UserService userService;
-    
-    /**
-     * 创建通知（内部辅助方法）
-     */
-    private void createNotification(String type, String title, String content, String targetId) {
-        try {
-            CreateNotificationRequest request = new CreateNotificationRequest();
-            request.setType(type);
-            request.setTitle(title);
-            request.setContent(content);
-            request.setTargetId(targetId);
-            userService.createNotification(request);
-        } catch (Exception e) {
-            log.warn("创建通知失败: {}", e.getMessage());
-        }
-    }
+
     /**
      * 查询图片列表
      */
@@ -150,8 +135,7 @@ public class ImageController {
             @Parameter(description = "标签") @RequestParam(required = false) List<String> tags) {
         log.info("上传图片：{}", file.getOriginalFilename());
         Image image = imageService.uploadImage(file, title, albumId, tags);
-        // 创建通知
-        createNotification("image_upload", "上传成功", 
+        userService.notify("image_upload", "上传成功",
             "图片 " + (title != null ? title : image.getOriginalName()) + " 上传成功",
             image.getId());
         return ApiResponse.success("上传成功", image);
@@ -167,7 +151,7 @@ public class ImageController {
         log.info("批量上传图片，数量：{}", files.size());
         List<Image> images = imageService.batchUploadImages(files);
         // 创建通知
-        createNotification("image_batch_upload", "批量上传成功",
+        userService.notify("image_batch_upload", "批量上传成功",
             "成功批量上传 " + images.size() + " 张图片", null);
         return ApiResponse.success("批量上传成功，共上传 " + images.size() + " 张图片", images);
     }
@@ -184,7 +168,7 @@ public class ImageController {
         Image updated = imageService.updateImage(id, image.getTitle(), 
                 image.getAlbumId(), image.getTags(), image.getDescription());
         // 创建通知
-        createNotification("image_update", "更新成功",
+        userService.notify("image_update", "更新成功",
             "图片 " + (updated.getTitle() != null ? updated.getTitle() : updated.getOriginalName()) + " 信息已更新",
             id);
         return ApiResponse.success("更新成功", updated);
@@ -200,7 +184,7 @@ public class ImageController {
         log.info("删除图片：{}", id);
         imageService.deleteImage(id);
         // 创建通知
-        createNotification("image_delete", "删除成功", 
+        userService.notify("image_delete", "删除成功", 
             "图片已移至回收站", id);
         return ApiResponse.success("删除成功", null);
     }
@@ -215,7 +199,7 @@ public class ImageController {
         log.info("永久删除图片：{}", id);
         int deletedCount = imageService.permanentDelete(id);
         // 创建通知
-        createNotification("image_permanent_delete", "永久删除成功",
+        userService.notify("image_permanent_delete", "永久删除成功",
             "已永久删除 " + deletedCount + " 张图片", id);
         return ApiResponse.success("永久删除成功，已删除 " + deletedCount + " 张图片（主图+详情图）", deletedCount);
     }
@@ -230,7 +214,7 @@ public class ImageController {
         log.info("恢复图片：{}", id);
         int restoredCount = imageService.restoreImage(id);
         // 创建通知
-        createNotification("image_restore", "恢复成功",
+        userService.notify("image_restore", "恢复成功",
             "已从回收站恢复 " + restoredCount + " 张图片", id);
         return ApiResponse.success("恢复成功，已恢复 " + restoredCount + " 张图片（主图+详情图）", restoredCount);
     }
@@ -246,7 +230,7 @@ public class ImageController {
         Image image = imageService.toggleFavorite(id);
         if (image != null) {
             // 创建通知
-            createNotification(image.getFavorite() ? "image_favorite" : "image_unfavorite",
+            userService.notify(image.getFavorite() ? "image_favorite" : "image_unfavorite",
                 image.getFavorite() ? "收藏成功" : "取消收藏",
                 image.getFavorite()
                     ? "图片 " + (image.getTitle() != null ? image.getTitle() : image.getOriginalName()) + " 已加入收藏"
@@ -266,7 +250,7 @@ public class ImageController {
         log.info("设为主图：{}", id);
         Image image = imageService.setMainImage(id);
         // 创建通知
-        createNotification("image_set_main", "设为主图成功",
+        userService.notify("image_set_main", "设为主图成功",
             "图片 " + (image.getTitle() != null ? image.getTitle() : image.getOriginalName()) + " 已设为主图",
             id);
         return ApiResponse.success("已设为主图", image);
@@ -284,17 +268,17 @@ public class ImageController {
         switch (request.getOperation()) {
             case "delete":
                 imageService.batchDelete(request.getImageIds());
-                createNotification("image_batch_delete", "批量删除成功",
+                userService.notify("image_batch_delete", "批量删除成功",
                     "已将 " + request.getImageIds().size() + " 张图片移至回收站", null);
                 break;
             case "favorite":
                 imageService.batchFavorite(request.getImageIds());
-                createNotification("image_batch_favorite", "批量收藏成功",
+                userService.notify("image_batch_favorite", "批量收藏成功",
                     "已批量收藏 " + request.getImageIds().size() + " 张图片", null);
                 break;
             case "move":
                 imageService.moveToAlbum(request.getImageIds(), request.getTargetAlbumId());
-                createNotification("image_batch_move", "批量移动成功",
+                userService.notify("image_batch_move", "批量移动成功",
                     "已批量移动 " + request.getImageIds().size() + " 张图片到指定相册", null);
                 break;
             default:
@@ -313,7 +297,7 @@ public class ImageController {
         log.info("批量移动图片到相册：{}", request.getTargetAlbumId());
         imageService.moveToAlbum(request.getImageIds(), request.getTargetAlbumId());
         // 创建通知
-        createNotification("image_move", "移动成功",
+        userService.notify("image_move", "移动成功",
             "已将 " + request.getImageIds().size() + " 张图片移动到指定相册", null);
         return ApiResponse.success("移动成功", null);
     }
@@ -331,12 +315,12 @@ public class ImageController {
             for (String id : request.getImageIds()) {
                 totalDeleted += imageService.permanentDelete(id);
             }
-            createNotification("image_batch_permanent_delete", "批量永久删除成功",
+            userService.notify("image_batch_permanent_delete", "批量永久删除成功",
                 "已永久删除 " + totalDeleted + " 张图片", null);
             return ApiResponse.success("删除成功，已删除 " + totalDeleted + " 张图片（主图+详情图）", totalDeleted);
         } else {
             imageService.batchDelete(request.getImageIds());
-            createNotification("image_batch_delete", "批量删除成功",
+            userService.notify("image_batch_delete", "批量删除成功",
                 "已将 " + request.getImageIds().size() + " 张图片移至回收站", null);
             return ApiResponse.success("删除成功（移至回收站）", 0);
         }
@@ -401,7 +385,7 @@ public class ImageController {
         log.info("清空回收站");
         int deletedCount = imageService.clearTrash();
         // 创建通知
-        createNotification("image_trash_clear", "清空回收站成功",
+        userService.notify("image_trash_clear", "清空回收站成功",
             "已清空回收站，删除 " + deletedCount + " 张图片", null);
         return ApiResponse.success("回收站已清空，已删除 " + deletedCount + " 张图片（主图+详情图）", deletedCount);
     }
@@ -420,7 +404,7 @@ public class ImageController {
 
         int restoredCount = imageService.batchRestore(request.getImageIds());
         // 创建通知
-        createNotification("image_trash_restore", "恢复成功",
+        userService.notify("image_trash_restore", "恢复成功",
             "已从回收站恢复 " + restoredCount + " 张图片", null);
         return ApiResponse.success("恢复成功，已恢复 " + restoredCount + " 张图片（主图+详情图）", restoredCount);
     }

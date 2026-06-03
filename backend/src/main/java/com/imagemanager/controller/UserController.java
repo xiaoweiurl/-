@@ -87,16 +87,7 @@ public class UserController {
         authService.updateProfile(userId, request);
 
         // 创建通知
-        try {
-            CreateNotificationRequest notifReq = new CreateNotificationRequest();
-            notifReq.setType("user_profile_update");
-            notifReq.setTitle("资料更新成功");
-            notifReq.setContent("您的个人资料已更新");
-            notifReq.setResourceId(userId);
-            userService.createNotification(notifReq);
-        } catch (Exception e) {
-            log.warn("创建通知失败: {}", e.getMessage());
-        }
+        userService.notify("user_profile_update", "资料更新成功", "您的个人资料已更新", userId);
 
         User user = userService.getCurrentUser();
         return ApiResponse.success("更新成功", user);
@@ -148,16 +139,7 @@ public class UserController {
             authService.updateProfile(userId, profileRequest);
 
             // 创建通知
-            try {
-                CreateNotificationRequest notifReq = new CreateNotificationRequest();
-                notifReq.setType("user_avatar_update");
-                notifReq.setTitle("头像更新成功");
-                notifReq.setContent("您的头像已更新");
-                notifReq.setResourceId(userId);
-                userService.createNotification(notifReq);
-            } catch (Exception e) {
-                log.warn("创建通知失败: {}", e.getMessage());
-            }
+            userService.notify("user_avatar_update", "头像更新成功", "您的头像已更新", userId);
 
             Map<String, String> result = new HashMap<>();
             result.put("avatarUrl", avatarUrl);
@@ -194,16 +176,7 @@ public class UserController {
             authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
 
             // 创建通知
-            try {
-                CreateNotificationRequest notifReq = new CreateNotificationRequest();
-                notifReq.setType("user_password_change");
-                notifReq.setTitle("密码修改成功");
-                notifReq.setContent("您的密码已成功修改");
-                notifReq.setResourceId(userId);
-                userService.createNotification(notifReq);
-            } catch (Exception e) {
-                log.warn("创建通知失败: {}", e.getMessage());
-            }
+            userService.notify("user_password_change", "密码修改成功", "您的密码已成功修改", userId);
 
             return ApiResponse.success("密码修改成功", null);
         } catch (Exception e) {

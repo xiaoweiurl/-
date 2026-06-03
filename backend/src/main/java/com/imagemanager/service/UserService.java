@@ -31,6 +31,16 @@ public interface UserService {
      * 创建通知
      */
     Notification createNotification(CreateNotificationRequest request);
+
+    /**
+     * 快捷创建当前用户的通知（自动 try-catch，失败不影响主业务）
+     *
+     * @param type    通知类型（如 IMAGE_UPLOAD / IMAGE_DELETE 等）
+     * @param title   通知标题
+     * @param content 通知内容
+     * @param targetId 关联资源 ID（可空）
+     */
+    void notify(String type, String title, String content, String targetId);
     
     /**
      * 删除通知
