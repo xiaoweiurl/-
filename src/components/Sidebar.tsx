@@ -33,6 +33,7 @@ import {
   Square,
   CheckSquare,
   Trash,
+  Library,
 } from 'lucide-react';
 import {
   Dialog,
@@ -706,8 +707,8 @@ export default function Sidebar({
     },
     {
       id: 'my-images',
-      label: '我的知识',
-      icon: UserCog,
+      label: '我的知识库',
+      icon: Library,
       count: myImagesCount,
     },
     {
