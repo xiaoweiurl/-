@@ -442,7 +442,7 @@ public class AuthServiceImpl implements AuthService {
     public void deleteAllUserSessions(String userId) {
         log.info("删除用户所有会话：{}", userId);
         sessions.entrySet().removeIf(entry -> {
-            if (entry.getValue().getUserInfo().getId().equals(userId)) {
+            if (entry.getValue().userInfo.getId().equals(userId)) {
                 sessionCount.decrementAndGet();
                 return true;
             }
