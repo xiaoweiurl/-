@@ -87,7 +87,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const notification = body.notification || body;
 
-    if (!notification.title || !notification.content) {
+    // 支持前端传递的 message 或 content 字段
+    const content = notification.content || notification.message;
+    if (!notification.title || !content) {
       return NextResponse.json(
         { success: false, error: '缺少通知数据' },
         { status: 400 }
@@ -97,7 +99,12 @@ export async function POST(request: NextRequest) {
     // 尝试调用后端
     try {
       const cookieHeader = request.headers.get('cookie') || '';
-      const response = await userApi.createNotification(notification, { cookie: cookieHeader });
+      // 统一字段名：前端用 message，后端用 content
+      const backendNotification = {
+        ...notification,
+        content: notification.content || notification.message,
+      };
+      const response = await userApi.createNotification(backendNotification, { cookie: cookieHeader });
       const { result, ok } = await safeParseResponse(response as any);
       if (ok) {
         return NextResponse.json(result);
@@ -111,7 +118,7 @@ export async function POST(request: NextRequest) {
       id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type: notification.type || 'info',
       title: notification.title,
-      content: notification.content,
+      content: content,  // 使用统一后的 content
       read: false,
       createdAt: new Date().toISOString(),
     };

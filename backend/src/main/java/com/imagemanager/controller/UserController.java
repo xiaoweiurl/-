@@ -86,8 +86,7 @@ public class UserController {
         String userId = getCurrentUserId(httpRequest);
         authService.updateProfile(userId, request);
 
-        // 创建通知
-        userService.notify("user_profile_update", "资料更新成功", "您的个人资料已更新", userId);
+        // 通知由前端统一管理
 
         User user = userService.getCurrentUser();
         return ApiResponse.success("更新成功", user);
@@ -138,8 +137,7 @@ public class UserController {
             profileRequest.setAvatar(avatarUrl);
             authService.updateProfile(userId, profileRequest);
 
-            // 创建通知
-            userService.notify("user_avatar_update", "头像更新成功", "您的头像已更新", userId);
+            // 通知由前端统一管理
 
             Map<String, String> result = new HashMap<>();
             result.put("avatarUrl", avatarUrl);
@@ -175,8 +173,7 @@ public class UserController {
         try {
             authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
 
-            // 创建通知
-            userService.notify("user_password_change", "密码修改成功", "您的密码已成功修改", userId);
+            // 通知由前端统一管理
 
             return ApiResponse.success("密码修改成功", null);
         } catch (Exception e) {

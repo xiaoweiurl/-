@@ -187,7 +187,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           notification: {
             type: notification.type,
             title: notification.title,
-            message: notification.message,
+            content: notification.message,  // 后端用 content 字段
           },
         }),
       });

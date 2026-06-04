@@ -52,12 +52,7 @@ public class AuthController {
             // 将 sessionId 通过响应头返回
             response.setHeader("X-Session-Id", sessionId);
 
-            // 创建登录通知
-            if (loginResponse.getUser() != null) {
-                userService.notify("user_login", "登录成功",
-                    "欢迎回来，" + loginResponse.getUser().getNickname(),
-                    loginResponse.getUser().getId());
-            }
+            // 通知由前端统一管理
 
             return ApiResponse.success("登录成功", loginResponse);
         } catch (Exception e) {
