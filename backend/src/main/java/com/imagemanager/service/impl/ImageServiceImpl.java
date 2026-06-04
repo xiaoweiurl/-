@@ -118,6 +118,48 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /**
+     * 从动态表中软删除图片（标记 deleted=true）
+     */
+    private void deleteFromDynamicTable(Image image) {
+        if (image == null || image.getUserId() == null) return;
+        try {
+            String userId = image.getUserId();
+            imageDynamicRepository.softDelete(image.getId(), userId);
+            log.debug("动态表软删除成功, userId={}, imageId={}", userId, image.getId());
+        } catch (Exception e) {
+            log.error("动态表软删除失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 从动态表中硬删除图片（永久删除）
+     */
+    private void hardDeleteFromDynamicTable(Image image) {
+        if (image == null || image.getUserId() == null) return;
+        try {
+            String userId = image.getUserId();
+            imageDynamicRepository.hardDelete(image.getId(), userId);
+            log.debug("动态表硬删除成功, userId={}, imageId={}", userId, image.getId());
+        } catch (Exception e) {
+            log.error("动态表硬删除失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 从动态表中恢复图片
+     */
+    private void restoreInDynamicTable(Image image) {
+        if (image == null || image.getUserId() == null) return;
+        try {
+            String userId = image.getUserId();
+            imageDynamicRepository.restore(image.getId(), userId);
+            log.debug("动态表恢复成功, userId={}, imageId={}", userId, image.getId());
+        } catch (Exception e) {
+            log.error("动态表恢复失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
+        }
+    }
+
+    /**
      * 创建通知（如果有UserService）
      */
     private void createNotificationSafe(String title, String content, String type) {
@@ -654,8 +696,8 @@ public class ImageServiceImpl implements ImageService {
                 relatedImage.setDeleted(true);
                 relatedImage.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(relatedImage);
-                // 同步到动态表
-                syncToDynamicTable(relatedImage);
+                // 软删除动态表中的关联详情图
+                deleteFromDynamicTable(relatedImage);
             }
             log.info("同时删除了 {} 张关联的详情图", relatedImages.size());
         }
@@ -664,8 +706,8 @@ public class ImageServiceImpl implements ImageService {
         image.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
         imageRepository.save(image);
         
-        // 同步到动态表
-        syncToDynamicTable(image);
+        // 软删除动态表中的图片
+        deleteFromDynamicTable(image);
         
         // 更新相册图片数量
         if (image.getAlbumId() != null) {
@@ -704,6 +746,8 @@ public class ImageServiceImpl implements ImageService {
                 for (Image relatedImage : relatedImages) {
                     // 从存储中删除文件
                     deleteImageFile(relatedImage);
+                    // 从动态表中硬删除
+                    hardDeleteFromDynamicTable(relatedImage);
                     imageRepository.delete(relatedImage);
                     deletedCount++;
                     log.debug("永久删除详情图：{}", relatedImage.getId());
@@ -713,6 +757,9 @@ public class ImageServiceImpl implements ImageService {
             
             // 从存储中删除文件
             deleteImageFile(image);
+            
+            // 从动态表中硬删除
+            hardDeleteFromDynamicTable(image);
             
             // 更新相册图片数量
             if (image.getAlbumId() != null) {
@@ -743,6 +790,8 @@ public class ImageServiceImpl implements ImageService {
                 relatedImage.setDeleted(false);
                 relatedImage.setDeletedAt(null);
                 imageRepository.save(relatedImage);
+                // 恢复动态表中的数据
+                restoreInDynamicTable(relatedImage);
                 restoredCount++;
                 log.debug("恢复详情图：{}", relatedImage.getId());
             }
@@ -753,6 +802,8 @@ public class ImageServiceImpl implements ImageService {
         image.setDeleted(false);
         image.setDeletedAt(null);
         imageRepository.save(image);
+        // 恢复动态表中的数据
+        restoreInDynamicTable(image);
         restoredCount++;
         
         // 更新相册图片数量
@@ -802,8 +853,15 @@ public class ImageServiceImpl implements ImageService {
         
         image = imageRepository.save(image);
         
-        // 同步到动态表
-        syncToDynamicTable(image);
+        // 同步收藏状态到动态表
+        if (image.getUserId() != null) {
+            try {
+                imageDynamicRepository.toggleFavorite(image.getId(), image.getUserId());
+                log.debug("动态表收藏状态同步成功, imageId={}", image.getId());
+            } catch (Exception e) {
+                log.error("动态表收藏状态同步失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
+            }
+        }
         
         return image;
     }
@@ -1283,6 +1341,8 @@ public class ImageServiceImpl implements ImageService {
                 for (Image relatedImage : relatedImages) {
                     // 从存储中删除文件
                     deleteImageFile(relatedImage);
+                    // 从动态表中硬删除
+                    hardDeleteFromDynamicTable(relatedImage);
                     imageRepository.delete(relatedImage);
                     totalDeleted++;
                     log.debug("清空回收站 - 永久删除详情图：{}", relatedImage.getId());
@@ -1291,6 +1351,8 @@ public class ImageServiceImpl implements ImageService {
             
             // 从存储中删除主图文件
             deleteImageFile(mainImage);
+            // 从动态表中硬删除
+            hardDeleteFromDynamicTable(mainImage);
             imageRepository.delete(mainImage);
             totalDeleted++;
         }
