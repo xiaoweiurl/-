@@ -313,6 +313,7 @@ export const imageApi = {
     tag?: string;
     onlyMainImage?: boolean;
     onlyMine?: boolean;
+    otherUsers?: boolean;
     includeDeleted?: boolean;
     requestHeaders?: Record<string, string | null>;
   } = {}): Promise<Response> {
@@ -329,6 +330,7 @@ export const imageApi = {
       tag: restParams.tag,
       onlyMainImage: restParams.onlyMainImage,
       onlyMine: restParams.onlyMine,
+      otherUsers: restParams.otherUsers,
       includeDeleted: restParams.includeDeleted,
     });
 

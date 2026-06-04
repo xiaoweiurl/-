@@ -162,6 +162,12 @@ public class ImageServiceImpl implements ImageService {
                 return imageDynamicRepository.queryMyImages(request, currentUserId);
             }
 
+            // 二创中心 - 查询其他用户上传的图片
+            if (request.getOtherUsers() != null && request.getOtherUsers()) {
+                log.info("使用动态表查询【二创中心】, currentUserId={}", currentUserId);
+                return imageDynamicRepository.queryOtherUsersImages(request, currentUserId);
+            }
+
             // 收藏夹
             if (request.getFavorite() != null && request.getFavorite()) {
                 log.info("使用动态表查询【收藏夹】, userId={}", currentUserId);
@@ -183,9 +189,9 @@ public class ImageServiceImpl implements ImageService {
                 return imageDynamicRepository.queryAlbumImages(request.getAlbumId(), request, currentUserId);
             }
 
-            // 全部知识 - UNION 所有用户表
-            log.info("使用动态表查询【全部知识】");
-            return imageDynamicRepository.queryAllImages(request);
+            // 全部知识 - 只查当前用户的动态表
+            log.info("使用动态表查询【全部知识】, userId={}", currentUserId);
+            return imageDynamicRepository.queryAllImages(request, currentUserId);
         }
 
         // 降级：无用户ID时使用 JPA 查询

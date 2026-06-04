@@ -262,6 +262,7 @@ interface SidebarProps {
   favoritesCount?: number;
   trashCount?: number;
   documentStats?: Record<string, number>;
+  isAdmin?: boolean;
   onAlbumCreated?: () => void;
   onCreateSmartAlbum?: () => void;
   /**
@@ -282,6 +283,7 @@ export default function Sidebar({
   recentCount = 0,
   favoritesCount = 0,
   trashCount = 0,
+  isAdmin = false,
   documentStats = { all: 0, pdf: 0, word: 0, excel: 0, ppt: 0, zip: 0, other: 0 },
   onAlbumCreated,
   onCreateSmartAlbum,
@@ -742,6 +744,13 @@ export default function Sidebar({
       icon: Heart,
       count: favoritesCount,
     },
+    // 二创中心 - 仅管理员可见，查看其他用户上传的图片
+    ...(isAdmin ? [{
+      id: 'creative-center',
+      label: '二创中心',
+      icon: Sparkles,
+      count: 0,
+    }] : []),
   ];
 
   const bottomItems: MenuItem[] = [

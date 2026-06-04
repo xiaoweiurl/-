@@ -248,23 +248,44 @@ public class ImageDynamicRepository {
     }
 
     /**
-     * 查询全部知识（UNION 所有用户的动态表）
+     * 查询全部知识（只查当前用户自己的动态表）
      */
-    public PageResponse<Image> queryAllImages(ImageQueryRequest request) {
+    public PageResponse<Image> queryAllImages(ImageQueryRequest request, String userId) {
+        String tableName = getUserTableName(userId);
         try {
-            List<String> tableNames = getAllUserImageTableNames();
+            if (!tableExists(tableName)) {
+                return emptyPage(request);
+            }
+            return queryFromTable(tableName, request);
+        } catch (Exception e) {
+            log.error("查询全部知识失败, userId: {}", userId, e);
+            return emptyPage(request);
+        }
+    }
 
-            if (tableNames.isEmpty()) {
+    /**
+     * 二创中心 - 查询其他用户上传的图片（UNION ALL 其他用户的动态表，排除当前用户自己的表）
+     */
+    public PageResponse<Image> queryOtherUsersImages(ImageQueryRequest request, String currentUserId) {
+        try {
+            List<String> allTableNames = getAllUserImageTableNames();
+            // 过滤掉当前用户的表，只查其他用户的
+            String myTableName = getUserTableName(currentUserId);
+            List<String> otherTableNames = allTableNames.stream()
+                    .filter(name -> !name.equals(myTableName))
+                    .collect(Collectors.toList());
+
+            if (otherTableNames.isEmpty()) {
                 return emptyPage(request);
             }
 
-            if (tableNames.size() == 1) {
-                return queryFromTable(tableNames.get(0), request);
+            if (otherTableNames.size() == 1) {
+                return queryFromTable(otherTableNames.get(0), request);
             }
 
-            return queryFromMultipleTables(tableNames, request);
+            return queryFromMultipleTables(otherTableNames, request);
         } catch (Exception e) {
-            log.error("查询全部知识失败", e);
+            log.error("查询二创中心失败, currentUserId: {}", currentUserId, e);
             return emptyPage(request);
         }
     }

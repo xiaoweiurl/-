@@ -88,6 +88,11 @@ public class ImageQueryRequest {
     private Boolean onlyMine;
     
     /**
+     * 是否查询其他用户上传的图片（二创中心，管理员专用）
+     */
+    private Boolean otherUsers;
+    
+    /**
      * 是否包含已删除的图片
      */
     private Boolean includeDeleted;

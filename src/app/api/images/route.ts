@@ -179,6 +179,7 @@ export async function GET(request: NextRequest) {
       deleted: searchParams.get('deleted') === 'true' ? true : undefined,
       onlyMainImage: searchParams.get('onlyMainImage') === 'true' ? true : undefined,
       onlyMine: searchParams.get('onlyMine') === 'true' ? true : undefined,
+      otherUsers: searchParams.get('otherUsers') === 'true' ? true : undefined,
       includeDeleted: searchParams.get('includeDeleted') === 'true' ? true : undefined,
       sortBy: searchParams.get('sortBy') || undefined,
       sortOrder: searchParams.get('sortOrder') || undefined,

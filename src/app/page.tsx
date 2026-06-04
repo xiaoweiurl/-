@@ -613,8 +613,14 @@ export default function Home() {
         params.append('onlyMine', 'true');
         params.append('includeDeleted', 'false');
         apiUrl = `/images?${params}`;
+      } else if (activeMenuItem === 'creative-center') {
+        // 二创中心 - 管理员查看其他用户上传的图片
+        params.append('otherUsers', 'true');
+        params.append('includeDeleted', 'false');
+        apiUrl = `/images?${params}`;
       } else {
-        // 全部图片 或 相册筛选
+        // 全部图片 或 相册筛选 - 默认只查当前用户的动态表
+        params.append('onlyMine', 'true');
         params.append('includeDeleted', 'false');
         
         // 添加日期筛选 - 转换为 startDate 和 endDate
@@ -1757,6 +1763,7 @@ export default function Home() {
         favoritesCount={statistics.favoritesCount}
         recentCount={statistics.recentCount}
         trashCount={trashCount}
+        isAdmin={isAdmin}
         documentStats={documentStats}
         onAlbumCreated={fetchAlbums}
         onCreateSmartAlbum={() => {
@@ -1838,6 +1845,8 @@ export default function Home() {
                       ? '全部图片'
                       : activeMenuItem === 'my-images'
                       ? '我的知识'
+                      : activeMenuItem === 'creative-center'
+                      ? '二创中心'
                       : activeMenuItem === 'favorites'
                       ? '我的收藏'
                       : activeMenuItem === 'recent'
