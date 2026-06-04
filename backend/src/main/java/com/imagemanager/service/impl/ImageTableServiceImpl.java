@@ -47,7 +47,7 @@ public class ImageTableServiceImpl implements ImageTableService {
                 CREATE TABLE %s (
                     id VARCHAR(36) PRIMARY KEY,
                     url VARCHAR(500) NOT NULL,
-                    name VARCHAR(255) NOT NULL,
+                    title VARCHAR(255),
                     original_name VARCHAR(255),
                     size BIGINT,
                     width INTEGER,

@@ -43,7 +43,7 @@ public class ImageDynamicRepository {
             }
             
             String insertSQL = String.format("""
-                INSERT INTO %s (id, url, name, original_name, size, width, height, file_type, 
+                INSERT INTO %s (id, url, title, original_name, size, width, height, file_type, 
                     album_id, product_id, is_main_image, favorite, view_count, download_count, 
                     tags, deleted, deleted_at, created_at, updated_at, user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
@@ -52,7 +52,7 @@ public class ImageDynamicRepository {
             Query query = entityManager.createNativeQuery(insertSQL);
             query.setParameter(1, image.getId());
             query.setParameter(2, image.getUrl());
-            query.setParameter(3, image.getName());
+            query.setParameter(3, image.getTitle());
             query.setParameter(4, image.getOriginalName());
             query.setParameter(5, image.getSize());
             query.setParameter(6, image.getWidth());
@@ -88,7 +88,7 @@ public class ImageDynamicRepository {
         try {
             String updateSQL = String.format("""
                 UPDATE %s SET 
-                    url = ?, name = ?, original_name = ?, size = ?, width = ?, height = ?, 
+                    url = ?, title = ?, original_name = ?, size = ?, width = ?, height = ?, 
                     file_type = ?, album_id = ?, product_id = ?, is_main_image = ?, 
                     favorite = ?, view_count = ?, download_count = ?, tags = ?::jsonb, 
                     deleted = ?, deleted_at = ?, updated_at = ?
@@ -97,7 +97,7 @@ public class ImageDynamicRepository {
             
             Query query = entityManager.createNativeQuery(updateSQL);
             query.setParameter(1, image.getUrl());
-            query.setParameter(2, image.getName());
+            query.setParameter(2, image.getTitle());
             query.setParameter(3, image.getOriginalName());
             query.setParameter(4, image.getSize());
             query.setParameter(5, image.getWidth());
