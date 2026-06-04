@@ -685,7 +685,7 @@ public class ImageDynamicRepository {
             String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false", tableName);
             Query query = entityManager.createNativeQuery(countSQL);
             long result = ((Number) query.getSingleResult()).longValue();
-            return result.longValue();
+            return result;
         } catch (Exception e) {
             log.error("统计用户图片数量失败", e);
             return 0;
@@ -706,7 +706,7 @@ public class ImageDynamicRepository {
             String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false AND is_main_image = true", tableName);
             Query query = entityManager.createNativeQuery(countSQL);
             long result = ((Number) query.getSingleResult()).longValue();
-            return result.longValue();
+            return result;
         } catch (Exception e) {
             log.error("统计用户主图数量失败", e);
             return 0;
@@ -729,7 +729,7 @@ public class ImageDynamicRepository {
                     String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false", tableName);
                     Query query = entityManager.createNativeQuery(countSQL);
                     long result = ((Number) query.getSingleResult()).longValue();
-                    total += result.longValue();
+                    total += result;
                 } catch (Exception e) {
                     log.warn("统计表 {} 图片数量失败", tableName);
                 }
@@ -757,7 +757,7 @@ public class ImageDynamicRepository {
                     String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false AND is_main_image = true", tableName);
                     Query query = entityManager.createNativeQuery(countSQL);
                     long result = ((Number) query.getSingleResult()).longValue();
-                    total += result.longValue();
+                    total += result;
                 } catch (Exception e) {
                     log.warn("统计表 {} 主图数量失败", tableName);
                 }
@@ -839,7 +839,7 @@ public class ImageDynamicRepository {
                 images.add(mapToImage(row, tableName));
             }
 
-            return PageResponse.of(images, total.longValue(), page, pageSize);
+            return PageResponse.of(images, total, page, pageSize);
         } catch (Exception e) {
             log.error("单表查询失败, 表: {}", tableName, e);
             return emptyPage(request);
@@ -903,7 +903,7 @@ public class ImageDynamicRepository {
                 images.add(mapToImage(row, null));
             }
 
-            return PageResponse.of(images, total.longValue(), page, pageSize);
+            return PageResponse.of(images, total, page, pageSize);
         } catch (Exception e) {
             log.error("多表 UNION 查询失败", e);
             return emptyPage(request);
