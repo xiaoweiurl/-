@@ -119,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
                 .nickname("Administrator")
                 .bio("系统管理员")
                 .phone("13900139000")
-                .role("ADMIN")
+                .role("admin")
                 .membership("premium")
                 .storageUsed(0L)
                 .storageLimit(1024L * 1024 * 1024 * 100)  // 100GB
@@ -222,8 +222,8 @@ public class AuthServiceImpl implements AuthService {
         
         // 创建会话
         String sessionId = generateSecureSessionId();
-        // 标准化角色：统一存储为大写 "ADMIN"，支持数据库中的各种大小写形式
-        String normalizedRole = "ADMIN".equalsIgnoreCase(user.getRole()) ? "ADMIN" : user.getRole();
+        // 标准化角色：保持数据库原始值
+        String normalizedRole = user.getRole();
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(user.getId())
                 .username(user.getUsername())

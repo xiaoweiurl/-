@@ -503,7 +503,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex justify-between py-2">
                       <span className="text-slate-500">角色</span>
-                      <span className="text-slate-700">{currentUser?.role?.toUpperCase() === 'ADMIN' ? '管理员' : '普通用户'}</span>
+                      <span className="text-slate-700">{currentUser?.role === 'admin' ? '管理员' : '普通用户'}</span>
                     </div>
                     <div className="flex justify-between py-2">
                       <span className="text-slate-500">注册时间</span>

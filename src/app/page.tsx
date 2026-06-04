@@ -947,7 +947,7 @@ export default function Home() {
   };
 
   // 检查权限
-  const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN';
+  const isAdmin = currentUser?.role === 'admin';
 
   const handleSelectImage = (id: string) => {
     setSelectedImages((prev) =>

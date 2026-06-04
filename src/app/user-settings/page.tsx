@@ -262,7 +262,7 @@ export default function UserManagementPage() {
 
   // 获取角色显示
   const getRoleBadge = (role: string) => {
-    if (role?.toUpperCase() === 'ADMIN') {
+    if (role === 'admin') {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
           <Shield className="w-3 h-3" />

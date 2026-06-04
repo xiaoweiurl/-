@@ -72,7 +72,7 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
                 // 创建权限列表
                 String role = userInfo.getRole();
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority(
-                    role != null && role.equals("ADMIN") ? "ROLE_ADMIN" : "ROLE_USER"
+                    role != null && "ADMIN".equalsIgnoreCase(role) ? "ROLE_ADMIN" : "ROLE_USER"
                 );
                 
                 // 创建 Authentication 对象
