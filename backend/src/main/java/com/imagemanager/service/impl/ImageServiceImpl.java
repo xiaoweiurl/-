@@ -8,11 +8,13 @@ import com.imagemanager.entity.Album;
 import com.imagemanager.entity.Image;
 import com.imagemanager.entity.Product;
 import com.imagemanager.repository.AlbumRepository;
+import com.imagemanager.repository.ImageDynamicRepository;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ProductRepository;
 import com.imagemanager.service.AIRecognitionService;
 import com.imagemanager.service.AlbumService;
 import com.imagemanager.service.ImageEnhancementService;
+import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.ImageService;
 import com.imagemanager.util.CharsetUtil;
@@ -87,6 +89,12 @@ public class ImageServiceImpl implements ImageService {
 
     @Autowired(required = false)
     private UserService userService;
+    
+    @Autowired
+    private ImageTableService imageTableService;
+    
+    @Autowired
+    private ImageDynamicRepository imageDynamicRepository;
 
     @Value("${app.image.enhance:true}")
     private boolean enableImageEnhance;
@@ -471,6 +479,17 @@ public class ImageServiceImpl implements ImageService {
                     .build();
             
             image = imageRepository.save(image);
+            
+            // 同时保存到用户动态表（方案A：物理隔离）
+            String tableName = imageTableService.getUserTableName(currentUserId);
+            if (imageTableService.userImageTableExists(currentUserId)) {
+                try {
+                    imageDynamicRepository.save(tableName, image);
+                    log.info("图片已保存到用户表: {}", tableName);
+                } catch (Exception e) {
+                    log.warn("保存到用户表失败: {}", e.getMessage());
+                }
+            }
             
             // 更新相册图片数量
             if (finalAlbumId != null) {

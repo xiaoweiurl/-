@@ -2,6 +2,7 @@ package com.imagemanager.controller;
 
 import com.imagemanager.dto.*;
 import com.imagemanager.service.AuthService;
+import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +30,9 @@ public class AuthController {
     @Autowired
     private UserService userService;
     
+    @Autowired
+    private ImageTableService imageTableService;
+    
     /**
      * 用户登录
      */
@@ -44,6 +48,13 @@ public class AuthController {
 
             String sessionId = loginResponse.getSessionId();
             log.info("登录成功，sessionId: {}", sessionId);
+            
+            // 登录成功后，确保用户图片表存在
+            String userId = loginResponse.getUserInfo().getId();
+            if (userId != null && !userId.isEmpty()) {
+                boolean tableCreated = imageTableService.createUserImageTable(userId);
+                log.info("用户图片表检查完成: userId={}, tableCreated={}", userId, tableCreated);
+            }
 
             // 设置 CORS 响应头（关键：允许前端访问）
             response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");

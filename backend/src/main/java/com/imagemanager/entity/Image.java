@@ -203,6 +203,21 @@ public class Image {
     private String productId;
     
     /**
+     * 来源表名（动态表方案中使用，不持久化）
+     * 用于记录图片来自哪张用户表（如 images_user_1）
+     */
+    @Transient
+    private String sourceTable;
+    
+    // Getters and Setters for transient field
+    public String getSourceTable() {
+        return sourceTable;
+    }
+    
+    public void setSourceTable(String sourceTable) {
+        this.sourceTable = sourceTable;
+    }
+    /**
      * 是否为主图
      */
     @Column(name = "is_main_image", columnDefinition = "BOOLEAN DEFAULT FALSE")

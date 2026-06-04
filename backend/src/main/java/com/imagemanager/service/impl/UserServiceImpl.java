@@ -12,6 +12,7 @@ import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.NotificationRepository;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.repository.UserSettingsRepository;
+import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.UserService;
 import com.imagemanager.util.SessionUtil;
 import jakarta.annotation.PostConstruct;
@@ -52,6 +53,9 @@ public class UserServiceImpl implements UserService {
     
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private ImageTableService imageTableService;
     
     /**
      * 初始化默认用户和通知
@@ -394,6 +398,10 @@ public class UserServiceImpl implements UserService {
         
         // 创建默认设置
         createDefaultSettings(user.getId());
+        
+        // 创建用户图片表（动态表方案）
+        boolean tableCreated = imageTableService.createUserImageTable(user.getId());
+        log.info("用户图片表创建: userId={}, result={}", user.getId(), tableCreated);
         
         log.info("用户创建成功，ID：{}", user.getId());
         return user;
