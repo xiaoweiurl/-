@@ -608,6 +608,11 @@ export default function Home() {
         // 收藏 - 使用主图片API加筛选
         params.append('favorite', 'true');
         apiUrl = `/images?${params}`;
+      } else if (activeMenuItem === 'my-images') {
+        // 我的知识 - 只显示当前用户上传的图片
+        params.append('onlyMine', 'true');
+        params.append('includeDeleted', 'false');
+        apiUrl = `/images?${params}`;
       } else {
         // 全部图片 或 相册筛选
         params.append('includeDeleted', 'false');
@@ -1673,6 +1678,11 @@ export default function Home() {
     // 回收站数量（使用后端获取的数量，更准确）
     // 注意：trashCount 现在由后端 API 直接提供，不再从 allImages 计算
 
+    // 我的图片数（只统计当前用户上传的主图）
+    const myImagesCount = currentUser?.id 
+      ? mainImages.filter(img => img.userId === currentUser.id).length 
+      : 0;
+
     // 各相册图片数量 - 只统计主图
     const albumStats = albums.map(album => {
       const count = mainImages.filter(img => img.albumId === album.id).length;
@@ -1691,14 +1701,17 @@ export default function Home() {
       allImagesTotal: allImages.length,
       mainImagesCount: mainImages.length,
       allCount,
+      myImagesCount,
       favoritesCount,
       recentCount,
       trashCount,
       albumStats,
+      currentUserId: currentUser?.id,
     });
 
     return {
       allCount,
+      myImagesCount,
       favoritesCount,
       recentCount,
       albumStats,
@@ -1708,7 +1721,7 @@ export default function Home() {
       todayDownloads: todayImages.reduce((sum, img) => sum + (img.downloadCount || 0), 0),
       todayFavorites: todayImages.filter(img => img.favorite).length,
     };
-  }, [allImages, albums]);
+  }, [allImages, albums, currentUser?.id]);
 
   // 加载中状态
   if (isLoading) {
@@ -1740,6 +1753,7 @@ export default function Home() {
         albums={statistics.albumStats}
         smartAlbums={smartAlbums}
         allImagesCount={statistics.allCount}
+        myImagesCount={statistics.myImagesCount}
         favoritesCount={statistics.favoritesCount}
         recentCount={statistics.recentCount}
         trashCount={trashCount}
@@ -1822,6 +1836,8 @@ export default function Home() {
                   <h1 className="text-2xl font-bold text-slate-800">
                     {activeMenuItem === 'all'
                       ? '全部图片'
+                      : activeMenuItem === 'my-images'
+                      ? '我的知识'
                       : activeMenuItem === 'favorites'
                       ? '我的收藏'
                       : activeMenuItem === 'recent'

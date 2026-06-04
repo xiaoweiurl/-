@@ -257,6 +257,7 @@ interface SidebarProps {
   albums?: AlbumInfo[];
   smartAlbums?: SmartAlbumInfo[];
   allImagesCount?: number;
+  myImagesCount?: number;
   recentCount?: number;
   favoritesCount?: number;
   trashCount?: number;
@@ -277,6 +278,7 @@ export default function Sidebar({
   albums = [],
   smartAlbums = [],
   allImagesCount = 0,
+  myImagesCount = 0,
   recentCount = 0,
   favoritesCount = 0,
   trashCount = 0,
@@ -699,6 +701,12 @@ export default function Sidebar({
       label: '全部知识',
       icon: BookOpen,
       count: allImagesCount,
+    },
+    {
+      id: 'my-images',
+      label: '我的知识',
+      icon: UserCog,
+      count: myImagesCount,
     },
     {
       id: 'albums',

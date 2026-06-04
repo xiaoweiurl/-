@@ -150,7 +150,8 @@ public class ImageServiceImpl implements ImageService {
             (request.getFileType() != null && !request.getFileType().isEmpty()) ||
             (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) ||
             request.getFavorite() != null ||
-            request.getOnlyMainImage() != null;
+            request.getOnlyMainImage() != null ||
+            request.getOnlyMine() != null;
 
         if (hasAdvancedFilters) {
             // 使用数据库分页查询（真正的数据库层面分页）
@@ -219,12 +220,23 @@ public class ImageServiceImpl implements ImageService {
             final String finalKeyword = request.getKeyword();
             final Boolean finalFavorite = request.getFavorite();
             
+            // 数据隔离：获取当前用户ID
+            final String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            final Boolean finalOnlyMine = request.getOnlyMine();
+            log.info("数据隔离检查：currentUserId={}, onlyMine={}", currentUserId, finalOnlyMine);
+            
             org.springframework.data.jpa.domain.Specification<Image> spec = (root, query, cb) -> {
                 List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
                 
                 // 基础条件：未删除的主图
                 predicates.add(cb.equal(root.get("deleted"), false));
                 predicates.add(cb.equal(root.get("isMainImage"), true));
+                
+                // 数据隔离：只查询当前用户的图片
+                if (finalOnlyMine != null && finalOnlyMine && currentUserId != null) {
+                    predicates.add(cb.equal(root.get("userId"), currentUserId));
+                    log.info("添加 userId 过滤条件：{}", currentUserId);
+                }
                 
                 // 关键词筛选
                 if (finalKeyword != null && !finalKeyword.isEmpty()) {
@@ -426,6 +438,13 @@ public class ImageServiceImpl implements ImageService {
                         .orElse(null);
             }
             
+            // 获取当前用户ID（数据隔离）
+            String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                currentUserId = "user-1"; // 降级默认
+            }
+            log.info("上传图片，用户ID：{}", currentUserId);
+            
             // 创建图片记录
             Image image = Image.builder()
                     .id(UUID.randomUUID().toString())
@@ -444,7 +463,7 @@ public class ImageServiceImpl implements ImageService {
                     .favorite(false)
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
-                    .userId("user-1")
+                    .userId(currentUserId)  // 使用当前用户ID
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -1172,6 +1191,12 @@ public class ImageServiceImpl implements ImageService {
                         .orElse(null);
             }
             
+            // 获取当前用户ID（数据隔离）
+            String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                currentUserId = "user-1"; // 降级默认
+            }
+            
             // 创建图片记录
             Image image = Image.builder()
                     .id(UUID.randomUUID().toString())
@@ -1192,7 +1217,7 @@ public class ImageServiceImpl implements ImageService {
                     .favorite(false)
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
-                    .userId("user-1")
+                    .userId(currentUserId)  // 使用当前用户ID
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -2021,6 +2046,12 @@ public class ImageServiceImpl implements ImageService {
                         .orElse(null);
             }
             
+            // 获取当前用户ID（数据隔离）
+            String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                currentUserId = "user-1"; // 降级默认
+            }
+            
             // 创建图片记录
             Image image = Image.builder()
                     .id(UUID.randomUUID().toString())
@@ -2039,7 +2070,7 @@ public class ImageServiceImpl implements ImageService {
                     .favorite(false)
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
-                    .userId("user-1")
+                    .userId(currentUserId)  // 使用当前用户ID
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)

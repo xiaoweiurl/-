@@ -81,4 +81,9 @@ public class ImageQueryRequest {
      * 每页大小
      */
     private Integer pageSize = 20;
+
+    /**
+     * 是否只查询当前用户的图片（数据隔离）
+     */
+    private Boolean onlyMine;
 }
