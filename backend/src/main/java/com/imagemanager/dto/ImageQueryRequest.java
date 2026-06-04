@@ -86,4 +86,14 @@ public class ImageQueryRequest {
      * 是否只查询当前用户的图片（数据隔离）
      */
     private Boolean onlyMine;
+    
+    /**
+     * 是否包含已删除的图片
+     */
+    private Boolean includeDeleted;
+    
+    /**
+     * 用户ID（用于动态表查询）
+     */
+    private String userId;
 }
