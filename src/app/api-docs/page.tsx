@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock } from 'lucide-react';
+import { backendFetch } from '@/lib/backend-proxy';
 
 export default function SwaggerPage() {
   const router = useRouter();
@@ -15,7 +16,6 @@ export default function SwaggerPage() {
       try {
         const sessionId = localStorage.getItem('session_id');
         if (!sessionId) { router.push('/login'); return; }
-        const { default: { backendFetch } } = await import('@/lib/backend-proxy');
         const res = await backendFetch('/auth/session', { headers: { 'X-Session-Id': sessionId } });
         const result = await res.json();
         if (result.code === 200 && result.data?.role === 'admin') {
