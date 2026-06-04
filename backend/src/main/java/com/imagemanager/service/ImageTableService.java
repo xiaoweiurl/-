@@ -48,11 +48,4 @@ public interface ImageTableService {
      * @return 表是否存在/创建成功
      */
     boolean ensureUserImageTable(String userId);
-
-    /**
-     * 将主表中该用户的数据同步到动态表
-     * @param userId 用户ID
-     * @return 同步的记录数
-     */
-    int syncUserData(String userId);
 }
