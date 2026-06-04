@@ -103,6 +103,22 @@ public class ImageServiceImpl implements ImageService {
     private boolean enableSuperResolution;
 
     /**
+     * 同步图片数据到动态表
+     */
+    private void syncToDynamicTable(Image image) {
+        if (image == null || image.getUserId() == null) return;
+        try {
+            String userId = image.getUserId();
+            if (imageTableService.userImageTableExists(userId)) {
+                imageDynamicRepository.update(image, userId);
+                log.debug("同步到动态表成功, userId={}, imageId={}", userId, image.getId());
+            }
+        } catch (Exception e) {
+            log.warn("同步到动态表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
      * 创建通知（如果有UserService）
      */
     private void createNotificationSafe(String title, String content, String type) {
@@ -125,6 +141,55 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public PageResponse<Image> queryImages(ImageQueryRequest request) {
         log.info("查询图片列表，参数：{}", request);
+
+        // 获取当前用户ID
+        String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+        log.info("数据隔离检查：currentUserId={}, onlyMine={}", currentUserId, request.getOnlyMine());
+
+        // 动态表查询模式
+        if (currentUserId != null) {
+            // 确保用户动态表存在
+            try {
+                imageTableService.ensureUserImageTable(currentUserId);
+            } catch (Exception e) {
+                log.warn("确保用户表存在失败: {}", e.getMessage());
+            }
+
+            if (request.getOnlyMine() != null && request.getOnlyMine()) {
+                // 我的知识 - 只查询当前用户的动态表
+                log.info("使用动态表查询【我的知识】, userId={}", currentUserId);
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryMyImages(request, currentUserId);
+            }
+
+            // 收藏夹
+            if (request.getFavorite() != null && request.getFavorite()) {
+                log.info("使用动态表查询【收藏夹】, userId={}", currentUserId);
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryFavorites(request, currentUserId);
+            }
+
+            // 回收站
+            if (request.getDeleted() != null && request.getDeleted()) {
+                log.info("使用动态表查询【回收站】, userId={}", currentUserId);
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryTrash(request, currentUserId);
+            }
+
+            // 相册查询
+            if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
+                log.info("使用动态表查询【相册图片】, albumId={}, userId={}", request.getAlbumId(), currentUserId);
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryAlbumImages(request.getAlbumId(), request, currentUserId);
+            }
+
+            // 全部知识 - UNION 所有用户表
+            log.info("使用动态表查询【全部知识】");
+            return imageDynamicRepository.queryAllImages(request);
+        }
+
+        // 降级：无用户ID时使用 JPA 查询
+        log.info("无用户ID，降级使用 JPA 查询");
 
         // 构建排序
         String sortBy = request.getSortBy() != null ? request.getSortBy() : "createdAt";
@@ -556,6 +621,8 @@ public class ImageServiceImpl implements ImageService {
                 relatedImage.setDeleted(true);
                 relatedImage.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(relatedImage);
+                // 同步到动态表
+                syncToDynamicTable(relatedImage);
             }
             log.info("同时删除了 {} 张关联的详情图", relatedImages.size());
         }
@@ -563,6 +630,9 @@ public class ImageServiceImpl implements ImageService {
         image.setDeleted(true);
         image.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
         imageRepository.save(image);
+        
+        // 同步到动态表
+        syncToDynamicTable(image);
         
         // 更新相册图片数量
         if (image.getAlbumId() != null) {
@@ -697,7 +767,12 @@ public class ImageServiceImpl implements ImageService {
         image.setFavorite(!image.getFavorite());
         image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
         
-        return imageRepository.save(image);
+        image = imageRepository.save(image);
+        
+        // 同步到动态表
+        syncToDynamicTable(image);
+        
+        return image;
     }
     
     @Override
@@ -1054,6 +1129,22 @@ public class ImageServiceImpl implements ImageService {
     public PageResponse<Image> getFavorites(Integer page, Integer pageSize) {
         log.info("获取收藏图片列表（只返回主图）");
         
+        // 尝试使用动态表查询
+        String currentUserId = SessionUtil.getCurrentUserId();
+        if (currentUserId != null) {
+            try {
+                ImageQueryRequest request = new ImageQueryRequest();
+                request.setFavorite(true);
+                request.setPage(page);
+                request.setPageSize(pageSize);
+                request.setOnlyMainImage(true);
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryFavorites(request, currentUserId);
+            } catch (Exception e) {
+                log.warn("动态表查询收藏夹失败，降级到JPA: {}", e.getMessage());
+            }
+        }
+        
         Pageable pageable = PageRequest.of(page - 1, pageSize, 
                 Sort.by("updatedAt").descending());
         
@@ -1071,6 +1162,23 @@ public class ImageServiceImpl implements ImageService {
     public PageResponse<Image> getTrash(Integer page, Integer pageSize) {
         log.info("获取回收站图片列表");
         
+        // 尝试使用动态表查询
+        String currentUserId = SessionUtil.getCurrentUserId();
+        if (currentUserId != null) {
+            try {
+                ImageQueryRequest request = new ImageQueryRequest();
+                request.setDeleted(true);
+                request.setIncludeDeleted(true);
+                request.setPage(page);
+                request.setPageSize(pageSize);
+                request.setOnlyMainImage(true);
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryTrash(request, currentUserId);
+            } catch (Exception e) {
+                log.warn("动态表查询回收站失败，降级到JPA: {}", e.getMessage());
+            }
+        }
+        
         Pageable pageable = PageRequest.of(page - 1, pageSize, 
                 Sort.by("deletedAt").descending());
         
@@ -1087,6 +1195,23 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public PageResponse<Image> getRecent(Integer page, Integer pageSize) {
         log.info("获取最近上传图片列表（只返回主图）");
+        
+        // 尝试使用动态表查询
+        String currentUserId = SessionUtil.getCurrentUserId();
+        if (currentUserId != null) {
+            try {
+                ImageQueryRequest request = new ImageQueryRequest();
+                request.setPage(page);
+                request.setPageSize(pageSize);
+                request.setOnlyMainImage(true);
+                request.setSortBy("created_at");
+                request.setSortOrder("desc");
+                request.setUserId(currentUserId);
+                return imageDynamicRepository.queryMyImages(request, currentUserId);
+            } catch (Exception e) {
+                log.warn("动态表查询最近图片失败，降级到JPA: {}", e.getMessage());
+            }
+        }
         
         // 计算7天前的日期
         LocalDateTime sevenDaysAgo = LocalDateTime.now(BEIJING_ZONE).minusDays(7);

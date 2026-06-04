@@ -312,6 +312,8 @@ export const imageApi = {
     keyword?: string;
     tag?: string;
     onlyMainImage?: boolean;
+    onlyMine?: boolean;
+    includeDeleted?: boolean;
     requestHeaders?: Record<string, string | null>;
   } = {}): Promise<Response> {
     const { requestHeaders, ...restParams } = params;
@@ -326,6 +328,8 @@ export const imageApi = {
       keyword: restParams.search || restParams.keyword,
       tag: restParams.tag,
       onlyMainImage: restParams.onlyMainImage,
+      onlyMine: restParams.onlyMine,
+      includeDeleted: restParams.includeDeleted,
     });
 
     return backendFetch(`/images${queryString}`, { requestHeaders });

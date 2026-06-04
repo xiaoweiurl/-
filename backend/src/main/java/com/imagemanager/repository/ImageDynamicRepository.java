@@ -1,7 +1,6 @@
 package com.imagemanager.repository;
 
- 
- import com.imagemanager.dto.ImageQueryRequest;
+import com.imagemanager.dto.ImageQueryRequest;
 import com.imagemanager.dto.PageResponse;
 import com.imagemanager.entity.Image;
 import jakarta.persistence.EntityManager;
@@ -22,10 +21,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * 动态表图片数据访问 - 宯动态切换表名进行查询和保存
- * 宯用户图片存储在专属表中: images_<userId>
- *  + 全部知识查询需要 UNION 所有用户的表
- *  + 我的知识查询只查询当前用户的表
+ * 动态表图片数据访问 - 动态切换表名进行查询和保存
+ * 每个用户图片存储在专属表中: images_<userId>
+ * 全部知识查询需要 UNION 所有用户的表
+ * 我的知识查询只查询当前用户的表
  */
 @Slf4j
 @Repository
@@ -34,11 +33,12 @@ public class ImageDynamicRepository {
 
     private final EntityManager entityManager;
 
+    // ==================== 工具方法 ====================
+
     /**
      * 获取用户表名
      */
     public String getUserTableName(String userId) {
-        // 将 userId 中的特殊字符替换， 如 user-1 -> images_user_1
         String safeUserId = userId.replaceAll("-", "_").replaceAll("[^a-zA-Z0-9_]", "");
         return "images_" + safeUserId;
     }
@@ -48,10 +48,12 @@ public class ImageDynamicRepository {
      */
     public boolean tableExists(String tableName) {
         try {
-            String checkSQL = String.format("SELECT to_regclass('%s', 'r')", tableName);
+            String checkSQL = "SELECT tablename FROM pg_tables WHERE tablename = ? AND schemaname = 'public'";
             Query query = entityManager.createNativeQuery(checkSQL);
-            Object result = query.getSingleResult();
-            return result != null;
+            query.setParameter(1, tableName);
+            @SuppressWarnings("unchecked")
+            List<String> results = query.getResultList();
+            return !results.isEmpty();
         } catch (Exception e) {
             log.warn("检查表是否存在失败: {}", tableName, e.getMessage());
             return false;
@@ -63,7 +65,7 @@ public class ImageDynamicRepository {
      */
     public List<String> getAllUserImageTableNames() {
         try {
-            String querySQL = "SELECT tablename FROM pg_tables WHERE tablename LIKE 'images_%' AND schemaname = 'public'";
+            String querySQL = "SELECT tablename FROM pg_tables WHERE tablename LIKE 'images\\_%' AND schemaname = 'public' AND tablename != 'images'";
             Query query = entityManager.createNativeQuery(querySQL);
             @SuppressWarnings("unchecked")
             List<String> tables = query.getResultList();
@@ -74,28 +76,27 @@ public class ImageDynamicRepository {
         }
     }
 
+    // ==================== 保存/更新 ====================
+
     /**
      * 保存图片到用户动态表
      */
     @Transactional
     public Image save(Image image, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
-            // 确保表存在
             if (!tableExists(tableName)) {
-                log.warn("用户图片表不存在: {}", tableName);
                 throw new RuntimeException("用户图片表不存在: " + tableName);
             }
-            
+
             if (image.getId() == null || image.getId().isEmpty()) {
                 image.setId(UUID.randomUUID().toString());
             }
-            
-            // 设置用户ID和来源表
+
             image.setUserId(userId);
             image.setSourceTable(tableName);
-            
+
             LocalDateTime now = LocalDateTime.now();
             if (image.getCreatedAt() == null) {
                 image.setCreatedAt(now);
@@ -104,22 +105,19 @@ public class ImageDynamicRepository {
                 image.setUpdatedAt(now);
             }
 
-            String insertSQL = String.format("""
-                INSERT INTO %s (id, url, title, original_name, size, width, height, file_type, 
-                    album_id, product_id, is_main_image, favorite, view_count, download_count, 
-                    tags, deleted, deleted_at, created_at, updated_at, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
-                ON CONFLICT ON UPDATE 
-                SET title = EXCLUDED.title, 
-                    original_name = EXCLUDED.original_name, 
-                    updated_at = EXCLUDED.updated_at
-                """, tableName);
-            
+            String insertSQL = String.format(
+                "INSERT INTO %s (id, url, title, original_name, size, width, height, file_type, " +
+                "album_id, product_id, is_main_image, favorite, view_count, download_count, " +
+                "tags, deleted, deleted_at, created_at, updated_at, user_id) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, original_name = EXCLUDED.original_name, updated_at = EXCLUDED.updated_at",
+                tableName);
+
             Query query = entityManager.createNativeQuery(insertSQL);
-            setQueryParameters(query, image);
-            
+            setInsertParameters(query, image);
+
             query.executeUpdate();
-            
+
             log.info("图片保存成功, 表: {}, id: {}", tableName, image.getId());
             return image;
         } catch (Exception e) {
@@ -133,9 +131,7 @@ public class ImageDynamicRepository {
      */
     @Transactional
     public List<Image> saveBatch(List<Image> images, String userId) {
-        String tableName = getUserTableName(userId);
         List<Image> savedImages = new ArrayList<>();
-        
         for (Image image : images) {
             try {
                 savedImages.add(save(image, userId));
@@ -143,7 +139,6 @@ public class ImageDynamicRepository {
                 log.error("批量保存图片失败, id: {}", image.getId(), e);
             }
         }
-        
         return savedImages;
     }
 
@@ -153,45 +148,25 @@ public class ImageDynamicRepository {
     @Transactional
     public Image update(Image image, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 throw new RuntimeException("用户图片表不存在: " + tableName);
             }
-            
+
             image.setUpdatedAt(LocalDateTime.now());
-            
-            String updateSQL = String.format("""
-                UPDATE %s SET 
-                    url = ?, title = ?, original_name = ?, size = ?, width = ?, height = ?, 
-                    file_type = ?, album_id = ?, product_id = ?, is_main_image = ?, 
-                    favorite = ?, view_count = ?, download_count = ?, tags = ?::jsonb, 
-                    deleted = ?, deleted_at = ?, updated_at = ?
-                WHERE id = ?
-                """, tableName);
-            
+
+            String updateSQL = String.format(
+                "UPDATE %s SET url = ?, title = ?, original_name = ?, size = ?, width = ?, height = ?, " +
+                "file_type = ?, album_id = ?, product_id = ?, is_main_image = ?, " +
+                "favorite = ?, view_count = ?, download_count = ?, tags = ?::jsonb, " +
+                "deleted = ?, deleted_at = ?, updated_at = ? WHERE id = ?",
+                tableName);
+
             Query query = entityManager.createNativeQuery(updateSQL);
-            query.setParameter(1, image.getUrl());
-            query.setParameter(2, image.getTitle());
-            query.setParameter(3, image.getOriginalName());
-            query.setParameter(4, image.getSize());
-            query.setParameter(5, image.getWidth());
-            query.setParameter(6, image.getHeight());
-            query.setParameter(7, image.getFileType());
-            query.setParameter(8, image.getAlbumId());
-            query.setParameter(9, image.getProductId());
-            query.setParameter(10, image.getIsMainImage() != null && image.getIsMainImage());
-            query.setParameter(11, image.getFavorite() != null && image.getFavorite());
-            query.setParameter(12, image.getViewCount() != null ? image.getViewCount() : 0);
-            query.setParameter(13, image.getDownloadCount() != null ? image.getDownloadCount() : 0);
-            query.setParameter(14, image.getTags() != null ? image.getTags().toString() : null);
-            query.setParameter(15, image.getDeleted() != null && image.getDeleted());
-            query.setParameter(16, image.getDeletedAt() != null ? Timestamp.valueOf(image.getDeletedAt()) : null);
-            query.setParameter(17, Timestamp.valueOf(LocalDateTime.now()));
-            query.setParameter(18, image.getId());
-            
+            setUpdateParameters(query, image);
+
             query.executeUpdate();
-            
             return image;
         } catch (Exception e) {
             log.error("更新图片失败, 表: {}, id: {}", tableName, image.getId(), e);
@@ -199,22 +174,23 @@ public class ImageDynamicRepository {
         }
     }
 
+    // ==================== 查询 ====================
+
     /**
      * 根据ID查询图片
      */
     public Image findById(String imageId, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
-                log.warn("用户图片表不存在: {}", tableName);
                 return null;
             }
-            
+
             String querySQL = String.format("SELECT * FROM %s WHERE id = ? AND deleted = false", tableName);
             Query query = entityManager.createNativeQuery(querySQL);
             query.setParameter(1, imageId);
-            
+
             @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             if (results.isEmpty()) {
@@ -232,16 +208,16 @@ public class ImageDynamicRepository {
      */
     public Image findByIdAny(String imageId, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return null;
             }
-            
+
             String querySQL = String.format("SELECT * FROM %s WHERE id = ?", tableName);
             Query query = entityManager.createNativeQuery(querySQL);
             query.setParameter(1, imageId);
-            
+
             @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             if (results.isEmpty()) {
@@ -259,17 +235,15 @@ public class ImageDynamicRepository {
      */
     public PageResponse<Image> queryMyImages(ImageQueryRequest request, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
-                log.warn("用户图片表不存在: {}", tableName);
-                return PageResponse.of(new ArrayList<>(), 0L, request.getPage() != null ? request.getPage() : 1, request.getPageSize() != null ? request.getPageSize() : 20);
+                return emptyPage(request);
             }
-            
             return queryFromTable(tableName, request);
         } catch (Exception e) {
             log.error("查询我的知识失败, 表: {}", tableName, e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+            return emptyPage(request);
         }
     }
 
@@ -279,16 +253,19 @@ public class ImageDynamicRepository {
     public PageResponse<Image> queryAllImages(ImageQueryRequest request) {
         try {
             List<String> tableNames = getAllUserImageTableNames();
-            
+
             if (tableNames.isEmpty()) {
-                log.warn("没有用户图片表");
-                return PageResponse.of(new ArrayList<>(), 0L, request.getPage() != null ? request.getPage() : 1, request.getPageSize() != null ? request.getPageSize() : 20);
+                return emptyPage(request);
             }
-            
+
+            if (tableNames.size() == 1) {
+                return queryFromTable(tableNames.get(0), request);
+            }
+
             return queryFromMultipleTables(tableNames, request);
         } catch (Exception e) {
             log.error("查询全部知识失败", e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+            return emptyPage(request);
         }
     }
 
@@ -297,20 +274,20 @@ public class ImageDynamicRepository {
      */
     public PageResponse<Image> queryAlbumImages(String albumId, ImageQueryRequest request, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
-                return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+                return emptyPage(request);
             }
-            
+
             if (request.getAlbumId() == null) {
                 request.setAlbumId(albumId);
             }
-            
+
             return queryFromTable(tableName, request);
         } catch (Exception e) {
             log.error("查询相册图片失败, albumId: {}", albumId, e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+            return emptyPage(request);
         }
     }
 
@@ -319,17 +296,17 @@ public class ImageDynamicRepository {
      */
     public PageResponse<Image> queryFavorites(ImageQueryRequest request, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
-                return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+                return emptyPage(request);
             }
-            
+
             request.setFavorite(true);
             return queryFromTable(tableName, request);
         } catch (Exception e) {
             log.error("查询收藏夹失败", e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+            return emptyPage(request);
         }
     }
 
@@ -338,172 +315,22 @@ public class ImageDynamicRepository {
      */
     public PageResponse<Image> queryTrash(ImageQueryRequest request, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
-                return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+                return emptyPage(request);
             }
-            
+
             request.setIncludeDeleted(true);
             request.setDeleted(true);
             return queryFromTable(tableName, request);
         } catch (Exception e) {
             log.error("查询回收站失败", e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
+            return emptyPage(request);
         }
     }
 
-    /**
-     * 从单张表查询
-     */
-    private PageResponse<Image> queryFromTable(String tableName, ImageQueryRequest request) {
-        try {
-            // 构建条件
-            StringBuilder whereClause = new StringBuilder();
-            Map<Integer, Object> params = new HashMap<>();
-            int paramIndex = 1;
-            
-            // deleted 条件
-            if (request.getDeleted() != null && request.getDeleted()) {
-                whereClause.append("WHERE deleted = true");
-            } else if (request.getIncludeDeleted() == null || !request.getIncludeDeleted()) {
-                whereClause.append("WHERE deleted = false");
-            } else {
-                whereClause.append("WHERE 1=1");
-            }
-            
-            // albumId 条件
-            if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
-                whereClause.append(" AND album_id = ?");
-                params.put(paramIndex, request.getAlbumId());
-                paramIndex++;
-            }
-            
-            // favorite 条件
-            if (request.getFavorite() != null && request.getFavorite()) {
-                whereClause.append(" AND favorite = true");
-            }
-            
-            // onlyMainImage 条件
-            if (request.getOnlyMainImage() != null && request.getOnlyMainImage()) {
-                whereClause.append(" AND is_main_image = true");
-            }
-            
-            // userId 条件（单表查询时可选）
-            if (request.getOnlyMine() != null && request.getOnlyMine()) {
-                whereClause.append(" AND user_id = ?");
-                params.put(paramIndex, request.getUserId());
-                paramIndex++;
-            }
-            
-            // 排序
-            String orderBy = "created_at DESC";
-            if (request.getSortBy() != null) {
-                String sortBy = request.getSortBy();
-                String direction = request.getSortOrder() != null && request.getSortOrder().equalsIgnoreCase("asc") ? "ASC" : "DESC";
-                orderBy = sortBy + " " + direction;
-            }
-            
-            // 查询总数
-            String countSQL = String.format("SELECT COUNT(*) FROM %s %s", tableName, whereClause);
-            Query countQuery = entityManager.createNativeQuery(countSQL);
-            for (Map.Entry<Integer, Object> entry : params.entrySet()) {
-                countQuery.setParameter(entry.getKey(), entry.getValue());
-            }
-            BigInteger total = (BigInteger) countQuery.getSingleResult();
-            
-            // 分页
-            int page = request.getPage() != null ? request.getPage() : 1;
-            int pageSize = request.getPageSize() != null ? request.getPageSize() : 20;
-            int offset = (page - 1) * pageSize;
-            
-            String querySQL = String.format("SELECT * FROM %s %s ORDER BY %s LIMIT %d OFFSET %d", 
-                tableName, whereClause, orderBy, pageSize, offset);
-            Query query = entityManager.createNativeQuery(querySQL);
-            for (Map.Entry<Integer, Object> entry : params.entrySet()) {
-                query.setParameter(entry.getKey(), entry.getValue());
-            }
-            
-            @SuppressWarnings("unchecked")
-            List<Object[]> results = query.getResultList();
-            List<Image> images = new ArrayList<>();
-            for (Object[] row : results) {
-                images.add(mapToImage(row, tableName));
-            }
-            
-            return PageResponse.of(images, total.longValue(), page, pageSize);
-        } catch (Exception e) {
-            log.error("单表查询失败, 表: {}", tableName, e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
-        }
-    }
-
-    /**
-     * 从多张表查询（UNION ALL）
-     */
-    private PageResponse<Image> queryFromMultipleTables(List<String> tableNames, ImageQueryRequest request) {
-        try {
-            if (tableNames.isEmpty()) {
-                return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
-            }
-            
-            // 构建条件（不包含 userId 过滤）
-            StringBuilder whereClause = new StringBuilder("WHERE deleted = false");
-            
-            if (request.getFavorite() != null && request.getFavorite()) {
-                whereClause.append(" AND favorite = true");
-            }
-            
-            if (request.getOnlyMainImage() != null && request.getOnlyMainImage()) {
-                whereClause.append(" AND is_main_image = true");
-            }
-            
-            // 排序
-            String orderBy = "created_at DESC";
-            if (request.getSortBy() != null) {
-                String direction = request.getSortOrder() != null && request.getSortOrder().equalsIgnoreCase("asc") ? "ASC" : "DESC";
-                orderBy = request.getSortBy() + " " + direction;
-            }
-            
-            // 构建 UNION ALL 查询
-            StringBuilder unionSQL = new StringBuilder();
-            for (int i = 0; i < tableNames.size(); i++) {
-                if (i > 0) {
-                    unionSQL.append(" UNION ALL ");
-                }
-                unionSQL.append(String.format("SELECT * FROM %s %s", tableNames.get(i), whereClause));
-            }
-            
-            // 包装为子查询，用于分页和总数统计
-            String wrappedSQL = String.format("SELECT * FROM (%s) AS combined ORDER BY %s", unionSQL, orderBy);
-            
-            // 查询总数
-            String countSQL = String.format("SELECT COUNT(*) FROM (%s) AS combined", unionSQL);
-            Query countQuery = entityManager.createNativeQuery(countSQL);
-            BigInteger total = (BigInteger) countQuery.getSingleResult();
-            
-            // 分页
-            int page = request.getPage() != null ? request.getPage() : 1;
-            int pageSize = request.getPageSize() != null ? request.getPageSize() : 20;
-            int offset = (page - 1) * pageSize;
-            
-            String finalSQL = String.format("%s LIMIT %d OFFSET %d", wrappedSQL, pageSize, offset);
-            Query query = entityManager.createNativeQuery(finalSQL);
-            
-            @SuppressWarnings("unchecked")
-            List<Object[]> results = query.getResultList();
-            List<Image> images = new ArrayList<>();
-            for (Object[] row : results) {
-                // UNION 查询时 sourceTable 需要从数据中推断
-                images.add(mapToImage(row, null));
-            }
-            
-            return PageResponse.of(images, total.longValue(), page, pageSize);
-        } catch (Exception e) {
-            log.error("多表 UNION 查询失败", e);
-            return PageResponse.of(new ArrayList<>(), 0L, 1, 20);
-        }
-    }
+    // ==================== 操作方法 ====================
 
     /**
      * 软删除图片
@@ -511,19 +338,19 @@ public class ImageDynamicRepository {
     @Transactional
     public boolean softDelete(String imageId, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return false;
             }
-            
+
             String updateSQL = String.format(
-                "UPDATE %s SET deleted = true, deleted_at = ? WHERE id = ?", 
+                "UPDATE %s SET deleted = true, deleted_at = ? WHERE id = ?",
                 tableName);
             Query query = entityManager.createNativeQuery(updateSQL);
             query.setParameter(1, Timestamp.valueOf(LocalDateTime.now()));
             query.setParameter(2, imageId);
-            
+
             return query.executeUpdate() > 0;
         } catch (Exception e) {
             log.error("软删除图片失败, id: {}", imageId, e);
@@ -537,18 +364,18 @@ public class ImageDynamicRepository {
     @Transactional
     public boolean restore(String imageId, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return false;
             }
-            
+
             String updateSQL = String.format(
-                "UPDATE %s SET deleted = false, deleted_at = null WHERE id = ?", 
+                "UPDATE %s SET deleted = false, deleted_at = null WHERE id = ?",
                 tableName);
             Query query = entityManager.createNativeQuery(updateSQL);
             query.setParameter(1, imageId);
-            
+
             return query.executeUpdate() > 0;
         } catch (Exception e) {
             log.error("恢复图片失败, id: {}", imageId, e);
@@ -562,16 +389,16 @@ public class ImageDynamicRepository {
     @Transactional
     public boolean hardDelete(String imageId, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return false;
             }
-            
+
             String deleteSQL = String.format("DELETE FROM %s WHERE id = ?", tableName);
             Query query = entityManager.createNativeQuery(deleteSQL);
             query.setParameter(1, imageId);
-            
+
             return query.executeUpdate() > 0;
         } catch (Exception e) {
             log.error("永久删除图片失败, id: {}", imageId, e);
@@ -585,19 +412,19 @@ public class ImageDynamicRepository {
     @Transactional
     public boolean toggleFavorite(String imageId, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return false;
             }
-            
+
             String updateSQL = String.format(
-                "UPDATE %s SET favorite = NOT favorite, updated_at = ? WHERE id = ?", 
+                "UPDATE %s SET favorite = NOT favorite, updated_at = ? WHERE id = ?",
                 tableName);
             Query query = entityManager.createNativeQuery(updateSQL);
             query.setParameter(1, Timestamp.valueOf(LocalDateTime.now()));
             query.setParameter(2, imageId);
-            
+
             return query.executeUpdate() > 0;
         } catch (Exception e) {
             log.error("切换收藏状态失败, id: {}", imageId, e);
@@ -606,29 +433,96 @@ public class ImageDynamicRepository {
     }
 
     /**
+     * 移动到相册
+     */
+    @Transactional
+    public boolean moveToAlbum(String imageId, String albumId, String userId) {
+        String tableName = getUserTableName(userId);
+
+        try {
+            if (!tableExists(tableName)) {
+                return false;
+            }
+
+            String updateSQL = String.format(
+                "UPDATE %s SET album_id = ?, updated_at = ? WHERE id = ?",
+                tableName);
+            Query query = entityManager.createNativeQuery(updateSQL);
+            query.setParameter(1, albumId);
+            query.setParameter(2, Timestamp.valueOf(LocalDateTime.now()));
+            query.setParameter(3, imageId);
+
+            return query.executeUpdate() > 0;
+        } catch (Exception e) {
+            log.error("移动到相册失败, id: {}", imageId, e);
+            return false;
+        }
+    }
+
+    /**
+     * 设为主图
+     */
+    @Transactional
+    public boolean setMainImage(String imageId, String userId) {
+        String tableName = getUserTableName(userId);
+
+        try {
+            if (!tableExists(tableName)) {
+                return false;
+            }
+
+            // 先取消该商品的所有主图
+            Image image = findByIdAny(imageId, userId);
+            if (image != null && image.getProductId() != null) {
+                String clearSQL = String.format(
+                    "UPDATE %s SET is_main_image = false WHERE product_id = ?",
+                    tableName);
+                Query clearQuery = entityManager.createNativeQuery(clearSQL);
+                clearQuery.setParameter(1, image.getProductId());
+                clearQuery.executeUpdate();
+            }
+
+            // 设置新主图
+            String updateSQL = String.format(
+                "UPDATE %s SET is_main_image = true, updated_at = ? WHERE id = ?",
+                tableName);
+            Query query = entityManager.createNativeQuery(updateSQL);
+            query.setParameter(1, Timestamp.valueOf(LocalDateTime.now()));
+            query.setParameter(2, imageId);
+
+            return query.executeUpdate() > 0;
+        } catch (Exception e) {
+            log.error("设为主图失败, id: {}", imageId, e);
+            return false;
+        }
+    }
+
+    // ==================== 批量操作 ====================
+
+    /**
      * 批量软删除
      */
     @Transactional
     public int batchSoftDelete(List<String> imageIds, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName) || imageIds.isEmpty()) {
                 return 0;
             }
-            
+
+            // 构建 IN 子句的占位符
+            String placeholders = imageIds.stream().map(id -> "?").collect(Collectors.joining(","));
             String updateSQL = String.format(
-                "UPDATE %s SET deleted = true, deleted_at = ? WHERE id IN (?)", 
-                tableName);
+                "UPDATE %s SET deleted = true, deleted_at = ? WHERE id IN (%s)",
+                tableName, placeholders);
+
             Query query = entityManager.createNativeQuery(updateSQL);
             query.setParameter(1, Timestamp.valueOf(LocalDateTime.now()));
-            query.setParameter(2, imageIds.stream().collect(Collectors.joining(id -> "'" + id + "'")).collect(Collectors.joining(", ", ", ", ")));
-            
-            // 使用参数列表
             for (int i = 0; i < imageIds.size(); i++) {
                 query.setParameter(i + 2, imageIds.get(i));
             }
-            
+
             return query.executeUpdate();
         } catch (Exception e) {
             log.error("批量软删除失败", e);
@@ -642,23 +536,22 @@ public class ImageDynamicRepository {
     @Transactional
     public int batchRestore(List<String> imageIds, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName) || imageIds.isEmpty()) {
                 return 0;
             }
-            
-            StringBuilder idsStr = new StringBuilder();
-            for (int i = 0; i < imageIds.size(); i++) {
-                if (i > 0) idsStr.append(",");
-                idsStr.append("'").append(imageIds.get(i)).append("'");
-            }
-            
+
+            String placeholders = imageIds.stream().map(id -> "?").collect(Collectors.joining(","));
             String updateSQL = String.format(
-                "UPDATE %s SET deleted = false, deleted_at = null WHERE id IN (%s)", 
-                tableName, idsStr);
+                "UPDATE %s SET deleted = false, deleted_at = null WHERE id IN (%s)",
+                tableName, placeholders);
+
             Query query = entityManager.createNativeQuery(updateSQL);
-            
+            for (int i = 0; i < imageIds.size(); i++) {
+                query.setParameter(i + 1, imageIds.get(i));
+            }
+
             return query.executeUpdate();
         } catch (Exception e) {
             log.error("批量恢复失败", e);
@@ -667,47 +560,112 @@ public class ImageDynamicRepository {
     }
 
     /**
-     * 移动图片到相册
+     * 批量永久删除
      */
     @Transactional
-    public boolean moveToAlbum(String imageId, String albumId, String userId) {
+    public int batchHardDelete(List<String> imageIds, String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
-            if (!tableExists(tableName)) {
-                return false;
+            if (!tableExists(tableName) || imageIds.isEmpty()) {
+                return 0;
             }
-            
+
+            String placeholders = imageIds.stream().map(id -> "?").collect(Collectors.joining(","));
+            String deleteSQL = String.format(
+                "DELETE FROM %s WHERE id IN (%s)",
+                tableName, placeholders);
+
+            Query query = entityManager.createNativeQuery(deleteSQL);
+            for (int i = 0; i < imageIds.size(); i++) {
+                query.setParameter(i + 1, imageIds.get(i));
+            }
+
+            return query.executeUpdate();
+        } catch (Exception e) {
+            log.error("批量永久删除失败", e);
+            return 0;
+        }
+    }
+
+    /**
+     * 批量收藏
+     */
+    @Transactional
+    public int batchFavorite(List<String> imageIds, String userId) {
+        String tableName = getUserTableName(userId);
+
+        try {
+            if (!tableExists(tableName) || imageIds.isEmpty()) {
+                return 0;
+            }
+
+            String placeholders = imageIds.stream().map(id -> "?").collect(Collectors.joining(","));
             String updateSQL = String.format(
-                "UPDATE %s SET album_id = ?, updated_at = ? WHERE id = ?", 
-                tableName);
+                "UPDATE %s SET favorite = true, updated_at = ? WHERE id IN (%s)",
+                tableName, placeholders);
+
+            Query query = entityManager.createNativeQuery(updateSQL);
+            query.setParameter(1, Timestamp.valueOf(LocalDateTime.now()));
+            for (int i = 0; i < imageIds.size(); i++) {
+                query.setParameter(i + 2, imageIds.get(i));
+            }
+
+            return query.executeUpdate();
+        } catch (Exception e) {
+            log.error("批量收藏失败", e);
+            return 0;
+        }
+    }
+
+    /**
+     * 批量移动到相册
+     */
+    @Transactional
+    public int batchMoveToAlbum(List<String> imageIds, String albumId, String userId) {
+        String tableName = getUserTableName(userId);
+
+        try {
+            if (!tableExists(tableName) || imageIds.isEmpty()) {
+                return 0;
+            }
+
+            String placeholders = imageIds.stream().map(id -> "?").collect(Collectors.joining(","));
+            String updateSQL = String.format(
+                "UPDATE %s SET album_id = ?, updated_at = ? WHERE id IN (%s)",
+                tableName, placeholders);
+
             Query query = entityManager.createNativeQuery(updateSQL);
             query.setParameter(1, albumId);
             query.setParameter(2, Timestamp.valueOf(LocalDateTime.now()));
-            query.setParameter(3, imageId);
-            
-            return query.executeUpdate() > 0;
+            for (int i = 0; i < imageIds.size(); i++) {
+                query.setParameter(i + 3, imageIds.get(i));
+            }
+
+            return query.executeUpdate();
         } catch (Exception e) {
-            log.error("移动图片失败, id: {}", imageId, e);
-            return false;
+            log.error("批量移动到相册失败", e);
+            return 0;
         }
     }
+
+    // ==================== 统计方法 ====================
 
     /**
      * 统计用户图片数量
      */
     public long countByUser(String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return 0;
             }
-            
+
             String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false", tableName);
             Query query = entityManager.createNativeQuery(countSQL);
             BigInteger result = (BigInteger) query.getSingleResult();
-            return result != null ? result.longValue() : 0;
+            return result.longValue();
         } catch (Exception e) {
             log.error("统计用户图片数量失败", e);
             return 0;
@@ -719,16 +677,16 @@ public class ImageDynamicRepository {
      */
     public long countMainImagesByUser(String userId) {
         String tableName = getUserTableName(userId);
-        
+
         try {
             if (!tableExists(tableName)) {
                 return 0;
             }
-            
+
             String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false AND is_main_image = true", tableName);
             Query query = entityManager.createNativeQuery(countSQL);
             BigInteger result = (BigInteger) query.getSingleResult();
-            return result != null ? result.longValue() : 0;
+            return result.longValue();
         } catch (Exception e) {
             log.error("统计用户主图数量失败", e);
             return 0;
@@ -736,7 +694,7 @@ public class ImageDynamicRepository {
     }
 
     /**
-     * 统计全部图片数量
+     * 统计所有图片数量（跨所有用户表）
      */
     public long countAllImages() {
         try {
@@ -744,25 +702,27 @@ public class ImageDynamicRepository {
             if (tableNames.isEmpty()) {
                 return 0;
             }
-            
+
             long total = 0;
             for (String tableName : tableNames) {
-                String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false", tableName);
-                Query query = entityManager.createNativeQuery(countSQL);
-                BigInteger result = (BigInteger) query.getSingleResult();
-                if (result != null) {
+                try {
+                    String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false", tableName);
+                    Query query = entityManager.createNativeQuery(countSQL);
+                    BigInteger result = (BigInteger) query.getSingleResult();
                     total += result.longValue();
+                } catch (Exception e) {
+                    log.warn("统计表 {} 图片数量失败", tableName);
                 }
             }
             return total;
         } catch (Exception e) {
-            log.error("统计全部图片数量失败", e);
+            log.error("统计所有图片数量失败", e);
             return 0;
         }
     }
 
     /**
-     * 统计全部主图数量
+     * 统计所有主图数量（跨所有用户表）
      */
     public long countAllMainImages() {
         try {
@@ -770,27 +730,170 @@ public class ImageDynamicRepository {
             if (tableNames.isEmpty()) {
                 return 0;
             }
-            
+
             long total = 0;
             for (String tableName : tableNames) {
-                String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false AND is_main_image = true", tableName);
-                Query query = entityManager.createNativeQuery(countSQL);
-                BigInteger result = (BigInteger) query.getSingleResult();
-                if (result != null) {
+                try {
+                    String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = false AND is_main_image = true", tableName);
+                    Query query = entityManager.createNativeQuery(countSQL);
+                    BigInteger result = (BigInteger) query.getSingleResult();
                     total += result.longValue();
+                } catch (Exception e) {
+                    log.warn("统计表 {} 主图数量失败", tableName);
                 }
             }
             return total;
         } catch (Exception e) {
-            log.error("统计全部主图数量失败", e);
+            log.error("统计所有主图数量失败", e);
             return 0;
         }
     }
 
+    // ==================== 私有方法 ====================
+
     /**
-     * 设置查询参数
+     * 从单张表查询
      */
-    private void setQueryParameters(Query query, Image image) {
+    private PageResponse<Image> queryFromTable(String tableName, ImageQueryRequest request) {
+        try {
+            StringBuilder whereClause = new StringBuilder();
+            Map<Integer, Object> params = new HashMap<>();
+            int paramIndex = 1;
+
+            // deleted 条件
+            if (request.getDeleted() != null && request.getDeleted()) {
+                whereClause.append("WHERE deleted = true");
+            } else if (request.getIncludeDeleted() == null || !request.getIncludeDeleted()) {
+                whereClause.append("WHERE deleted = false");
+            } else {
+                whereClause.append("WHERE 1=1");
+            }
+
+            // albumId 条件
+            if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
+                whereClause.append(" AND album_id = ?");
+                params.put(paramIndex++, request.getAlbumId());
+            }
+
+            // favorite 条件
+            if (request.getFavorite() != null && request.getFavorite()) {
+                whereClause.append(" AND favorite = true");
+            }
+
+            // onlyMainImage 条件
+            if (request.getOnlyMainImage() != null && request.getOnlyMainImage()) {
+                whereClause.append(" AND is_main_image = true");
+            }
+
+            // 排序
+            String orderBy = "created_at DESC";
+            if (request.getSortBy() != null) {
+                String direction = request.getSortOrder() != null && request.getSortOrder().equalsIgnoreCase("asc") ? "ASC" : "DESC";
+                orderBy = request.getSortBy() + " " + direction;
+            }
+
+            // 查询总数
+            String countSQL = String.format("SELECT COUNT(*) FROM %s %s", tableName, whereClause);
+            Query countQuery = entityManager.createNativeQuery(countSQL);
+            for (Map.Entry<Integer, Object> entry : params.entrySet()) {
+                countQuery.setParameter(entry.getKey(), entry.getValue());
+            }
+            BigInteger total = (BigInteger) countQuery.getSingleResult();
+
+            // 分页
+            int page = request.getPage() != null ? request.getPage() : 1;
+            int pageSize = request.getPageSize() != null ? request.getPageSize() : 20;
+            int offset = (page - 1) * pageSize;
+
+            String querySQL = String.format("SELECT * FROM %s %s ORDER BY %s LIMIT %d OFFSET %d",
+                tableName, whereClause, orderBy, pageSize, offset);
+            Query query = entityManager.createNativeQuery(querySQL);
+            for (Map.Entry<Integer, Object> entry : params.entrySet()) {
+                query.setParameter(entry.getKey(), entry.getValue());
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> results = query.getResultList();
+            List<Image> images = new ArrayList<>();
+            for (Object[] row : results) {
+                images.add(mapToImage(row, tableName));
+            }
+
+            return PageResponse.of(images, total.longValue(), page, pageSize);
+        } catch (Exception e) {
+            log.error("单表查询失败, 表: {}", tableName, e);
+            return emptyPage(request);
+        }
+    }
+
+    /**
+     * 从多张表查询（UNION ALL）
+     */
+    private PageResponse<Image> queryFromMultipleTables(List<String> tableNames, ImageQueryRequest request) {
+        try {
+            if (tableNames.isEmpty()) {
+                return emptyPage(request);
+            }
+
+            // 构建条件（不包含 userId 过滤）
+            StringBuilder whereClause = new StringBuilder("WHERE deleted = false");
+
+            if (request.getFavorite() != null && request.getFavorite()) {
+                whereClause.append(" AND favorite = true");
+            }
+
+            if (request.getOnlyMainImage() != null && request.getOnlyMainImage()) {
+                whereClause.append(" AND is_main_image = true");
+            }
+
+            // 排序
+            String orderBy = "created_at DESC";
+            if (request.getSortBy() != null) {
+                String direction = request.getSortOrder() != null && request.getSortOrder().equalsIgnoreCase("asc") ? "ASC" : "DESC";
+                orderBy = request.getSortBy() + " " + direction;
+            }
+
+            // 构建 UNION ALL 查询
+            StringBuilder unionSQL = new StringBuilder();
+            for (int i = 0; i < tableNames.size(); i++) {
+                if (i > 0) {
+                    unionSQL.append(" UNION ALL ");
+                }
+                unionSQL.append(String.format("SELECT * FROM %s %s", tableNames.get(i), whereClause));
+            }
+
+            // 查询总数
+            String countSQL = String.format("SELECT COUNT(*) FROM (%s) AS combined", unionSQL);
+            Query countQuery = entityManager.createNativeQuery(countSQL);
+            BigInteger total = (BigInteger) countQuery.getSingleResult();
+
+            // 分页
+            int page = request.getPage() != null ? request.getPage() : 1;
+            int pageSize = request.getPageSize() != null ? request.getPageSize() : 20;
+            int offset = (page - 1) * pageSize;
+
+            String finalSQL = String.format("SELECT * FROM (%s) AS combined ORDER BY %s LIMIT %d OFFSET %d",
+                unionSQL, orderBy, pageSize, offset);
+            Query query = entityManager.createNativeQuery(finalSQL);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> results = query.getResultList();
+            List<Image> images = new ArrayList<>();
+            for (Object[] row : results) {
+                images.add(mapToImage(row, null));
+            }
+
+            return PageResponse.of(images, total.longValue(), page, pageSize);
+        } catch (Exception e) {
+            log.error("多表 UNION 查询失败", e);
+            return emptyPage(request);
+        }
+    }
+
+    /**
+     * 设置 INSERT 参数
+     */
+    private void setInsertParameters(Query query, Image image) {
         query.setParameter(1, image.getId());
         query.setParameter(2, image.getUrl());
         query.setParameter(3, image.getTitle());
@@ -805,104 +908,140 @@ public class ImageDynamicRepository {
         query.setParameter(12, image.getFavorite() != null && image.getFavorite());
         query.setParameter(13, image.getViewCount() != null ? image.getViewCount() : 0);
         query.setParameter(14, image.getDownloadCount() != null ? image.getDownloadCount() : 0);
-        query.setParameter(15, image.getTags() != null ? image.getTags().toString() : null);
+        query.setParameter(15, image.getTags() != null ? toJsonArray(image.getTags()) : "[]");
         query.setParameter(16, image.getDeleted() != null && image.getDeleted());
         query.setParameter(17, image.getDeletedAt() != null ? Timestamp.valueOf(image.getDeletedAt()) : null);
-        query.setParameter(18, image.getCreatedAt() != null ? Timestamp.valueOf(image.getCreatedAt()) : Timestamp.valueOf(LocalDateTime.now()));
-        query.setParameter(19, image.getUpdatedAt() != null ? Timestamp.valueOf(image.getUpdatedAt()) : Timestamp.valueOf(LocalDateTime.now()));
+        query.setParameter(18, Timestamp.valueOf(image.getCreatedAt()));
+        query.setParameter(19, Timestamp.valueOf(image.getUpdatedAt()));
         query.setParameter(20, image.getUserId());
     }
 
     /**
-     * 将查询结果映射为 Image 对象
+     * 设置 UPDATE 参数
+     */
+    private void setUpdateParameters(Query query, Image image) {
+        query.setParameter(1, image.getUrl());
+        query.setParameter(2, image.getTitle());
+        query.setParameter(3, image.getOriginalName());
+        query.setParameter(4, image.getSize());
+        query.setParameter(5, image.getWidth());
+        query.setParameter(6, image.getHeight());
+        query.setParameter(7, image.getFileType());
+        query.setParameter(8, image.getAlbumId());
+        query.setParameter(9, image.getProductId());
+        query.setParameter(10, image.getIsMainImage() != null && image.getIsMainImage());
+        query.setParameter(11, image.getFavorite() != null && image.getFavorite());
+        query.setParameter(12, image.getViewCount() != null ? image.getViewCount() : 0);
+        query.setParameter(13, image.getDownloadCount() != null ? image.getDownloadCount() : 0);
+        query.setParameter(14, image.getTags() != null ? toJsonArray(image.getTags()) : "[]");
+        query.setParameter(15, image.getDeleted() != null && image.getDeleted());
+        query.setParameter(16, image.getDeletedAt() != null ? Timestamp.valueOf(image.getDeletedAt()) : null);
+        query.setParameter(17, Timestamp.valueOf(LocalDateTime.now()));
+        query.setParameter(18, image.getId());
+    }
+
+    /**
+     * 将数据库行映射为 Image 对象
+     * 列顺序: id, url, title, original_name, size, width, height, file_type,
+     *         album_id, product_id, is_main_image, favorite, view_count, download_count,
+     *         tags, deleted, deleted_at, created_at, updated_at, user_id
      */
     private Image mapToImage(Object[] row, String tableName) {
         Image image = new Image();
-        
-        try {
-            image.setId((String) row[0]);
-            image.setUrl((String) row[1]);
-            image.setTitle((String) row[2]);
-            image.setOriginalName((String) row[3]);
-            image.setSize((Long) row[4]);
-            image.setWidth((Integer) row[5]);
-            image.setHeight((Integer) row[6]);
-            image.setFileType((String) row[7]);
-            image.setAlbumId((String) row[8]);
-            image.setProductId((String) row[9]);
-            image.setIsMainImage((Boolean) row[10]);
-            image.setFavorite((Boolean) row[11]);
-            image.setViewCount((Long) row[12]);
-            image.setDownloadCount((Long) row[13]);
-            
-            // 处理 tags (JSONB)
-            Object tagsObj = row[14];
-            if (tagsObj != null) {
-                image.setTags(parseTags(tagsObj));
-            }
-            
-            image.setDeleted((Boolean) row[15]);
-            
-            // 处理 deleted_at
-            Object deletedAtObj = row[16];
-            if (deletedAtObj != null) {
-                if (deletedAtObj instanceof Timestamp) {
-                    image.setDeletedAt(((Timestamp) deletedAtObj).toLocalDateTime());
-                }
-            }
-            
-            // 处理 created_at
-            Object createdAtObj = row[17];
-            if (createdAtObj != null) {
-                if (createdAtObj instanceof Timestamp) {
-                    image.setCreatedAt(((Timestamp) createdAtObj).toLocalDateTime());
-                }
-            }
-            
-            // 处理 updated_at
-            Object updatedAtObj = row[18];
-            if (updatedAtObj != null) {
-                if (updatedAtObj instanceof Timestamp) {
-                    image.setUpdatedAt(((Timestamp) updatedAtObj).toLocalDateTime());
-                }
-            }
-            
-            image.setUserId((String) row[19]);
-            image.setSourceTable(tableName);
-            
-        } catch (Exception e) {
-            log.error("映射图片数据失败", e);
+        image.setId((String) row[0]);
+        image.setUrl((String) row[1]);
+        image.setTitle((String) row[2]);
+        image.setOriginalName((String) row[3]);
+        image.setSize(row[4] != null ? ((Number) row[4]).longValue() : 0L);
+        image.setWidth(row[5] != null ? ((Number) row[5]).intValue() : null);
+        image.setHeight(row[6] != null ? ((Number) row[6]).intValue() : null);
+        image.setFileType((String) row[7]);
+        image.setAlbumId((String) row[8]);
+        image.setProductId((String) row[9]);
+        image.setIsMainImage(row[10] != null && (Boolean) row[10]);
+        image.setFavorite(row[11] != null && (Boolean) row[11]);
+        image.setViewCount(row[12] != null ? ((Number) row[12]).intValue() : 0);
+        image.setDownloadCount(row[13] != null ? ((Number) row[13]).intValue() : 0);
+        // tags - jsonb 返回为 String 或 PGobject
+        Object tagsObj = row[14];
+        if (tagsObj != null) {
+            image.setTags(parseTags(tagsObj.toString()));
         }
-        
+        image.setDeleted(row[15] != null && (Boolean) row[15]);
+        // deleted_at
+        if (row[16] != null) {
+            image.setDeletedAt(((Timestamp) row[16]).toLocalDateTime());
+        }
+        // created_at
+        if (row[17] != null) {
+            image.setCreatedAt(((Timestamp) row[17]).toLocalDateTime());
+        }
+        // updated_at
+        if (row[18] != null) {
+            image.setUpdatedAt(((Timestamp) row[18]).toLocalDateTime());
+        }
+        // user_id
+        image.setUserId((String) row[19]);
+        // sourceTable
+        if (tableName != null) {
+            image.setSourceTable(tableName);
+        } else {
+            image.setSourceTable("unknown");
+        }
         return image;
     }
 
     /**
-     * 解析 tags JSONB 数据
+     * 将 List<String> 转为 JSON 数组字符串
      */
-    private List<String> parseTags(Object tagsObj) {
-        List<String> tags = new ArrayList<>();
-        
+    private String toJsonArray(List<String> list) {
+        if (list == null || list.isEmpty()) return "[]";
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < list.size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append("\"").append(list.get(i).replace("\"", "\\\"")).append("\"");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    /**
+     * 解析 tags JSON 字符串
+     */
+    private List<String> parseTags(String tagsStr) {
+        if (tagsStr == null || tagsStr.isEmpty() || tagsStr.equals("[]") || tagsStr.equals("null")) {
+            return new ArrayList<>();
+        }
         try {
-            if (tagsObj == null) {
-                return tags;
-            }
-            
-            String tagsStr = tagsObj.toString();
-            if (tagsStr.startsWith("[") && tagsStr.endsWith("]")) {
-                // JSON 数组格式
-                String content = tagsStr.substring(1, tagsStr.length() - 1);
-                for (String tag : content.split(",")) {
-                    tag = tag.trim().replace("\"", "");
+            // 简单的 JSON 数组解析
+            String trimmed = tagsStr.trim();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                trimmed = trimmed.substring(1, trimmed.length() - 1);
+                if (trimmed.isEmpty()) {
+                    return new ArrayList<>();
+                }
+                String[] parts = trimmed.split(",");
+                List<String> tags = new ArrayList<>();
+                for (String part : parts) {
+                    String tag = part.trim().replace("\"", "").replace("'", "");
                     if (!tag.isEmpty()) {
                         tags.add(tag);
                     }
                 }
+                return tags;
             }
         } catch (Exception e) {
-            log.warn("解析 tags 失败: {}", tagsObj);
+            log.warn("解析 tags 失败: {}", tagsStr);
         }
-        
-        return tags;
+        return new ArrayList<>();
+    }
+
+    /**
+     * 返回空分页
+     */
+    private PageResponse<Image> emptyPage(ImageQueryRequest request) {
+        int page = request != null && request.getPage() != null ? request.getPage() : 1;
+        int pageSize = request != null && request.getPageSize() != null ? request.getPageSize() : 20;
+        return PageResponse.of(new ArrayList<>(), 0L, page, pageSize);
     }
 }

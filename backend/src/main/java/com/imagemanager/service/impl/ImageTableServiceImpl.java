@@ -54,7 +54,7 @@ public class ImageTableServiceImpl implements ImageTableService {
                     height INTEGER,
                     file_type VARCHAR(20),
                     album_id VARCHAR(36),
-                    product_id VARCHAR(36),
+                    product_id VARCHAR(255),
                     is_main_image BOOLEAN DEFAULT FALSE,
                     favorite BOOLEAN DEFAULT FALSE,
                     view_count INTEGER DEFAULT 0,
@@ -178,5 +178,13 @@ public class ImageTableServiceImpl implements ImageTableService {
         // 将 userId 中的特殊字符替换为下划线（如 "user-1" -> "images_user_1"）
         String sanitizedUserId = userId.replaceAll("[^a-zA-Z0-9]", "_");
         return TABLE_PREFIX + sanitizedUserId;
+    }
+
+    @Override
+    public boolean ensureUserImageTable(String userId) {
+        if (userImageTableExists(userId)) {
+            return true;
+        }
+        return createUserImageTable(userId);
     }
 }

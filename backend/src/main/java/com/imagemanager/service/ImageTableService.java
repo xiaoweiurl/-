@@ -41,4 +41,11 @@ public interface ImageTableService {
      * @return 表名（如 "images_user_1"）
      */
     String getUserTableName(String userId);
+
+    /**
+     * 确保用户图片表存在（不存在则创建）
+     * @param userId 用户ID
+     * @return 表是否存在/创建成功
+     */
+    boolean ensureUserImageTable(String userId);
 }

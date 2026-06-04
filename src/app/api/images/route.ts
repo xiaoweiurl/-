@@ -178,6 +178,8 @@ export async function GET(request: NextRequest) {
       favorite: searchParams.get('favorite') === 'true' ? true : undefined,
       deleted: searchParams.get('deleted') === 'true' ? true : undefined,
       onlyMainImage: searchParams.get('onlyMainImage') === 'true' ? true : undefined,
+      onlyMine: searchParams.get('onlyMine') === 'true' ? true : undefined,
+      includeDeleted: searchParams.get('includeDeleted') === 'true' ? true : undefined,
       sortBy: searchParams.get('sortBy') || undefined,
       sortOrder: searchParams.get('sortOrder') || undefined,
       search: searchParams.get('search') || searchParams.get('keyword') || undefined,
