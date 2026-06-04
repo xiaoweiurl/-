@@ -109,10 +109,9 @@ public class ImageServiceImpl implements ImageService {
         if (image == null || image.getUserId() == null) return;
         try {
             String userId = image.getUserId();
-            if (imageTableService.userImageTableExists(userId)) {
-                imageDynamicRepository.update(image, userId);
-                log.debug("同步到动态表成功, userId={}, imageId={}", userId, image.getId());
-            }
+            imageTableService.ensureUserImageTable(userId);
+            imageDynamicRepository.update(image, userId);
+            log.debug("同步到动态表成功, userId={}, imageId={}", userId, image.getId());
         } catch (Exception e) {
             log.warn("同步到动态表失败: {}", e.getMessage());
         }
@@ -581,14 +580,12 @@ public class ImageServiceImpl implements ImageService {
             image = imageRepository.save(image);
             
             // 同时保存到用户动态表（方案A：物理隔离）
-            String tableName = imageTableService.getUserTableName(currentUserId);
-            if (imageTableService.userImageTableExists(currentUserId)) {
-                try {
-                    imageDynamicRepository.save(image, currentUserId);
-                    log.info("图片已保存到用户表: {}", tableName);
-                } catch (Exception e) {
-                    log.warn("保存到用户表失败: {}", e.getMessage());
-                }
+            try {
+                imageTableService.ensureUserImageTable(currentUserId);
+                imageDynamicRepository.save(image, currentUserId);
+                log.info("图片已保存到用户动态表: images_{}", currentUserId.replaceAll("[^a-zA-Z0-9]", "_"));
+            } catch (Exception e) {
+                log.warn("保存到用户动态表失败: {}", e.getMessage());
             }
             
             // 更新相册图片数量
