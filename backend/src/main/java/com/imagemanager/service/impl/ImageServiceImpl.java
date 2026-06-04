@@ -18,6 +18,7 @@ import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.ImageService;
 import com.imagemanager.util.CharsetUtil;
+import com.imagemanager.util.SessionUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
@@ -184,7 +185,7 @@ public class ImageServiceImpl implements ImageService {
         log.info("查询图片列表，参数：{}", request);
 
         // 获取当前用户ID（final，lambda 需要捕获）
-        final String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+        final String currentUserId = SessionUtil.getCurrentUserId();
         log.info("数据隔离检查：currentUserId={}, onlyMine={}", currentUserId, request.getOnlyMine());
 
         // 动态表查询模式
@@ -588,7 +589,7 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 获取当前用户ID（数据隔离）
-            String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            String currentUserId = SessionUtil.getCurrentUserId();
             if (currentUserId == null) {
                 currentUserId = "user-1"; // 降级默认
             }
@@ -1431,7 +1432,7 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 获取当前用户ID（数据隔离）
-            String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            String currentUserId = SessionUtil.getCurrentUserId();
             if (currentUserId == null) {
                 currentUserId = "user-1"; // 降级默认
             }
@@ -2286,7 +2287,7 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 获取当前用户ID（数据隔离）
-            String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+            String currentUserId = SessionUtil.getCurrentUserId();
             if (currentUserId == null) {
                 currentUserId = "user-1"; // 降级默认
             }
