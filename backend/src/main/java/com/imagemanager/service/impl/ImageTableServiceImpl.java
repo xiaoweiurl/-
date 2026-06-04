@@ -1,5 +1,6 @@
 package com.imagemanager.service.impl;
 
+import com.imagemanager.repository.ImageDynamicRepository;
 import com.imagemanager.service.ImageTableService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -21,6 +22,7 @@ import java.util.List;
 public class ImageTableServiceImpl implements ImageTableService {
 
     private final EntityManager entityManager;
+    private final ImageDynamicRepository imageDynamicRepository;
 
     // 表名前缀
     private static final String TABLE_PREFIX = "images_";
@@ -186,5 +188,11 @@ public class ImageTableServiceImpl implements ImageTableService {
             return true;
         }
         return createUserImageTable(userId);
+    }
+
+    @Override
+    public int syncUserData(String userId) {
+        ensureUserImageTable(userId);
+        return imageDynamicRepository.syncFromMainTable(userId);
     }
 }

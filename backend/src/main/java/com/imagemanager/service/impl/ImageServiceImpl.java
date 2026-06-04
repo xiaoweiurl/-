@@ -155,32 +155,56 @@ public class ImageServiceImpl implements ImageService {
                 log.warn("确保用户表存在失败: {}", e.getMessage());
             }
 
+            // 我的知识库 - 查当前用户动态表
             if (request.getOnlyMine() != null && request.getOnlyMine()) {
-                // 我的知识库 - 从主表查询当前用户上传的图片
-                log.info("查询【我的知识库】, userId={}", currentUserId);
-                request.setUserId(currentUserId);
-                // fall through 到 JPA 主表查询（带 userId 过滤）
+                log.info("查询【我的知识库】(动态表), userId={}", currentUserId);
+                try {
+                    PageResponse<Image> result = imageDynamicRepository.queryMyImages(request, currentUserId);
+                    log.info("我的知识库查询结果: {} 张", result.getTotal());
+                    return result;
+                } catch (Exception e) {
+                    log.warn("动态表查询失败，降级到主表: {}", e.getMessage());
+                    request.setUserId(currentUserId);
+                }
             }
 
-            // 二创中心 - 从主表查询其他用户上传的图片
+            // 二创中心 - 查其他用户动态表 UNION ALL
             if (request.getOtherUsers() != null && request.getOtherUsers()) {
-                log.info("查询【二创中心】, currentUserId={}", currentUserId);
-                request.setOtherUsersUserId(currentUserId);
-                // fall through 到 JPA 主表查询（带 userId != currentUserId 过滤）
+                log.info("查询【二创中心】(其他用户动态表), currentUserId={}", currentUserId);
+                try {
+                    PageResponse<Image> result = imageDynamicRepository.queryOtherUsersImages(request, currentUserId);
+                    log.info("二创中心查询结果: {} 张", result.getTotal());
+                    return result;
+                } catch (Exception e) {
+                    log.warn("动态表查询失败，降级到主表: {}", e.getMessage());
+                    request.setOtherUsersUserId(currentUserId);
+                }
             }
 
-            // 收藏夹 - 查当前用户的收藏
+            // 收藏夹 - 查当前用户动态表
             if (request.getFavorite() != null && request.getFavorite()) {
-                log.info("查询【收藏夹】, userId={}", currentUserId);
-                request.setUserId(currentUserId);
-                // fall through 到 JPA 主表查询
+                log.info("查询【收藏夹】(动态表), userId={}", currentUserId);
+                try {
+                    PageResponse<Image> result = imageDynamicRepository.queryFavorites(request, currentUserId);
+                    log.info("收藏夹查询结果: {} 张", result.getTotal());
+                    return result;
+                } catch (Exception e) {
+                    log.warn("动态表查询失败，降级到主表: {}", e.getMessage());
+                    request.setUserId(currentUserId);
+                }
             }
 
-            // 回收站 - 查当前用户已删除的
+            // 回收站 - 查当前用户动态表
             if (request.getDeleted() != null && request.getDeleted()) {
-                log.info("查询【回收站】, userId={}", currentUserId);
-                request.setUserId(currentUserId);
-                // fall through 到 JPA 主表查询
+                log.info("查询【回收站】(动态表), userId={}", currentUserId);
+                try {
+                    PageResponse<Image> result = imageDynamicRepository.queryTrash(request, currentUserId);
+                    log.info("回收站查询结果: {} 张", result.getTotal());
+                    return result;
+                } catch (Exception e) {
+                    log.warn("动态表查询失败，降级到主表: {}", e.getMessage());
+                    request.setUserId(currentUserId);
+                }
             }
 
             // 相册查询 - 数据是共享的，走主表 JPA 查询

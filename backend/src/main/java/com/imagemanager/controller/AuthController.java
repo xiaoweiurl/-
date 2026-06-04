@@ -49,11 +49,14 @@ public class AuthController {
             String sessionId = loginResponse.getSessionId();
             log.info("登录成功，sessionId: {}", sessionId);
             
-            // 登录成功后，确保用户图片表存在
+            // 登录成功后，确保用户图片表存在并同步数据
             String userId = loginResponse.getUser().getId();
             if (userId != null && !userId.isEmpty()) {
-                boolean tableCreated = imageTableService.createUserImageTable(userId);
+                boolean tableCreated = imageTableService.ensureUserImageTable(userId);
                 log.info("用户图片表检查完成: userId={}, tableCreated={}", userId, tableCreated);
+                // 将主表中该用户的数据同步到动态表
+                int syncCount = imageTableService.syncUserData(userId);
+                log.info("用户数据同步完成: userId={}, syncCount={}", userId, syncCount);
             }
 
             // 设置 CORS 响应头（关键：允许前端访问）
