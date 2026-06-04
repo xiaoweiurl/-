@@ -722,6 +722,27 @@ public class ImageDynamicRepository {
     }
 
     /**
+     * 统计用户回收站图片数量
+     */
+    public long countDeleted(String userId) {
+        String tableName = getUserTableName(userId);
+
+        try {
+            if (!tableExists(tableName)) {
+                return 0;
+            }
+
+            String countSQL = String.format("SELECT COUNT(*) FROM %s WHERE deleted = true", tableName);
+            Query query = entityManager.createNativeQuery(countSQL);
+            long result = ((Number) query.getSingleResult()).longValue();
+            return result;
+        } catch (Exception e) {
+            log.error("统计用户回收站数量失败", e);
+            return 0;
+        }
+    }
+
+    /**
      * 统计所有图片数量（跨所有用户表）
      */
     public long countAllImages() {

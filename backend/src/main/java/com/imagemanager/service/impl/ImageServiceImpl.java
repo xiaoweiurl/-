@@ -611,6 +611,8 @@ public class ImageServiceImpl implements ImageService {
                     .tags(finalTags != null ? new java.util.ArrayList<>(finalTags) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
+                    .isMainImage(true)  // 单独上传的图片默认为主图
+                    .displayOrder(0)
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
@@ -1229,7 +1231,7 @@ public class ImageServiceImpl implements ImageService {
                 request.setFavorite(true);
                 request.setPage(page);
                 request.setPageSize(pageSize);
-                request.setOnlyMainImage(true);
+                // 不限制 onlyMainImage，动态表中所有收藏的图片都应显示
                 request.setUserId(currentUserId);
                 return imageDynamicRepository.queryFavorites(request, currentUserId);
             } catch (Exception e) {
@@ -1263,7 +1265,7 @@ public class ImageServiceImpl implements ImageService {
                 request.setIncludeDeleted(true);
                 request.setPage(page);
                 request.setPageSize(pageSize);
-                request.setOnlyMainImage(true);
+                // 不限制 onlyMainImage，动态表中所有删除的图片都应显示
                 request.setUserId(currentUserId);
                 return imageDynamicRepository.queryTrash(request, currentUserId);
             } catch (Exception e) {
@@ -1295,7 +1297,7 @@ public class ImageServiceImpl implements ImageService {
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setPage(page);
                 request.setPageSize(pageSize);
-                request.setOnlyMainImage(true);
+                // 不限制 onlyMainImage，动态表中所有最近图片都应显示
                 request.setSortBy("created_at");
                 request.setSortOrder("desc");
                 request.setUserId(currentUserId);
@@ -1323,7 +1325,16 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public long getTrashCount() {
-        log.info("获取回收站主图数量");
+        log.info("获取回收站图片数量");
+        // 优先从动态表查询
+        String currentUserId = SessionUtil.getCurrentUserId();
+        if (currentUserId != null) {
+            try {
+                return imageDynamicRepository.countDeleted(currentUserId);
+            } catch (Exception e) {
+                log.warn("动态表查询回收站数量失败，降级到JPA: {}", e.getMessage());
+            }
+        }
         return imageRepository.countByDeletedTrueAndIsMainImageTrue();
     }
     
