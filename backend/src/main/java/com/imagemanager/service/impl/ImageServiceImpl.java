@@ -182,11 +182,11 @@ public class ImageServiceImpl implements ImageService {
                 return imageDynamicRepository.queryTrash(request, currentUserId);
             }
 
-            // 相册查询 - 查当前用户动态表
+            // 相册查询 - 数据是共享的，走主表 JPA 查询
+            // （相册图片不属于某个用户，所有用户都能看到）
             if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
-                log.info("使用动态表查询【相册图片】, albumId={}, userId={}", request.getAlbumId(), currentUserId);
-                request.setUserId(currentUserId);
-                return imageDynamicRepository.queryAlbumImages(request.getAlbumId(), request, currentUserId);
+                log.info("查询【相册图片】(主表共享数据), albumId={}", request.getAlbumId());
+                // fall through 到 JPA 主表查询
             }
 
             // 全部知识 - 查询主表（共享数据，所有知识分类）
