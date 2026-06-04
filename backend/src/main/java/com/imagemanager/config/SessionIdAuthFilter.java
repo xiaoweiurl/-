@@ -76,9 +76,11 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
                 );
                 
                 // 创建 Authentication 对象
+                // 重要：principal 使用 userInfo.getId()（真正的用户ID，如"user-1"），而不是 getUsername()（用户名）
+                // 这样 auth.getName() 会返回用户ID，用于通知创建等场景的外键约束
                 UsernamePasswordAuthenticationToken authentication = 
                     new UsernamePasswordAuthenticationToken(
-                        userInfo.getUsername(),  // principal
+                        userInfo.getId(),         // principal = 用户ID（如"user-1"）
                         null,                     // credentials
                         Collections.singletonList(authority)  // authorities
                     );
