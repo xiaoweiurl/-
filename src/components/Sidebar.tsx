@@ -765,21 +765,24 @@ export default function Sidebar({
       icon: Trash2,
       count: trashCount,
     },
-    {
-      id: 'user-settings',
-      label: '用户管理',
-      icon: UserCog,
-    },
-    {
-      id: 'api-docs',
-      label: 'API文档',
-      icon: BookType,
-    },
-    {
-      id: 'settings',
-      label: '系统设置',
-      icon: Settings,
-    },
+    // 以下菜单仅管理员可见
+    ...(isAdmin ? [
+      {
+        id: 'user-settings',
+        label: '用户管理',
+        icon: UserCog,
+      },
+      {
+        id: 'api-docs',
+        label: 'API文档',
+        icon: BookType,
+      },
+      {
+        id: 'settings',
+        label: '系统设置',
+        icon: Settings,
+      },
+    ] : []),
   ];
 
   return (

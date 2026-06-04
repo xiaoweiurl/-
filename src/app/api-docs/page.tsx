@@ -1,9 +1,39 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Lock } from 'lucide-react';
 
 export default function SwaggerPage() {
+  const router = useRouter();
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // 权限检查：仅管理员可访问
   useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const sessionId = localStorage.getItem('session_id');
+        if (!sessionId) { router.push('/login'); return; }
+        const { default: { backendFetch } } = await import('@/lib/backend-proxy');
+        const res = await backendFetch('/auth/session', { headers: { 'X-Session-Id': sessionId } });
+        const result = await res.json();
+        if (result.code === 200 && result.data?.role === 'admin') {
+          setAccessDenied(false);
+        } else {
+          setAccessDenied(true);
+        }
+      } catch {
+        setAccessDenied(true);
+      } finally {
+        setChecking(false);
+      }
+    };
+    checkAdmin();
+  }, [router]);
+
+  useEffect(() => {
+    if (accessDenied || checking) return;
     // 动态加载 Swagger UI CSS 和 JS
     const loadSwaggerUI = () => {
       // 加载 CSS
@@ -51,7 +81,31 @@ export default function SwaggerPage() {
     };
 
     loadSwaggerUI();
-  }, []);
+  }, [accessDenied, checking]);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-slate-400">加载中...</div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+        <Lock className="w-16 h-16 text-slate-300" />
+        <h2 className="text-xl font-semibold text-slate-600">无访问权限</h2>
+        <p className="text-slate-400">仅管理员可访问此页面</p>
+        <button
+          onClick={() => router.push('/')}
+          className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+        >
+          返回首页
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

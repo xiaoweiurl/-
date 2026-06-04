@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = React.useState(false);
   const { settings, updateSetting, isLoading: settingsLoading } = useSettings();
   const [currentUser, setCurrentUser] = React.useState<UserInfo | null>(null);
+  const [accessDenied, setAccessDenied] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('profile');
   
   // 表单状态
@@ -74,6 +75,12 @@ export default function SettingsPage() {
         }
         
         setCurrentUser(authData.data);
+        // 权限检查：仅管理员可访问系统设置
+        if (authData.data?.role !== 'admin') {
+          setAccessDenied(true);
+          setIsLoading(false);
+          return;
+        }
         setProfileForm({
           nickname: authData.data.nickname || '',
           bio: authData.data.bio || '',
@@ -247,6 +254,23 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <Toaster position="top-center" richColors closeButton />
+
+      {/* 权限拦截 */}
+      {accessDenied && (
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+          <Lock className="w-16 h-16 text-slate-300" />
+          <h2 className="text-xl font-semibold text-slate-600">无访问权限</h2>
+          <p className="text-slate-400">仅管理员可访问此页面</p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+          >
+            返回首页
+          </button>
+        </div>
+      )}
+      {!accessDenied && (
+      <>
       
       {/* 顶部导航 */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
@@ -790,6 +814,7 @@ export default function SettingsPage() {
           </main>
         </div>
       </div>
+      </>)}
     </div>
   );
 }

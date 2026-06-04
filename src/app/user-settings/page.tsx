@@ -69,6 +69,7 @@ const initialFormData: FormData = {
 export default function UserManagementPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(true);
+  const [accessDenied, setAccessDenied] = React.useState(false);
   const [users, setUsers] = React.useState<UserInfo[]>([]);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showAddModal, setShowAddModal] = React.useState(false);
@@ -79,6 +80,27 @@ export default function UserManagementPage() {
   const [formData, setFormData] = React.useState<FormData>(initialFormData);
   const [newPassword, setNewPassword] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
+
+  // 权限检查：仅管理员可访问
+  React.useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const sessionId = localStorage.getItem('session_id');
+        if (!sessionId) { router.push('/login'); return; }
+        const { default: { backendFetch } } = await import('@/lib/backend-proxy');
+        const res = await backendFetch('/auth/session', { headers: { 'X-Session-Id': sessionId } });
+        const result = await res.json();
+        if (result.code === 200 && result.data?.role === 'admin') {
+          setAccessDenied(false);
+        } else {
+          setAccessDenied(true);
+        }
+      } catch {
+        setAccessDenied(true);
+      }
+    };
+    checkAdmin();
+  }, [router]);
 
   // 获取用户列表
   const fetchUsers = React.useCallback(async () => {
@@ -301,6 +323,23 @@ export default function UserManagementPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <Toaster position="top-center" richColors closeButton />
+
+      {/* 权限拦截 */}
+      {accessDenied && (
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+          <Shield className="w-16 h-16 text-slate-300" />
+          <h2 className="text-xl font-semibold text-slate-600">无访问权限</h2>
+          <p className="text-slate-400">仅管理员可访问此页面</p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+          >
+            返回首页
+          </button>
+        </div>
+      )}
+      {!accessDenied && (
+      <>
 
       {/* 顶部导航 */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
@@ -705,6 +744,7 @@ export default function UserManagementPage() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
