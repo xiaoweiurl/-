@@ -382,14 +382,14 @@ export default function Header({
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-slate-700">{currentUser?.username || '未登录'}</p>
               <p className="text-xs text-slate-400 flex items-center gap-1">
-                {currentUser?.role === 'admin' && <Shield className="w-3 h-3 text-violet-500" />}
-                {currentUser?.role === 'admin' ? '管理员' : '普通用户'}
+                {currentUser?.role?.toUpperCase() === 'ADMIN' && <Shield className="w-3 h-3 text-violet-500" />}
+                {currentUser?.role?.toUpperCase() === 'ADMIN' ? '管理员' : '普通用户'}
               </p>
             </div>
             <div className="relative">
               <div className={cn(
                 "w-9 h-9 rounded-lg flex items-center justify-center shadow-lg transition-shadow",
-                currentUser?.role === 'admin'
+                currentUser?.role?.toUpperCase() === 'ADMIN'
                   ? "bg-gradient-to-br from-violet-500 to-purple-600 shadow-purple-500/20 group-hover:shadow-purple-500/30"
                   : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-slate-500/20 group-hover:shadow-slate-500/30"
               )}>
@@ -407,7 +407,7 @@ export default function Header({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-12 h-12 rounded-xl flex items-center justify-center shadow-lg",
-                    currentUser?.role === 'admin'
+                    currentUser?.role?.toUpperCase() === 'ADMIN'
                       ? "bg-gradient-to-br from-violet-500 to-purple-600 shadow-purple-500/20"
                       : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-slate-500/20"
                   )}>
@@ -416,7 +416,7 @@ export default function Header({
                   <div>
                     <p className="font-semibold text-slate-800">{currentUser?.username}</p>
                     <p className="text-sm text-slate-500">{currentUser?.email}</p>
-                    {currentUser?.role === 'admin' && (
+                    {currentUser?.role?.toUpperCase() === 'ADMIN' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 text-xs bg-violet-100 text-violet-700 rounded-full">
                         <Shield className="w-3 h-3" />
                         管理员
@@ -427,7 +427,7 @@ export default function Header({
               </div>
               
               <div className="p-2">
-                {currentUser?.role === 'admin' && (
+                {currentUser?.role?.toUpperCase() === 'ADMIN' && (
                   <button 
                     onClick={() => {
                       setShowUserMenu(false);

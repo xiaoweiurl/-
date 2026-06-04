@@ -77,7 +77,7 @@ export default function UsersPage() {
         }
         
         // 检查是否为管理员
-        if (authData.data.role !== 'admin') {
+        if (authData.data.role?.toUpperCase() !== 'ADMIN') {
           toast.error('权限不足');
           router.push('/');
           return;
@@ -160,7 +160,7 @@ export default function UsersPage() {
     setSelectedUser(user);
     setEditForm({
       email: user.email,
-      role: user.role,
+      role: (user.role?.toLowerCase() || 'user') as 'admin' | 'user',
       nickname: user.nickname || '',
       phone: user.phone || '',
       password: '',
@@ -313,7 +313,7 @@ export default function UsersPage() {
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center text-white font-medium",
-                        user.role === 'admin'
+                        user.role?.toUpperCase() === 'ADMIN'
                           ? "bg-gradient-to-br from-violet-500 to-purple-600"
                           : "bg-gradient-to-br from-slate-400 to-slate-500"
                       )}>
@@ -329,12 +329,12 @@ export default function UsersPage() {
                   <td className="px-6 py-4">
                     <span className={cn(
                       "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
-                      user.role === 'admin'
+                      user.role?.toUpperCase() === 'ADMIN'
                         ? "bg-violet-100 text-violet-700"
                         : "bg-slate-100 text-slate-600"
                     )}>
-                      {user.role === 'admin' && <Shield className="w-3 h-3" />}
-                      {user.role === 'admin' ? '管理员' : '普通用户'}
+                      {user.role?.toUpperCase() === 'ADMIN' && <Shield className="w-3 h-3" />}
+                      {user.role?.toUpperCase() === 'ADMIN' ? '管理员' : '普通用户'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-600">{user.createdAt}</td>
@@ -384,13 +384,13 @@ export default function UsersPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-4 flex-1">
             <p className="text-sm text-slate-500">管理员</p>
             <p className="text-2xl font-semibold text-violet-600">
-              {users.filter(u => u.role === 'admin').length}
+              {users.filter(u => u.role?.toUpperCase() === 'ADMIN').length}
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4 flex-1">
             <p className="text-sm text-slate-500">普通用户</p>
             <p className="text-2xl font-semibold text-slate-600">
-              {users.filter(u => u.role === 'user').length}
+              {users.filter(u => u.role?.toUpperCase() === 'USER').length}
             </p>
           </div>
         </div>
@@ -518,7 +518,7 @@ export default function UsersPage() {
               <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
                 <div className={cn(
                   "w-12 h-12 rounded-xl flex items-center justify-center text-white font-medium",
-                  selectedUser.role === 'admin'
+                  selectedUser.role?.toUpperCase() === 'ADMIN'
                     ? "bg-gradient-to-br from-violet-500 to-purple-600"
                     : "bg-gradient-to-br from-slate-400 to-slate-500"
                 )}>

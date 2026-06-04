@@ -33,7 +33,7 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role?.toUpperCase() === 'ADMIN';
 
   return (
     <div className="relative" ref={menuRef}>
