@@ -94,7 +94,7 @@ export async function backendFetch(
   // 初始化 fetchOptions
   const fetchOptions: RequestInit = {
     method: options.method || 'GET',
-    signal: AbortSignal.timeout(options.timeout || 5000), // 默认 5 秒超时
+    signal: AbortSignal.timeout(options.timeout || 15000), // 默认 15 秒超时
     // 跨域请求配置
     mode: 'cors',
     credentials: 'include',
@@ -140,13 +140,26 @@ export async function backendFetch(
     console.log(`[Backend] X-Session-Id: ${sessionId.substring(0, 8)}...`);
   }
 
-  try {
-    const response = await fetch(url, fetchOptions);
-    return response;
-  } catch (error) {
-    console.error(`[Backend] 请求失败: ${url}`, error);
-    throw error;
+  // 带重试的请求
+  const maxRetries = 2;
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, fetchOptions);
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < maxRetries && (lastError.message.includes('Failed to fetch') || lastError.message.includes('ECONNREFUSED') || lastError.message.includes('Timeout'))) {
+        // 等待后重试
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        continue;
+      }
+      console.warn(`[Backend] 请求失败 (${attempt + 1}次): ${url}`, lastError.message);
+      throw lastError;
+    }
   }
+  throw lastError;
 }
 
 /**
