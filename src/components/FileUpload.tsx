@@ -133,7 +133,7 @@ export default function FileUpload({
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   // 获取后端 API 地址
-  const getApiUrl = () => process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080';
+  const getApiUrl = () => '';
 
   // 加载上传历史
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function FileUpload({
 
     try {
       const formData = new FormData();
-      formData.append('files', file);
+      formData.append('file', file);
       formData.append('enableAI', 'true');
 
       await new Promise<void>((resolve, reject) => {

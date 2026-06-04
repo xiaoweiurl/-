@@ -253,12 +253,12 @@ export async function POST(request: NextRequest) {
     };
     
     const response = await backendFetchFormData('/images/upload', formData, requestHeaders);
-    const { result } = await safeParseResponse(response);
+    const result = await response.json();
     
     if (result && (result.code === 200 || result.success)) {
       return NextResponse.json({
         success: true,
-        message: (result.message as string) || '上传成功',
+        message: result.message || '上传成功',
         data: result.data,
       });
     }
