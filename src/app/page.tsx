@@ -510,7 +510,9 @@ export default function Home() {
   const handleSearchSubmit = () => {
     if (!showAdvancedSearch) {
       console.log('[Home] 执行搜索:', searchQuery);
-      fetchImages(1, false);
+      setFilterState(prev => ({ ...prev, keyword: searchQuery }));
+      // 直接传 keyword 避免状态更新延迟
+      fetchImages(1, false, searchQuery);
     }
   };
   
@@ -585,11 +587,14 @@ export default function Home() {
   }, [allImages]);
 
   // 从API获取图片数据（支持分页，用于当前视图显示）
-  const fetchImages = React.useCallback(async (page: number = 1, append: boolean = false) => {
+  const fetchImages = React.useCallback(async (page: number = 1, append: boolean = false, keywordOverride?: string) => {
     console.log('[Home] fetchImages 调用:', { page, append, activeMenuItem, filterState });
     if (append) {
       setLoadingMore(true);
     }
+
+    // 使用传入的 keywordOverride 或 filterState.keyword
+    const currentKeyword = keywordOverride !== undefined ? keywordOverride : filterState.keyword;
 
     try {
       let apiUrl = '';
@@ -600,8 +605,8 @@ export default function Home() {
 
       // 根据当前菜单项选择不同的API端点（直接调用后端 API）
       // 关键词搜索 - 仅全部知识页面支持
-      if (activeMenuItem === 'all' && filterState.keyword && filterState.keyword.trim()) {
-        params.append('keyword', filterState.keyword.trim());
+      if (activeMenuItem === 'all' && currentKeyword && currentKeyword.trim()) {
+        params.append('keyword', currentKeyword.trim());
       }
 
       if (activeMenuItem === 'trash') {
