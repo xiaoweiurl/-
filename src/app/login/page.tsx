@@ -78,9 +78,9 @@ export default function LoginPage() {
         });
 
         if (portal === 'factory') {
-          router.push('/supply-chain');
+          router.replace('/supply-chain');
         } else {
-          router.push('/');
+          router.replace('/');
         }
         router.refresh();
       } else {

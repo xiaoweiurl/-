@@ -52,6 +52,18 @@ export default function SupplyChainPage() {
     if (!sessionId) {
       router.replace('/login');
     }
+
+    // 监听浏览器后退，确保登出后无法通过后退回到页面
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        const sid = localStorage.getItem('session_id');
+        if (!sid) {
+          router.replace('/login');
+        }
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
   }, [router]);
 
   // ====== 数据获取 ======
@@ -250,7 +262,7 @@ export default function SupplyChainPage() {
       {/* 顶部标题 */}
       <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-6">
         <div className="flex items-center gap-3 mb-1">
-          <button onClick={() => router.push('/login')} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" title="退出登录">
+          <button onClick={() => { localStorage.removeItem('session_id'); localStorage.removeItem('session_expires'); localStorage.removeItem('portal_type'); document.cookie = 'session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'; router.replace('/login'); }} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" title="退出登录">
             <ArrowLeft className="w-5 h-5 text-slate-500" />
           </button>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 flex items-center justify-center">

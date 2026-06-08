@@ -835,7 +835,7 @@ export default function Home() {
           console.log('[Home] Session 已过期或不存在');
           localStorage.removeItem('session_id');
           localStorage.removeItem('session_expires');
-          router.push('/login');
+          router.replace('/login');
           return;
         }
         
@@ -861,17 +861,30 @@ export default function Home() {
         } else {
           // 未登录，跳转到登录页
           console.log('[Home] 会话验证失败');
-          router.push('/login');
+          router.replace('/login');
         }
       } catch (error) {
         console.error('检查登录状态失败:', error);
-        router.push('/login');
+        router.replace('/login');
       } finally {
         setIsLoading(false);
       }
     };
 
     checkAuth();
+
+    // 监听浏览器后退/前进，确保登出后无法通过后退回到页面
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        // 从 bfcache 恢复，重新检查登录状态
+        const sessionId = localStorage.getItem('session_id');
+        if (!sessionId) {
+          router.replace('/login');
+        }
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
   }, [router]); // 只依赖 router，避免重复执行
 
   // 监听菜单项变化，重新获取数据
@@ -900,10 +913,11 @@ export default function Home() {
       // 清除 localStorage 中的 session
       localStorage.removeItem('session_id');
       localStorage.removeItem('session_expires');
+      localStorage.removeItem('portal_type');
       // 清除 Cookie 中的 session
       document.cookie = 'session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
       toast.success('已退出登录');
-      router.push('/login');
+      router.replace('/login');
     } catch (error) {
       console.error('登出失败:', error);
       toast.error('登出失败');
