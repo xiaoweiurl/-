@@ -28,7 +28,6 @@ import { Button } from '@/components/ui/button';
 import type { ImageItem } from '@/components/ImageCard';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import AdvancedSearch, { DEFAULT_FILTERS, type AdvancedSearchFilters } from '@/components/AdvancedSearch';
 
 // 后端 API 基础 URL
 const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
@@ -232,8 +231,7 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [activeMenuItem, setActiveMenuItem] = React.useState('all');
   const [searchQuery, setSearchQuery] = React.useState('');
-  const [showAdvancedSearch, setShowAdvancedSearch] = React.useState(false);
-  const [advancedFilters, setAdvancedFilters] = React.useState<AdvancedSearchFilters>(DEFAULT_FILTERS);
+
   const [viewMode, setViewMode] = React.useState<'grid' | 'masonry' | 'list'>('masonry');
   const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
   const [previewImage, setPreviewImage] = React.useState<ImageItem | null>(null);
@@ -501,21 +499,16 @@ export default function Home() {
   // 处理搜索框变化
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    if (!showAdvancedSearch) {
-      setFilterState(prev => ({ ...prev, keyword: query }));
-    }
+    setFilterState(prev => ({ ...prev, keyword: query }));
   };
   
   // 处理搜索提交（按回车键）
   const handleSearchSubmit = () => {
-    if (!showAdvancedSearch) {
-      console.log('[Home] 执行搜索:', searchQuery);
-      setFilterState(prev => ({ ...prev, keyword: searchQuery }));
-      // 搜索时重置到第1页
-      setCurrentPage(1);
-      // 直接传 keyword 避免状态更新延迟
-      fetchImages(1, false, searchQuery);
-    }
+    console.log('[Home] 执行搜索:', searchQuery);
+    setFilterState(prev => ({ ...prev, keyword: searchQuery }));
+    setCurrentPage(1);
+    fetchImages(1, false, searchQuery);
+
   };
   
   // 移动相册对话框状态
@@ -813,82 +806,9 @@ export default function Home() {
     }
   }, []);
 
-  // 高级搜索处理
-  const handleAdvancedSearch = React.useCallback((filters: AdvancedSearchFilters) => {
-    console.log('[Home] 执行高级搜索:', filters);
-    setSearchQuery(filters.keyword);
-    
-    // 调用后端高级搜索 API
-    fetchImagesWithAdvancedFilters(filters);
-  }, []);
-
-  // 使用高级筛选条件调用后端 API
-  const fetchImagesWithAdvancedFilters = React.useCallback(async (filters: AdvancedSearchFilters) => {
-    try {
-      setIsLoading(true);
-      
-      // 构建查询参数
-      const params = new URLSearchParams({
-        page: '1',
-        pageSize: String(pageSize),
-      });
-      
-      // 添加关键词
-      if (filters.keyword) {
-        params.append('keyword', filters.keyword);
-      }
-      
-      // 添加日期范围
-      if (filters.dateRange.start) {
-        params.append('startDate', filters.dateRange.start.toISOString().split('T')[0]);
-      }
-      if (filters.dateRange.end) {
-        params.append('endDate', filters.dateRange.end.toISOString().split('T')[0]);
-      }
-      
-      // 添加标签
-      if (filters.tags && filters.tags.length > 0) {
-        filters.tags.forEach(tag => params.append('tags', tag));
-      }
-      
-      // 添加相册（优先使用 selectedAlbumIds，如果没有则使用 filters.albums）
-      const albumIdsToUse = selectedAlbumIds.length > 0 ? selectedAlbumIds : (filters.albums || []);
-      if (albumIdsToUse.length > 0) {
-        params.append('albumId', albumIdsToUse.join(','));
-      }
-      
-      // 添加文件类型
-      if (filters.fileTypes && filters.fileTypes.length > 0) {
-        params.append('fileType', filters.fileTypes.join(','));
-      }
-      
-      console.log('[Home] 调用后端高级搜索 API, 参数:', Object.fromEntries(params));
-      
-      const response = await backendFetch(`/images?${params}`);
-      const result = await response.json();
-      
-      if (isApiSuccess(result)) {
-        const imageList = result.data?.list || result.data || [];
-        console.log('[Home] 高级搜索结果:', imageList.length, '张');
-        setImages(imageList);
-        setHasMore(false);
-        setCurrentPage(1);
-      } else {
-        console.error('[Home] 高级搜索失败:', result);
-        toast.error('搜索失败，请稍后重试');
-      }
-    } catch (error) {
-      console.error('[Home] 高级搜索异常:', error);
-      toast.error('网络错误，请稍后重试');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pageSize]);
-
-  // 监听筛选条件变化，自动重新加载数据（非高级搜索模式）
+  // 监听筛选条件变化，自动重新加载数据
   React.useEffect(() => {
-    // 只有在筛选条件变化且不是高级搜索模式时才重新加载
-    if (!showAdvancedSearch && activeMenuItem !== 'trash' && activeMenuItem !== 'recent' && activeMenuItem !== 'favorites') {
+    if (activeMenuItem !== 'trash' && activeMenuItem !== 'recent' && activeMenuItem !== 'favorites') {
       console.log('[Home] 筛选条件变化，重新加载数据:', filterState);
       fetchImages(1, false);
     }
@@ -1456,12 +1376,7 @@ export default function Home() {
       setCurrentPage(1);
       setHasMore(false);
       setIsLoading(true);
-      // 智能相册页面不显示高级搜索
-      if (showAdvancedSearch) {
-        setShowAdvancedSearch(false);
-        setAdvancedFilters(DEFAULT_FILTERS);
-        setSearchQuery('');
-      }
+      setSearchQuery('');
 
       // 使用 API 执行匹配筛选
       executeSmartAlbumRules(item, 1, pageSize).then(result => {
@@ -1484,14 +1399,10 @@ export default function Home() {
     setCurrentPage(1);
     setHasMore(false);
     
-    // 非知识分类页面关闭高级搜索（相册页面保留高级搜索）
+    // 非知识分类页面清空搜索
     const isAlbumPage = item.startsWith('album-') || albums.some(a => a.id === item);
     if (item !== 'all' && !isAlbumPage) {
-      if (showAdvancedSearch) {
-        setShowAdvancedSearch(false);
-        setAdvancedFilters(DEFAULT_FILTERS);
-        setSearchQuery('');
-      }
+      setSearchQuery('');
     }
 
     // 如果点击上传图片，打开上传对话框
@@ -1824,19 +1735,6 @@ export default function Home() {
           onExportClick={() => setExportDialogOpen(true)}
           onBatchReplaceMainImage={handleBatchReplaceMainImage}
           hasAlbums={albums.length > 0}
-          onAdvancedSearchClick={() => {
-            if (showAdvancedSearch) {
-              // 收起时重新加载默认数据
-              setShowAdvancedSearch(false);
-              setAdvancedFilters(DEFAULT_FILTERS);
-              setSearchQuery('');
-              setFilterState(prev => ({ ...prev, keyword: '' }));
-              fetchImages(1, false);
-            } else {
-              setShowAdvancedSearch(true);
-            }
-          }}
-          showAdvancedSearch={showAdvancedSearch}
           showSearch={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)}
         />
 
@@ -1910,19 +1808,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* 高级搜索组件 - 仅在知识分类下显示 */}
-              {showAdvancedSearch && (activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)) && (
-                <div className="mb-6">
-                  <AdvancedSearch
-                    filters={advancedFilters}
-                    onFiltersChange={setAdvancedFilters}
-                    onSearch={handleAdvancedSearch}
-                    availableTags={tags}
-                    availableAlbums={albums.map(a => ({ id: a.id, name: a.name }))}
-                  />
-                </div>
-              )}
-
               {/* 筛选面板 */}
               <FilterPanel
                 isOpen={filterPanelOpen}
@@ -1970,7 +1855,7 @@ export default function Home() {
               compactMode={settings?.compactMode}
               showFileInfo={settings?.showFileInfo}
               searchQuery={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)
-                ? (showAdvancedSearch ? advancedFilters.keyword : searchQuery) 
+                ? searchQuery 
                 : ''}
             />
 

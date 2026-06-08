@@ -53,8 +53,7 @@ interface HeaderProps {
   onExcelUploadClick?: () => void;
   onExportClick?: () => void;
   hasAlbums?: boolean;
-  onAdvancedSearchClick?: () => void;
-  showAdvancedSearch?: boolean;
+
   showSearch?: boolean; // 是否显示搜索栏
   onBatchReplaceMainImage?: () => void; // 批量替换主图
 }
@@ -73,8 +72,6 @@ export default function Header({
   onExcelUploadClick,
   onExportClick,
   hasAlbums = false,
-  onAdvancedSearchClick,
-  showAdvancedSearch = false,
   showSearch = true, // 默认显示搜索
   onBatchReplaceMainImage,
 }: HeaderProps) {
@@ -154,21 +151,6 @@ export default function Header({
               className="pl-12 pr-4 h-11 bg-slate-50/50 border-slate-200/60 focus:bg-white focus:border-violet-300 focus:ring-violet-500/20 transition-all duration-200"
             />
           </div>
-          <Button
-            variant={showAdvancedSearch ? "default" : "outline"}
-            size="sm"
-            onClick={onAdvancedSearchClick}
-            className={cn(
-              "h-11 gap-2 transition-all duration-200",
-              showAdvancedSearch 
-                ? "bg-violet-600 text-white hover:bg-violet-700" 
-                : "text-slate-600 hover:text-violet-600 hover:bg-violet-50 border-slate-200"
-            )}
-            title={showAdvancedSearch ? "收起高级搜索" : "高级搜索"}
-          >
-            <Filter className="w-4 h-4" />
-            <span className="hidden sm:inline">{showAdvancedSearch ? "收起" : "高级"}</span>
-          </Button>
         </div>
       </div>
       ) : (
