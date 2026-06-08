@@ -94,16 +94,20 @@ export default function SupplyChainPage() {
 
   // 登录检查 + pageshow
   useEffect(() => {
-    const sessionId = typeof window !== 'undefined' ? document.cookie.match(/session_id=([^;]+)/)?.[1] : null;
-    if (!sessionId) {
+    const sessionId = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+    const sessionExpires = typeof window !== 'undefined' ? localStorage.getItem('session_expires') : null;
+    if (!sessionId || (sessionExpires && Number(sessionExpires) < Date.now())) {
       window.location.href = '/login';
       return;
     }
 
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
-        const sid = document.cookie.match(/session_id=([^;]+)/)?.[1];
-        if (!sid) window.location.href = '/login';
+        const sid = localStorage.getItem('session_id');
+        const expires = localStorage.getItem('session_expires');
+        if (!sid || (expires && Number(expires) < Date.now())) {
+          window.location.href = '/login';
+        }
       }
     };
     window.addEventListener('pageshow', handlePageShow);

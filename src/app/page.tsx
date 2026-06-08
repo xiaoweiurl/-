@@ -830,42 +830,65 @@ export default function Home() {
         const sessionId = localStorage.getItem('session_id');
         const expires = localStorage.getItem('session_expires');
         
-        // 检查 session 是否过期
-        if (!sessionId || !expires || Date.now() > parseInt(expires, 10)) {
-          console.log('[Home] Session 已过期或不存在');
-          localStorage.removeItem('session_id');
-          localStorage.removeItem('session_expires');
-          router.replace('/login');
+        // 检查本地 session
+        if (!sessionId) {
+          console.log('[Home] 无session_id');
+          window.location.href = '/login';
           return;
         }
         
-        // 直接调用后端 API（绕过 Next.js API Route）
-        const response = await backendFetch('/auth/session', {
-          headers: {
-            'X-Session-Id': sessionId,
-          },
-        });
+        if (!expires || Date.now() > parseInt(expires, 10)) {
+          console.log('[Home] Session 已过期');
+          localStorage.removeItem('session_id');
+          localStorage.removeItem('session_expires');
+          localStorage.removeItem('portal_type');
+          window.location.href = '/login';
+          return;
+        }
         
-        const result = await response.json();
-        console.log('[Home] 会话验证结果:', result);
+        // 验证后端 session
+        try {
+          const response = await backendFetch('/auth/session', {
+            headers: {
+              'X-Session-Id': sessionId,
+            },
+          });
+          
+          if (!response.ok) {
+            console.log('[Home] 后端session验证失败, status:', response.status);
+            localStorage.removeItem('session_id');
+            localStorage.removeItem('session_expires');
+            localStorage.removeItem('portal_type');
+            window.location.href = '/login';
+            return;
+          }
+          
+          const result = await response.json();
+          console.log('[Home] 会话验证结果:', result);
 
-        if (result.code === 200 && result.data) {
-          setCurrentUser(result.data);
-          // 登录成功后获取图片数据和标签列表
-          await fetchAllImages();
-        fetchDynamicTableCount(); // 获取完整数据用于统计
-          await fetchImages();    // 获取当前视图数据
-          await fetchTags();
-          await fetchAlbums();    // 获取相册列表
-          await fetchDynamicTableCount(); // 获取动态表数量
-        } else {
-          // 未登录，跳转到登录页
-          console.log('[Home] 会话验证失败');
-          router.replace('/login');
+          if (result.code === 200 && result.data) {
+            setCurrentUser(result.data);
+            // 登录成功后获取图片数据和标签列表
+            await fetchAllImages();
+            await fetchImages();    // 获取当前视图数据
+            await fetchTags();
+            await fetchAlbums();    // 获取相册列表
+            fetchDynamicTableCount(); // 获取动态表数量
+          } else {
+            // 未登录，跳转到登录页
+            console.log('[Home] 会话验证失败, result:', result);
+            localStorage.removeItem('session_id');
+            localStorage.removeItem('session_expires');
+            localStorage.removeItem('portal_type');
+            window.location.href = '/login';
+          }
+        } catch (error) {
+          console.error('[Home] 检查登录状态失败:', error);
+          // 网络错误时不强制跳转登录页，先使用本地session
+          // 让用户能看到页面，后续操作失败时再提示
         }
       } catch (error) {
-        console.error('检查登录状态失败:', error);
-        router.replace('/login');
+        console.error('[Home] 登录检查异常:', error);
       } finally {
         setIsLoading(false);
       }
