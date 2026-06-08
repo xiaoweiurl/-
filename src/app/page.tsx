@@ -775,7 +775,7 @@ export default function Home() {
     } finally {
       setLoadingMore(false);
     }
-  }, [pageSize, activeMenuItem, filterState.albumFilter, filterState.tagFilter, filterState.dateFilter, filterState.typeFilter]);
+  }, [pageSize, activeMenuItem, filterState.albumFilter, filterState.tagFilter, filterState.dateFilter, filterState.typeFilter, searchQuery]);
 
   // 获取动态表图片数量（我的知识库/二创中心）
   const fetchDynamicTableCount = React.useCallback(async () => {
