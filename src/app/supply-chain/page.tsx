@@ -46,6 +46,14 @@ export default function SupplyChainPage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const router = useRouter();
 
+  // ====== 登录检查 ======
+  useEffect(() => {
+    const sessionId = localStorage.getItem('session_id');
+    if (!sessionId) {
+      router.replace('/login');
+    }
+  }, [router]);
+
   // ====== 数据获取 ======
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true);
@@ -242,7 +250,7 @@ export default function SupplyChainPage() {
       {/* 顶部标题 */}
       <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-6">
         <div className="flex items-center gap-3 mb-1">
-          <button onClick={() => router.push('/')} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" title="返回主页">
+          <button onClick={() => router.push('/login')} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" title="退出登录">
             <ArrowLeft className="w-5 h-5 text-slate-500" />
           </button>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 flex items-center justify-center">

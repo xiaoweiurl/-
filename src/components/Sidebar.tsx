@@ -34,7 +34,6 @@ import {
   CheckSquare,
   Trash,
   Library,
-  BarChart3,
 } from 'lucide-react';
 import {
   Dialog,
@@ -751,11 +750,6 @@ export default function Sidebar({
       label: '收藏夹',
       icon: Heart,
       count: favoritesCount,
-    },
-    {
-      id: 'supply-chain',
-      label: '供应链 & 工厂',
-      icon: BarChart3,
     },
   ];
 

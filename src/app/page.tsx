@@ -1362,12 +1362,6 @@ export default function Home() {
       return;
     }
 
-    // 如果点击供应链管理，跳转到供应链页面
-    if (item === 'supply-chain') {
-      router.push('/supply-chain');
-      return;
-    }
-
     // 如果点击用户设置，跳转到用户设置页面
     if (item === 'user-settings') {
       router.push('/user-settings');

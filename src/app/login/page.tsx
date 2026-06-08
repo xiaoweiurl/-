@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { User, Lock, Eye, EyeOff, Loader2, BookOpen } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -26,8 +26,11 @@ interface LoginResponse {
   };
 }
 
+type PortalType = 'designer' | 'factory' | null;
+
 export default function LoginPage() {
   const router = useRouter();
+  const [portal, setPortal] = React.useState<PortalType>(null);
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
@@ -54,37 +57,31 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password, rememberMe }),
       });
 
-      // 调试：检查响应
-      console.log('[Login] 响应状态:', response.status);
-
       const result: LoginResponse = await response.json();
-      console.log('[Login] 登录结果:', result);
 
       if (result.success && result.data) {
-        // 从响应数据获取 sessionId
         let sessionId = result.data.sessionId;
-        
+
         if (sessionId) {
           const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
-          
-          // 同时存储到 localStorage（用于前端逻辑）和 Cookie（用于 API 请求）
           localStorage.setItem('session_id', sessionId);
           localStorage.setItem('session_expires', String(Date.now() + maxAge * 1000));
-          
-          // 设置 Cookie（用于 API 请求自动携带）
           const cookieExpiry = new Date(Date.now() + maxAge * 1000).toUTCString();
           document.cookie = `session_id=${sessionId}; path=/; expires=${cookieExpiry}; SameSite=Lax`;
-          
-          console.log('[Login] 存储 sessionId:', sessionId.substring(0, 8) + '...');
-        } else {
-          console.error('[Login] 无法获取 sessionId！');
         }
-        
+
+        // 根据入口类型存储并跳转
+        localStorage.setItem('portal_type', portal || 'designer');
+
         toast.success('登录成功', {
           description: `欢迎回来，${result.data.user?.username || '用户'}！`,
         });
-        // 跳转到首页
-        router.push('/');
+
+        if (portal === 'factory') {
+          router.push('/supply-chain');
+        } else {
+          router.push('/');
+        }
         router.refresh();
       } else {
         toast.error('登录失败', {
@@ -101,7 +98,6 @@ export default function LoginPage() {
     }
   };
 
-  // 快速登录按钮（使用后端默认密码）
   const quickLogin = (type: 'admin' | 'user') => {
     if (type === 'admin') {
       setUsername('admin');
@@ -112,20 +108,120 @@ export default function LoginPage() {
     }
   };
 
+  // 入口选择页面
+  if (!portal) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-violet-50 flex items-center justify-center p-4">
+        <Toaster position="top-center" richColors closeButton />
+
+        <div className="w-full max-w-3xl">
+          {/* Logo区域 */}
+          <div className="text-center mb-10">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-xl shadow-violet-500/30 mb-4">
+              <Palette className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+              盈云产品智能中台
+            </h1>
+            <p className="text-slate-500 mt-2">请选择登录入口</p>
+          </div>
+
+          {/* 两个入口卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 设计师入口 */}
+            <button
+              onClick={() => setPortal('designer')}
+              className={cn(
+                'group relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
+                'hover:shadow-xl hover:border-violet-300 hover:-translate-y-1',
+                'transition-all duration-300 text-left'
+              )}
+            >
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25 mb-5">
+                <Palette className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">设计师入口</h2>
+              <p className="text-sm text-slate-500 mb-4">
+                知识库管理、图片上传、AI识别、文档中心
+              </p>
+              <div className="flex items-center text-violet-600 text-sm font-medium group-hover:translate-x-1 transition-transform">
+                进入设计师工作台
+                <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+
+            {/* 工厂/供应链入口 */}
+            <button
+              onClick={() => setPortal('factory')}
+              className={cn(
+                'group relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
+                'hover:shadow-xl hover:border-amber-300 hover:-translate-y-1',
+                'transition-all duration-300 text-left'
+              )}
+            >
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25 mb-5">
+                <Factory className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">工厂/供应链入口</h2>
+              <p className="text-sm text-slate-500 mb-4">
+                产品报价、原料管理、生产计划、辅料采购
+              </p>
+              <div className="flex items-center text-amber-600 text-sm font-medium group-hover:translate-x-1 transition-transform">
+                进入供应链管理
+                <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          </div>
+
+          {/* 版权信息 */}
+          <p className="text-center text-xs text-slate-400 mt-8">
+            © 2024 盈云产品智能中台. All rights reserved.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 登录表单页面
+  const isFactory = portal === 'factory';
+  const gradientFrom = isFactory ? 'from-amber-500' : 'from-violet-500';
+  const gradientTo = isFactory ? 'to-orange-600' : 'to-purple-600';
+  const ringColor = isFactory ? 'focus:ring-amber-500/20 focus:border-amber-500' : 'focus:ring-violet-500/20 focus:border-violet-500';
+  const btnFrom = isFactory ? 'from-amber-500' : 'from-violet-500';
+  const btnTo = isFactory ? 'to-orange-600' : 'to-purple-600';
+  const btnHoverFrom = isFactory ? 'from-amber-600' : 'from-violet-600';
+  const btnHoverTo = isFactory ? 'to-orange-700' : 'to-purple-700';
+  const shadowColor = isFactory ? 'shadow-amber-500/25' : 'shadow-violet-500/25';
+  const bgGradient = isFactory
+    ? 'bg-gradient-to-br from-amber-50 via-white to-orange-50'
+    : 'bg-gradient-to-br from-emerald-50 via-white to-teal-50';
+  const iconBg = isFactory
+    ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/30'
+    : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30';
+  const Icon = isFactory ? Factory : Palette;
+  const title = isFactory ? '供应链管理' : '盈云产品智能中台';
+  const subtitle = isFactory ? 'Supply Chain Management' : 'Digital Knowledge Base';
+  const quickBtnBg = isFactory ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' : 'bg-violet-50 text-violet-600 border-violet-200 hover:bg-violet-100';
+  const quickBtnBgAlt = isFactory ? 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center p-4">
+    <div className={cn('min-h-screen flex items-center justify-center p-4', bgGradient)}>
       <Toaster position="top-center" richColors closeButton />
-      
+
       <div className="w-full max-w-md">
         {/* Logo区域 */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-500/30 mb-4">
-            <BookOpen className="w-10 h-10 text-white" />
+          <div className={cn('w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-xl mb-4', iconBg)}>
+            <Icon className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-            盈云产品智能中台
+          <h1 className={cn('text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent', gradientFrom, gradientTo)}>
+            {title}
           </h1>
-          <p className="text-slate-500 mt-2">Digital Knowledge Base</p>
+          <p className="text-slate-500 mt-2">{subtitle}</p>
         </div>
 
         {/* 登录卡片 */}
@@ -147,7 +243,8 @@ export default function LoginPage() {
                   placeholder="请输入用户名"
                   className={cn(
                     'w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-white/50',
-                    'focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
+                    'focus:outline-none focus:ring-2',
+                    ringColor,
                     'placeholder:text-slate-400 text-slate-700',
                     'transition-all duration-200'
                   )}
@@ -171,7 +268,8 @@ export default function LoginPage() {
                   placeholder="请输入密码"
                   className={cn(
                     'w-full pl-11 pr-11 py-3 rounded-xl border border-slate-200 bg-white/50',
-                    'focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
+                    'focus:outline-none focus:ring-2',
+                    ringColor,
                     'placeholder:text-slate-400 text-slate-700',
                     'transition-all duration-200'
                   )}
@@ -181,11 +279,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
@@ -209,9 +303,11 @@ export default function LoginPage() {
               disabled={isLoading}
               className={cn(
                 'w-full py-3 text-white font-medium rounded-xl',
-                'bg-gradient-to-r from-violet-500 to-purple-600',
-                'hover:from-violet-600 hover:to-purple-700',
-                'shadow-lg shadow-violet-500/25',
+                'bg-gradient-to-r',
+                btnFrom, btnTo,
+                'hover:' + btnHoverFrom.replace('from-', 'from-') + ' hover:' + btnHoverTo.replace('to-', 'to-'),
+                'shadow-lg',
+                shadowColor,
                 'transition-all duration-200',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
@@ -235,9 +331,8 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => quickLogin('admin')}
                 className={cn(
-                  'flex-1 py-2 px-4 rounded-lg text-sm font-medium',
-                  'bg-violet-50 text-violet-600 border border-violet-200',
-                  'hover:bg-violet-100 transition-colors'
+                  'flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors',
+                  quickBtnBg
                 )}
               >
                 管理员登录
@@ -246,9 +341,8 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => quickLogin('user')}
                 className={cn(
-                  'flex-1 py-2 px-4 rounded-lg text-sm font-medium',
-                  'bg-slate-50 text-slate-600 border border-slate-200',
-                  'hover:bg-slate-100 transition-colors'
+                  'flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors',
+                  quickBtnBgAlt
                 )}
               >
                 普通用户登录
@@ -256,25 +350,22 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* 测试账号说明 */}
-          <div className="mt-6 p-4 bg-slate-50 rounded-xl">
-            <p className="text-xs text-slate-500 text-center mb-2">测试账号（请使用后端默认密码）</p>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="text-center">
-                <p className="text-slate-700 font-medium">管理员</p>
-                <p className="text-slate-400">admin / Admin@123</p>
-              </div>
-              <div className="text-center">
-                <p className="text-slate-700 font-medium">普通用户</p>
-                <p className="text-slate-400">user / User@123</p>
-              </div>
-            </div>
+          {/* 返回入口选择 */}
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setPortal(null)}
+              className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回选择入口
+            </button>
           </div>
         </div>
 
         {/* 版权信息 */}
         <p className="text-center text-xs text-slate-400 mt-6">
-          © 2024 图片管理系统. All rights reserved.
+          © 2024 盈云产品智能中台. All rights reserved.
         </p>
       </div>
     </div>
