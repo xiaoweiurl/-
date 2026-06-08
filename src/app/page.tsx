@@ -734,10 +734,19 @@ export default function Home() {
         const imageList = result.data?.list || result.data || [];
         console.log('[Home] 解析后的图片列表:', imageList.length, '张');
 
+        // 去重处理，避免重复 key 警告
+        const deduplicatedList = imageList.filter((img: { id: string }, index: number, arr: { id: string }[]) =>
+          arr.findIndex((i: { id: string }) => i.id === img.id) === index
+        );
+
         if (append) {
-          setImages(prev => [...prev, ...imageList]);
+          setImages(prev => {
+            const existingIds = new Set(prev.map(img => img.id));
+            const newImages = deduplicatedList.filter((img: { id: string }) => !existingIds.has(img.id));
+            return [...prev, ...newImages];
+          });
         } else {
-          setImages(imageList);
+          setImages(deduplicatedList);
         }
         // 设置分页信息
         setHasMore(result.pagination?.hasMore || result.data?.hasNext || false);
