@@ -511,6 +511,8 @@ export default function Home() {
     if (!showAdvancedSearch) {
       console.log('[Home] 执行搜索:', searchQuery);
       setFilterState(prev => ({ ...prev, keyword: searchQuery }));
+      // 搜索时重置到第1页
+      setCurrentPage(1);
       // 直接传 keyword 避免状态更新延迟
       fetchImages(1, false, searchQuery);
     }
@@ -593,8 +595,8 @@ export default function Home() {
       setLoadingMore(true);
     }
 
-    // 使用传入的 keywordOverride 或 filterState.keyword
-    const currentKeyword = keywordOverride !== undefined ? keywordOverride : filterState.keyword;
+    // 使用传入的 keywordOverride 或当前搜索框内容
+    const currentKeyword = keywordOverride !== undefined ? keywordOverride : searchQuery;
 
     try {
       let apiUrl = '';
@@ -1980,7 +1982,7 @@ export default function Home() {
                   onClick={() => {
                     if (currentPage > 1) {
                       setCurrentPage(currentPage - 1);
-                      fetchImages(currentPage - 1, false);
+                      fetchImages(currentPage - 1, false, searchQuery);
                     }
                   }}
                   disabled={currentPage === 1}
@@ -2007,7 +2009,7 @@ export default function Home() {
                         key={pageNum}
                         onClick={() => {
                           setCurrentPage(pageNum);
-                          fetchImages(pageNum, false);
+                          fetchImages(pageNum, false, searchQuery);
                         }}
                         className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                           currentPage === pageNum
@@ -2026,7 +2028,7 @@ export default function Home() {
                   onClick={() => {
                     if (currentPage < totalPages) {
                       setCurrentPage(currentPage + 1);
-                      fetchImages(currentPage + 1, false);
+                      fetchImages(currentPage + 1, false, searchQuery);
                     }
                   }}
                   disabled={currentPage === totalPages}
