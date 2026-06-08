@@ -599,8 +599,8 @@ export default function Home() {
       });
 
       // 根据当前菜单项选择不同的API端点（直接调用后端 API）
-      // 关键词搜索 - 所有页面都支持
-      if (filterState.keyword && filterState.keyword.trim()) {
+      // 关键词搜索 - 仅全部知识页面支持
+      if (activeMenuItem === 'all' && filterState.keyword && filterState.keyword.trim()) {
         params.append('keyword', filterState.keyword.trim());
       }
 
