@@ -834,6 +834,16 @@ public class ImageDynamicRepository {
                 whereClause.append(" AND is_main_image = true");
             }
 
+            // 关键词模糊搜索 - 匹配 title、description、original_name
+            if (request.getKeyword() != null && !request.getKeyword().trim().isEmpty()) {
+                String kw = request.getKeyword().trim();
+                whereClause.append(" AND (LOWER(title) LIKE ? OR LOWER(description) LIKE ? OR LOWER(original_name) LIKE ?)");
+                params.put(paramIndex, "%" + kw.toLowerCase() + "%");
+                params.put(paramIndex + 1, "%" + kw.toLowerCase() + "%");
+                params.put(paramIndex + 2, "%" + kw.toLowerCase() + "%");
+                paramIndex += 3;
+            }
+
             // 排序
             String orderBy = "created_at DESC";
             if (request.getSortBy() != null) {

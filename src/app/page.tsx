@@ -599,6 +599,11 @@ export default function Home() {
       });
 
       // 根据当前菜单项选择不同的API端点（直接调用后端 API）
+      // 关键词搜索 - 所有页面都支持
+      if (filterState.keyword && filterState.keyword.trim()) {
+        params.append('keyword', filterState.keyword.trim());
+      }
+
       if (activeMenuItem === 'trash') {
         // 回收站
         apiUrl = `/images/trash?${params}`;
@@ -687,11 +692,6 @@ export default function Home() {
           params.append('albumId', albumId);
           params.append('onlyMainImage', 'true');
           console.log('[Home] 添加相册筛选:', albumId);
-        }
-        
-        if (filterState.keyword && filterState.keyword.trim()) {
-          params.append('keyword', filterState.keyword.trim());
-          console.log('[Home] 添加关键词筛选:', filterState.keyword.trim());
         }
         
         // 添加标签筛选（多标签支持）
