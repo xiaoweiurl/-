@@ -331,7 +331,7 @@ public class SupplyChainController {
         stats.put("supplierCount", supplierCount);
         // 平均利润率 = 从智能报价中计算
         try {
-            ResponseEntity<?> quoteResult = getSmartQuoteProductList(targetProfitRate, processingCost, request);
+            ResponseEntity<?> quoteResult = getSmartQuoteProductList(0.3, 0.15, request);
             Object body = quoteResult.getBody();
             List<Object> quotes = null;
             if (body instanceof Map) {
@@ -644,25 +644,65 @@ public class SupplyChainController {
 
     @GetMapping("/smart-quote/product-list")
     @Operation(summary = "获取可报价产品列表及成本概览")
-    public ResponseEntity<?> getSmartQuoteProductList(HttpServletRequest request) {
+    public ResponseEntity<?> getSmartQuoteProductList(
+            @RequestParam(required = false, defaultValue = "0.3") double targetProfitRate,
+            @RequestParam(required = false, defaultValue = "0.15") double processingCost,
+            HttpServletRequest request) {
         try {
             getCurrentUser(request);
             List<ProductQuotation> quotations = productQuotationRepository.findAll();
             java.util.List<Map<String, Object>> productList = new java.util.ArrayList<>();
 
+            BigDecimal profitRate = BigDecimal.valueOf(targetProfitRate);
+            BigDecimal procCost = BigDecimal.valueOf(processingCost);
+
             for (ProductQuotation q : quotations) {
                 BigDecimal materialCost = BigDecimal.ZERO;
+                java.util.List<Map<String, Object>> materialDetails = new java.util.ArrayList<>();
+                String[] matNames = {q.getRawMaterialName1(), q.getRawMaterialName2(), q.getRawMaterialName3(),
+                        q.getRawMaterialName4(), q.getRawMaterialName5(), q.getRawMaterialName6()};
                 BigDecimal[] matUsages = {q.getMaterialUsage1(), q.getMaterialUsage2(), q.getMaterialUsage3(),
                         q.getMaterialUsage4(), q.getMaterialUsage5(), q.getMaterialUsage6()};
                 BigDecimal[] matPrices = {q.getMaterialUnitPrice1(), q.getMaterialUnitPrice2(), q.getMaterialUnitPrice3(),
                         q.getMaterialUnitPrice4(), q.getMaterialUnitPrice5(), q.getMaterialUnitPrice6()};
                 for (int i = 0; i < 6; i++) {
-                    if (matUsages[i] != null && matPrices[i] != null) {
-                        materialCost = materialCost.add(matUsages[i].multiply(matPrices[i]));
+                    if (matUsages[i] != null && matPrices[i] != null && matNames[i] != null) {
+                        BigDecimal cost = matUsages[i].multiply(matPrices[i]);
+                        materialCost = materialCost.add(cost);
+                        materialDetails.add(Map.of(
+                            "name", matNames[i],
+                            "usage", matUsages[i],
+                            "unitPrice", matPrices[i],
+                            "cost", cost
+                        ));
                     }
                 }
                 BigDecimal accessoryCost = q.getAccessoryPrice() != null ? q.getAccessoryPrice() : BigDecimal.ZERO;
-                BigDecimal totalCost = materialCost.add(accessoryCost);
+                String accessoryName = q.getAccessoryName() != null ? q.getAccessoryName() : "";
+                BigDecimal totalCost = materialCost.add(accessoryCost).add(procCost);
+
+                // 建议报价 = 总成本 / (1 - 利润率)
+                BigDecimal suggestedPrice = BigDecimal.ONE.subtract(profitRate).compareTo(BigDecimal.ZERO) > 0
+                        ? totalCost.divide(BigDecimal.ONE.subtract(profitRate), 4, /* ROUND_HALF_UP */4)
+                        : totalCost;
+                // 实际利润率 = (建议报价 - 总成本) / 建议报价
+                BigDecimal actualProfitRate = suggestedPrice.compareTo(BigDecimal.ZERO) > 0
+                        ? suggestedPrice.subtract(totalCost).divide(suggestedPrice, 4, /* ROUND_HALF_UP */4)
+                        : BigDecimal.ZERO;
+
+                // 查生产计划获取日产能
+                BigDecimal dailyCapacity = BigDecimal.ZERO;
+                java.util.List<ProductionPlan> plans = productionPlanRepository.findByProductCode(q.getProductCode());
+                if (!plans.isEmpty()) {
+                    ProductionPlan plan = plans.get(0);
+                    // 日产能 = 单机产量 × 8小时 × 3600秒 / 耗时秒数
+                    if (plan.getSeconds() != null && plan.getSeconds().compareTo(BigDecimal.ZERO) > 0
+                            && plan.getSingleMachineOutput() != null) {
+                        dailyCapacity = plan.getSingleMachineOutput()
+                                .multiply(BigDecimal.valueOf(8 * 3600))
+                                .divide(plan.getSeconds(), 0, /* ROUND_HALF_UP */4);
+                    }
+                }
 
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("id", q.getId());
@@ -671,10 +711,17 @@ public class SupplyChainController {
                 item.put("customer", q.getCustomer());
                 item.put("salesperson", q.getSalesperson());
                 item.put("approvalStatus", q.getApprovalStatus());
+                item.put("salesType", q.getSalesType());
                 item.put("materialCost", materialCost);
                 item.put("accessoryCost", accessoryCost);
+                item.put("accessoryName", accessoryName);
+                item.put("processingCost", procCost);
                 item.put("totalCost", totalCost);
-                item.put("salesType", q.getSalesType());
+                item.put("suggestedPrice", suggestedPrice);
+                item.put("actualProfitRate", actualProfitRate);
+                item.put("profitRate", actualProfitRate);
+                item.put("dailyCapacity", dailyCapacity);
+                item.put("materialDetails", materialDetails);
                 productList.add(item);
             }
             return ResponseEntity.ok(Map.of("products", productList));
