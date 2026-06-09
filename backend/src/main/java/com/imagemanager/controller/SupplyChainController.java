@@ -320,11 +320,38 @@ public class SupplyChainController {
     public ResponseEntity<?> getStats(HttpServletRequest request) {
         getCurrentUser(request);
         Map<String, Object> stats = new HashMap<>();
-        stats.put("quotationCount", productQuotationRepository.count());
-        stats.put("warehouseCount", rawMaterialWarehouseRepository.count());
-        stats.put("purchaseCount", rawMaterialPurchaseRepository.count());
-        stats.put("planCount", productionPlanRepository.count());
-        stats.put("accessoryCount", accessoryPurchaseRepository.count());
+        // 产品数量 = 报价单中不同产品编码数
+        long productCount = productQuotationRepository.count();
+        stats.put("productCount", productCount);
+        // 原料种类 = 原料入库中不同原料编码数
+        long materialCount = rawMaterialWarehouseRepository.countDistinctProductCode();
+        stats.put("materialCount", materialCount);
+        // 供应商数 = 原料采购中不同供应商数 + 辅料采购中不同供应商数
+        long supplierCount = rawMaterialPurchaseRepository.countDistinctSupplier() + accessoryPurchaseRepository.countDistinctSupplier();
+        stats.put("supplierCount", supplierCount);
+        // 平均利润率 = 从智能报价中计算
+        try {
+            List<Object> quotes = (List<Object>) getSmartQuotes(targetProfitRate, processingCost, request).getBody();
+            if (quotes != null && !quotes.isEmpty()) {
+                double totalProfit = 0;
+                int count = 0;
+                for (Object q : quotes) {
+                    if (q instanceof Map) {
+                        Map<String, Object> qm = (Map<String, Object>) q;
+                        Object pr = qm.get("profitRate");
+                        if (pr instanceof Number) {
+                            totalProfit += ((Number) pr).doubleValue();
+                            count++;
+                        }
+                    }
+                }
+                stats.put("avgProfitRate", count > 0 ? Math.round(totalProfit / count * 10.0) / 10.0 : 0);
+            } else {
+                stats.put("avgProfitRate", 0);
+            }
+        } catch (Exception e) {
+            stats.put("avgProfitRate", 0);
+        }
         return ResponseEntity.ok(stats);
     }
 

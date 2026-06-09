@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface RawMaterialWarehouseRepository extends JpaRepository<RawMaterialWarehouse, Integer>, JpaSpecificationExecutor<RawMaterialWarehouse> {
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT w.productCode) FROM RawMaterialWarehouse w")
+    long countDistinctProductCode();
 }
