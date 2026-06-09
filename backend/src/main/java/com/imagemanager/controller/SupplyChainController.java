@@ -692,9 +692,9 @@ public class SupplyChainController {
 
                 // 查生产计划获取日产能
                 BigDecimal dailyCapacity = BigDecimal.ZERO;
-                java.util.List<ProductionPlan> plans = productionPlanRepository.findByProductCode(q.getProductCode());
-                if (!plans.isEmpty()) {
-                    ProductionPlan plan = plans.get(0);
+                Optional<ProductionPlan> optPlan = productionPlanRepository.findByProductCode(q.getProductCode());
+                if (optPlan.isPresent()) {
+                    ProductionPlan plan = optPlan.get();
                     // 日产能 = 单机产量 × 8小时 × 3600秒 / 耗时秒数
                     if (plan.getSeconds() != null && plan.getSeconds().compareTo(BigDecimal.ZERO) > 0
                             && plan.getSingleMachineOutput() != null) {
