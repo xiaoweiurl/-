@@ -331,7 +331,16 @@ public class SupplyChainController {
         stats.put("supplierCount", supplierCount);
         // 平均利润率 = 从智能报价中计算
         try {
-            List<Object> quotes = (List<Object>) getSmartQuotes(targetProfitRate, processingCost, request).getBody();
+            ResponseEntity<?> quoteResult = getSmartQuoteProductList(targetProfitRate, processingCost, request);
+            Object body = quoteResult.getBody();
+            List<Object> quotes = null;
+            if (body instanceof Map) {
+                Map<String, Object> bodyMap = (Map<String, Object>) body;
+                Object productsObj = bodyMap.get("products");
+                if (productsObj instanceof List) {
+                    quotes = (List<Object>) productsObj;
+                }
+            }
             if (quotes != null && !quotes.isEmpty()) {
                 double totalProfit = 0;
                 int count = 0;
