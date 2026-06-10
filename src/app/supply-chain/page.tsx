@@ -161,9 +161,9 @@ export default function SupplyChainPage() {
         safeFetch('/purchases?page=1&pageSize=100'),
         safeFetch('/plans?page=1&pageSize=100'),
         safeFetch('/accessories?page=1&pageSize=100'),
-        safeFetch(`/smart-quote/product-list?targetProfitRate=${targetProfitRate}&processingCost=${processingCost}`),
+        safeFetch(`/smart-quote/product-list?targetProfitRate=${targetProfitRate / 100}&processingCost=${processingCost}`),
         safeFetch('/smart-quote/supplier-comparison'),
-        safeFetch(`/stats?targetProfitRate=${targetProfitRate}&processingCost=${processingCost}`),
+        safeFetch(`/stats?targetProfitRate=${targetProfitRate / 100}&processingCost=${processingCost}`),
       ]);
       // 后端 pageResult 返回 {items: [...], total: N}
       // 后端 smart-quotes 返回 {items: [...]}
@@ -179,7 +179,17 @@ export default function SupplyChainPage() {
       setAccessories(extractItems(aRes));
       // smart-quote/product-list 返回 {products: [...]}
       // supplier-comparison 返回 {comparison: {materialCode: [...]}}
-      setSmartQuotes((sqRes?.products || []).map((p: any) => ({ ...p, materials: p.materials || [] })));
+      setSmartQuotes((sqRes?.products || []).map((p: any) => ({
+        ...p,
+        materials: (p.materialDetails || p.materials || []).map((m: any) => ({
+          ...m,
+          purchasePrice: m.purchasePrice ?? m.unitPrice,
+          bestSupplier: m.bestSupplier ?? m.supplier ?? '',
+        })),
+        totalMaterialCost: p.totalMaterialCost ?? p.materialCost,
+        processingCostPerUnit: p.processingCostPerUnit ?? p.processingCost,
+        totalCostPerUnit: p.totalCostPerUnit ?? p.totalCost,
+      })));
       // 供应商对比数据后端返回 {comparison: {materialCode: [{supplier, unitPrice},...]}}
       const comparisonMap = scRes?.comparison || {};
       const scList: SupplierCompare[] = Object.entries(comparisonMap).map(([code, suppliers]: [string, any]) => {

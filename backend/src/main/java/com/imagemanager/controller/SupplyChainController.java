@@ -722,6 +722,7 @@ public class SupplyChainController {
                 item.put("actualProfitRate", actualProfitRate);
                 item.put("profitRate", actualProfitRate);
                 item.put("dailyCapacity", dailyCapacity);
+                item.put("sewingWeight", optPlan.isPresent() ? optPlan.get().getSewingWeight() : null);
                 item.put("materialDetails", materialDetails);
                 productList.add(item);
             }
