@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+const getBackendUrl = () => process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 function getSessionId(request: NextRequest): string | null {
   const headerSession = request.headers.get('x-session-id');
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const path = pathname.replace('/api/supply-chain', '');
 
   try {
-    const backendRes = await fetch(`${BACKEND_URL}/supply-chain${path}${search}`, {
+    const backendRes = await fetch(`${getBackendUrl()}/supply-chain${path}${search}`, {
       headers: { 'X-Session-Id': sessionId, 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
-      const res = await fetch(`${BACKEND_URL}/supply-chain${path}`, {
+      const res = await fetch(`${getBackendUrl()}/supply-chain${path}`, {
         method: 'POST',
         headers: { 'X-Session-Id': sessionId },
         body: formData,
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(data, { status: res.status });
     }
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/supply-chain${path}`, {
+    const res = await fetch(`${getBackendUrl()}/supply-chain${path}`, {
       method: 'POST',
       headers: { 'X-Session-Id': sessionId, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -84,7 +84,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/supply-chain${path}`, {
+    const res = await fetch(`${getBackendUrl()}/supply-chain${path}`, {
       method: 'PUT',
       headers: { 'X-Session-Id': sessionId, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -107,7 +107,7 @@ export async function DELETE(request: NextRequest) {
   const path = pathname.replace('/api/supply-chain', '');
 
   try {
-    const res = await fetch(`${BACKEND_URL}/supply-chain${path}`, {
+    const res = await fetch(`${getBackendUrl()}/supply-chain${path}`, {
       method: 'DELETE',
       headers: { 'X-Session-Id': sessionId },
       signal: AbortSignal.timeout(10000),

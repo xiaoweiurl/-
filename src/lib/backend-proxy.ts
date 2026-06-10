@@ -3,8 +3,15 @@
  * 所有请求必须通过 Java 后端处理
  */
 
-// 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+// 后端 API 基础 URL（动态获取，优先从 localStorage 读取用户运行时配置）
+const getDefaultBackendUrl = () => process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+const getBackendApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('backend_api_url');
+    if (saved) return saved;
+  }
+  return getDefaultBackendUrl();
+};
 
 /**
  * 获取 sessionId（从 localStorage 或请求头）
@@ -44,18 +51,18 @@ export async function isBackendAvailable(): Promise<boolean> {
   try {
     // 调用后端健康检查端点（如果存在）
     // 使用 OPTIONS 请求避免发送 body
-    const response = await fetch(`${BACKEND_API_URL}/albums`, {
+    const response = await fetch(`${getBackendApiUrl()}/albums`, {
       method: 'OPTIONS',
       signal: AbortSignal.timeout(3000),
     });
     backendAvailableCache = response.ok || response.status === 400; // 400 表示后端可达但参数错误
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务可用: ${BACKEND_API_URL} (status: ${response.status})`);
+    console.log(`[Backend] 后端服务可用: ${getBackendApiUrl()} (status: ${response.status})`);
     return true;
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务不可用: ${BACKEND_API_URL}`, error instanceof Error ? error.message : error);
+    console.log(`[Backend] 后端服务不可用: ${getBackendApiUrl()}`, error instanceof Error ? error.message : error);
     return false;
   }
 }
@@ -64,7 +71,7 @@ export async function isBackendAvailable(): Promise<boolean> {
  * 获取后端 API URL
  */
 export function getBackendUrl(): string {
-  return BACKEND_API_URL;
+  return getBackendApiUrl();
 }
 
 /**
@@ -89,7 +96,7 @@ export async function backendFetch(
   endpoint: string,
   options: BackendRequestOptions = {}
 ): Promise<Response> {
-  const url = `${BACKEND_API_URL}${endpoint}`;
+  const url = `${getBackendApiUrl()}${endpoint}`;
 
   // 初始化 fetchOptions
   const fetchOptions: RequestInit = {
@@ -170,7 +177,7 @@ export async function backendFetchFormData(
   formData: FormData,
   requestHeaders?: Record<string, string | null>
 ): Promise<Response> {
-  const url = `${BACKEND_API_URL}${endpoint}`;
+  const url = `${getBackendApiUrl()}${endpoint}`;
   
   // 获取 sessionId（支持服务端和客户端）
   const sessionId = getSessionId(requestHeaders);
