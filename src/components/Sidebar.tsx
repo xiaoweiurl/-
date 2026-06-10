@@ -740,6 +740,11 @@ export default function Sidebar({
       ],
     },
     {
+      id: 'knowledge',
+      label: 'RAG 知识库',
+      icon: Sparkles,
+    },
+    {
       id: 'recent',
       label: '最近添加',
       icon: Clock,

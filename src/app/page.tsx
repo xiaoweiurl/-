@@ -1387,6 +1387,12 @@ export default function Home() {
   const handleMenuItemClick = async (item: string) => {
     console.log('[Home] 菜单项点击:', item);
 
+    // 如果点击RAG知识库，跳转到知识库页面
+    if (item === 'knowledge') {
+      router.push('/knowledge');
+      return;
+    }
+
     // 如果点击数据仪表盘，跳转到仪表盘页面
     if (item === 'dashboard') {
       router.push('/dashboard');
