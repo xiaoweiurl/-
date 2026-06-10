@@ -6,7 +6,7 @@ import {
   Package, TrendingUp, DollarSign, Factory,
   Search, Upload, Download, Plus, Edit3, Trash2, ChevronLeft,
   ChevronRight, RefreshCw, Calculator, Target, Zap,
-  ChevronDown, X, Check, AlertCircle, Info, Warehouse,
+  ChevronDown, Check, AlertCircle, Info, Warehouse,
   ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles
 } from 'lucide-react';
 
@@ -130,28 +130,15 @@ export default function SupplyChainPage() {
     }
   }, []);
 
-  // 后端 API 基础地址（优先从 localStorage 读取用户配置，否则用环境变量）
-  const [backendApiBase, setBackendApiBase] = useState(() => {
+  // 自动获取后端 API 基础地址（根据运行环境自动推导）
+  const getApiBase = useCallback(() => {
     if (typeof window === 'undefined') return '/api';
-    return localStorage.getItem('backend_api_url') || process.env.NEXT_PUBLIC_BACKEND_API_URL || '/api';
-  });
-  const [showApiConfig, setShowApiConfig] = useState(false);
-  const [apiUrlInput, setApiUrlInput] = useState('');
-
-  const saveApiUrl = useCallback(() => {
-    const url = apiUrlInput.trim();
-    if (url) {
-      localStorage.setItem('backend_api_url', url);
-      setBackendApiBase(url);
-      setShowApiConfig(false);
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8080/api';
     }
-  }, [apiUrlInput]);
-
-  const resetApiUrl = useCallback(() => {
-    localStorage.removeItem('backend_api_url');
-    const defaultUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || '/api';
-    setBackendApiBase(defaultUrl);
-    setShowApiConfig(false);
+    return `${protocol}//${hostname}/api`;
   }, []);
 
   // 安全的 fetch + json 解析，401 时跳转登录
@@ -160,7 +147,7 @@ export default function SupplyChainPage() {
       const sessionId = localStorage.getItem('session_id');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (sessionId) headers['X-Session-Id'] = sessionId;
-      const res = await fetch(`${backendApiBase}/supply-chain${url}`, { headers });
+      const res = await fetch(`${getApiBase()}/supply-chain${url}`, { headers });
       if (res.status === 401) {
         localStorage.removeItem('session_id');
         localStorage.removeItem('portal_type');
@@ -248,7 +235,7 @@ export default function SupplyChainPage() {
       const sessionId = localStorage.getItem('session_id');
       const headers: Record<string, string> = {};
       if (sessionId) headers['X-Session-Id'] = sessionId;
-      await fetch(`${backendApiBase}/supply-chain/${type}/${id}`, { method: 'DELETE', headers });
+      await fetch(`${getApiBase()}/supply-chain/${type}/${id}`, { method: 'DELETE', headers });
       loadAllData();
     } catch { alert('删除失败'); }
   };
@@ -265,7 +252,7 @@ export default function SupplyChainPage() {
       const sessionId = localStorage.getItem('session_id');
       const headers: Record<string, string> = {};
       if (sessionId) headers['X-Session-Id'] = sessionId;
-      const res = await fetch(`${backendApiBase}/supply-chain/import`, { method: 'POST', headers, body: formData });
+      const res = await fetch(`${getApiBase()}/supply-chain/import`, { method: 'POST', headers, body: formData });
       const result = await res.json();
       if (result.code === 200) { alert(`成功导入 ${result.data} 条数据`); loadAllData(); }
       else alert('导入失败: ' + (result.message || '未知错误'));
@@ -680,36 +667,13 @@ export default function SupplyChainPage() {
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">供应链 & 工厂</span>
             </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setApiUrlInput(backendApiBase); setShowApiConfig(true); }}
-              className="text-xs text-slate-400 hover:text-violet-600 transition-colors px-2 py-1.5 hover:bg-violet-50 rounded-lg flex items-center gap-1"
-              title="配置后端地址">
-              <Cog className="w-3.5 h-3.5" /> 后端地址
-            </button>
             <button onClick={handleLogout}
               className="text-sm text-slate-500 hover:text-red-500 transition-colors px-3 py-1.5 hover:bg-red-50 rounded-lg">
               退出登录
             </button>
           </div>
         </div>
-        {/* 后端地址配置弹窗 */}
-        {showApiConfig && (
-          <div className="absolute top-14 right-4 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 z-50 w-80">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-slate-700">后端 API 地址配置</span>
-              <button onClick={() => setShowApiConfig(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
-            </div>
-            <p className="text-xs text-slate-400 mb-2">当前地址: {backendApiBase}</p>
-            <input type="text" value={apiUrlInput} onChange={e => setApiUrlInput(e.target.value)}
-              placeholder="如: http://localhost:8080/api"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 mb-3" />
-            <div className="flex gap-2">
-              <button onClick={saveApiUrl}
-                className="flex-1 bg-violet-600 text-white text-sm py-1.5 rounded-lg hover:bg-violet-700 transition-colors">保存</button>
-              <button onClick={resetApiUrl}
-                className="flex-1 border border-slate-300 text-slate-600 text-sm py-1.5 rounded-lg hover:bg-slate-50 transition-colors">重置默认</button>
-            </div>
-          </div>
-        )}
+
       </header>
 
       <div className="max-w-[1600px] mx-auto px-4 py-4">

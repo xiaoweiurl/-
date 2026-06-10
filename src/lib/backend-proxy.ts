@@ -3,12 +3,24 @@
  * 所有请求必须通过 Java 后端处理
  */
 
-// 后端 API 基础 URL（动态获取，优先从 localStorage 读取用户运行时配置）
+// 后端 API 基础 URL（根据运行环境自动推导）
 const getDefaultBackendUrl = () => process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+
+/**
+ * 自动推导后端 API 地址
+ * 本地访问(localhost) → http://localhost:8080/api
+ * 外网映射访问 → http://当前域名/api（后端默认映射到80端口）
+ */
 const getBackendApiUrl = () => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('backend_api_url');
-    if (saved) return saved;
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    // 本地访问：后端就是 localhost:8080
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8080/api';
+    }
+    // 外网映射访问：同域名，后端映射到80端口（默认HTTP端口，无需指定）
+    return `${protocol}//${hostname}/api`;
   }
   return getDefaultBackendUrl();
 };
