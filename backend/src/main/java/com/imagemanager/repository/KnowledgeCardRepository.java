@@ -18,6 +18,8 @@ public interface KnowledgeCardRepository extends JpaRepository<KnowledgeCard, UU
 
     // ===== 用户隔离查询 =====
 
+    List<KnowledgeCard> findByDomainCodeAndUserId(String domainCode, String userId);
+
     Page<KnowledgeCard> findByUserIdAndDomainCode(String userId, String domainCode, Pageable pageable);
 
     List<KnowledgeCard> findByUserIdAndDomainCodeOrderByCreatedAtDesc(String userId, String domainCode);

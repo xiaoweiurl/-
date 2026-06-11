@@ -12,8 +12,6 @@ import com.imagemanager.service.MemoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,9 +49,6 @@ public class MemoryServiceImpl implements MemoryService {
     @Value("${app.ai.base-url:https://api.coze.cn}")
     private String aiBaseUrl;
 
-    @Value("${app.ai.model:doubao-seed-1-6-vision-250815}")
-    private String aiModel;
-
     @Value("${app.minimax.api-key:}")
     private String minimaxApiKey;
 
@@ -67,13 +62,8 @@ public class MemoryServiceImpl implements MemoryService {
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     @Override
-    public List<KnowledgeDomain> getAllDomains(String userId) {
-        List<KnowledgeDomain> domains = domainRepository.findAll();
-        for (KnowledgeDomain domain : domains) {
-            long count = cardRepository.countByDomainCodeAndUserId(domain.getCode(), userId);
-            domain.setCardCount((int) count);
-        }
-        return domains;
+    public List<KnowledgeDomain> getAllDomains() {
+        return domainRepository.findAll();
     }
 
     @Override
@@ -83,35 +73,26 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     @Transactional
-    public KnowledgeCard createCard(String domainCode, String title, String content,
-                                    String[] tags, String productCode, String source,
-                                    String confidence, String createdBy) {
+    public KnowledgeCard createCard(KnowledgeCard card, String userId) {
+        // 绑定用户
+        card.setUserId(userId);
+        if (card.getStatus() == null) card.setStatus("published");
+        if (card.getReviewStatus() == null) card.setReviewStatus("pending");
+        if (card.getConfidence() == null) card.setConfidence("medium");
+
         // 1. 保存卡片
-        KnowledgeCard card = KnowledgeCard.builder()
-                .domainCode(domainCode)
-                .title(title)
-                .content(content)
-                .tags(tags)
-                .productCode(productCode)
-                .source(source)
-                .confidence(confidence != null ? confidence : "medium")
-                .status("published")
-                .reviewStatus("pending")
-                .createdBy(createdBy)
-                .build();
         card = cardRepository.save(card);
 
         // 2. 生成向量嵌入
         try {
-            float[] embedding = getEmbedding(title + "\n\n" + content);
+            String text = card.getTitle() + "\n\n" + card.getContent();
+            float[] embedding = getEmbedding(text);
             if (embedding != null && embedding.length > 0) {
                 String vectorStr = arrayToVectorString(embedding);
-                // 使用JdbcTemplate原生SQL插入向量
                 jdbcTemplate.update(
                         "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
                                 "VALUES (gen_random_uuid(), ?::uuid, ?::vector, ?, ?, 0, NOW())",
-                        card.getId().toString(), vectorStr, "text-embedding-v3",
-                        title + "\n\n" + content
+                        card.getId().toString(), vectorStr, "text-embedding-v3", text
                 );
                 log.info("知识卡片向量化成功, cardId={}", card.getId());
             }
@@ -123,21 +104,25 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public Page<KnowledgeCard> getCardsByDomain(String domainCode, String userId, Pageable pageable) {
-        return cardRepository.findByDomainCodeAndStatusAndUserId(domainCode, "published", userId, pageable);
-    }
-
-    @Override
-    public Page<KnowledgeCard> getAllPublishedCards(String userId, Pageable pageable) {
-        return cardRepository.findAllPublishedByUserId(userId, pageable);
+    public List<KnowledgeCard> getCardsByDomain(String domainCode, String userId) {
+        return cardRepository.findByDomainCodeAndUserId(domainCode, userId);
     }
 
     @Override
     @Transactional
-    public void deleteCard(UUID cardId) {
-        // 使用JdbcTemplate删除向量(因为JPA无法处理vector类型)
-        jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE card_id = ?::uuid", cardId.toString());
-        cardRepository.deleteById(cardId);
+    public void deleteCard(String cardId, String userId) {
+        // 先验证卡片属于当前用户
+        Optional<KnowledgeCard> cardOpt = cardRepository.findById(UUID.fromString(cardId));
+        if (cardOpt.isEmpty()) {
+            throw new RuntimeException("卡片不存在");
+        }
+        if (!userId.equals(cardOpt.get().getUserId())) {
+            throw new RuntimeException("无权删除此卡片");
+        }
+        // 删除向量
+        jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE card_id = ?::uuid", cardId);
+        // 删除卡片
+        cardRepository.deleteById(UUID.fromString(cardId));
         log.info("删除知识卡片, cardId={}", cardId);
     }
 
@@ -151,10 +136,10 @@ public class MemoryServiceImpl implements MemoryService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            // 使用JdbcTemplate进行向量检索(按用户隔离)
+            // 按用户隔离的向量检索
             String sql = """
                 SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code,
-                       c.source, c.confidence, c.created_by, c.created_at, e.chunk_text,
+                       c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text,
                        1 - (e.embedding <=> ?::vector) AS score
                 FROM knowledge_embeddings e
                 JOIN knowledge_cards c ON e.card_id = c.id
@@ -196,13 +181,13 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public SseEmitter chat(String message, UUID sessionId, String domainCode, String userId) {
+    public SseEmitter chat(String message, String sessionId, String userId) {
         SseEmitter emitter = new SseEmitter(120000L);
 
         executorService.execute(() -> {
             try {
-                // 1. 语义检索
-                List<MemorySearchResult> searchResults = search(message, domainCode, 0.3, 5, userId);
+                // 1. 语义检索(用户隔离)
+                List<MemorySearchResult> searchResults = search(message, null, 0.3, 5, userId);
 
                 // 2. 发送来源
                 List<Map<String, Object>> sources = new ArrayList<>();
@@ -231,7 +216,7 @@ public class MemoryServiceImpl implements MemoryService {
                 context.append("\n请基于以上知识回答用户问题。如果知识卡片中没有相关信息，请说明。回答时标注引用来源。\n");
                 context.append("用户问题: ").append(message);
 
-                // 4. 流式调用LLM
+                // 4. 流式调用MiniMax LLM
                 streamChat(emitter, context.toString());
 
                 emitter.complete();
@@ -249,7 +234,7 @@ public class MemoryServiceImpl implements MemoryService {
         return emitter;
     }
 
-    // ========== Embedding API ==========
+    // ========== Embedding API (Coze) ==========
 
     private float[] getEmbedding(String text) {
         try {
@@ -350,7 +335,6 @@ public class MemoryServiceImpl implements MemoryService {
 
                             switch (eventType) {
                                 case "content_block_delta":
-                                    // 文本内容增量
                                     JsonNode delta = node.path("delta");
                                     String deltaType = delta.path("type").asText("");
                                     if ("text_delta".equals(deltaType)) {
@@ -363,7 +347,6 @@ public class MemoryServiceImpl implements MemoryService {
                                     }
                                     break;
                                 case "message_stop":
-                                    // 流式结束
                                     emitter.send(SseEmitter.event().name("message").data(
                                             objectMapper.writeValueAsString(Map.of("type", "done"))
                                     ));
