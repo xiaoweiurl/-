@@ -34,6 +34,7 @@ import {
   CheckSquare,
   Trash,
   Library,
+  Brain,
 } from 'lucide-react';
 import {
   Dialog,
@@ -743,6 +744,11 @@ export default function Sidebar({
       id: 'knowledge',
       label: 'RAG 知识库',
       icon: Sparkles,
+    },
+    {
+      id: 'memory',
+      label: '记忆库',
+      icon: Brain,
     },
     {
       id: 'recent',

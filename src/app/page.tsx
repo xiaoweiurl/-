@@ -1393,6 +1393,12 @@ export default function Home() {
       return;
     }
 
+    // 如果点击记忆库，跳转到记忆库页面
+    if (item === 'memory') {
+      router.push('/memory');
+      return;
+    }
+
     // 如果点击数据仪表盘，跳转到仪表盘页面
     if (item === 'dashboard') {
       router.push('/dashboard');

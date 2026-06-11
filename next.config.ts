@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
   /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
+  serverExternalPackages: ['pg'],
   experimental: {
     serverActions: {
       bodySizeLimit: '512mb', // 支持最大 512MB 的请求体
