@@ -63,6 +63,9 @@ public class KnowledgeCard {
     @Column(name = "created_by", nullable = false, length = 100)
     private String createdBy;
 
+    @Column(name = "user_id", length = 100)
+    private String userId;
+
     @Column(name = "view_count")
     @Builder.Default
     private Integer viewCount = 0;

@@ -50,10 +50,14 @@ CREATE TABLE IF NOT EXISTS knowledge_cards (
     reviewer VARCHAR(100),                   -- 审核人
     reviewed_at TIMESTAMP,
     created_by VARCHAR(100) NOT NULL,        -- 创建人
+    user_id VARCHAR(100),                    -- 所属用户(数据隔离)
     view_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 用户数据隔离索引
+CREATE INDEX IF NOT EXISTS idx_knowledge_cards_user ON knowledge_cards(user_id);
 
 -- 3. 向量嵌入表 - 知识卡片的向量化表示(1024维)
 CREATE TABLE IF NOT EXISTS knowledge_embeddings (

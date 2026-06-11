@@ -48,6 +48,7 @@ CREATE TABLE knowledge_cards (
     review_status VARCHAR(20) DEFAULT 'pending',
     reviewer VARCHAR(100),
     reviewed_at TIMESTAMP,
+    user_id VARCHAR(100),                       -- 用户ID(数据隔离)
     created_by VARCHAR(100) NOT NULL,
     view_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -88,6 +89,7 @@ CREATE INDEX idx_knowledge_embeddings_hnsw ON knowledge_embeddings USING hnsw (e
 
 -- 卡片索引
 CREATE INDEX idx_knowledge_cards_domain ON knowledge_cards(domain_code);
+CREATE INDEX idx_knowledge_cards_user ON knowledge_cards(user_id);
 CREATE INDEX idx_knowledge_cards_product ON knowledge_cards(product_code);
 CREATE INDEX idx_knowledge_cards_status ON knowledge_cards(status);
 CREATE INDEX idx_knowledge_cards_tags ON knowledge_cards USING gin(tags);

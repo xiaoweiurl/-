@@ -67,10 +67,10 @@ public class MemoryServiceImpl implements MemoryService {
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     @Override
-    public List<KnowledgeDomain> getAllDomains() {
+    public List<KnowledgeDomain> getAllDomains(String userId) {
         List<KnowledgeDomain> domains = domainRepository.findAll();
         for (KnowledgeDomain domain : domains) {
-            long count = cardRepository.countByDomainCode(domain.getCode());
+            long count = cardRepository.countByDomainCodeAndUserId(domain.getCode(), userId);
             domain.setCardCount((int) count);
         }
         return domains;
@@ -123,13 +123,13 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public Page<KnowledgeCard> getCardsByDomain(String domainCode, Pageable pageable) {
-        return cardRepository.findByDomainCodeAndStatus(domainCode, "published", pageable);
+    public Page<KnowledgeCard> getCardsByDomain(String domainCode, String userId, Pageable pageable) {
+        return cardRepository.findByDomainCodeAndStatusAndUserId(domainCode, "published", userId, pageable);
     }
 
     @Override
-    public Page<KnowledgeCard> getAllPublishedCards(Pageable pageable) {
-        return cardRepository.findAllPublished(pageable);
+    public Page<KnowledgeCard> getAllPublishedCards(String userId, Pageable pageable) {
+        return cardRepository.findAllPublishedByUserId(userId, pageable);
     }
 
     @Override
@@ -142,7 +142,7 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit) {
+    public List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit, String userId) {
         try {
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
@@ -151,7 +151,7 @@ public class MemoryServiceImpl implements MemoryService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            // 使用JdbcTemplate进行向量检索
+            // 使用JdbcTemplate进行向量检索(按用户隔离)
             String sql = """
                 SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code,
                        c.source, c.confidence, c.created_by, c.created_at, e.chunk_text,
@@ -159,6 +159,7 @@ public class MemoryServiceImpl implements MemoryService {
                 FROM knowledge_embeddings e
                 JOIN knowledge_cards c ON e.card_id = c.id
                 WHERE c.status = 'published'
+                AND c.user_id = ?
                 AND (? IS NULL OR c.domain_code = ?)
                 AND 1 - (e.embedding <=> ?::vector) >= ?
                 ORDER BY e.embedding <=> ?::vector
@@ -186,7 +187,7 @@ public class MemoryServiceImpl implements MemoryService {
                                 .score(rs.getDouble("score"))
                                 .build();
                     },
-                    vectorStr, domainCode, domainCode, vectorStr, minScore, vectorStr, limit
+                    vectorStr, userId, domainCode, domainCode, vectorStr, minScore, vectorStr, limit
             );
         } catch (Exception e) {
             log.error("语义检索失败: {}", e.getMessage());
@@ -195,13 +196,13 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public SseEmitter chat(String message, UUID sessionId, String domainCode) {
+    public SseEmitter chat(String message, UUID sessionId, String domainCode, String userId) {
         SseEmitter emitter = new SseEmitter(120000L);
 
         executorService.execute(() -> {
             try {
                 // 1. 语义检索
-                List<MemorySearchResult> searchResults = search(message, domainCode, 0.3, 5);
+                List<MemorySearchResult> searchResults = search(message, domainCode, 0.3, 5, userId);
 
                 // 2. 发送来源
                 List<Map<String, Object>> sources = new ArrayList<>();
