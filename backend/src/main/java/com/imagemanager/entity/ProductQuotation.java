@@ -103,4 +103,49 @@ public class ProductQuotation {
 
     @Column(name = "accessory_price")
     private BigDecimal accessoryPrice;
+
+    @Column(name = "weaving_seconds")
+    private BigDecimal weavingSeconds;
+
+    @Column(name = "daily_output")
+    private Integer dailyOutput;
+
+    @Column(name = "equipment_daily_cost")
+    private BigDecimal equipmentDailyCost;
+
+    @Column(name = "weaving_cost")
+    private BigDecimal weavingCost;
+
+    @Column(name = "yield_rate")
+    private BigDecimal yieldRate;
+
+    @Column(name = "sewing_weight")
+    private BigDecimal sewingWeight;
+
+    @Column(name = "sewing_cost")
+    private BigDecimal sewingCost;
+
+    @Column(name = "dyeing_unit_price")
+    private BigDecimal dyeingUnitPrice;
+
+    @Column(name = "dyeing_cost")
+    private BigDecimal dyeingCost;
+
+    @Column(name = "setting_cost")
+    private BigDecimal settingCost;
+
+    @Column(name = "packaging_cost")
+    private BigDecimal packagingCost;
+
+    @Column(name = "manufacturing_total")
+    private BigDecimal manufacturingTotal;
+
+    @Column(name = "net_cost")
+    private BigDecimal netCost;
+
+    @Column(name = "sales_cost")
+    private BigDecimal salesCost;
+
+    @Column(name = "tax_amount")
+    private BigDecimal taxAmount;
 }

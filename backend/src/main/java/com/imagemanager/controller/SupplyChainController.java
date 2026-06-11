@@ -704,30 +704,41 @@ public class SupplyChainController {
                 }
                 BigDecimal accessoryCost = q.getAccessoryPrice() != null ? q.getAccessoryPrice() : BigDecimal.ZERO;
                 String accessoryName = q.getAccessoryName() != null ? q.getAccessoryName() : "";
-                BigDecimal totalCost = materialCost.add(accessoryCost).add(procCost);
+                // === 完整成本计算 ===
+                // 1. 原料成本 = Σ(用料量 × 单价(元/克))
+                // 2. 辅料成本
+                // 3. 织造成本 = (织时/3600 × 机台日费率) / 日产量
+                // 4. 后整理成本 = 缝拼 + 染色 + 定型 + 包装
+                // 5. 净成本 = (原料 + 辅料 + 织造 + 后整理) / 正品率
 
-                // 建议报价 = 总成本 / (1 - 利润率)
+                BigDecimal weavingCostVal = q.getWeavingCost() != null ? q.getWeavingCost() : BigDecimal.ZERO;
+                BigDecimal sewingCostVal = q.getSewingCost() != null ? q.getSewingCost() : BigDecimal.ZERO;
+                BigDecimal dyeingCostVal = q.getDyeingCost() != null ? q.getDyeingCost() : BigDecimal.ZERO;
+                BigDecimal settingCostVal = q.getSettingCost() != null ? q.getSettingCost() : BigDecimal.ZERO;
+                BigDecimal packagingCostVal = q.getPackagingCost() != null ? q.getPackagingCost() : BigDecimal.ZERO;
+                BigDecimal yieldRate = q.getYieldRate() != null ? q.getYieldRate() : new BigDecimal("100");
+
+                BigDecimal postProcessCost = sewingCostVal.add(dyeingCostVal).add(settingCostVal).add(packagingCostVal);
+                BigDecimal manufacturingCost = weavingCostVal.add(postProcessCost);
+                // 净成本 = (原料 + 辅料 + 制造) / 正品率
+                BigDecimal costBeforeYield = materialCost.add(accessoryCost).add(manufacturingCost);
+                BigDecimal netCostVal = yieldRate.compareTo(BigDecimal.ZERO) > 0
+                        ? costBeforeYield.multiply(new BigDecimal("100")).divide(yieldRate, 4, /* ROUND_HALF_UP */4)
+                        : costBeforeYield;
+
+                BigDecimal totalCost = netCostVal;
+
+                // 建议报价 = 净成本 / (1 - 利润率)
                 BigDecimal suggestedPrice = BigDecimal.ONE.subtract(profitRate).compareTo(BigDecimal.ZERO) > 0
                         ? totalCost.divide(BigDecimal.ONE.subtract(profitRate), 4, /* ROUND_HALF_UP */4)
                         : totalCost;
-                // 实际利润率 = (建议报价 - 总成本) / 建议报价
+                // 实际利润率 = (建议报价 - 净成本) / 建议报价
                 BigDecimal actualProfitRate = suggestedPrice.compareTo(BigDecimal.ZERO) > 0
                         ? suggestedPrice.subtract(totalCost).divide(suggestedPrice, 4, /* ROUND_HALF_UP */4)
                         : BigDecimal.ZERO;
 
-                // 查生产计划获取日产能
-                BigDecimal dailyCapacity = BigDecimal.ZERO;
-                Optional<ProductionPlan> optPlan = productionPlanRepository.findByProductCode(q.getProductCode());
-                if (optPlan.isPresent()) {
-                    ProductionPlan plan = optPlan.get();
-                    // 日产能 = 单机产量 × 8小时 × 3600秒 / 耗时秒数
-                    if (plan.getSeconds() != null && plan.getSeconds().compareTo(BigDecimal.ZERO) > 0
-                            && plan.getSingleMachineOutput() != null) {
-                        dailyCapacity = plan.getSingleMachineOutput()
-                                .multiply(BigDecimal.valueOf(8 * 3600))
-                                .divide(plan.getSeconds(), 0, /* ROUND_HALF_UP */4);
-                    }
-                }
+                // 日产能来自报价表
+                BigDecimal dailyCapacity = q.getDailyOutput() != null ? new BigDecimal(q.getDailyOutput()) : BigDecimal.ZERO;
 
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("id", q.getId());
@@ -740,13 +751,23 @@ public class SupplyChainController {
                 item.put("materialCost", materialCost);
                 item.put("accessoryCost", accessoryCost);
                 item.put("accessoryName", accessoryName);
-                item.put("processingCost", procCost);
+                item.put("weavingCost", weavingCostVal);
+                item.put("sewingCost", sewingCostVal);
+                item.put("dyeingCost", dyeingCostVal);
+                item.put("settingCost", settingCostVal);
+                item.put("packagingCost", packagingCostVal);
+                item.put("postProcessCost", postProcessCost);
+                item.put("manufacturingCost", manufacturingCost);
+                item.put("yieldRate", yieldRate);
+                item.put("netCost", netCostVal);
                 item.put("totalCost", totalCost);
                 item.put("suggestedPrice", suggestedPrice);
                 item.put("actualProfitRate", actualProfitRate);
                 item.put("profitRate", actualProfitRate);
                 item.put("dailyCapacity", dailyCapacity);
-                item.put("sewingWeight", optPlan.isPresent() ? optPlan.get().getSewingWeight() : null);
+                item.put("sewingWeight", q.getSewingWeight() != null ? q.getSewingWeight() : "");
+                item.put("weavingSeconds", q.getWeavingSeconds());
+                item.put("equipmentDailyCost", q.getEquipmentDailyCost());
                 item.put("materialDetails", materialDetails);
                 productList.add(item);
             }
