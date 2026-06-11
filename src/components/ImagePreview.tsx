@@ -48,6 +48,12 @@ export default function ImagePreview({
   const [rotation, setRotation] = React.useState(0);
   const [productImages, setProductImages] = React.useState<ImageItem[]>([]); // 该商品的所有图片
   const [loading, setLoading] = React.useState(false);
+  const [backendUrl, setBackendUrl] = React.useState('');
+
+  // 客户端挂载后获取后端URL，避免SSR/CSR hydration不匹配
+  React.useEffect(() => {
+    setBackendUrl(getBackendStaticUrl());
+  }, []);
 
   // 调试：打印当前图片信息
   React.useEffect(() => {
@@ -73,22 +79,18 @@ export default function ImagePreview({
     }
   }, [image?.id]);
 
-  // 获取完整的图片 URL（处理相对路径）
+  // 获取完整的图片 URL（处理相对路径，SSR安全）
   const getFullImageUrl = (url: string): string => {
     // 如果已经是完整 URL（包含协议），直接返回
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
     
-    // 如果是相对路径（/uploads/xxx），拼接后端 API 地址（去掉 /api 后缀）
-    if (url.startsWith('/uploads/')) {
-      const backendUrl = getBackendStaticUrl();
-      return `${backendUrl}${url}`;
-    }
+    // 如果没有后端URL（SSR阶段），返回相对路径
+    if (!backendUrl) return url;
     
-    // 其他相对路径
+    // 如果是相对路径，拼接后端地址
     if (url.startsWith('/')) {
-      const backendUrl = getBackendStaticUrl();
       return `${backendUrl}${url}`;
     }
     
