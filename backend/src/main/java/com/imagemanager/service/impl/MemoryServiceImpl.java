@@ -313,7 +313,7 @@ public class MemoryServiceImpl implements MemoryService {
         executorService.execute(() -> {
             try {
                 // 1. 加载上下文历史
-                List<Map<String, String>> history = loadChatHistory(sessionId);
+                List<Map<String, Object>> history = loadChatHistory(sessionId);
 
                 // 2. 语义检索(用户隔离)
                 List<MemorySearchResult> searchResults = search(message, null, 0.3, 5, userId);
