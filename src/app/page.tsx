@@ -30,27 +30,20 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 
 // 动态推导后端 API 基础 URL（支持内网穿透/外网映射）
-// 获取静态资源基础 URL（用于图片等静态资源，需要直连后端）
+// 获取静态资源基础 URL（图片等静态资源，直接用 localhost:8080）
 function getStaticBase(): string {
-  if (typeof window === 'undefined') return '';
-  const { protocol, hostname } = window.location;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:8080';
-  }
-  return `${protocol}//${hostname}`;
+  return 'http://localhost:8080';
 }
 
-// 获取完整的图片 URL（SSR安全：服务端返回相对路径避免hydration不匹配）
-function getFullImageUrl(url: string | undefined, staticBase?: string): string {
+// 获取完整的图片 URL
+function getFullImageUrl(url: string | undefined, _staticBase?: string): string {
   if (!url) return '/placeholder.svg';
   // 如果已经是完整 URL（包含 http 或 //），直接返回
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
     return url;
   }
-  // 如果没有静态基础URL（SSR阶段），返回相对路径
-  if (!staticBase) return `/${url.replace(/^\//, '')}`;
   // 如果是相对路径，添加后端静态资源 URL
-  return `${staticBase}/${url.replace(/^\//, '')}`;
+  return `http://localhost:8080/${url.replace(/^\//, '')}`;
 }
 
 // 获取 sessionId（从 localStorage）
@@ -232,7 +225,6 @@ export default function Home() {
   const { addNotification } = useNotifications();
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
-  const [staticBase, setStaticBase] = React.useState<string>('');
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [activeMenuItem, setActiveMenuItem] = React.useState('all');
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -241,10 +233,6 @@ export default function Home() {
   const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
   const [previewImage, setPreviewImage] = React.useState<ImageItem | null>(null);
 
-  // 客户端挂载后获取后端URL，避免SSR/CSR hydration不匹配
-  React.useEffect(() => {
-    setStaticBase(getStaticBase());
-  }, []);
   const [images, setImages] = React.useState<ImageItem[]>([]);
   const [allImages, setAllImages] = React.useState<ImageItem[]>([]); // 用于统计的完整数据
   const [albums, setAlbums] = React.useState<Album[]>([]);
@@ -1880,7 +1868,7 @@ export default function Home() {
               <ImageGrid
               images={filteredImages.map(img => ({
                 ...img,
-                url: getFullImageUrl(img.url, staticBase),
+                url: getFullImageUrl(img.url),
               }))}
               viewMode={viewMode}
               selectedImages={selectedImages}
@@ -1994,8 +1982,8 @@ export default function Home() {
       {/* 图片预览 - 转换图片 URL 为完整路径 */}
       {previewImage && (
         <ImagePreview
-          image={{ ...previewImage, url: getFullImageUrl(previewImage.url, staticBase) }}
-          images={filteredImages.map(img => ({ ...img, url: getFullImageUrl(img.url, staticBase) }))}
+          image={{ ...previewImage, url: getFullImageUrl(previewImage.url) }}
+          images={filteredImages.map(img => ({ ...img, url: getFullImageUrl(img.url) }))}
           productId={previewImage?.productId}
           onClose={() => setPreviewImage(null)}
           onNavigate={(img) => setPreviewImage(img && typeof img === 'object' ? img : previewImage)}

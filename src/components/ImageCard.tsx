@@ -18,19 +18,17 @@ import dynamic from 'next/dynamic';
 const ShareDialog = dynamic(() => import('./ShareDialog'), { ssr: false });
 
 // 后端静态资源 URL（动态推导，支持外网映射）
-import { getBackendStaticUrl } from '@/lib/backend-proxy';
+
 
 // 获取完整的图片 URL（SSR安全：服务端返回相对路径避免hydration不匹配）
-function getFullImageUrl(url: string | undefined, backendUrl?: string): string {
+function getFullImageUrl(url: string | undefined): string {
   if (!url) return '/placeholder.svg';
   // 如果已经是完整 URL，直接返回
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
     return url;
   }
-  // 如果没有后端URL（SSR阶段），返回相对路径
-  if (!backendUrl) return url;
-  // 如果是相对路径，添加后端地址
-  return `${backendUrl}${url}`;
+  // 静态资源直接用 localhost:8080
+  return `http://localhost:8080${url}`;
 }
 
 export interface ImageItem {
@@ -106,16 +104,10 @@ export default function ImageCard({
   const [menuView, setMenuView] = React.useState<'main' | 'share' | 'albums'>('main');
   const [menuPosition, setMenuPosition] = React.useState({ top: 0, left: 0 });
   const [showShareDialog, setShowShareDialog] = React.useState(false);
-  const [backendUrl, setBackendUrl] = React.useState<string>('');
   const cardRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
-
-  // 客户端挂载后获取后端URL，避免SSR/CSR hydration不匹配
-  React.useEffect(() => {
-    setBackendUrl(getBackendStaticUrl());
-  }, []);
 
   // 点击外部关闭菜单（需要同时检查卡片和菜单本身）
   React.useEffect(() => {
@@ -148,7 +140,7 @@ export default function ImageCard({
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const fullUrl = getFullImageUrl(image.url, backendUrl);
+      const fullUrl = getFullImageUrl(image.url);
       const sessionId = getSessionId();
       console.log('[ImageCard] 下载图片，完整URL:', fullUrl, 'sessionId:', sessionId ? sessionId.substring(0, 8) + '...' : 'null');
       
@@ -230,7 +222,7 @@ export default function ImageCard({
   // 复制图片链接
   const handleCopyLink = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const fullUrl = getFullImageUrl(image.url, backendUrl);
+    const fullUrl = getFullImageUrl(image.url);
     navigator.clipboard.writeText(fullUrl);
     toast.success('链接已复制到剪贴板');
     setShowMoreMenu(false);
@@ -240,7 +232,7 @@ export default function ImageCard({
   // 在新标签页打开
   const handleOpenInNew = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const fullUrl = getFullImageUrl(image.url, backendUrl);
+    const fullUrl = getFullImageUrl(image.url);
     window.open(fullUrl, '_blank');
     setShowMoreMenu(false);
     setMenuView('main');
@@ -324,7 +316,7 @@ export default function ImageCard({
   };
 
   // 分享功能
-  const shareUrl = getFullImageUrl(image.url, backendUrl);
+  const shareUrl = getFullImageUrl(image.url);
   const shareTitle = image.title;
 
   // 打开分享菜单
@@ -448,7 +440,7 @@ export default function ImageCard({
         />
         {viewMode === 'grid' ? (
           <Image
-            src={getFullImageUrl(image.url, backendUrl)}
+            src={getFullImageUrl(image.url)}
             alt={image.title}
             fill
             unoptimized  // 跳过 Next.js 图片优化，直接使用原始 URL
@@ -461,7 +453,7 @@ export default function ImageCard({
           />
         ) : viewMode === 'list' ? (
           <Image
-            src={getFullImageUrl(image.url, backendUrl)}
+            src={getFullImageUrl(image.url)}
             alt={image.title}
             fill
             unoptimized
@@ -473,7 +465,7 @@ export default function ImageCard({
           />
         ) : (
           <Image
-            src={getFullImageUrl(image.url, backendUrl)}
+            src={getFullImageUrl(image.url)}
             alt={image.title}
             width={400}
             height={300}
