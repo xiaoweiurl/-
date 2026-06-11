@@ -29,10 +29,24 @@ import type { ImageItem } from '@/components/ImageCard';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 
-// 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
-// 后端静态资源 URL（用于图片等）
-const BACKEND_STATIC_URL = process.env.NEXT_PUBLIC_BACKEND_STATIC_URL || 'http://localhost:8080';
+// 动态推导后端 API 基础 URL（支持内网穿透/外网映射）
+function getApiBase(): string {
+  if (typeof window === 'undefined') return 'http://localhost:8080/api';
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8080/api';
+  }
+  return `${protocol}//${hostname}/api`;
+}
+
+function getStaticBase(): string {
+  if (typeof window === 'undefined') return 'http://localhost:8080';
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8080';
+  }
+  return `${protocol}//${hostname}`;
+}
 
 // 获取完整的图片 URL
 function getFullImageUrl(url: string | undefined): string {
@@ -42,7 +56,7 @@ function getFullImageUrl(url: string | undefined): string {
     return url;
   }
   // 如果是相对路径，添加后端静态资源 URL
-  return `${BACKEND_STATIC_URL}/${url.replace(/^\//, '')}`;
+  return `${getStaticBase()}/${url.replace(/^\//, '')}`;
 }
 
 // 获取 sessionId（从 localStorage）
@@ -59,7 +73,7 @@ function isApiSuccess(result: Record<string, unknown>): boolean {
 // 直接调用后端 API
 async function backendFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const sessionId = getSessionId();
-  const url = `${BACKEND_API_URL}${endpoint}`;
+  const url = `${getApiBase()}${endpoint}`;
   
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> || {}),
@@ -288,7 +302,7 @@ export default function Home() {
   const fetchDocumentStats = React.useCallback(async () => {
     try {
       const sessionId = getSessionId();
-      const response = await fetch(`${BACKEND_API_URL}/documents/stats`, {
+      const response = await fetch(`${getApiBase()}/documents/stats`, {
         headers: {
           'X-Session-Id': sessionId || '',
         },
