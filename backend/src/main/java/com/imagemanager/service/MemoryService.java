@@ -3,9 +3,12 @@ package com.imagemanager.service;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.entity.KnowledgeCard;
 import com.imagemanager.entity.KnowledgeDomain;
+import com.imagemanager.entity.KnowledgeDocument;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.Map;
 
 public interface MemoryService {
 
@@ -24,9 +27,24 @@ public interface MemoryService {
     /** 删除知识卡片(含向量) - 只能删自己的 */
     void deleteCard(String cardId, String userId);
 
+    /** 上传文档(PDF/Word/Excel/TXT) → 解析 → 切片 → 向量化入库 */
+    KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId);
+
+    /** 获取用户的文档列表 */
+    List<KnowledgeDocument> getDocuments(String userId);
+
+    /** 删除文档及其关联的知识卡片和向量 */
+    void deleteDocument(String docId, String userId);
+
     /** 语义检索(用户隔离) */
     List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit, String userId);
 
-    /** AI对话(SSE流式, 用户隔离) */
+    /** AI对话(SSE流式, 用户隔离, 含上下文) */
     SseEmitter chat(String message, String sessionId, String userId);
+
+    /** 获取对话历史 */
+    List<Map<String, Object>> getChatHistory(String sessionId, String userId);
+
+    /** 清空对话历史 */
+    void clearChatHistory(String sessionId, String userId);
 }

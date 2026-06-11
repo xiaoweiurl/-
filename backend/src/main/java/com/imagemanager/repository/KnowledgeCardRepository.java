@@ -37,6 +37,8 @@ public interface KnowledgeCardRepository extends JpaRepository<KnowledgeCard, UU
     @Query("SELECT COUNT(c) FROM KnowledgeCard c WHERE c.domainCode = :domainCode AND c.userId = :userId")
     long countByDomainCodeAndUserId(@Param("domainCode") String domainCode, @Param("userId") String userId);
 
+    List<KnowledgeCard> findByUserIdAndSource(String userId, String source);
+
     Optional<KnowledgeCard> findByIdAndUserId(UUID id, String userId);
 
     @Modifying

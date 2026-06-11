@@ -4,6 +4,7 @@ import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.entity.KnowledgeCard;
 import com.imagemanager.entity.KnowledgeDomain;
+import com.imagemanager.entity.KnowledgeDocument;
 import com.imagemanager.exception.AuthException;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.MemoryService;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -19,7 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 记忆库控制器 - 知识卡片管理 + 语义检索 + AI问答
+ * 记忆库控制器 - 知识卡片管理 + 文档上传 + 语义检索 + AI问答
  * 每个用户的知识库相互隔离
  */
 @RestController
@@ -55,15 +57,19 @@ public class MemoryController {
         return user;
     }
 
+    // ====== 知识域 ======
+
     /**
      * 获取所有知识域
      */
     @GetMapping("/domains")
     public ResponseEntity<?> getDomains(HttpServletRequest request) {
-        getCurrentUser(request); // 验证登录
+        getCurrentUser(request);
         List<KnowledgeDomain> domains = memoryService.getAllDomains();
         return ResponseEntity.ok(Map.of("success", true, "domains", domains));
     }
+
+    // ====== 知识卡片 ======
 
     /**
      * 创建知识卡片
@@ -121,6 +127,63 @@ public class MemoryController {
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
+    // ====== 文档上传 ======
+
+    /**
+     * 上传文档(PDF/Word/Excel/TXT) → 自动解析 → 切片 → 向量化入库
+     */
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadDocument(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "domainCode", defaultValue = "product") String domainCode,
+            HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "文件不能为空"));
+        }
+
+        // 校验文件类型
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "文件名不能为空"));
+        }
+        String ext = originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase();
+        if (!List.of("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "text").contains(ext)) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "不支持的文件格式，仅支持 PDF/Word/Excel/TXT"));
+        }
+
+        KnowledgeDocument doc = memoryService.uploadDocument(file, domainCode, userId);
+        return ResponseEntity.ok(Map.of("success", true, "document", doc, "message", "文档上传成功，正在后台处理解析和向量化"));
+    }
+
+    /**
+     * 获取用户的文档列表
+     */
+    @GetMapping("/documents")
+    public ResponseEntity<?> getDocuments(HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        List<KnowledgeDocument> docs = memoryService.getDocuments(userId);
+        return ResponseEntity.ok(Map.of("success", true, "documents", docs, "total", docs.size()));
+    }
+
+    /**
+     * 删除文档及其关联的知识卡片和向量
+     */
+    @DeleteMapping("/documents/{id}")
+    public ResponseEntity<?> deleteDocument(@PathVariable String id, HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        memoryService.deleteDocument(id, userId);
+        return ResponseEntity.ok(Map.of("success", true, "message", "文档及关联知识已删除"));
+    }
+
+    // ====== 语义检索 ======
+
     /**
      * 语义检索知识卡片
      */
@@ -142,8 +205,10 @@ public class MemoryController {
         return ResponseEntity.ok(Map.of("success", true, "query", query, "results", results, "total", results.size()));
     }
 
+    // ====== AI对话 ======
+
     /**
-     * AI问答 (SSE流式)
+     * AI问答 (SSE流式, 含上下文)
      */
     @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(
@@ -155,5 +220,33 @@ public class MemoryController {
 
         String chatSessionId = sessionId != null ? sessionId : UUID.randomUUID().toString();
         return memoryService.chat(message, chatSessionId, userId);
+    }
+
+    /**
+     * 获取对话历史
+     */
+    @GetMapping("/chat/history")
+    public ResponseEntity<?> getChatHistory(
+            @RequestParam String sessionId,
+            HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        List<Map<String, Object>> history = memoryService.getChatHistory(sessionId, userId);
+        return ResponseEntity.ok(Map.of("success", true, "history", history));
+    }
+
+    /**
+     * 清空对话历史
+     */
+    @DeleteMapping("/chat/history")
+    public ResponseEntity<?> clearChatHistory(
+            @RequestParam String sessionId,
+            HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        memoryService.clearChatHistory(sessionId, userId);
+        return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
     }
 }

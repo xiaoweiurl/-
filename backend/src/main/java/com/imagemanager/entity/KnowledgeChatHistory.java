@@ -33,6 +33,9 @@ public class KnowledgeChatHistory {
     @Column(name = "sources", columnDefinition = "JSONB")
     private String sources;
 
+    @Column(name = "user_id", length = 100)
+    private String userId;
+
     @Column(name = "model", length = 50)
     private String model;
 

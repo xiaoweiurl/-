@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.entity.KnowledgeCard;
 import com.imagemanager.entity.KnowledgeDomain;
+import com.imagemanager.entity.KnowledgeDocument;
 import com.imagemanager.repository.KnowledgeCardRepository;
+import com.imagemanager.repository.KnowledgeDocumentRepository;
 import com.imagemanager.repository.KnowledgeDomainRepository;
 import com.imagemanager.repository.KnowledgeEmbeddingRepository;
+import com.imagemanager.service.DocumentParserService;
 import com.imagemanager.service.MemoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.BufferedReader;
@@ -41,6 +45,12 @@ public class MemoryServiceImpl implements MemoryService {
     private KnowledgeEmbeddingRepository embeddingRepository;
 
     @Autowired
+    private KnowledgeDocumentRepository documentRepository;
+
+    @Autowired
+    private DocumentParserService documentParserService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Value("${app.ai.api-key:}")
@@ -61,6 +71,8 @@ public class MemoryServiceImpl implements MemoryService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
+    // ========== 知识域 ==========
+
     @Override
     public List<KnowledgeDomain> getAllDomains() {
         return domainRepository.findAll();
@@ -71,19 +83,18 @@ public class MemoryServiceImpl implements MemoryService {
         return domainRepository.findByCode(code).orElse(null);
     }
 
+    // ========== 知识卡片 ==========
+
     @Override
     @Transactional
     public KnowledgeCard createCard(KnowledgeCard card, String userId) {
-        // 绑定用户
         card.setUserId(userId);
         if (card.getStatus() == null) card.setStatus("published");
         if (card.getReviewStatus() == null) card.setReviewStatus("pending");
         if (card.getConfidence() == null) card.setConfidence("medium");
 
-        // 1. 保存卡片
         card = cardRepository.save(card);
 
-        // 2. 生成向量嵌入
         try {
             String text = card.getTitle() + "\n\n" + card.getContent();
             float[] embedding = getEmbedding(text);
@@ -111,7 +122,6 @@ public class MemoryServiceImpl implements MemoryService {
     @Override
     @Transactional
     public void deleteCard(String cardId, String userId) {
-        // 先验证卡片属于当前用户
         Optional<KnowledgeCard> cardOpt = cardRepository.findById(UUID.fromString(cardId));
         if (cardOpt.isEmpty()) {
             throw new RuntimeException("卡片不存在");
@@ -119,12 +129,127 @@ public class MemoryServiceImpl implements MemoryService {
         if (!userId.equals(cardOpt.get().getUserId())) {
             throw new RuntimeException("无权删除此卡片");
         }
-        // 删除向量
         jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE card_id = ?::uuid", cardId);
-        // 删除卡片
         cardRepository.deleteById(UUID.fromString(cardId));
         log.info("删除知识卡片, cardId={}", cardId);
     }
+
+    // ========== 文档上传 ==========
+
+    @Override
+    @Transactional
+    public KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId) {
+        String originalFilename = file.getOriginalFilename();
+        String ext = originalFilename != null ?
+                originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase() : "";
+
+        // 1. 保存文档记录
+        KnowledgeDocument doc = new KnowledgeDocument();
+        doc.setUserId(userId);
+        doc.setFileName(originalFilename);
+        doc.setFileType(ext);
+        doc.setFileSize(file.getSize());
+        doc.setDomainCode(domainCode);
+        doc.setStatus("processing");
+        doc = documentRepository.save(doc);
+
+        // 2. 异步处理：解析→切片→向量化
+        KnowledgeDocument finalDoc = doc;
+        executorService.execute(() -> {
+            try {
+                // 解析文档
+                String fullText = documentParserService.parseDocument(file);
+
+                // 切片 (每片500字，重叠100字)
+                List<String> chunks = documentParserService.chunkText(fullText, 500, 100);
+
+                if (chunks.isEmpty()) {
+                    finalDoc.setStatus("empty");
+                    finalDoc.setErrorMessage("文档内容为空");
+                    documentRepository.save(finalDoc);
+                    return;
+                }
+
+                // 逐片创建卡片和向量
+                int successCount = 0;
+                for (int i = 0; i < chunks.size(); i++) {
+                    String chunk = chunks.get(i);
+                    try {
+                        // 创建知识卡片
+                        KnowledgeCard card = new KnowledgeCard();
+                        card.setDomainCode(domainCode);
+                        card.setTitle(originalFilename + " (片段" + (i + 1) + "/" + chunks.size() + ")");
+                        card.setContent(chunk);
+                        card.setUserId(userId);
+                        card.setSource(originalFilename);
+                        card.setStatus("published");
+                        card.setReviewStatus("approved");
+                        card.setConfidence("medium");
+                        card.setTags(new String[]{ext, "上传文档"});
+                        card = cardRepository.save(card);
+
+                        // 向量化
+                        float[] embedding = getEmbedding(chunk);
+                        if (embedding != null && embedding.length > 0) {
+                            String vectorStr = arrayToVectorString(embedding);
+                            jdbcTemplate.update(
+                                    "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
+                                            "VALUES (gen_random_uuid(), ?::uuid, ?::vector, ?, ?, ?, NOW())",
+                                    card.getId().toString(), vectorStr, "text-embedding-v3", chunk, i
+                            );
+                            successCount++;
+                        }
+                    } catch (Exception e) {
+                        log.error("文档切片{}向量化失败: {}", i, e.getMessage());
+                    }
+                }
+
+                finalDoc.setStatus("completed");
+                finalDoc.setChunkCount(successCount);
+                documentRepository.save(finalDoc);
+                log.info("文档上传处理完成: {}, 成功切片: {}/{}", originalFilename, successCount, chunks.size());
+
+            } catch (Exception e) {
+                log.error("文档处理失败: {}", e.getMessage());
+                finalDoc.setStatus("failed");
+                finalDoc.setErrorMessage(e.getMessage());
+                documentRepository.save(finalDoc);
+            }
+        });
+
+        return doc;
+    }
+
+    @Override
+    public List<KnowledgeDocument> getDocuments(String userId) {
+        return documentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteDocument(String docId, String userId) {
+        Optional<KnowledgeDocument> docOpt = documentRepository.findById(UUID.fromString(docId));
+        if (docOpt.isEmpty()) {
+            throw new RuntimeException("文档不存在");
+        }
+        if (!userId.equals(docOpt.get().getUserId())) {
+            throw new RuntimeException("无权删除此文档");
+        }
+
+        String fileName = docOpt.get().getFileName();
+
+        // 删除该文档产生的所有卡片和向量
+        List<KnowledgeCard> cards = cardRepository.findByUserIdAndSource(userId, fileName);
+        for (KnowledgeCard card : cards) {
+            jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE card_id = ?::uuid", card.getId().toString());
+            cardRepository.delete(card);
+        }
+
+        documentRepository.deleteById(UUID.fromString(docId));
+        log.info("删除文档及相关卡片: {}, 卡片数: {}", fileName, cards.size());
+    }
+
+    // ========== 语义检索 ==========
 
     @Override
     public List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit, String userId) {
@@ -136,7 +261,6 @@ public class MemoryServiceImpl implements MemoryService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            // 按用户隔离的向量检索
             String sql = """
                 SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code,
                        c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text,
@@ -180,16 +304,21 @@ public class MemoryServiceImpl implements MemoryService {
         }
     }
 
+    // ========== AI对话(含上下文) ==========
+
     @Override
     public SseEmitter chat(String message, String sessionId, String userId) {
         SseEmitter emitter = new SseEmitter(120000L);
 
         executorService.execute(() -> {
             try {
-                // 1. 语义检索(用户隔离)
+                // 1. 加载上下文历史
+                List<Map<String, String>> history = loadChatHistory(sessionId);
+
+                // 2. 语义检索(用户隔离)
                 List<MemorySearchResult> searchResults = search(message, null, 0.3, 5, userId);
 
-                // 2. 发送来源
+                // 3. 发送来源
                 List<Map<String, Object>> sources = new ArrayList<>();
                 for (MemorySearchResult r : searchResults) {
                     sources.add(Map.of(
@@ -203,21 +332,44 @@ public class MemoryServiceImpl implements MemoryService {
                         objectMapper.writeValueAsString(Map.of("type", "sources", "sources", sources))
                 ));
 
-                // 3. 构建提示词
-                StringBuilder context = new StringBuilder();
-                context.append("你是盈云产品智能中台的AI助手。请基于以下知识卡片回答用户问题。\n\n");
-                context.append("## 相关知识卡片：\n");
-                for (int i = 0; i < searchResults.size(); i++) {
-                    MemorySearchResult r = searchResults.get(i);
-                    context.append(String.format("### 卡片%d [%s] %s\n%s\n置信度: %s | 来源: %s\n\n",
-                            i + 1, r.getDomainName(), r.getTitle(), r.getContent(),
-                            r.getConfidence(), r.getSource() != null ? r.getSource() : "未知"));
+                // 4. 构建知识上下文
+                StringBuilder knowledgeContext = new StringBuilder();
+                if (!searchResults.isEmpty()) {
+                    knowledgeContext.append("## 相关知识卡片：\n");
+                    for (int i = 0; i < searchResults.size(); i++) {
+                        MemorySearchResult r = searchResults.get(i);
+                        knowledgeContext.append(String.format("### 卡片%d [%s] %s\n%s\n置信度: %s | 来源: %s\n\n",
+                                i + 1, r.getDomainName(), r.getTitle(), r.getContent(),
+                                r.getConfidence(), r.getSource() != null ? r.getSource() : "未知"));
+                    }
                 }
-                context.append("\n请基于以上知识回答用户问题。如果知识卡片中没有相关信息，请说明。回答时标注引用来源。\n");
-                context.append("用户问题: ").append(message);
 
-                // 4. 流式调用MiniMax LLM
-                streamChat(emitter, context.toString());
+                // 5. 构建messages（含历史上下文）
+                List<Map<String, Object>> messages = new ArrayList<>();
+
+                // 加入历史对话（最近10轮）
+                int startIdx = Math.max(0, history.size() - 20);
+                for (int i = startIdx; i < history.size(); i++) {
+                    messages.add(history.get(i));
+                }
+
+                // 当前用户消息（带知识上下文）
+                String userContent = message;
+                if (!knowledgeContext.isEmpty()) {
+                    userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message +
+                            "\n\n请基于以上知识回答用户问题。如果知识卡片中没有相关信息，请说明。回答时标注引用来源。";
+                }
+                messages.add(Map.of("role", "user", "content", userContent));
+
+                // 6. 保存用户消息
+                saveChatMessage(sessionId, userId, "user", message);
+
+                // 7. 流式调用MiniMax LLM（含上下文）
+                StringBuilder fullResponse = new StringBuilder();
+                streamChatWithContext(emitter, messages, fullResponse);
+
+                // 8. 保存AI回复
+                saveChatMessage(sessionId, userId, "assistant", fullResponse.toString());
 
                 emitter.complete();
             } catch (Exception e) {
@@ -234,48 +386,67 @@ public class MemoryServiceImpl implements MemoryService {
         return emitter;
     }
 
-    // ========== Embedding API (Coze) ==========
+    @Override
+    public List<Map<String, Object>> getChatHistory(String sessionId, String userId) {
+        String sql = "SELECT role, content, created_at FROM knowledge_chat_history " +
+                "WHERE session_id = ?::uuid AND user_id = ? ORDER BY created_at ASC";
+        return jdbcTemplate.query(sql,
+                (rs, rowNum) -> {
+                    Map<String, Object> msg = new LinkedHashMap<>();
+                    msg.put("role", rs.getString("role"));
+                    msg.put("content", rs.getString("content"));
+                    msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                    return msg;
+                },
+                sessionId, userId
+        );
+    }
 
-    private float[] getEmbedding(String text) {
+    @Override
+    @Transactional
+    public void clearChatHistory(String sessionId, String userId) {
+        jdbcTemplate.update(
+                "DELETE FROM knowledge_chat_history WHERE session_id = ?::uuid AND user_id = ?",
+                sessionId, userId
+        );
+    }
+
+    // ========== 私有方法 ==========
+
+    private List<Map<String, String>> loadChatHistory(String sessionId) {
+        if (sessionId == null || sessionId.isEmpty()) return Collections.emptyList();
+
         try {
-            String apiKey = System.getenv("COZE_API_TOKEN");
-            if (apiKey == null || apiKey.isEmpty()) {
-                apiKey = aiApiKey;
-            }
-            if (apiKey == null || apiKey.isEmpty()) {
-                log.warn("未配置AI API密钥, 跳过向量化");
-                return null;
-            }
-
-            String url = aiBaseUrl + "/v3/embeddings";
-            Map<String, Object> body = new HashMap<>();
-            body.put("model", "text-embedding-v3");
-            body.put("input", Map.of("text", text));
-            body.put("dimensions", 1024);
-
-            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
-            JsonNode root = objectMapper.readTree(response);
-
-            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
-                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
-                float[] embedding = new float[embeddingNode.size()];
-                for (int i = 0; i < embeddingNode.size(); i++) {
-                    embedding[i] = (float) embeddingNode.get(i).asDouble();
-                }
-                return embedding;
-            }
-
-            log.warn("Embedding API返回异常: {}", response);
-            return null;
+            String sql = "SELECT role, content FROM knowledge_chat_history " +
+                    "WHERE session_id = ?::uuid ORDER BY created_at ASC LIMIT 40";
+            return jdbcTemplate.query(sql,
+                    (rs, rowNum) -> Map.of(
+                            "role", rs.getString("role"),
+                            "content", rs.getString("content")
+                    ),
+                    sessionId
+            );
         } catch (Exception e) {
-            log.error("获取Embedding失败: {}", e.getMessage());
-            return null;
+            log.warn("加载对话历史失败: {}", e.getMessage());
+            return Collections.emptyList();
         }
     }
 
-    // ========== LLM流式对话 (MiniMax Anthropic API) ==========
+    private void saveChatMessage(String sessionId, String userId, String role, String content) {
+        if (sessionId == null || sessionId.isEmpty()) return;
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO knowledge_chat_history (id, session_id, role, content, user_id, created_at) " +
+                            "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, NOW())",
+                    sessionId, role, content, userId
+            );
+        } catch (Exception e) {
+            log.warn("保存对话消息失败: {}", e.getMessage());
+        }
+    }
 
-    private void streamChat(SseEmitter emitter, String prompt) {
+    private void streamChatWithContext(SseEmitter emitter, List<Map<String, Object>> messages,
+                                        StringBuilder fullResponse) {
         try {
             String apiKey = minimaxApiKey;
             if (apiKey == null || apiKey.isEmpty()) {
@@ -285,16 +456,12 @@ public class MemoryServiceImpl implements MemoryService {
                 throw new RuntimeException("未配置MiniMax API密钥");
             }
 
-            // Anthropic兼容格式请求体
             Map<String, Object> body = new HashMap<>();
             body.put("model", minimaxModel);
             body.put("max_tokens", 4096);
             body.put("stream", true);
-            body.put("system", "你是盈云产品智能中台的AI助手。请基于提供的知识卡片回答用户问题，标注引用来源。如果知识卡片中没有相关信息，请明确说明。回答使用中文。");
-            body.put("messages", List.of(Map.of(
-                    "role", "user",
-                    "content", prompt
-            )));
+            body.put("system", "你是盈云产品智能中台的AI助手。请基于提供的知识卡片回答用户问题，标注引用来源。如果知识卡片中没有相关信息，请明确说明。回答使用中文。保持对话连贯性，参考上下文历史。");
+            body.put("messages", messages);
 
             HttpURLConnection conn = (HttpURLConnection) URI.create(minimaxBaseUrl).toURL().openConnection();
             conn.setRequestMethod("POST");
@@ -340,6 +507,7 @@ public class MemoryServiceImpl implements MemoryService {
                                     if ("text_delta".equals(deltaType)) {
                                         String text = delta.path("text").asText("");
                                         if (!text.isEmpty()) {
+                                            fullResponse.append(text);
                                             emitter.send(SseEmitter.event().name("message").data(
                                                     objectMapper.writeValueAsString(Map.of("type", "content", "content", text))
                                             ));
@@ -368,7 +536,44 @@ public class MemoryServiceImpl implements MemoryService {
         }
     }
 
-    // ========== 工具方法 ==========
+    // ========== Embedding API (Coze) ==========
+
+    private float[] getEmbedding(String text) {
+        try {
+            String apiKey = System.getenv("COZE_API_TOKEN");
+            if (apiKey == null || apiKey.isEmpty()) {
+                apiKey = aiApiKey;
+            }
+            if (apiKey == null || apiKey.isEmpty()) {
+                log.warn("未配置AI API密钥, 跳过向量化");
+                return null;
+            }
+
+            String url = aiBaseUrl + "/v3/embeddings";
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", "text-embedding-v3");
+            body.put("input", Map.of("text", text));
+            body.put("dimensions", 1024);
+
+            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            JsonNode root = objectMapper.readTree(response);
+
+            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
+                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
+                float[] embedding = new float[embeddingNode.size()];
+                for (int i = 0; i < embeddingNode.size(); i++) {
+                    embedding[i] = (float) embeddingNode.get(i).asDouble();
+                }
+                return embedding;
+            }
+
+            log.warn("Embedding API返回异常: {}", response);
+            return null;
+        } catch (Exception e) {
+            log.error("获取Embedding失败: {}", e.getMessage());
+            return null;
+        }
+    }
 
     private String doPost(String url, String jsonBody, String apiKey) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
