@@ -24,7 +24,7 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/memory")
-@CrossOrigin(origins = "*", allowCredentials = "true")
+@CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class MemoryController {
 
     @Autowired
