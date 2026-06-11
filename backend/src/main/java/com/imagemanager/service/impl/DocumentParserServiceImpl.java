@@ -5,6 +5,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ public class DocumentParserServiceImpl implements DocumentParserService {
         String ext = originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase();
 
         return switch (ext) {
-            case "pdf" -> parsePdf(file.getInputStream());
+            case "pdf" -> parsePdf(file);
             case "doc", "docx" -> parseWord(file.getInputStream());
             case "xls", "xlsx" -> parseExcel(file.getInputStream());
             case "txt", "text", "md", "csv" -> parseText(file);
@@ -36,8 +37,8 @@ public class DocumentParserServiceImpl implements DocumentParserService {
         };
     }
 
-    private String parsePdf(InputStream is) throws Exception {
-        try (PDDocument document = PDDocument.load(is)) {
+    private String parsePdf(MultipartFile file) throws Exception {
+        try (PDDocument document = Loader.loadPDF(file.getBytes())) {
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(true);
             return stripper.getText(document);
