@@ -128,6 +128,11 @@ export function proxyImageUrl(url: string | undefined): string {
   return result;
 }
 
+// 全局调试函数，可在控制台执行 window.__debugProxyImageUrl('http://localhost:8080/api/uploads/test.jpg')
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__debugProxyImageUrl = proxyImageUrl;
+}
+
 /**
  * 获取 sessionId
  * @param requestHeaders 可选的请求头对象（用于服务端 API route）
