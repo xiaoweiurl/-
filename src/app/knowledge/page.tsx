@@ -110,9 +110,12 @@ export default function KnowledgePage() {
         content: m.content,
       }));
 
+      const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+      const chatHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sid) chatHeaders['X-Session-Id'] = sid;
       const response = await fetch('/api/knowledge/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: chatHeaders,
         body: JSON.stringify({ message: userMessage.content, history }),
       });
 
@@ -170,9 +173,12 @@ export default function KnowledgePage() {
 
     setIsAdding(true);
     try {
+      const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+      const addHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sid) addHeaders['X-Session-Id'] = sid;
       const res = await fetch('/api/knowledge/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: addHeaders,
         body: JSON.stringify(
           addType === 'text'
             ? { content: `标题: ${addTitle}\n\n${addContent}`, datasetName: 'coze_doc_knowledge' }
@@ -210,7 +216,12 @@ export default function KnowledgePage() {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     try {
-      const res = await fetch(`/api/knowledge/search?query=${encodeURIComponent(searchQuery)}&topK=5&minScore=0.3`);
+      const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+      const searchHeaders: Record<string, string> = {};
+      if (sid) searchHeaders['X-Session-Id'] = sid;
+      const res = await fetch(`/api/knowledge/search?query=${encodeURIComponent(searchQuery)}&topK=5&minScore=0.3`, {
+        headers: searchHeaders,
+      });
       const data = await res.json();
       if (data.success) {
         setSearchResults(data.chunks || []);

@@ -92,24 +92,51 @@ const FILE_ICONS: Record<string, React.ReactNode> = {
 };
 
 // 统一使用 Next.js API 代理（同源，无跨域问题）
+// 从 localStorage 获取 sessionId 传到请求头，确保代理能转发给 Java 后端
+function getSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('session_id');
+}
+
 const memoryApi = {
-  get: (path: string) => fetch(`/api/proxy/memory${path}`, { credentials: 'include' }),
-  post: (path: string, body?: unknown) => fetch(`/api/proxy/memory${path}`, {
-    method: 'POST',
-    headers: body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
-    body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
-    credentials: 'include',
-  }),
-  put: (path: string, body: unknown) => fetch(`/api/proxy/memory${path}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'include',
-  }),
-  del: (path: string) => fetch(`/api/proxy/memory${path}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  }),
+  get: (path: string) => {
+    const sid = getSessionId();
+    return fetch(`/api/proxy/memory${path}`, {
+      credentials: 'include',
+      headers: sid ? { 'X-Session-Id': sid } : undefined,
+    });
+  },
+  post: (path: string, body?: unknown) => {
+    const sid = getSessionId();
+    const headers: Record<string, string> = {};
+    if (sid) headers['X-Session-Id'] = sid;
+    if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
+    return fetch(`/api/proxy/memory${path}`, {
+      method: 'POST',
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+    });
+  },
+  put: (path: string, body: unknown) => {
+    const sid = getSessionId();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (sid) headers['X-Session-Id'] = sid;
+    return fetch(`/api/proxy/memory${path}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(body),
+      credentials: 'include',
+    });
+  },
+  del: (path: string) => {
+    const sid = getSessionId();
+    return fetch(`/api/proxy/memory${path}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: sid ? { 'X-Session-Id': sid } : undefined,
+    });
+  },
 };
 
 function formatFileSize(bytes: number): string {
@@ -321,9 +348,12 @@ export default function MemoryPage() {
         message: userMsg.content,
         sessionId: currentSessionId,
       });
+      const chatSid = getSessionId();
+      const chatHeaders: Record<string, string> = { 'Accept': 'text/event-stream' };
+      if (chatSid) chatHeaders['X-Session-Id'] = chatSid;
       const res = await fetch(`/api/proxy/memory/chat?${params}`, {
         method: 'GET',
-        headers: { 'Accept': 'text/event-stream' },
+        headers: chatHeaders,
         credentials: 'include',
       });
 
