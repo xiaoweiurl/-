@@ -108,20 +108,24 @@ export function rewriteStaticUrls<T>(obj: T): T {
 export function proxyImageUrl(url: string | undefined): string {
   if (!url) return '/placeholder.svg';
   
-  const isLocal = typeof window !== 'undefined' && 
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  // SSR 环境无法判断，直接返回
+  if (typeof window === 'undefined') return url;
+  
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   
   // 本地访问：localhost:8080 直连，不做替换
   if (isLocal) return url;
   
-  // 映射访问：替换 localhost:8080 为当前域名(默认80端口)
-  if (typeof window !== 'undefined') {
-    const mappedOrigin = `${window.location.protocol}//${window.location.hostname}`;
-    // 替换 http://localhost:8080 或 http://127.0.0.1:8080
-    return url.replace(/^https?:\/\/(localhost|127\.0\.0\.1):8080/, mappedOrigin);
+  // 映射访问：替换 localhost:8080 为当前域名
+  // 内部 8080 → 外部域名:80 (默认80端口省略)
+  const mappedOrigin = `${window.location.protocol}//${window.location.hostname}`;
+  const result = url.replace(/^https?:\/\/(localhost|127\.0\.0\.1):8080/, mappedOrigin);
+  
+  if (result !== url) {
+    console.log(`[proxyImageUrl] ${url} → ${result}`);
   }
   
-  return url;
+  return result;
 }
 
 /**
