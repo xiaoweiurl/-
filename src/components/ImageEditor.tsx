@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { X, Loader2, Download, RotateCcw, RotateCw, Maximize, Minimize } from 'lucide-react';
-import { rewriteStaticUrl } from '@/lib/backend-proxy';
+
 import { Button } from '@/components/ui/button';
 import type { ImageItem } from './ImageCard';
 
@@ -41,6 +41,8 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
 
   // 获取完整的图片 URL（将 localhost:8080 改写为代理路径）
   const getFullImageUrl = useCallback((url: string): string => {
+    // 已经是代理路径，直接返回
+    if (url.startsWith('/api/proxy/')) return url;
     // 如果是包含 localhost:8080 的完整URL，改写为代理路径
     if (url.includes('localhost:8080')) {
       const pathWithoutHost = url.replace(/^https?:\/\/localhost:8080/, '');
@@ -50,7 +52,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
     
     // 其他完整URL（非localhost，如CDN等）
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      return rewriteStaticUrl(url);
+      return url;
     }
     
     // 相对路径，通过代理访问
