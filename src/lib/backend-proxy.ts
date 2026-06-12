@@ -97,34 +97,31 @@ export function rewriteStaticUrls<T>(obj: T): T {
 }
 
 /**
- * 将任意图片/静态资源 URL 转为 /api/proxy 代理路径
- * 支持以下格式:
- *   http://localhost:8080/api/uploads/xxx.jpg → /api/proxy/uploads/xxx.jpg
- *   http://localhost:8080/uploads/xxx.jpg     → /api/proxy/uploads/xxx.jpg
- *   http://任意域名/api/uploads/xxx.jpg       → /api/proxy/uploads/xxx.jpg
- *   /api/uploads/xxx.jpg                      → /api/proxy/uploads/xxx.jpg
- *   /uploads/xxx.jpg                          → /api/proxy/uploads/xxx.jpg
- *   /api/proxy/uploads/xxx.jpg                → /api/proxy/uploads/xxx.jpg (不变)
+ * 根据当前访问域名动态替换图片URL
+ * 本地访问(localhost/127.0.0.1): 保持 http://localhost:8080/... 不变
+ * 映射访问(外网域名): 替换为 http://当前域名/... (映射的80端口,即Java后端)
+ * 
+ * 映射对应关系:
+ *   内部 8080 → 外部 域名:80 (默认80端口省略)
+ *   内部 5000 → 外部 域名:8000 (Next.js前端)
  */
 export function proxyImageUrl(url: string | undefined): string {
   if (!url) return '/placeholder.svg';
-  // 已经是代理路径，直接返回
-  if (url.startsWith('/api/proxy/')) return url;
-  // 任何以 http:// 或 https:// 开头的完整URL，提取路径部分走代理
-  const httpMatch = url.match(/^https?:\/\/[^/]+(\/.*)$/);
-  if (httpMatch) {
-    let path = httpMatch[1]; // 如 /api/uploads/images/xxx.jpg
-    // 去掉 /api 前缀（代理会自动加回）
-    path = path.replace(/^\/api/, '');
-    return `/api/proxy${path}`;
+  
+  const isLocal = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  
+  // 本地访问：localhost:8080 直连，不做替换
+  if (isLocal) return url;
+  
+  // 映射访问：替换 localhost:8080 为当前域名(默认80端口)
+  if (typeof window !== 'undefined') {
+    const mappedOrigin = `${window.location.protocol}//${window.location.hostname}`;
+    // 替换 http://localhost:8080 或 http://127.0.0.1:8080
+    return url.replace(/^https?:\/\/(localhost|127\.0\.0\.1):8080/, mappedOrigin);
   }
-  // // 开头的协议相对URL，不处理
-  if (url.startsWith('//')) return url;
-  // 相对路径
-  if (url.startsWith('/api/')) {
-    return `/api/proxy${url.slice(4)}`; // /api/uploads/xxx → /api/proxy/uploads/xxx
-  }
-  return `/api/proxy${url.startsWith('/') ? url : '/' + url}`;
+  
+  return url;
 }
 
 /**
