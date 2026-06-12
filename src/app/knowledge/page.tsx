@@ -65,14 +65,33 @@ export default function KnowledgePage() {
 
   // 登录检查
   useEffect(() => {
-    fetch('/api/auth/login').then(res => res.json()).then(data => {
-      if (data.loggedIn) {
+    const localSessionId = localStorage.getItem('session_id');
+    if (!localSessionId) {
+      router.push('/login');
+      return;
+    }
+    fetch('/api/auth/login').then(res => {
+      if (res.ok) return res.json();
+      // 后端不可用时走降级模式
+      return null;
+    }).then(data => {
+      if (data === null) {
+        const username = localStorage.getItem('username') || '用户';
+        setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
+        return;
+      }
+      if (data.success && data.data?.user) {
+        setCurrentUser(data.data.user);
+      } else if (data.loggedIn) {
         setCurrentUser(data.user);
       } else {
+        localStorage.removeItem('session_id');
+        localStorage.removeItem('session_expires');
         router.push('/login');
       }
     }).catch(() => {
-      router.push('/login');
+      const username = localStorage.getItem('username') || '用户';
+      setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
     });
   }, [router]);
 

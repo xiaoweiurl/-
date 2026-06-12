@@ -192,14 +192,36 @@ export default function MemoryPage() {
 
   // 检查登录状态
   useEffect(() => {
-    fetch('/api/auth/login').then(res => res.json()).then(data => {
-      if (data.loggedIn) {
+    const localSessionId = localStorage.getItem('session_id');
+    if (!localSessionId) {
+      router.push('/login');
+      return;
+    }
+    fetch('/api/auth/login').then(res => {
+      if (res.ok) return res.json();
+      // 后端不可用时走降级模式，使用本地session
+      return null;
+    }).then(data => {
+      if (data === null) {
+        // 降级模式：从localStorage构造用户信息
+        const username = localStorage.getItem('username') || '用户';
+        setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
+        return;
+      }
+      if (data.success && data.data?.user) {
+        setCurrentUser(data.data.user);
+      } else if (data.loggedIn) {
         setCurrentUser(data.user);
       } else {
+        // session无效，清除并跳转
+        localStorage.removeItem('session_id');
+        localStorage.removeItem('session_expires');
         router.push('/login');
       }
     }).catch(() => {
-      router.push('/login');
+      // 网络错误时不强制跳转，走降级模式
+      const username = localStorage.getItem('username') || '用户';
+      setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
     });
   }, [router]);
 
