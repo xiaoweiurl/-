@@ -3,7 +3,6 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { proxyImageUrl } from '@/lib/backend-proxy';
 
 import Sidebar from '@/components/Sidebar';
 import Header, { type CurrentUser } from '@/components/Header';
@@ -34,8 +33,16 @@ import { useNotifications } from '@/contexts/NotificationContext';
 // 后端 API 基础 URL - 统一走 Next.js 代理
 const BACKEND_API_URL = '/api/proxy';
 
-// 获取完整的图片 URL - 统一走代理
-const getFullImageUrl = proxyImageUrl;
+// 获取完整的图片 URL - 统一转为相对路径，由 Next.js rewrites 代理
+const getFullImageUrl = (url: string) => {
+  if (!url) return url;
+  // 已经是相对路径，直接返回
+  if (url.startsWith('/')) return url;
+  // 完整URL: http://localhost:8080/api/uploads/xxx → /api/uploads/xxx
+  const match = url.match(/^https?:\/\/[^/]+(\/.*)$/);
+  if (match) return match[1];
+  return url;
+};
 
 // 获取 sessionId（从 localStorage）
 function getSessionId(): string | null {
@@ -717,18 +724,21 @@ export default function Home() {
       if (isSuccess) {
         // API 返回格式: { success: true, data: { list: [...], total: ..., page: ..., pageSize: ... } }
         const imageList = result.data?.list || result.data || [];
-        console.log('[Home] 解析后的图片列表:', imageList.length, '张');
-
         // 去重处理，避免重复 key 警告
         const deduplicatedList = imageList.filter((img: { id: string }, index: number, arr: { id: string }[]) =>
           arr.findIndex((i: { id: string }) => i.id === img.id) === index
         ).map((img: Record<string, unknown>) => {
-          // 在数据源头统一转换所有 URL 为代理路径
+          // 在数据源头统一转换所有 URL 为相对路径(由 Next.js rewrites 代理)
           const converted = { ...img };
-          if (typeof converted.url === 'string') converted.url = proxyImageUrl(converted.url);
-          if (typeof converted.thumbnail === 'string') converted.thumbnail = proxyImageUrl(converted.thumbnail);
-          if (typeof converted.originalUrl === 'string') converted.originalUrl = proxyImageUrl(converted.originalUrl);
-          if (typeof converted.mainImageUrl === 'string') converted.mainImageUrl = proxyImageUrl(converted.mainImageUrl);
+          const toRelative = (url: string) => {
+            if (!url || url.startsWith('/')) return url;
+            const match = url.match(/^https?:\/\/[^/]+(\/.*)$/);
+            return match ? match[1] : url;
+          };
+          if (typeof converted.url === 'string') converted.url = toRelative(converted.url);
+          if (typeof converted.thumbnail === 'string') converted.thumbnail = toRelative(converted.thumbnail);
+          if (typeof converted.originalUrl === 'string') converted.originalUrl = toRelative(converted.originalUrl);
+          if (typeof converted.mainImageUrl === 'string') converted.mainImageUrl = toRelative(converted.mainImageUrl);
           return converted;
         });
 
@@ -1439,10 +1449,10 @@ export default function Home() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setImages((result.images as any[]).map((img: any) => {
             const c = { ...img };
-            if (typeof c.url === 'string') c.url = proxyImageUrl(c.url);
-            if (typeof c.thumbnail === 'string') c.thumbnail = proxyImageUrl(c.thumbnail);
-            if (typeof c.originalUrl === 'string') c.originalUrl = proxyImageUrl(c.originalUrl);
-            if (typeof c.mainImageUrl === 'string') c.mainImageUrl = proxyImageUrl(c.mainImageUrl);
+            if (typeof c.url === 'string') c.url = getFullImageUrl(c.url);
+            if (typeof c.thumbnail === 'string') c.thumbnail = getFullImageUrl(c.thumbnail);
+            if (typeof c.originalUrl === 'string') c.originalUrl = getFullImageUrl(c.originalUrl);
+            if (typeof c.mainImageUrl === 'string') c.mainImageUrl = getFullImageUrl(c.mainImageUrl);
             return c;
           }));
           setHasMore(result.page < result.totalPages);
@@ -1512,10 +1522,10 @@ export default function Home() {
         console.log('[Home] 获取到图片列表，数量:', imageList.length);
         setImages(imageList.map((img: Record<string, unknown>) => {
           const c = { ...img };
-          if (typeof c.url === 'string') c.url = proxyImageUrl(c.url);
-          if (typeof c.thumbnail === 'string') c.thumbnail = proxyImageUrl(c.thumbnail);
-          if (typeof c.originalUrl === 'string') c.originalUrl = proxyImageUrl(c.originalUrl);
-          if (typeof c.mainImageUrl === 'string') c.mainImageUrl = proxyImageUrl(c.mainImageUrl);
+          if (typeof c.url === 'string') c.url = getFullImageUrl(c.url);
+          if (typeof c.thumbnail === 'string') c.thumbnail = getFullImageUrl(c.thumbnail);
+          if (typeof c.originalUrl === 'string') c.originalUrl = getFullImageUrl(c.originalUrl);
+          if (typeof c.mainImageUrl === 'string') c.mainImageUrl = getFullImageUrl(c.mainImageUrl);
           return c;
         }));
         setHasMore(false);
@@ -1573,10 +1583,10 @@ export default function Home() {
         console.log('[Home] 获取到图片列表，数量:', imageList.length);
         setImages(imageList.map((img: Record<string, unknown>) => {
           const c = { ...img };
-          if (typeof c.url === 'string') c.url = proxyImageUrl(c.url);
-          if (typeof c.thumbnail === 'string') c.thumbnail = proxyImageUrl(c.thumbnail);
-          if (typeof c.originalUrl === 'string') c.originalUrl = proxyImageUrl(c.originalUrl);
-          if (typeof c.mainImageUrl === 'string') c.mainImageUrl = proxyImageUrl(c.mainImageUrl);
+          if (typeof c.url === 'string') c.url = getFullImageUrl(c.url);
+          if (typeof c.thumbnail === 'string') c.thumbnail = getFullImageUrl(c.thumbnail);
+          if (typeof c.originalUrl === 'string') c.originalUrl = getFullImageUrl(c.originalUrl);
+          if (typeof c.mainImageUrl === 'string') c.mainImageUrl = getFullImageUrl(c.mainImageUrl);
           return c;
         }));
         setHasMore(false);
