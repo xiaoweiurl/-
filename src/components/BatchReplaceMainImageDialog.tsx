@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Check, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { proxyImageUrl } from "@/lib/backend-proxy";
 
 interface ImageData {
   imgId: string;
@@ -310,7 +311,7 @@ export function BatchReplaceMainImageDialog({
                               `}
                             >
                               <img
-                                src={img.url}
+                                src={proxyImageUrl(img.url)}
                                 alt={`详情图 ${img.displayOrder}`}
                                 className="w-full h-full object-cover"
                               />

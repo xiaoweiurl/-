@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { proxyImageUrl } from '@/lib/backend-proxy';
 import { getSessionId } from '@/lib/auth-client';
 import { 
   Heart, Download, MoreVertical, Check, Trash2, Move, Copy, ExternalLink, Share2,
@@ -18,27 +19,8 @@ import dynamic from 'next/dynamic';
 // 动态导入 ShareDialog 避免 SSR 问题
 const ShareDialog = dynamic(() => import('./ShareDialog'), { ssr: false });
 
-// 后端静态资源 URL（用于图片等静态文件，统一走代理）
-
-
-// 获取完整的图片 URL（将 localhost:8080 的完整URL改写为代理路径）
-function getFullImageUrl(url: string | undefined): string {
-  if (!url) return '/placeholder.svg';
-  // 已经是代理路径，直接返回
-  if (url.startsWith('/api/proxy/')) return url;
-  // 如果是包含 localhost:8080 的完整URL，改写为代理路径
-  if (url.includes('localhost:8080')) {
-    const pathWithoutHost = url.replace(/^https?:\/\/localhost:8080/, '');
-    const pathWithoutApiPrefix = pathWithoutHost.replace(/^\/api/, '');
-    return `/api/proxy${pathWithoutApiPrefix}`;
-  }
-  // 其他完整URL（非localhost，如CDN等）
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
-    return url;
-  }
-  // 如果是相对路径，添加代理前缀
-  return `/api/proxy${url.startsWith('/') ? url : '/' + url}`;
-}
+// 获取完整的图片 URL - 统一走代理
+const getFullImageUrl = proxyImageUrl;
 
 export interface ImageItem {
   id: string;

@@ -97,6 +97,37 @@ export function rewriteStaticUrls<T>(obj: T): T {
 }
 
 /**
+ * 将任意图片/静态资源 URL 转为 /api/proxy 代理路径
+ * 支持以下格式:
+ *   http://localhost:8080/api/uploads/xxx.jpg → /api/proxy/uploads/xxx.jpg
+ *   http://localhost:8080/uploads/xxx.jpg     → /api/proxy/uploads/xxx.jpg
+ *   http://任意域名/api/uploads/xxx.jpg       → /api/proxy/uploads/xxx.jpg
+ *   /api/uploads/xxx.jpg                      → /api/proxy/uploads/xxx.jpg
+ *   /uploads/xxx.jpg                          → /api/proxy/uploads/xxx.jpg
+ *   /api/proxy/uploads/xxx.jpg                → /api/proxy/uploads/xxx.jpg (不变)
+ */
+export function proxyImageUrl(url: string | undefined): string {
+  if (!url) return '/placeholder.svg';
+  // 已经是代理路径，直接返回
+  if (url.startsWith('/api/proxy/')) return url;
+  // 任何以 http:// 或 https:// 开头的完整URL，提取路径部分走代理
+  const httpMatch = url.match(/^https?:\/\/[^/]+(\/.*)$/);
+  if (httpMatch) {
+    let path = httpMatch[1]; // 如 /api/uploads/images/xxx.jpg
+    // 去掉 /api 前缀（代理会自动加回）
+    path = path.replace(/^\/api/, '');
+    return `/api/proxy${path}`;
+  }
+  // // 开头的协议相对URL，不处理
+  if (url.startsWith('//')) return url;
+  // 相对路径
+  if (url.startsWith('/api/')) {
+    return `/api/proxy${url.slice(4)}`; // /api/uploads/xxx → /api/proxy/uploads/xxx
+  }
+  return `/api/proxy${url.startsWith('/') ? url : '/' + url}`;
+}
+
+/**
  * 获取 sessionId
  * @param requestHeaders 可选的请求头对象（用于服务端 API route）
  */
