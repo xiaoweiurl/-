@@ -42,15 +42,15 @@ const nextConfig: NextConfig = {
           pathname: '/**' as const,
         },
       ] : []),
-      // 映射域名（外网访问时的图片域名）
+      // 映射域名（外网访问时的图片域名，支持所有子域名）
       {
         protocol: 'http',
-        hostname: '**.gnway.cc',
+        hostname: '**',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: '**.gnway.cc',
+        hostname: '**',
         pathname: '/**',
       },
     ],

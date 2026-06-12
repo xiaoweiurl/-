@@ -51,8 +51,8 @@ export function getBackendInternalUrl(): string {
 export function rewriteStaticUrl(url: string): string {
   if (!url || typeof window === 'undefined') return url;
   
-  // 只处理 localhost:8080 开头的 URL
-  if (!url.startsWith(LOCAL_STATIC_PREFIX)) return url;
+  // 只处理包含 localhost:8080 的 URL（用 includes 而不是 startsWith，兼容各种路径格式）
+  if (!url.includes('localhost:8080')) return url;
   
   const currentHost = window.location.hostname;
   const currentPort = window.location.port;
@@ -60,14 +60,14 @@ export function rewriteStaticUrl(url: string): string {
   // 本地访问不需要替换
   if (currentHost === 'localhost' || currentHost === '127.0.0.1') return url;
   
-  // 映射域名访问：替换为当前域名
-  // Java后端映射在外网的端口（默认80，即不需要端口后缀）
-  // 你的映射配置：内部8080 → 外部80端口
+  // 映射域名访问：替换 localhost:8080 为当前域名
+  // Java后端映射在外网默认80端口（不需要端口号）
   const protocol = window.location.protocol;
-  const backendPort = currentPort ? '' : ''; // 80端口不需要写端口号
-  const newPrefix = `${protocol}//${currentHost}${backendPort}`;
+  const newPrefix = `${protocol}//${currentHost}`;
   
-  return url.replace(LOCAL_STATIC_PREFIX, newPrefix);
+  const result = url.replace('http://localhost:8080', newPrefix);
+  console.log(`[rewriteStaticUrl] ${url} → ${result}`);
+  return result;
 }
 
 /**
