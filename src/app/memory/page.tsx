@@ -205,7 +205,7 @@ export default function MemoryPage() {
       if (data === null) {
         // 降级模式：从localStorage构造用户信息
         const username = localStorage.getItem('username') || '用户';
-        setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
+        setCurrentUser({ id: 'local', username, role: 'admin', email: '' });
         return;
       }
       if (data.success && data.data?.user) {
@@ -221,7 +221,7 @@ export default function MemoryPage() {
     }).catch(() => {
       // 网络错误时不强制跳转，走降级模式
       const username = localStorage.getItem('username') || '用户';
-      setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
+      setCurrentUser({ id: 'local', username, role: 'admin', email: '' });
     });
   }, [router]);
 

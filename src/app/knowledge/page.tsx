@@ -77,7 +77,7 @@ export default function KnowledgePage() {
     }).then(data => {
       if (data === null) {
         const username = localStorage.getItem('username') || '用户';
-        setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
+        setCurrentUser({ id: 'local', username, role: 'admin', email: '' });
         return;
       }
       if (data.success && data.data?.user) {
@@ -91,7 +91,7 @@ export default function KnowledgePage() {
       }
     }).catch(() => {
       const username = localStorage.getItem('username') || '用户';
-      setCurrentUser({ id: 'local', username, role: 'admin', displayName: username });
+      setCurrentUser({ id: 'local', username, role: 'admin', email: '' });
     });
   }, [router]);
 
