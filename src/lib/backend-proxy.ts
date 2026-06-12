@@ -9,6 +9,9 @@
 // 后端 API 基础 URL（服务端直连用）
 const BACKEND_INTERNAL_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
+// 数据库中存储的静态资源前缀
+const LOCAL_STATIC_PREFIX = 'http://localhost:8080';
+
 /**
  * 判断当前是否在服务端执行
  */
@@ -33,6 +36,64 @@ const getBackendApiUrl = () => {
  */
 export function getBackendInternalUrl(): string {
   return BACKEND_INTERNAL_URL;
+}
+
+/**
+ * 重写静态资源 URL（图片、文件等）
+ * 
+ * 数据库中存储的是 http://localhost:8080/api/uploads/... 
+ * 本地访问时可以直接用，但映射访问时需要替换为映射域名
+ * 
+ * 逻辑：
+ * - localhost 访问 → 不替换，直接用 localhost:8080
+ * - 映射域名访问 → 替换为映射域名（Java后端80端口对应映射的8080）
+ */
+export function rewriteStaticUrl(url: string): string {
+  if (!url || typeof window === 'undefined') return url;
+  
+  // 只处理 localhost:8080 开头的 URL
+  if (!url.startsWith(LOCAL_STATIC_PREFIX)) return url;
+  
+  const currentHost = window.location.hostname;
+  const currentPort = window.location.port;
+  
+  // 本地访问不需要替换
+  if (currentHost === 'localhost' || currentHost === '127.0.0.1') return url;
+  
+  // 映射域名访问：替换为当前域名
+  // Java后端映射在外网的端口（默认80，即不需要端口后缀）
+  // 你的映射配置：内部8080 → 外部80端口
+  const protocol = window.location.protocol;
+  const backendPort = currentPort ? '' : ''; // 80端口不需要写端口号
+  const newPrefix = `${protocol}//${currentHost}${backendPort}`;
+  
+  return url.replace(LOCAL_STATIC_PREFIX, newPrefix);
+}
+
+/**
+ * 批量重写对象中的静态资源 URL
+ * 递归查找所有包含 localhost:8080 的字符串字段并重写
+ */
+export function rewriteStaticUrls<T>(obj: T): T {
+  if (typeof window === 'undefined' || !obj) return obj;
+  
+  if (typeof obj === 'string') {
+    return rewriteStaticUrl(obj) as T;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => rewriteStaticUrls(item)) as T;
+  }
+  
+  if (typeof obj === 'object' && obj !== null) {
+    const result = { ...obj } as Record<string, unknown>;
+    for (const key of Object.keys(result)) {
+      result[key] = rewriteStaticUrls(result[key]);
+    }
+    return result as T;
+  }
+  
+  return obj;
 }
 
 /**

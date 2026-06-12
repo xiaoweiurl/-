@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { rewriteStaticUrl } from '@/lib/backend-proxy';
 import Sidebar from '@/components/Sidebar';
 import Header, { type CurrentUser } from '@/components/Header';
 import ImageGrid from '@/components/ImageGrid';
@@ -34,12 +35,12 @@ const BACKEND_API_URL = '/api/proxy';
 // 后端静态资源 URL - 统一走 Next.js 代理
 const BACKEND_STATIC_URL = '/api/proxy';
 
-// 获取完整的图片 URL
+// 获取完整的图片 URL（自动重写 localhost:8080 为映射域名）
 function getFullImageUrl(url: string | undefined): string {
   if (!url) return '/placeholder.svg';
-  // 如果已经是完整 URL（包含 http 或 //），直接返回
+  // 如果已经是完整 URL，需要重写 localhost:8080 为当前访问域名
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
-    return url;
+    return rewriteStaticUrl(url);
   }
   // 如果是相对路径，添加后端静态资源 URL
   return `${BACKEND_STATIC_URL}/${url.replace(/^\//, '')}`;

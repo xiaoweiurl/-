@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { rewriteStaticUrl } from '@/lib/backend-proxy';
 import { Button } from '@/components/ui/button';
 import {
   X,
@@ -70,11 +71,11 @@ export default function ImagePreview({
     }
   }, [image?.id]);
 
-  // 获取完整的图片 URL（处理相对路径）
+  // 获取完整的图片 URL（处理相对路径，自动重写映射域名）
   const getFullImageUrl = (url: string): string => {
-    // 如果已经是完整 URL（包含协议），直接返回
+    // 如果已经是完整 URL，需要重写 localhost:8080 为映射域名
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
+      return rewriteStaticUrl(url);
     }
     
     // 如果是相对路径（/uploads/xxx），通过 Next.js 代理访问
