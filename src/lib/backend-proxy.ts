@@ -53,15 +53,22 @@ const CACHE_TTL = 30000; // 30秒缓存
 export async function isBackendAvailable(): Promise<boolean> {
   const now = Date.now();
   
+  // 如果在缓存有效期内，直接返回缓存结果
+  if (backendAvailableCache !== null && (now - lastCheckTime) < CACHE_TTL) {
+    return backendAvailableCache;
+  }
+  
   try {
+    // 使用 GET 请求检测后端可用性（不用 OPTIONS，Spring Boot 可能不支持）
     const response = await fetch(`${getBackendApiUrl()}/albums`, {
-      method: 'OPTIONS',
-      signal: AbortSignal.timeout(3000),
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
     });
-    backendAvailableCache = response.ok || response.status === 400;
+    // 只要后端有响应（包括 401/403/404），都说明后端服务在运行
+    backendAvailableCache = response.status < 500;
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务可用 (status: ${response.status})`);
-    return true;
+    console.log(`[Backend] 后端服务${backendAvailableCache ? '可用' : '不可用'} (status: ${response.status})`);
+    return backendAvailableCache;
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;

@@ -76,8 +76,6 @@ async function backendFetch(endpoint: string, options: RequestInit = {}): Promis
   return fetch(url, {
     ...options,
     headers,
-    mode: 'cors',
-    credentials: 'include',
   });
 }
 
