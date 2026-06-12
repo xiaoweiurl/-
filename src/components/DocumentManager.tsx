@@ -36,7 +36,7 @@ import {
 import { useNotifications } from '@/contexts/NotificationContext';
 
 // 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+const BACKEND_API_URL = '/api/proxy';
 
 // 文档分类类型
 type DocumentCategory = 'pdf' | 'word' | 'excel' | 'ppt' | 'zip' | 'other' | 'all';

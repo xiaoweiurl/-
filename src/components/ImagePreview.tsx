@@ -63,9 +63,7 @@ export default function ImagePreview({
   // 记录预览次数
   React.useEffect(() => {
     if (image?.id) {
-      // 移除 /api 后缀，直接调用后端
-      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api').replace(/\/api$/, '');
-      fetch(`${backendUrl}/images/${image.id}/view`, { 
+      fetch(`/api/proxy/images/${image.id}/view`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       }).catch(err => console.error('[ImagePreview] 记录预览失败:', err));
@@ -79,16 +77,14 @@ export default function ImagePreview({
       return url;
     }
     
-    // 如果是相对路径（/uploads/xxx），拼接后端 API 地址（去掉 /api 后缀）
+    // 如果是相对路径（/uploads/xxx），通过 Next.js 代理访问
     if (url.startsWith('/uploads/')) {
-      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080').replace(/\/api$/, '');
-      return `${backendUrl}${url}`;
+      return `/api/proxy${url}`;
     }
     
     // 其他相对路径
     if (url.startsWith('/')) {
-      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080').replace(/\/api$/, '');
-      return `${backendUrl}${url}`;
+      return `/api/proxy${url}`;
     }
     
     return url;

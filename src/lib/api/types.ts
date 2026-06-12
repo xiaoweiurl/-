@@ -5,7 +5,7 @@
  */
 
 // 后端 API 地址
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+export const API_BASE_URL = '/api/proxy';
 
 // API 响应类型
 export interface ApiResponse<T = unknown> {

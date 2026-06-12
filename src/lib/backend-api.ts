@@ -3,8 +3,8 @@
  * 所有 API 调用都通过这个文件统一管理
  */
 
-// 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+// 后端 API 基础 URL - 统一走 Next.js 代理，避免外网 CORS 问题
+const BACKEND_API_URL = '/api/proxy';
 
 // 请求超时时间
 const REQUEST_TIMEOUT = 30000;

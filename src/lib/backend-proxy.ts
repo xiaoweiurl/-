@@ -1,29 +1,24 @@
 /**
  * 后端 API 代理工具
- * 所有请求必须通过 Java 后端处理
+ * 所有请求通过 Next.js API 代理转发到 Java 后端，避免外网访问时的 CORS 和 Private Network Access 问题
  */
 
-// 后端 API 基础 URL（根据运行环境自动推导）
-const getDefaultBackendUrl = () => process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+// 后端 API 基础 URL（服务端代理内部使用）
+const BACKEND_INTERNAL_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 /**
- * 自动推导后端 API 地址
- * 本地访问(localhost) → http://localhost:8080/api
- * 外网映射访问 → http://当前域名/api（后端默认映射到80端口）
+ * 获取后端 API 代理路径
+ * 所有前端请求统一走同源 /api/proxy/... 路径，由 Next.js 服务端代理转发
+ * 彻底避免跨域和 Private Network Access 限制
  */
-const getBackendApiUrl = () => {
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    // 本地访问：后端就是 localhost:8080
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8080/api';
-    }
-    // 外网映射访问：同域名，后端映射到80端口（默认HTTP端口，无需指定）
-    return `${protocol}//${hostname}/api`;
-  }
-  return getDefaultBackendUrl();
-};
+const getBackendApiUrl = () => '/api/proxy';
+
+/**
+ * 获取后端内部直连地址（仅服务端 API route 使用）
+ */
+export function getBackendInternalUrl(): string {
+  return BACKEND_INTERNAL_URL;
+}
 
 /**
  * 获取 sessionId（从 localStorage 或请求头）
@@ -32,13 +27,11 @@ const getBackendApiUrl = () => {
 export function getSessionId(requestHeaders?: Record<string, string | null>): string | null {
   // 服务端调用：从请求头获取
   if (requestHeaders) {
-    // 从 cookie 中提取 session_id
     const cookie = requestHeaders['cookie'];
     if (cookie && typeof cookie === 'string') {
       const match = cookie.match(/session_id=([^;]+)/);
       if (match) return match[1];
     }
-    // 直接从 header 获取 X-Session-Id
     const xSessionId = requestHeaders['x-session-id'];
     if (xSessionId && typeof xSessionId === 'string') return xSessionId;
     return null;
@@ -61,26 +54,24 @@ export async function isBackendAvailable(): Promise<boolean> {
   const now = Date.now();
   
   try {
-    // 调用后端健康检查端点（如果存在）
-    // 使用 OPTIONS 请求避免发送 body
     const response = await fetch(`${getBackendApiUrl()}/albums`, {
       method: 'OPTIONS',
       signal: AbortSignal.timeout(3000),
     });
-    backendAvailableCache = response.ok || response.status === 400; // 400 表示后端可达但参数错误
+    backendAvailableCache = response.ok || response.status === 400;
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务可用: ${getBackendApiUrl()} (status: ${response.status})`);
+    console.log(`[Backend] 后端服务可用 (status: ${response.status})`);
     return true;
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务不可用: ${getBackendApiUrl()}`, error instanceof Error ? error.message : error);
+    console.log(`[Backend] 后端服务不可用`, error instanceof Error ? error.message : error);
     return false;
   }
 }
 
 /**
- * 获取后端 API URL
+ * 获取后端 API URL（兼容旧代码）
  */
 export function getBackendUrl(): string {
   return getBackendApiUrl();
@@ -95,14 +86,11 @@ interface BackendRequestOptions {
   headers?: Record<string, string | undefined>;
   timeout?: number;
   credentials?: RequestCredentials;
-  /**
-   * 请求头对象（用于服务端 API route 从请求中获取 sessionId）
-   */
   requestHeaders?: Record<string, string | null>;
 }
 
 /**
- * 发送请求到后端
+ * 发送请求到后端（通过 Next.js 代理）
  */
 export async function backendFetch(
   endpoint: string,
@@ -110,16 +98,11 @@ export async function backendFetch(
 ): Promise<Response> {
   const url = `${getBackendApiUrl()}${endpoint}`;
 
-  // 初始化 fetchOptions
   const fetchOptions: RequestInit = {
     method: options.method || 'GET',
-    signal: AbortSignal.timeout(options.timeout || 15000), // 默认 15 秒超时
-    // 跨域请求配置
-    mode: 'cors',
-    credentials: 'include',
+    signal: AbortSignal.timeout(options.timeout || 15000),
   };
 
-  // 构建 headers，过滤掉 undefined 值
   const inputHeaders = options.headers || {};
   const headers: Record<string, string> = {};
   
@@ -129,27 +112,21 @@ export async function backendFetch(
     }
   }
 
-  // 如果是POST/PUT/PATCH请求，自动添加Content-Type
   if (options.body && options.method !== 'GET' && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 
-  // 获取 sessionId（支持多种方式）
-  // 1. 从 headers 中直接获取 X-Session-Id
-  // 2. 从 requestHeaders 中获取（兼容旧方式）
   let sessionId: string | null | undefined = headers['X-Session-Id'];
   if (!sessionId) {
     sessionId = getSessionId(options.requestHeaders);
   }
 
-  // 添加 sessionId 到请求头（关键！）
   if (sessionId) {
     headers['X-Session-Id'] = sessionId;
   }
 
   fetchOptions.headers = headers;
 
-  // 序列化body
   if (options.body && options.method !== 'GET') {
     fetchOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
   }
@@ -159,7 +136,6 @@ export async function backendFetch(
     console.log(`[Backend] X-Session-Id: ${sessionId.substring(0, 8)}...`);
   }
 
-  // 带重试的请求
   const maxRetries = 2;
   let lastError: Error | null = null;
   
@@ -170,7 +146,6 @@ export async function backendFetch(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       if (attempt < maxRetries && (lastError.message.includes('Failed to fetch') || lastError.message.includes('ECONNREFUSED') || lastError.message.includes('Timeout'))) {
-        // 等待后重试
         await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
         continue;
       }
@@ -182,7 +157,7 @@ export async function backendFetch(
 }
 
 /**
- * 发送 FormData 请求到后端
+ * 发送 FormData 请求到后端（通过 Next.js 代理）
  */
 export async function backendFetchFormData(
   endpoint: string,
@@ -191,7 +166,6 @@ export async function backendFetchFormData(
 ): Promise<Response> {
   const url = `${getBackendApiUrl()}${endpoint}`;
   
-  // 获取 sessionId（支持服务端和客户端）
   const sessionId = getSessionId(requestHeaders);
   
   console.log(`[Backend] POST (FormData) ${url}`);
@@ -202,10 +176,8 @@ export async function backendFetchFormData(
   const fetchOptions: RequestInit = {
     method: 'POST',
     body: formData,
-    credentials: 'include',
   };
   
-  // 添加 sessionId 到请求头
   if (sessionId) {
     fetchOptions.headers = {
       'X-Session-Id': sessionId,
@@ -223,13 +195,10 @@ export async function backendFetchFormData(
 
 /**
  * 转换后端响应为统一格式
- * 安全处理空响应和解析错误
  */
 export async function handleBackendResponse(response: Response): Promise<{ success: boolean; data?: unknown; error?: string; message?: string }> {
   try {
-    // 先检查响应状态
     if (!response.ok) {
-      // 尝试读取错误消息
       const text = await response.text();
       if (text) {
         try {
@@ -243,20 +212,14 @@ export async function handleBackendResponse(response: Response): Promise<{ succe
       return { success: false, error: `请求失败 (${response.status})` };
     }
     
-    // 安全读取响应体
     const text = await response.text();
     
-    // 空响应视为成功（HTTP 200 即可）
     if (!text) {
       return { success: true, data: undefined };
     }
     
-    // 解析 JSON
     const result = JSON.parse(text);
     
-    // 后端返回格式：{ code, message, data } 或 { success, message, data }
-    // 兼容多种响应格式
-    // 如果 HTTP 状态码是 200 且没有明确的错误标志，则视为成功
     const isSuccess = 
       result.code === 200 || 
       result.code === undefined || 
@@ -298,9 +261,6 @@ export function buildQueryString(params: Record<string, string | number | boolea
 // ==========================================
 
 export const authApi = {
-  /**
-   * 用户登录
-   */
   async login(username: string, password: string, rememberMe?: boolean): Promise<Response> {
     return backendFetch('/auth/login', {
       method: 'POST',
@@ -308,16 +268,10 @@ export const authApi = {
     });
   },
   
-  /**
-   * 用户登出
-   */
   async logout(): Promise<Response> {
     return backendFetch('/auth/logout', { method: 'POST' });
   },
   
-  /**
-   * 验证会话
-   */
   async validateSession(): Promise<Response> {
     return backendFetch('/auth/session');
   },
@@ -328,9 +282,6 @@ export const authApi = {
 // ==========================================
 
 export const imageApi = {
-  /**
-   * 获取图片列表
-   */
   async list(params: {
     page?: number;
     size?: number;
@@ -369,30 +320,18 @@ export const imageApi = {
     return backendFetch(`/images${queryString}`, { requestHeaders });
   },
   
-  /**
-   * 获取图片详情
-   */
   async get(id: string): Promise<Response> {
     return backendFetch(`/images/${id}`);
   },
   
-  /**
-   * 上传图片
-   */
   async upload(formData: FormData): Promise<Response> {
     return backendFetchFormData('/images/upload', formData);
   },
   
-  /**
-   * 批量上传图片
-   */
   async uploadBatch(formData: FormData): Promise<Response> {
     return backendFetchFormData('/images/upload/batch', formData);
   },
   
-  /**
-   * 更新图片
-   */
   async update(id: string, data: { title?: string; albumId?: string; tags?: string[]; description?: string }): Promise<Response> {
     return backendFetch(`/images/${id}`, {
       method: 'PUT',
@@ -400,37 +339,22 @@ export const imageApi = {
     });
   },
   
-  /**
-   * 删除图片（移至回收站）
-   */
   async delete(id: string): Promise<Response> {
     return backendFetch(`/images/${id}`, { method: 'DELETE' });
   },
   
-  /**
-   * 永久删除图片
-   */
   async permanentDelete(id: string): Promise<Response> {
     return backendFetch(`/images/${id}/permanent`, { method: 'DELETE' });
   },
   
-  /**
-   * 恢复图片
-   */
   async restore(id: string): Promise<Response> {
     return backendFetch(`/images/${id}/restore`, { method: 'POST' });
   },
   
-  /**
-   * 切换收藏状态
-   */
   async toggleFavorite(id: string): Promise<Response> {
     return backendFetch(`/images/${id}/favorite`, { method: 'POST' });
   },
   
-  /**
-   * 批量操作
-   */
   async batchOperation(operation: 'delete' | 'favorite' | 'move', imageIds: string[], targetAlbumId?: string): Promise<Response> {
     return backendFetch('/images/batch', {
       method: 'POST',
@@ -438,9 +362,6 @@ export const imageApi = {
     });
   },
   
-  /**
-   * 批量移动图片
-   */
   async moveImages(imageIds: string[], targetAlbumId: string): Promise<Response> {
     return backendFetch('/images/move', {
       method: 'POST',
@@ -448,9 +369,6 @@ export const imageApi = {
     });
   },
   
-  /**
-   * 批量删除图片
-   */
   async deleteImages(imageIds: string[], permanent?: boolean): Promise<Response> {
     return backendFetch('/images/delete', {
       method: 'POST',
@@ -458,54 +376,33 @@ export const imageApi = {
     });
   },
   
-  /**
-   * 获取收藏图片
-   */
   async getFavorites(page: number = 1, pageSize: number = 20): Promise<Response> {
     return backendFetch(`/images/favorites?page=${page}&pageSize=${pageSize}`);
   },
   
-  /**
-   * 获取回收站图片
-   */
   async getTrash(page: number = 1, pageSize: number = 20): Promise<Response> {
     return backendFetch(`/images/trash?page=${page}&pageSize=${pageSize}`);
   },
   
-  /**
-   * 清空回收站
-   */
   async clearTrash(): Promise<Response> {
     return backendFetch('/images/trash', { method: 'DELETE' });
   },
   
-  /**
-   * 获取回收站主图数量
-   */
   async getTrashCount(): Promise<Response> {
     return backendFetch('/images/trash/count');
   },
   
-  /**
-   * 恢复回收站图片
-   */
   async restoreFromTrash(imageIds: string[]): Promise<Response> {
     return backendFetch('/images/trash/restore', {
       method: 'POST',
-      body: { imageIds },  // 修复：传递正确的请求体格式 { imageIds: [...] }
+      body: { imageIds },
     });
   },
   
-  /**
-   * 获取所有标签
-   */
   async getTags(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/images/tags', { requestHeaders });
   },
   
-  /**
-   * 筛选图片
-   */
   async filter(params: {
     tag?: string;
     albumId?: string;
@@ -525,9 +422,6 @@ export const imageApi = {
     return backendFetch(`/images/filter${queryString}`, { requestHeaders });
   },
   
-  /**
-   * 分类图片
-   */
   async classify(imageIds: string[], targetCategory: string, useAI?: boolean, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/images/classify', {
       method: 'POST',
@@ -536,9 +430,6 @@ export const imageApi = {
     });
   },
   
-  /**
-   * 获取图片统计
-   */
   async getStats(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/images/stats', { requestHeaders });
   },
@@ -549,23 +440,14 @@ export const imageApi = {
 // ==========================================
 
 export const albumApi = {
-  /**
-   * 获取所有相册
-   */
   async list(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/albums', { requestHeaders });
   },
   
-  /**
-   * 获取相册详情
-   */
   async get(id: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/albums/${id}`, { requestHeaders });
   },
   
-  /**
-   * 创建相册
-   */
   async create(name: string, description?: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/albums', {
       method: 'POST',
@@ -574,9 +456,6 @@ export const albumApi = {
     });
   },
   
-  /**
-   * 更新相册
-   */
   async update(id: string, name: string, description?: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/albums/${id}`, {
       method: 'PUT',
@@ -585,9 +464,6 @@ export const albumApi = {
     });
   },
   
-  /**
-   * 删除相册
-   */
   async delete(id: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/albums/${id}`, { 
       method: 'DELETE',
@@ -601,30 +477,18 @@ export const albumApi = {
 // ==========================================
 
 export const categoryApi = {
-  /**
-   * 获取所有分类
-   */
   async list(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/categories', { requestHeaders });
   },
   
-  /**
-   * 获取分类详情
-   */
   async get(id: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/categories/${id}`, { requestHeaders });
   },
   
-  /**
-   * 获取分类下的图片
-   */
   async getImages(id: string, page: number = 1, pageSize: number = 40, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/categories/${id}/images?page=${page}&pageSize=${pageSize}`, { requestHeaders });
   },
   
-  /**
-   * 获取所有标签
-   */
   async getTags(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/categories/tags', { requestHeaders });
   },
@@ -635,23 +499,14 @@ export const categoryApi = {
 // ==========================================
 
 export const userApi = {
-  /**
-   * 获取当前用户信息
-   */
   async getCurrentUser(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user', { requestHeaders });
   },
   
-  /**
-   * 获取用户统计信息
-   */
   async getStats(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/stats', { requestHeaders });
   },
   
-  /**
-   * 更新用户资料
-   */
   async updateProfile(data: {
     username?: string;
     nickname?: string;
@@ -667,9 +522,6 @@ export const userApi = {
     });
   },
   
-  /**
-   * 修改密码
-   */
   async changePassword(currentPassword: string, newPassword: string, confirmPassword: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/password', {
       method: 'PUT',
@@ -678,16 +530,10 @@ export const userApi = {
     });
   },
   
-  /**
-   * 获取用户设置
-   */
   async getSettings(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/settings', { requestHeaders });
   },
   
-  /**
-   * 更新用户设置
-   */
   async updateSettings(settings: unknown, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/settings', {
       method: 'PUT',
@@ -696,16 +542,10 @@ export const userApi = {
     });
   },
   
-  /**
-   * 获取通知列表
-   */
   async getNotifications(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/notifications', { requestHeaders });
   },
   
-  /**
-   * 创建通知
-   */
   async createNotification(notification: {
     type: string;
     title: string;
@@ -720,30 +560,18 @@ export const userApi = {
     });
   },
   
-  /**
-   * 删除通知
-   */
   async deleteNotification(id: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/user/notifications/${id}`, { method: 'DELETE', requestHeaders });
   },
   
-  /**
-   * 获取未读通知数量
-   */
   async getUnreadCount(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/notifications/unread-count', { requestHeaders });
   },
   
-  /**
-   * 标记通知为已读
-   */
   async markNotificationRead(id: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/user/notifications/${id}/read`, { method: 'POST', requestHeaders });
   },
   
-  /**
-   * 标记所有通知为已读
-   */
   async markAllNotificationsRead(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/user/notifications/read-all', { method: 'POST', requestHeaders });
   },
@@ -754,9 +582,6 @@ export const userApi = {
 // ==========================================
 
 export const aiApi = {
-  /**
-   * 识别图片
-   */
   async recognize(imageUrls: string[], useKeywordMatch?: boolean, useVisionRecognition?: boolean, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/ai/recognize', {
       method: 'POST',
@@ -765,9 +590,6 @@ export const aiApi = {
     });
   },
   
-  /**
-   * 识别单张图片
-   */
   async recognizeImage(imageId: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/ai/recognize/${imageId}`, { 
       method: 'POST',
@@ -781,23 +603,14 @@ export const aiApi = {
 // ==========================================
 
 export const adminApi = {
-  /**
-   * 获取所有用户列表
-   */
   async getUsers(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/admin/users', { requestHeaders });
   },
   
-  /**
-   * 获取用户详情
-   */
   async getUser(id: string, requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch(`/admin/users/${id}`, { requestHeaders });
   },
   
-  /**
-   * 获取系统统计
-   */
   async getStats(requestHeaders?: Record<string, string | null>): Promise<Response> {
     return backendFetch('/admin/stats', { requestHeaders });
   },

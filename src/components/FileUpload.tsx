@@ -472,16 +472,14 @@ export default function FileUpload({
       return url;
     }
     
-    // 如果是相对路径（/uploads/xxx），拼接后端 API 地址（去掉 /api 后缀）
+    // 如果是相对路径（/uploads/xxx），通过 Next.js 代理访问
     if (url.startsWith('/uploads/')) {
-      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080').replace(/\/api$/, '');
-      return `${backendUrl}${url}`;
+      return `/api/proxy${url}`;
     }
     
     // 其他相对路径
     if (url.startsWith('/')) {
-      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080').replace(/\/api$/, '');
-      return `${backendUrl}${url}`;
+      return `/api/proxy${url}`;
     }
     
     return url;

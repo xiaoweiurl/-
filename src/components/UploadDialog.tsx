@@ -14,7 +14,7 @@ import { Upload, X, Image as ImageIcon, Loader2, CheckCircle2 } from 'lucide-rea
 import { getSessionId } from '@/lib/auth-client';
 
 // 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+const BACKEND_API_URL = '/api/proxy';
 
 interface UploadDialogProps {
   open: boolean;
@@ -114,8 +114,8 @@ export default function UploadDialog({
         const formData = new FormData();
         formData.append('file', uploadingFile.file); // 后端 @RequestParam("file")
 
-        // 直接请求后端（绕过 Next.js 代理，避免服务端代理转发文件丢失）
-        const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+        // 通过 Next.js 代理上传
+        const BACKEND_URL = '/api/proxy';
         const response = await fetch(`${BACKEND_URL}/images/upload`, {
           method: 'POST',
           mode: 'cors',

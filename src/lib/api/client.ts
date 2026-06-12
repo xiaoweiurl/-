@@ -3,8 +3,8 @@
  * 用于连接 Java Spring Boot 后端
  */
 
-// 后端 API 基础 URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+// 后端 API 基础 URL - 统一走 Next.js 代理，避免外网 CORS 问题
+const API_BASE_URL = '/api/proxy';
 
 /**
  * 通用请求方法

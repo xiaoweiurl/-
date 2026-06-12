@@ -18,7 +18,7 @@ import dynamic from 'next/dynamic';
 const ShareDialog = dynamic(() => import('./ShareDialog'), { ssr: false });
 
 // 后端静态资源 URL（用于图片等静态文件）
-const BACKEND_STATIC_URL = process.env.NEXT_PUBLIC_BACKEND_STATIC_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL?.replace('/api', '') || 'http://localhost:8080';
+const BACKEND_STATIC_URL = '/api/proxy';
 
 // 获取完整的图片 URL
 function getFullImageUrl(url: string | undefined): string {

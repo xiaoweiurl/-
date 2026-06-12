@@ -29,10 +29,10 @@ import type { ImageItem } from '@/components/ImageCard';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 
-// 后端 API 基础 URL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
-// 后端静态资源 URL（用于图片等）
-const BACKEND_STATIC_URL = process.env.NEXT_PUBLIC_BACKEND_STATIC_URL || 'http://localhost:8080';
+// 后端 API 基础 URL - 统一走 Next.js 代理
+const BACKEND_API_URL = '/api/proxy';
+// 后端静态资源 URL - 统一走 Next.js 代理
+const BACKEND_STATIC_URL = '/api/proxy';
 
 // 获取完整的图片 URL
 function getFullImageUrl(url: string | undefined): string {

@@ -93,20 +93,20 @@ const FILE_ICONS: Record<string, React.ReactNode> = {
 
 // 统一使用 Next.js API 代理（同源，无跨域问题）
 const memoryApi = {
-  get: (path: string) => fetch(`/api/memory${path}`, { credentials: 'include' }),
-  post: (path: string, body?: unknown) => fetch(`/api/memory${path}`, {
+  get: (path: string) => fetch(`/api/proxy/memory${path}`, { credentials: 'include' }),
+  post: (path: string, body?: unknown) => fetch(`/api/proxy/memory${path}`, {
     method: 'POST',
     headers: body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
     body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     credentials: 'include',
   }),
-  put: (path: string, body: unknown) => fetch(`/api/memory${path}`, {
+  put: (path: string, body: unknown) => fetch(`/api/proxy/memory${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     credentials: 'include',
   }),
-  del: (path: string) => fetch(`/api/memory${path}`, {
+  del: (path: string) => fetch(`/api/proxy/memory${path}`, {
     method: 'DELETE',
     credentials: 'include',
   }),
@@ -321,7 +321,7 @@ export default function MemoryPage() {
         message: userMsg.content,
         sessionId: currentSessionId,
       });
-      const res = await fetch(`/api/memory/chat?${params}`, {
+      const res = await fetch(`/api/proxy/memory/chat?${params}`, {
         method: 'GET',
         headers: { 'Accept': 'text/event-stream' },
         credentials: 'include',

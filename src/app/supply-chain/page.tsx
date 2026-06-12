@@ -135,15 +135,9 @@ export default function SupplyChainPage() {
     }
   }, []);
 
-  // 自动获取后端 API 基础地址（根据运行环境自动推导）
+  // 统一走 Next.js 代理，避免外网 CORS 问题
   const getApiBase = useCallback(() => {
-    if (typeof window === 'undefined') return '/api';
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8080/api';
-    }
-    return `${protocol}//${hostname}/api`;
+    return '/api/proxy';
   }, []);
 
   // 安全的 fetch + json 解析，401 时跳转登录
