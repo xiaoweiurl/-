@@ -1,17 +1,32 @@
 /**
  * 后端 API 代理工具
- * 所有请求通过 Next.js API 代理转发到 Java 后端，避免外网访问时的 CORS 和 Private Network Access 问题
+ * 
+ * 两套 URL 策略：
+ * 1. 客户端（浏览器）: 走 /api/proxy 同源代理，避免 CORS 和 Private Network Access
+ * 2. 服务端（Next.js API Route）: 直连 http://localhost:8080/api，无 CORS 限制
  */
 
-// 后端 API 基础 URL（服务端代理内部使用）
-const BACKEND_INTERNAL_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+// 后端 API 基础 URL（服务端直连用）
+const BACKEND_INTERNAL_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 /**
- * 获取后端 API 代理路径
- * 所有前端请求统一走同源 /api/proxy/... 路径，由 Next.js 服务端代理转发
- * 彻底避免跨域和 Private Network Access 限制
+ * 判断当前是否在服务端执行
  */
-const getBackendApiUrl = () => '/api/proxy';
+function isServerSide(): boolean {
+  return typeof window === 'undefined';
+}
+
+/**
+ * 获取后端 API URL
+ * - 客户端: 返回 /api/proxy（同源代理路径）
+ * - 服务端: 返回 http://localhost:8080/api（直连 Java 后端）
+ */
+const getBackendApiUrl = () => {
+  if (isServerSide()) {
+    return BACKEND_INTERNAL_URL;
+  }
+  return '/api/proxy';
+};
 
 /**
  * 获取后端内部直连地址（仅服务端 API route 使用）
@@ -21,7 +36,7 @@ export function getBackendInternalUrl(): string {
 }
 
 /**
- * 获取 sessionId（从 localStorage 或请求头）
+ * 获取 sessionId
  * @param requestHeaders 可选的请求头对象（用于服务端 API route）
  */
 export function getSessionId(requestHeaders?: Record<string, string | null>): string | null {
@@ -42,14 +57,15 @@ export function getSessionId(requestHeaders?: Record<string, string | null>): st
   return localStorage.getItem('session_id');
 }
 
-// 后端可用性缓存
+// 后端可用性缓存（仅服务端使用）
 let backendAvailableCache: boolean | null = null;
 let lastCheckTime = 0;
 const CACHE_TTL = 30000; // 30秒缓存
 
 /**
  * 检查后端服务是否可用
- * 通过 Next.js 代理检测，如果能连通 Java 后端即视为可用
+ * - 服务端: 直接请求 Java 后端
+ * - 客户端: 通过 /api/proxy 代理检测
  */
 export async function isBackendAvailable(): Promise<boolean> {
   const now = Date.now();
@@ -60,25 +76,41 @@ export async function isBackendAvailable(): Promise<boolean> {
   }
   
   try {
-    // 通过代理路径检测（代理会自动探测可用的后端地址）
-    const response = await fetch('/api/proxy/albums', {
-      method: 'GET',
-      signal: AbortSignal.timeout(20000), // 代理需要探测多个后端地址，给足时间
-    });
-    
-    // 502 = 代理连不上后端（所有候选地址都试过了）
-    if (response.status === 502) {
-      backendAvailableCache = false;
+    if (isServerSide()) {
+      // 服务端：直接请求 Java 后端
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${BACKEND_INTERNAL_URL}/albums`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      backendAvailableCache = response.status < 500;
       lastCheckTime = now;
-      console.log('[Backend] 后端服务不可用 (502 - 所有后端地址均无法连接)');
-      return false;
+      console.log(`[Backend] 服务端检测后端可用性: ${response.status} -> ${backendAvailableCache}`);
+      return backendAvailableCache;
+    } else {
+      // 客户端：通过 /api/proxy 代理检测
+      const response = await fetch('/api/proxy/albums', {
+        method: 'GET',
+        signal: AbortSignal.timeout(20000),
+      });
+      
+      // 502 = 代理连不上后端
+      if (response.status === 502) {
+        backendAvailableCache = false;
+        lastCheckTime = now;
+        console.log('[Backend] 后端服务不可用 (502)');
+        return false;
+      }
+      
+      // 其他任何状态码都说明后端在运行
+      backendAvailableCache = true;
+      lastCheckTime = now;
+      console.log(`[Backend] 后端服务可用 (status: ${response.status})`);
+      return true;
     }
-    
-    // 其他任何状态码都说明后端在运行（200/401/403/404/500等）
-    backendAvailableCache = true;
-    lastCheckTime = now;
-    console.log(`[Backend] 后端服务可用 (status: ${response.status})`);
-    return true;
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;
@@ -107,17 +139,20 @@ interface BackendRequestOptions {
 }
 
 /**
- * 发送请求到后端（通过 Next.js 代理）
+ * 发送请求到后端
+ * - 客户端: 走 /api/proxy 代理
+ * - 服务端: 直连 http://localhost:8080/api
  */
 export async function backendFetch(
   endpoint: string,
   options: BackendRequestOptions = {}
 ): Promise<Response> {
-  const url = `${getBackendApiUrl()}${endpoint}`;
+  const baseUrl = getBackendApiUrl();
+  const url = `${baseUrl}${endpoint}`;
 
   const fetchOptions: RequestInit = {
     method: options.method || 'GET',
-    signal: AbortSignal.timeout(options.timeout || 15000),
+    signal: AbortSignal.timeout(options.timeout || 30000),
   };
 
   const inputHeaders = options.headers || {};
@@ -133,6 +168,7 @@ export async function backendFetch(
     headers['Content-Type'] = 'application/json';
   }
 
+  // 服务端从请求头获取 sessionId
   let sessionId: string | null | undefined = headers['X-Session-Id'];
   if (!sessionId) {
     sessionId = getSessionId(options.requestHeaders);
@@ -142,64 +178,63 @@ export async function backendFetch(
     headers['X-Session-Id'] = sessionId;
   }
 
+  // 服务端转发 Cookie（用于 Java 后端的 Session 认证）
+  if (isServerSide() && options.requestHeaders?.cookie) {
+    headers['Cookie'] = options.requestHeaders.cookie;
+  }
+
   fetchOptions.headers = headers;
 
   if (options.body && options.method !== 'GET') {
     fetchOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
   }
 
-  console.log(`[Backend] ${options.method || 'GET'} ${url}`);
-  if (sessionId) {
-    console.log(`[Backend] X-Session-Id: ${sessionId.substring(0, 8)}...`);
-  }
+  console.log(`[Backend] ${isServerSide() ? 'SSR' : 'CSR'} ${options.method || 'GET'} ${url}`);
 
-  const maxRetries = 2;
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, fetchOptions);
-      return response;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      if (attempt < maxRetries && (lastError.message.includes('Failed to fetch') || lastError.message.includes('ECONNREFUSED') || lastError.message.includes('Timeout'))) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-        continue;
-      }
-      console.warn(`[Backend] 请求失败 (${attempt + 1}次): ${url}`, lastError.message);
-      throw lastError;
-    }
+  try {
+    const response = await fetch(url, fetchOptions);
+    return response;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.warn(`[Backend] 请求失败: ${url}`, err.message);
+    throw err;
   }
-  throw lastError;
 }
 
 /**
- * 发送 FormData 请求到后端（通过 Next.js 代理）
+ * 发送 FormData 请求到后端
+ * - 客户端: 走 /api/proxy 代理
+ * - 服务端: 直连 http://localhost:8080/api
  */
 export async function backendFetchFormData(
   endpoint: string,
   formData: FormData,
   requestHeaders?: Record<string, string | null>
 ): Promise<Response> {
-  const url = `${getBackendApiUrl()}${endpoint}`;
+  const baseUrl = getBackendApiUrl();
+  const url = `${baseUrl}${endpoint}`;
   
   const sessionId = getSessionId(requestHeaders);
   
-  console.log(`[Backend] POST (FormData) ${url}`);
-  if (sessionId) {
-    console.log(`[Backend] X-Session-Id: ${sessionId.substring(0, 8)}...`);
-  }
-  
+  console.log(`[Backend] ${isServerSide() ? 'SSR' : 'CSR'} POST (FormData) ${url}`);
+
   const fetchOptions: RequestInit = {
     method: 'POST',
     body: formData,
   };
   
+  const headers: Record<string, string> = {};
+  
   if (sessionId) {
-    fetchOptions.headers = {
-      'X-Session-Id': sessionId,
-    };
+    headers['X-Session-Id'] = sessionId;
   }
+
+  // 服务端转发 Cookie
+  if (isServerSide() && requestHeaders?.cookie) {
+    headers['Cookie'] = requestHeaders.cookie;
+  }
+
+  fetchOptions.headers = headers;
   
   try {
     const response = await fetch(url, fetchOptions);
