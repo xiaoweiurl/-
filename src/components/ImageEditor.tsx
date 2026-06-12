@@ -39,19 +39,21 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 获取完整的图片 URL（处理相对路径，自动重写映射域名）
+  // 获取完整的图片 URL（将 localhost:8080 改写为代理路径）
   const getFullImageUrl = useCallback((url: string): string => {
-    // 如果已经是完整 URL，需要重写 localhost:8080 为映射域名
+    // 如果是包含 localhost:8080 的完整URL，改写为代理路径
+    if (url.includes('localhost:8080')) {
+      const pathWithoutHost = url.replace(/^https?:\/\/localhost:8080/, '');
+      const pathWithoutApiPrefix = pathWithoutHost.replace(/^\/api/, '');
+      return `/api/proxy${pathWithoutApiPrefix}`;
+    }
+    
+    // 其他完整URL（非localhost，如CDN等）
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return rewriteStaticUrl(url);
     }
     
-    // 如果是相对路径（/uploads/xxx），通过 Next.js 代理访问
-    if (url.startsWith('/uploads/')) {
-      return `/api/proxy${url}`;
-    }
-    
-    // 其他相对路径
+    // 相对路径，通过代理访问
     if (url.startsWith('/')) {
       return `/api/proxy${url}`;
     }

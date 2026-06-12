@@ -35,15 +35,24 @@ const BACKEND_API_URL = '/api/proxy';
 // 后端静态资源 URL - 统一走 Next.js 代理
 const BACKEND_STATIC_URL = '/api/proxy';
 
-// 获取完整的图片 URL（自动重写 localhost:8080 为映射域名）
+// 获取完整的图片 URL（将 localhost:8080 的完整URL改写为代理路径）
 function getFullImageUrl(url: string | undefined): string {
   if (!url) return '/placeholder.svg';
-  // 如果已经是完整 URL，需要重写 localhost:8080 为当前访问域名
+  // 如果是包含 localhost:8080 的完整URL，改写为代理路径
+  // 这样无论本地还是映射访问都能正常加载，且没有CORS问题
+  if (url.includes('localhost:8080')) {
+    // http://localhost:8080/api/uploads/images/xxx.jpg → /api/proxy/uploads/images/xxx.jpg
+    // http://localhost:8080/uploads/images/xxx.jpg → /api/proxy/uploads/images/xxx.jpg
+    const pathWithoutHost = url.replace(/^https?:\/\/localhost:8080/, '');
+    const pathWithoutApiPrefix = pathWithoutHost.replace(/^\/api/, '');
+    return `${BACKEND_STATIC_URL}${pathWithoutApiPrefix}`;
+  }
+  // 其他完整URL（非localhost，如CDN等）
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
     return rewriteStaticUrl(url);
   }
-  // 如果是相对路径，添加后端静态资源 URL
-  return `${BACKEND_STATIC_URL}/${url.replace(/^\//, '')}`;
+  // 如果是相对路径，添加后端地址
+  return `${BACKEND_STATIC_URL}${url.startsWith('/') ? url : '/' + url}`;
 }
 
 // 获取 sessionId（从 localStorage）
