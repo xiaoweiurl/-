@@ -108,24 +108,15 @@ export function rewriteStaticUrls<T>(obj: T): T {
 export function proxyImageUrl(url: string | undefined): string {
   if (!url) return '/placeholder.svg';
   
-  // SSR 环境无法判断，直接返回
-  if (typeof window === 'undefined') return url;
+  // 已经是相对路径，直接返回
+  if (url.startsWith('/')) return url;
   
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // 完整URL: http://localhost:8080/api/uploads/xxx → /api/uploads/xxx
+  // 不依赖 window 对象，SSR/CSR 通用
+  const match = url.match(/^https?:\/\/[^/]+(\/.*)$/);
+  if (match) return match[1];
   
-  // 本地访问：localhost:8080 直连，不做替换
-  if (isLocal) return url;
-  
-  // 映射访问：替换 localhost:8080 为当前域名
-  // 内部 8080 → 外部域名:80 (默认80端口省略)
-  const mappedOrigin = `${window.location.protocol}//${window.location.hostname}`;
-  const result = url.replace(/^https?:\/\/(localhost|127\.0\.0\.1):8080/, mappedOrigin);
-  
-  if (result !== url) {
-    console.log(`[proxyImageUrl] ${url} → ${result}`);
-  }
-  
-  return result;
+  return url;
 }
 
 // 全局调试函数，可在控制台执行 window.__debugProxyImageUrl('http://localhost:8080/api/uploads/test.jpg')
