@@ -60,25 +60,25 @@ export async function isBackendAvailable(): Promise<boolean> {
   }
   
   try {
-    // 通过代理路径检测（和正常请求走同一条路）
+    // 通过代理路径检测（代理会自动探测可用的后端地址）
     const response = await fetch('/api/proxy/albums', {
       method: 'GET',
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(20000), // 代理需要探测多个后端地址，给足时间
     });
     
-    // 502 = 代理连不上后端
+    // 502 = 代理连不上后端（所有候选地址都试过了）
     if (response.status === 502) {
       backendAvailableCache = false;
       lastCheckTime = now;
-      console.log('[Backend] 后端服务不可用 (502)');
+      console.log('[Backend] 后端服务不可用 (502 - 所有后端地址均无法连接)');
       return false;
     }
     
-    // 其他状态码（200/401/403/404）都说明后端在运行
-    backendAvailableCache = response.status < 500;
+    // 其他任何状态码都说明后端在运行（200/401/403/404/500等）
+    backendAvailableCache = true;
     lastCheckTime = now;
-    console.log(`[Backend] 后端服务${backendAvailableCache ? '可用' : '不可用'} (status: ${response.status})`);
-    return backendAvailableCache;
+    console.log(`[Backend] 后端服务可用 (status: ${response.status})`);
+    return true;
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;
