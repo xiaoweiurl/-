@@ -29,10 +29,9 @@ interface ChatSession {
 }
 
 // ===== 工具函数 =====
-function getSessionId(): string | null {
+function getLoginSessionId(): string | null {
   if (typeof window === 'undefined') return null;
-  const match = document.cookie.match(/session_id=([^;]+)/);
-  return match ? match[1] : null;
+  return localStorage.getItem('session_id');
 }
 
 function formatTime(ts: number): string {
@@ -68,8 +67,9 @@ export default function ChatPage() {
   // 加载对话历史
   useEffect(() => {
     if (!sessionId) return;
-    const sid = getSessionId();
+    const sid = getLoginSessionId();
     fetch(`/api/chat/history?sessionId=${sessionId}`, {
+      credentials: 'include',
       headers: sid ? { 'X-Session-Id': sid } : {},
     })
       .then(res => res.json())
@@ -106,7 +106,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const sid = getSessionId();
+      const sid = getLoginSessionId();
       const params = new URLSearchParams({ message: input.trim(), sessionId });
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (sid) headers['X-Session-Id'] = sid;
@@ -225,10 +225,11 @@ export default function ChatPage() {
 
   // 清空对话
   const handleClearChat = async () => {
-    const sid = getSessionId();
+    const sid = getLoginSessionId();
     try {
       await fetch(`/api/chat/history?sessionId=${sessionId}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: sid ? { 'X-Session-Id': sid } : {},
       });
     } catch { /* ignore */ }

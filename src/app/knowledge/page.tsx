@@ -115,6 +115,7 @@ export default function KnowledgePage() {
       if (sid) chatHeaders['X-Session-Id'] = sid;
       const response = await fetch('/api/knowledge/chat', {
         method: 'POST',
+        credentials: 'include',
         headers: chatHeaders,
         body: JSON.stringify({ message: userMessage.content, history }),
       });
@@ -178,6 +179,7 @@ export default function KnowledgePage() {
       if (sid) addHeaders['X-Session-Id'] = sid;
       const res = await fetch('/api/knowledge/add', {
         method: 'POST',
+        credentials: 'include',
         headers: addHeaders,
         body: JSON.stringify(
           addType === 'text'
@@ -220,6 +222,7 @@ export default function KnowledgePage() {
       const searchHeaders: Record<string, string> = {};
       if (sid) searchHeaders['X-Session-Id'] = sid;
       const res = await fetch(`/api/knowledge/search?query=${encodeURIComponent(searchQuery)}&topK=5&minScore=0.3`, {
+        credentials: 'include',
         headers: searchHeaders,
       });
       const data = await res.json();
