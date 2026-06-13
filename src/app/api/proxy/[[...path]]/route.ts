@@ -210,9 +210,19 @@ async function proxyRequest(request: NextRequest, method: string) {
       }
     });
 
-    // SSE 流式响应：直接透传，不改写
+    // SSE 流式响应：透传流，并确保必要的头信息
     const responseContentType = backendResponse.headers.get('content-type') || '';
     if (responseContentType.includes('text/event-stream')) {
+      // SSE 必须关闭缓存，保持连接
+      responseHeaders.set('Cache-Control', 'no-cache');
+      responseHeaders.set('Connection', 'keep-alive');
+      // 确保CORS头存在（映射访问时可能需要）
+      if (!responseHeaders.has('access-control-allow-origin')) {
+        responseHeaders.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
+      }
+      if (!responseHeaders.has('access-control-allow-credentials')) {
+        responseHeaders.set('Access-Control-Allow-Credentials', 'true');
+      }
       return new NextResponse(backendResponse.body, {
         status: backendResponse.status,
         headers: responseHeaders,

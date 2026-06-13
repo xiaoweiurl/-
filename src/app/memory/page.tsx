@@ -351,7 +351,7 @@ export default function MemoryPage() {
       const chatSid = getSessionId();
       const chatHeaders: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (chatSid) chatHeaders['X-Session-Id'] = chatSid;
-      const res = await fetch(`/api/proxy/memory/chat?${params}`, {
+      const res = await fetch(`/api/memory/chat?${params}`, {
         method: 'GET',
         headers: chatHeaders,
         credentials: 'include',
