@@ -1,47 +1,90 @@
+/**
+ * /api/knowledge/add - 代理到 Java 后端 /memory/upload 或 /memory/cards
+ * 知识文档导入（不再使用 Coze SDK）
+ */
 import { NextRequest, NextResponse } from 'next/server';
-import { KnowledgeClient, Config, KnowledgeDocument, DataSourceType } from 'coze-coding-dev-sdk';
+
+function getSessionId(request: NextRequest): string | null {
+  const header = request.headers.get('x-session-id');
+  if (header) return header;
+  const cookie = request.headers.get('cookie') || '';
+  const match = cookie.match(/session_id=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+function getBackendUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  return envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8080/api';
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { content, url, uri, datasetName = 'coze_doc_knowledge' } = body;
+    const sessionId = getSessionId(request);
+    const backendUrl = getBackendUrl();
 
-    if (!content && !url && !uri) {
-      return NextResponse.json({ error: '请提供 content、url 或 uri' }, { status: 400 });
-    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (sessionId) headers['X-Session-Id'] = sessionId;
 
-    const config = new Config();
-    const client = new KnowledgeClient(config);
+    // 文本内容导入 → 创建知识卡片
+    if (body.content) {
+      const cardBody = {
+        domainCode: body.domainCode || 'product',
+        title: body.title || '导入的文本知识',
+        content: body.content,
+        source: 'knowledge_base_import',
+        tags: body.tags || ['知识库导入'],
+      };
 
-    const docs: KnowledgeDocument[] = [];
-
-    if (content) {
-      docs.push({ source: DataSourceType.TEXT, raw_data: content });
-    }
-    if (url) {
-      docs.push({ source: DataSourceType.URL, url });
-    }
-    if (uri) {
-      docs.push({ source: DataSourceType.URI, uri });
-    }
-
-    const response = await client.addDocuments(docs, datasetName, {
-      separator: '\n\n',
-      max_tokens: 2000,
-      remove_extra_spaces: true,
-    });
-
-    if (response.code === 0) {
-      return NextResponse.json({
-        success: true,
-        doc_ids: response.doc_ids,
-        message: `成功导入 ${response.doc_ids?.length || 0} 篇文档`,
+      const res = await fetch(`${backendUrl}/memory/cards`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(cardBody),
+        signal: AbortSignal.timeout(30000),
       });
-    } else {
-      return NextResponse.json({ error: response.msg || '导入失败' }, { status: 500 });
+
+      const data = await res.json();
+      if (data.success) {
+        return NextResponse.json({
+          success: true,
+          doc_ids: [data.card?.id || Date.now().toString()],
+          message: '知识卡片创建成功',
+        });
+      }
+      return NextResponse.json(data, { status: res.status });
     }
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : '未知错误';
+
+    // URL 导入 → 创建知识卡片（URL作为内容）
+    if (body.url) {
+      const cardBody = {
+        domainCode: body.domainCode || 'product',
+        title: body.url,
+        content: `来源URL: ${body.url}\n请通过文档上传功能导入该URL的完整内容`,
+        source: 'url_import',
+        tags: ['URL导入'],
+      };
+
+      const res = await fetch(`${backendUrl}/memory/cards`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(cardBody),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        return NextResponse.json({
+          success: true,
+          doc_ids: [data.card?.id || Date.now().toString()],
+          message: 'URL知识卡片创建成功',
+        });
+      }
+      return NextResponse.json(data, { status: res.status });
+    }
+
+    return NextResponse.json({ error: '请提供 content 或 url' }, { status: 400 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '未知错误';
     console.error('[Knowledge Add] 导入失败:', msg);
     return NextResponse.json({ error: '导入失败', details: msg }, { status: 500 });
   }

@@ -1,9 +1,25 @@
+/**
+ * /api/knowledge/chat - 代理到 Java 后端 /memory/chat
+ * MiniMax 流式AI对话（双库检索）
+ */
 import { NextRequest } from 'next/server';
-import { KnowledgeClient, Config, LLMClient, HeaderUtils } from 'coze-coding-dev-sdk';
+
+function getSessionId(request: NextRequest): string | null {
+  const header = request.headers.get('x-session-id');
+  if (header) return header;
+  const cookie = request.headers.get('cookie') || '';
+  const match = cookie.match(/session_id=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+function getBackendUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  return envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8080/api';
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history = [] } = await request.json();
+    const { message, sessionId: chatSessionId, history } = await request.json();
 
     if (!message) {
       return new Response(JSON.stringify({ error: '请提供 message 参数' }), {
@@ -12,86 +28,91 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 1. 先从知识库搜索相关内容
-    const knowledgeConfig = new Config();
-    const knowledgeClient = new KnowledgeClient(knowledgeConfig);
-    const searchResponse = await knowledgeClient.search(message, undefined, 5, 0.3);
+    const sessionId = getSessionId(request);
+    const headers: Record<string, string> = {
+      'Accept': 'text/event-stream',
+    };
+    if (sessionId) headers['X-Session-Id'] = sessionId;
 
-    let knowledgeContext = '';
-    if (searchResponse.code === 0 && searchResponse.chunks.length > 0) {
-      knowledgeContext = searchResponse.chunks
-        .map((chunk: { content: string; score: number }, i: number) => `[${i + 1}] (相关度: ${(chunk.score * 100).toFixed(1)}%) ${chunk.content}`)
-        .join('\n\n');
-    }
+    const backendUrl = getBackendUrl();
+    const params = new URLSearchParams({ message });
+    if (chatSessionId) params.set('sessionId', chatSessionId);
 
-    // 2. 构建系统提示词
-    const systemPrompt = `你是盈云产品智能中台的AI助手，专注于供应链、工厂管理和产品知识领域。
-${knowledgeContext ? `以下是从知识库中检索到的相关参考资料，请优先基于这些资料回答用户问题：
-
----知识库参考资料---
-${knowledgeContext}
----参考资料结束---
-
-请基于以上参考资料回答，如果参考资料中没有相关信息，可以结合你的通用知识回答，但要明确说明哪些来自知识库，哪些是你的补充。` : '知识库中暂无与该问题相关的资料，请根据你的通用知识回答。'}
-回答要求：
-1. 优先使用知识库中的资料
-2. 回答要准确、简洁、专业
-3. 如果涉及具体数据，请标注来源
-4. 如果知识库资料不足，明确说明并补充你的建议`;
-
-    // 3. 构建消息列表
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: systemPrompt },
-    ];
-
-    // 添加历史对话
-    for (const msg of history) {
-      if (msg.role === 'user' || msg.role === 'assistant') {
-        messages.push({ role: msg.role, content: msg.content });
-      }
-    }
-
-    messages.push({ role: 'user', content: message });
-
-    // 4. 调用 LLM 流式输出
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const llmConfig = new Config();
-    const llmClient = new LLMClient(llmConfig, customHeaders);
-
-    const stream = llmClient.stream(messages, {
-      model: 'doubao-seed-2-0-lite-260215',
-      temperature: 0.7,
+    const backendRes = await fetch(`${backendUrl}/memory/chat?${params.toString()}`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(180000),
     });
 
+    if (!backendRes.ok) {
+      const errText = await backendRes.text();
+      return new Response(JSON.stringify({ error: `后端返回 ${backendRes.status}`, detail: errText }), {
+        status: backendRes.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // SSE流式透传
+    const reader = backendRes.body?.getReader();
+    if (!reader) {
+      return new Response(JSON.stringify({ error: 'SSE流为空' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const encoder = new TextEncoder();
-    const readableStream = new ReadableStream({
+    const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            if (chunk.content) {
-              const text = chunk.content.toString();
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: text })}\n\n`));
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) { controller.close(); return; }
+            const text = new TextDecoder().decode(value);
+
+            // Java后端SSE格式转换为前端格式
+            const lines = text.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data:')) {
+                const data = line.slice(5).trim();
+                if (data === '[DONE]') {
+                  controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  continue;
+                }
+                try {
+                  const parsed = JSON.parse(data);
+                  // 转换为前端期望的 { content } 格式
+                  if (parsed.content) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: parsed.content })}\n\n`));
+                  } else if (parsed.type === 'done') {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                  }
+                } catch {
+                  // 非JSON数据，原样透传
+                  controller.enqueue(encoder.encode(`${line}\n\n`));
+                }
+              } else if (line.startsWith('event:')) {
+                // 透传事件类型
+                controller.enqueue(encoder.encode(`${line}\n`));
+              }
             }
           }
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (err) {
-          console.error('[Knowledge Chat] 流式输出错误:', err);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: '生成失败' })}\n\n`));
+        } catch (e) {
+          console.error('[Knowledge Chat] SSE流中断:', e);
           controller.close();
         }
       },
     });
 
-    return new Response(readableStream, {
+    return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
+        'Connection': 'keep-alive',
       },
     });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : '未知错误';
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '未知错误';
     console.error('[Knowledge Chat] 对话失败:', msg);
     return new Response(JSON.stringify({ error: '对话失败', details: msg }), {
       status: 500,

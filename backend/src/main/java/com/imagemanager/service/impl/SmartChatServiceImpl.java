@@ -18,7 +18,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -27,8 +26,8 @@ import java.util.*;
  *
  * 检索流程:
  * 1. 记忆库检索: PostgreSQL向量搜索(MemoryService.search)
- * 2. 知识库检索: HTTP调用Next.js /api/knowledge/search (Coze SDK)
- * 3. 合并结果作为上下文
+ * 2. 知识库检索: 同样使用PostgreSQL向量搜索(MemoryService.search，不限定domain)
+ * 3. 合并去重结果作为上下文
  * 4. 调MiniMax API流式对话
  */
 @Slf4j
@@ -53,9 +52,6 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.minimax.model:MiniMax-M3}")
     private String minimaxModel;
 
-    @Value("${app.frontend.url:http://localhost:5000}")
-    private String frontendUrl;
-
     @Override
     public SseEmitter smartChat(String message, String sessionId, String userId) {
         SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
@@ -78,7 +74,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 2b. 知识库检索(Coze SDK via Next.js)
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
                 try {
-                    knowledgeResults = searchKnowledgeBase(message);
+                    knowledgeResults = searchKnowledgeBase(message, userId);
                     log.info("知识库检索到 {} 条结果", knowledgeResults.size());
                 } catch (Exception e) {
                     log.warn("知识库检索异常: {}", e.getMessage());
@@ -204,51 +200,28 @@ public class SmartChatServiceImpl implements SmartChatService {
     // ========== 私有方法 ==========
 
     /**
-     * 调用Next.js知识库搜索接口(Coze SDK)
+     * 知识库检索 - 直接查PostgreSQL向量(与记忆库共用knowledge_cards表)
+     * 不再调用Next.js的Coze SDK接口，统一使用数据库向量搜索
      */
-    private List<Map<String, Object>> searchKnowledgeBase(String query) {
+    private List<Map<String, Object>> searchKnowledgeBase(String query, String userId) {
         try {
-            String url = frontendUrl + "/api/knowledge/search?query=" +
-                    URLEncoder.encode(query, StandardCharsets.UTF_8) + "&topK=5&minScore=0.3";
-
-            HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                log.warn("知识库搜索接口返回: {}", code);
-                return Collections.emptyList();
+            // 使用与记忆库相同的搜索逻辑，但不限定domainCode
+            List<MemorySearchResult> allResults = memoryService.search(query, null, 0.25, 10, userId);
+            
+            List<Map<String, Object>> results = new ArrayList<>();
+            for (MemorySearchResult r : allResults) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("content", r.getContent() != null ? r.getContent() : "");
+                item.put("score", r.getScore() != null ? r.getScore() : 0);
+                item.put("cardId", r.getId().toString());
+                item.put("title", r.getTitle() != null ? r.getTitle() : "");
+                item.put("domain", r.getDomainName() != null ? r.getDomainName() : "");
+                item.put("source", "knowledge");
+                results.add(item);
             }
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-
-                JsonNode root = objectMapper.readTree(sb.toString());
-                JsonNode chunks = root.path("chunks");
-                if (!chunks.isArray() || chunks.isEmpty()) {
-                    return Collections.emptyList();
-                }
-
-                List<Map<String, Object>> results = new ArrayList<>();
-                for (JsonNode chunk : chunks) {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("content", chunk.path("content").asText(""));
-                    item.put("score", chunk.path("score").asDouble(0));
-                    item.put("docId", chunk.path("docId").asText(""));
-                    results.add(item);
-                }
-                return results;
-            }
+            return results;
         } catch (Exception e) {
-            log.warn("知识库搜索异常: {}", e.getMessage());
+            log.warn("知识库检索异常: {}", e.getMessage());
             return Collections.emptyList();
         }
     }

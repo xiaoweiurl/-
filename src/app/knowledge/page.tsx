@@ -181,8 +181,8 @@ export default function KnowledgePage() {
         headers: addHeaders,
         body: JSON.stringify(
           addType === 'text'
-            ? { content: `标题: ${addTitle}\n\n${addContent}`, datasetName: 'coze_doc_knowledge' }
-            : { url: addUrl, datasetName: 'coze_doc_knowledge' },
+            ? { content: `标题: ${addTitle}\n\n${addContent}` }
+            : { url: addUrl },
         ),
       });
 
