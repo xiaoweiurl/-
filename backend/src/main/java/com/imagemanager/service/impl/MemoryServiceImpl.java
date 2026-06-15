@@ -68,8 +68,11 @@ public class MemoryServiceImpl implements MemoryService {
     @Value("${app.minimax.model:MiniMax-M3}")
     private String minimaxModel;
 
-    @Value("${app.frontend.url:http://localhost:5000}")
-    private String frontendUrl;
+    @Value("${app.minimax.embedding.base-url:https://api.minimaxi.com/v1/embeddings}")
+    private String minimaxEmbeddingUrl;
+
+    @Value("${app.minimax.embedding.model:embo-01}")
+    private String minimaxEmbeddingModel;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -550,27 +553,27 @@ public class MemoryServiceImpl implements MemoryService {
         }
     }
 
-    // ========== Embedding API (Coze) ==========
+    // ========== Embedding API (MiniMax) ==========
 
     private float[] getEmbedding(String text) {
         try {
-            String url = frontendUrl + "/api/embedding";
-            Map<String, Object> body = new HashMap<>();
-            body.put("text", text);
-
-            String response = doPostInternal(url, objectMapper.writeValueAsString(body));
-            JsonNode root = objectMapper.readTree(response);
-
-            if (root.has("success") && root.get("success").asBoolean() && root.has("embedding")) {
-                JsonNode embeddingNode = root.get("embedding");
-                float[] embedding = new float[embeddingNode.size()];
-                for (int i = 0; i < embeddingNode.size(); i++) {
-                    embedding[i] = (float) embeddingNode.get(i).asDouble();
-                }
-                return embedding;
+            String apiKey = minimaxApiKey;
+            if (apiKey == null || apiKey.isEmpty()) {
+                apiKey = System.getenv("MINIMAX_API_KEY");
+            }
+            if (apiKey == null || apiKey.isEmpty()) {
+                log.warn("未配置MiniMax API密钥, 跳过向量化");
+                return null;
             }
 
-            log.warn("Embedding API返回异常: {}", response);
+            // 方式1: OpenAI兼容格式 (api.minimaxi.com/v1/embeddings)
+            float[] result = getEmbeddingOpenAI(text, apiKey);
+            if (result != null) return result;
+
+            // 方式2: MiniMax原生格式 (api.minimax.chat/v1/embeddings)
+            result = getEmbeddingMiniMaxLegacy(text, apiKey);
+            if (result != null) return result;
+
             return null;
         } catch (Exception e) {
             log.error("获取Embedding失败: {}", e.getMessage());
@@ -578,26 +581,72 @@ public class MemoryServiceImpl implements MemoryService {
         }
     }
 
-    private String doPostInternal(String url, String jsonBody) throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setDoOutput(true);
-        conn.setConnectTimeout(30000);
-        conn.setReadTimeout(60000);
+    /**
+     * OpenAI兼容格式调用 MiniMax Embedding
+     */
+    private float[] getEmbeddingOpenAI(String text, String apiKey) {
+        try {
+            String url = minimaxEmbeddingUrl;
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", minimaxEmbeddingModel);
+            body.put("input", text);
 
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
-        }
+            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            JsonNode root = objectMapper.readTree(response);
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
+            // OpenAI兼容格式: data[0].embedding
+            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
+                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
+                if (embeddingNode != null && embeddingNode.isArray()) {
+                    float[] embedding = new float[embeddingNode.size()];
+                    for (int i = 0; i < embeddingNode.size(); i++) {
+                        embedding[i] = (float) embeddingNode.get(i).asDouble();
+                    }
+                    log.info("MiniMax Embedding成功 (OpenAI格式), 维度: {}", embedding.length);
+                    return embedding;
+                }
             }
-            return sb.toString();
+
+            log.warn("OpenAI兼容格式返回异常: {}", response);
+            return null;
+        } catch (Exception e) {
+            log.warn("OpenAI兼容格式Embedding失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * MiniMax原生格式调用 Embedding (fallback)
+     */
+    private float[] getEmbeddingMiniMaxLegacy(String text, String apiKey) {
+        try {
+            String url = "https://api.minimax.chat/v1/embeddings";
+            Map<String, Object> body = new HashMap<>();
+            body.put("texts", List.of(text));
+            body.put("model", "embo-01");
+            body.put("type", "db");
+
+            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            JsonNode root = objectMapper.readTree(response);
+
+            // MiniMax原生格式: vectors[0]
+            if (root.has("vectors") && root.get("vectors").isArray() && root.get("vectors").size() > 0) {
+                JsonNode embeddingNode = root.get("vectors").get(0);
+                if (embeddingNode != null && embeddingNode.isArray()) {
+                    float[] embedding = new float[embeddingNode.size()];
+                    for (int i = 0; i < embeddingNode.size(); i++) {
+                        embedding[i] = (float) embeddingNode.get(i).asDouble();
+                    }
+                    log.info("MiniMax Embedding成功 (原生格式), 维度: {}", embedding.length);
+                    return embedding;
+                }
+            }
+
+            log.warn("MiniMax原生格式返回异常: {}", response);
+            return null;
+        } catch (Exception e) {
+            log.warn("MiniMax原生格式Embedding失败: {}", e.getMessage());
+            return null;
         }
     }
 

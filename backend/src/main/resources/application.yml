@@ -91,11 +91,15 @@ app:
     base-url: ${AI_BASE_URL:https://api.coze.cn}
     model: doubao-seed-2-0-pro-260215
   
-  # MiniMax 配置（记忆库AI对话）
+  # MiniMax 配置（记忆库AI对话 + Embedding）
   minimax:
     api-key: ${MINIMAX_API_KEY:sk-cp-8dQPjgLqu9-zqbsgKfPZcagtE5M5CzWFRkrR9gHk50-p-KdjBXbZP9Y-bnu9uwwvTxvGP6mrOZxfrQOY7RVeS42cGxGL0VAyHlIyjoqkG2-yUt6T39dgtsA}
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com/anthropic/v1/messages}
     model: ${MINIMAX_MODEL:MiniMax-M3}
+    # MiniMax Embedding 配置（向量维度 1536）
+    embedding:
+      base-url: ${MINIMAX_EMBEDDING_URL:https://api.minimaxi.com/v1/embeddings}
+      model: ${MINIMAX_EMBEDDING_MODEL:embo-01}
   
   # 去水印配置
   watermark:
