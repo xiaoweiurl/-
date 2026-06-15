@@ -408,21 +408,25 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             Map<String, Object> body = new HashMap<>();
             body.put("model", minimaxModel);
-            body.put("max_tokens", 16384);
+            body.put("max_tokens", 8192);
             body.put("stream", true);
+            body.put("temperature", 0.7);
             body.put("system", "你是盈云产品智能中台的AI助手，专注于供应链、工厂管理和产品知识领域。" +
                     "请基于提供的记忆库知识卡片和知识库文档片段回答用户问题。" +
                     "回答时标注引用来源(记忆库/知识库)。" +
                     "如果参考资料中没有相关信息，请明确说明，不要编造。" +
                     "回答使用中文。保持对话连贯性，参考上下文历史。" +
-                    "请确保回答完整输出，不要截断或省略任何内容。");
+                    "重要：请确保每句话都完整说完，不要在中途停止或截断。即使回答较长，也要把所有内容完整输出到自然结束。");
             body.put("messages", messages);
 
-            HttpURLConnection conn = (HttpURLConnection) URI.create(minimaxBaseUrl).toURL().openConnection();
+            String endpointUrl = minimaxBaseUrl.endsWith("/") ? minimaxBaseUrl.substring(0, minimaxBaseUrl.length() - 1) : minimaxBaseUrl;
+            if (!endpointUrl.endsWith("/messages")) {
+                endpointUrl = endpointUrl + "/anthropic/v1/messages";
+            }
+            HttpURLConnection conn = (HttpURLConnection) URI.create(endpointUrl).toURL().openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("Authorization", "Bearer " + apiKey);
-            conn.setRequestProperty("anthropic-version", "2023-06-01");
             conn.setDoOutput(true);
             conn.setConnectTimeout(60000);
             conn.setReadTimeout(600000);
@@ -460,6 +464,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 case "content_block_start":
                                     JsonNode cbStart = node.path("content_block");
                                     String cbType = cbStart.path("type").asText("");
+                                    log.info("content_block_start 类型: {}", cbType);
                                     if ("text".equals(cbType)) {
                                         String text = cbStart.path("text").asText("");
                                         if (!text.isEmpty()) {
@@ -467,6 +472,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                             emitter.send(SseEmitter.event().name("message").data(
                                                     objectMapper.writeValueAsString(Map.of("type", "content", "content", text))
                                             ));
+                                            log.info("content_block_start text: 长度={}, 内容前50字={}", text.length(), text.substring(0, Math.min(text.length(), 50)));
                                         }
                                     }
                                     break;
@@ -483,10 +489,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                                             emitter.send(SseEmitter.event().name("message").data(
                                                     objectMapper.writeValueAsString(Map.of("type", "content", "content", text))
                                             ));
+                                            log.info("text_delta: 长度={}, 内容={}", text.length(), text.substring(0, Math.min(text.length(), 100)));
                                         }
                                     } else if (!deltaType.isEmpty()) {
-                                        log.debug("未处理的delta类型: {}", deltaType);
+                                        log.info("未处理的delta类型: {}, 数据: {}", deltaType, delta.toString().substring(0, Math.min(delta.toString().length(), 200)));
                                     }
+                                    break;
+                                case "content_block_stop":
+                                    int cbIndex = node.path("index").asInt(-1);
+                                    log.info("content_block_stop index: {}", cbIndex);
                                     break;
                                 case "message_delta":
                                     JsonNode msgDelta = node.path("delta");
