@@ -203,8 +203,8 @@ public class MemoryServiceImpl implements MemoryService {
                             String vectorStr = arrayToVectorString(embedding);
                             jdbcTemplate.update(
                                     "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
-                                            "VALUES (gen_random_uuid(), ?::uuid, '" + vectorStr + "'::vector, ?, ?, ?, NOW())",
-                                    card.getId().toString(), "embo-01", chunk, i
+                                            "VALUES (gen_random_uuid(), ?::uuid, ?::vector, ?, ?, ?, NOW())",
+                                    card.getId().toString(), vectorStr, "embo-01", chunk, i
                             );
                             successCount++;
                         }
@@ -270,20 +270,19 @@ public class MemoryServiceImpl implements MemoryService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            // 使用字符串拼接传递向量（内部生成，非用户输入，安全可控）
-            String sql = String.format("""
+            String sql = """
                 SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code,
                        c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text,
-                       1 - (e.embedding <=> '%s'::vector) AS score
+                       1 - (e.embedding <=> ?::vector) AS score
                 FROM knowledge_embeddings e
                 JOIN knowledge_cards c ON e.card_id = c.id
                 WHERE c.status = 'published'
                 AND c.user_id = ?
                 AND (? IS NULL OR c.domain_code = ?)
-                AND 1 - (e.embedding <=> '%s'::vector) >= ?
-                ORDER BY e.embedding <=> '%s'::vector
+                AND 1 - (e.embedding <=> ?::vector) >= ?
+                ORDER BY e.embedding <=> ?::vector
                 LIMIT ?
-                """, vectorStr, vectorStr, vectorStr);
+                """;
 
             return jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
@@ -306,7 +305,7 @@ public class MemoryServiceImpl implements MemoryService {
                                 .score(rs.getDouble("score"))
                                 .build();
                     },
-                    userId, domainCode, domainCode, minScore, limit
+                    vectorStr, userId, domainCode, domainCode, vectorStr, minScore, vectorStr, limit
             );
         } catch (Exception e) {
             log.error("语义检索失败: {}", e.getMessage());
