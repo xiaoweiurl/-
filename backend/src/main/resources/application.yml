@@ -78,10 +78,9 @@ app:
     # 本地存储路径（绝对路径或相对路径）
     local-path: ${UPLOAD_PATH:./uploads}
     # 存储服务基础URL（用于生成文件访问URL）
-    # 图片实际访问路径: {base-url}/uploads/{filePath}
-    # 由于 context-path 是 /api，静态资源 /uploads/** 实际路径是 /api/uploads/**
-    # 所以 base-url 应该是 http://localhost:8080/api
-    base-url: ${STORAGE_BASE_URL:http://localhost:8080/api}
+    # 使用相对路径，不绑定具体域名，前端通过同域代理或当前域名访问
+    # 图片实际访问路径: {base-url}/uploads/{filePath} -> /api/uploads/{filePath}
+    base-url: ${STORAGE_BASE_URL:/api}
   
   # AI 配置（向量化 Embedding + 对话）
   # Coze API Token: 登录 https://www.coze.cn/ → 个人空间 → 设置 → 开发者令牌

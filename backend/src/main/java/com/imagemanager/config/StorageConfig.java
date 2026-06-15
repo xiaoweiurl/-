@@ -28,10 +28,10 @@ public class StorageConfig {
     
     /**
      * 存储服务基础URL（用于生成文件访问URL）
-     * 例如: http://localhost:8080/api 或 https://your-domain.com/api
-     * 完整URL格式: {baseUrl}/uploads/{filePath}
+     * 使用相对路径，不绑定具体域名，前端通过同域代理或当前域名访问
+     * 例如: /api  -> 文件URL格式: /api/uploads/{filePath}
      */
-    private String baseUrl = "http://localhost:8080/api";
+    private String baseUrl = "/api";
     
     /**
      * S3端点URL
