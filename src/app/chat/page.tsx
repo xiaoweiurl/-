@@ -8,6 +8,19 @@ import {
 } from 'lucide-react';
 
 // ===== 类型定义 =====
+interface ChatImage {
+  id: string;
+  title: string;
+  url: string;
+  thumbnailUrl?: string;
+  isMainImage?: boolean;
+  fileType?: string;
+  width?: number;
+  height?: number;
+  productId?: string;
+  albumName?: string;
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -18,6 +31,7 @@ interface ChatMessage {
     content?: string;
     score: number;
   }>;
+  images?: ChatImage[];
   isStreaming?: boolean;
 }
 
@@ -125,6 +139,7 @@ export default function ChatPage() {
       if (!reader) throw new Error('SSE流为空');
 
       let sources: ChatMessage['sources'] = [];
+      let images: ChatImage[] = [];
       const decoder = new TextDecoder();
 
       while (true) {
@@ -149,6 +164,16 @@ export default function ChatPage() {
                 const last = updated[updated.length - 1];
                 if (last?.isStreaming) {
                   updated[updated.length - 1] = { ...last, sources };
+                }
+                return updated;
+              });
+            } else if (event.type === 'images') {
+              images = event.images || [];
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.isStreaming) {
+                  updated[updated.length - 1] = { ...last, images };
                 }
                 return updated;
               });
@@ -424,6 +449,54 @@ export default function ChatPage() {
                         <span className="inline-block w-1.5 h-4 bg-violet-500 animate-pulse ml-0.5 align-middle" />
                       )}
                     </div>
+
+                    {/* 图片结果 */}
+                    {msg.images && msg.images.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          为您找到 {msg.images.length} 张相关图片
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {msg.images.map((img, idx) => (
+                            <a
+                              key={idx}
+                              href={img.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative block rounded-xl overflow-hidden border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-all"
+                              title={img.title}
+                            >
+                              <div className="aspect-square relative">
+                                <img
+                                  src={img.thumbnailUrl || img.url}
+                                  alt={img.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = '/file.svg';
+                                  }}
+                                />
+                                {img.isMainImage && (
+                                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-violet-500 text-white text-[10px] font-medium">
+                                    主图
+                                  </span>
+                                )}
+                              </div>
+                              <div className="px-2 py-1.5">
+                                <p className="text-xs text-slate-600 truncate">{img.title}</p>
+                                {img.albumName && (
+                                  <p className="text-[10px] text-slate-400 truncate">{img.albumName}</p>
+                                )}
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {msg.role === 'user' && (
                     <div className="w-8 h-8 rounded-xl bg-slate-100

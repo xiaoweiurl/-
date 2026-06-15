@@ -80,6 +80,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                     log.warn("知识库检索异常: {}", e.getMessage());
                 }
 
+                // 2c. 图片搜索(当用户意图涉及找图时)
+                List<Map<String, Object>> imageResults = Collections.emptyList();
+                if (isImageSearchIntent(message)) {
+                    try {
+                        imageResults = searchImages(message, userId);
+                        log.info("图片搜索匹配到 {} 条结果", imageResults.size());
+                    } catch (Exception e) {
+                        log.warn("图片搜索异常: {}", e.getMessage());
+                    }
+                }
+
                 // 3. 发送来源信息
                 List<Map<String, Object>> sources = new ArrayList<>();
 
@@ -107,6 +118,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                         objectMapper.writeValueAsString(Map.of("type", "sources", "sources", sources))
                 ));
 
+                // 3b. 发送图片结果(如果有)
+                if (!imageResults.isEmpty()) {
+                    emitter.send(SseEmitter.event().name("message").data(
+                            objectMapper.writeValueAsString(Map.of("type", "images", "images", imageResults))
+                    ));
+                }
+
                 // 4. 构建知识上下文
                 StringBuilder knowledgeContext = new StringBuilder();
 
@@ -132,6 +150,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                         knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%%)\n%s\n\n",
                                 i + 1, score * 100, content));
                     }
+                }
+
+                if (!imageResults.isEmpty()) {
+                    knowledgeContext.append("## 图片库搜索结果：\n");
+                    for (int i = 0; i < imageResults.size(); i++) {
+                        Map<String, Object> img = imageResults.get(i);
+                        String imgTitle = img.getOrDefault("title", "").toString();
+                        String imgType = Boolean.TRUE.equals(img.get("isMainImage")) ? "主图" : "详情图";
+                        knowledgeContext.append(String.format("- [%s] %s (URL: %s)\n",
+                                imgType, imgTitle, img.getOrDefault("url", "")));
+                    }
+                    knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些图片。\n");
                 }
 
                 // 5. 构建messages(含历史上下文)
@@ -212,6 +242,101 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     // ========== 私有方法 ==========
+
+    /**
+     * 判断用户意图是否为图片搜索
+     */
+    private boolean isImageSearchIntent(String message) {
+        String lower = message.toLowerCase();
+        String[] keywords = {
+            "找", "搜", "查", "看", "有", "推荐",
+            "图", "图片", "照片", "主图", "详情图", "效果图",
+            "风格", "款式", "颜色", "样式", "设计"
+        };
+        for (String kw : keywords) {
+            if (lower.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 图片搜索 - 按标题/描述/标签模糊匹配
+     */
+    private List<Map<String, Object>> searchImages(String query, String userId) {
+        try {
+            // 提取查询关键词(简单分词，取2-6字的关键词)
+            String[] terms = query.split("[\\s,，。！？?]+");
+            List<String> keywords = new ArrayList<>();
+            for (String term : terms) {
+                String t = term.trim();
+                if (t.length() >= 2 && t.length() <= 10 && !isStopWord(t)) {
+                    keywords.add(t);
+                }
+            }
+            if (keywords.isEmpty()) {
+                keywords.add(query.trim());
+            }
+
+            // 构建动态SQL: 用 OR 连接多个关键词，匹配 title/description/image_tags
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT id, title, url, thumbnail_url, is_main_image, file_type, ");
+            sql.append("width, height, product_id, album_name, created_at ");
+            sql.append("FROM images WHERE deleted = false AND user_id = ? ");
+            sql.append("AND (");
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) sql.append(" OR ");
+                sql.append("(title ILIKE ? OR description ILIKE ? OR EXISTS (");
+                sql.append("SELECT 1 FROM image_tags WHERE image_id = images.id AND tag ILIKE ?");
+                sql.append(") OR EXISTS (");
+                sql.append("SELECT 1 FROM image_ai_tags WHERE image_id = images.id AND tag ILIKE ?");
+                sql.append("))");
+            }
+            sql.append(") ");
+            sql.append("ORDER BY is_main_image DESC, created_at DESC ");
+            sql.append("LIMIT 20");
+
+            List<Object> params = new ArrayList<>();
+            params.add(userId);
+            for (String kw : keywords) {
+                String pattern = "%" + kw + "%";
+                params.add(pattern);
+                params.add(pattern);
+                params.add(pattern);
+                params.add(pattern);
+            }
+
+            return jdbcTemplate.query(sql.toString(),
+                    (rs, rowNum) -> {
+                        Map<String, Object> img = new LinkedHashMap<>();
+                        img.put("id", rs.getString("id"));
+                        img.put("title", rs.getString("title"));
+                        img.put("url", rs.getString("url"));
+                        img.put("thumbnailUrl", rs.getString("thumbnail_url"));
+                        img.put("isMainImage", rs.getBoolean("is_main_image"));
+                        img.put("fileType", rs.getString("file_type"));
+                        img.put("width", rs.getInt("width"));
+                        img.put("height", rs.getInt("height"));
+                        img.put("productId", rs.getString("product_id"));
+                        img.put("albumName", rs.getString("album_name"));
+                        img.put("createdAt", rs.getTimestamp("created_at") != null
+                                ? rs.getTimestamp("created_at").toLocalDateTime().toString() : null);
+                        return img;
+                    },
+                    params.toArray()
+            );
+        } catch (Exception e) {
+            log.warn("图片搜索失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private boolean isStopWord(String word) {
+        String[] stops = {"一下", "一下", "什么", "怎么", "这个", "那个", "可以", "帮我", "请问"};
+        for (String s : stops) {
+            if (word.equals(s)) return true;
+        }
+        return false;
+    }
 
     /**
      * 知识库检索 - 直接查PostgreSQL向量(与记忆库共用knowledge_cards表)
