@@ -92,7 +92,7 @@ app:
   
   # MiniMax 配置（记忆库AI对话）
   minimax:
-    api-key: ${MINIMAX_API_KEY:}
+    api-key: ${MINIMAX_API_KEY:REDACTED_MINIMAX_KEY}
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com/anthropic/v1/messages}
     model: ${MINIMAX_MODEL:MiniMax-M3}
   
