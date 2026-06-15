@@ -111,8 +111,8 @@ public class MemoryServiceImpl implements MemoryService {
                 String vectorStr = arrayToVectorString(embedding);
                 jdbcTemplate.update(
                         "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
-                                "VALUES (gen_random_uuid(), ?::uuid, '" + vectorStr + "'::vector, ?, ?, 0, NOW())",
-                        card.getId().toString(), "embo-01", text
+                                "VALUES (gen_random_uuid(), ?::uuid, CAST(? AS vector), ?, ?, 0, NOW())",
+                        card.getId().toString(), vectorStr, "embo-01", text
                 );
                 log.info("知识卡片向量化成功, cardId={}", card.getId());
             }
@@ -203,7 +203,7 @@ public class MemoryServiceImpl implements MemoryService {
                             String vectorStr = arrayToVectorString(embedding);
                             jdbcTemplate.update(
                                     "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
-                                            "VALUES (gen_random_uuid(), ?::uuid, ?::vector, ?, ?, ?, NOW())",
+                                            "VALUES (gen_random_uuid(), ?::uuid, CAST(? AS vector), ?, ?, ?, NOW())",
                                     card.getId().toString(), vectorStr, "embo-01", chunk, i
                             );
                             successCount++;
@@ -273,14 +273,14 @@ public class MemoryServiceImpl implements MemoryService {
             String sql = """
                 SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code,
                        c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text,
-                       1 - (e.embedding <=> ?::vector) AS score
+                       1 - (e.embedding <=> CAST(? AS vector)) AS score
                 FROM knowledge_embeddings e
                 JOIN knowledge_cards c ON e.card_id = c.id
                 WHERE c.status = 'published'
                 AND c.user_id = ?
                 AND (? IS NULL OR c.domain_code = ?)
-                AND 1 - (e.embedding <=> ?::vector) >= ?
-                ORDER BY e.embedding <=> ?::vector
+                AND 1 - (e.embedding <=> CAST(? AS vector)) >= ?
+                ORDER BY e.embedding <=> CAST(? AS vector)
                 LIMIT ?
                 """;
 
