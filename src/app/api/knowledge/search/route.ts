@@ -1,8 +1,11 @@
-/**
- * /api/knowledge/search - 代理到 Java 后端 /memory/search
- * 语义检索知识卡片（PostgreSQL向量搜索）
- */
 import { NextRequest, NextResponse } from 'next/server';
+
+/**
+ * 知识库搜索代理路由
+ * /api/knowledge/search -> Java后端 /memory/search
+ */
+
+const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 function getSessionId(request: NextRequest): string | null {
   const header = request.headers.get('x-session-id');
@@ -12,83 +15,77 @@ function getSessionId(request: NextRequest): string | null {
   return null;
 }
 
-function getBackendUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  return envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8080/api';
+function getUrlReplacement(request: NextRequest): { pattern: RegExp; replacement: string } | null {
+  const host = request.headers.get('host') || '';
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
+  if (isLocal) {
+    return { pattern: /http:\/\/localhost:8080/g, replacement: '' };
+  }
+  const origin = request.headers.get('origin') || `http://${host}`;
+  return { pattern: /http:\/\/localhost:8080/g, replacement: origin };
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const sessionId = getSessionId(request);
+function rewriteBody(body: string, request: NextRequest): string {
+  const repl = getUrlReplacement(request);
+  if (!repl) return body;
+  return body.replace(repl.pattern, repl.replacement);
+}
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (sessionId) headers['X-Session-Id'] = sessionId;
+function buildHeaders(request: NextRequest): Headers {
+  const headers = new Headers();
 
-    const backendUrl = getBackendUrl();
-    const res = await fetch(`${backendUrl}/memory/search`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
-    });
+  const skipHeaders = new Set([
+    'host', 'connection', 'content-length', 'transfer-encoding',
+    'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
+    'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
+    'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
+    'x-invoke-path', 'x-invoke-query', 'rsc', 'next-url',
+  ]);
+  request.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
+      headers.set(key, value);
+    }
+  });
 
-    const data = await res.text();
-    return new Response(data, {
-      status: res.status,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '未知错误';
-    console.error('[Knowledge Search] 代理失败:', msg);
-    return NextResponse.json({ error: '搜索失败', details: msg }, { status: 500 });
+  const sessionId = getSessionId(request);
+  if (sessionId) {
+    headers.set('X-Session-Id', sessionId);
   }
+
+  return headers;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query');
-    const topK = searchParams.get('topK') || '5';
-    const minScore = searchParams.get('minScore') || '0.3';
-    const domainCode = searchParams.get('domainCode') || '';
+    const domain = searchParams.get('domain');
 
     if (!query) {
-      return NextResponse.json({ error: '请提供 query 参数' }, { status: 400 });
+      return NextResponse.json({ error: '搜索关键词不能为空' }, { status: 400 });
     }
 
-    const sessionId = getSessionId(request);
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (sessionId) headers['X-Session-Id'] = sessionId;
+    const backendUrl = new URL(`${BACKEND_BASE}/memory/search`);
+    backendUrl.searchParams.set('query', query);
+    if (domain) {
+      backendUrl.searchParams.set('domain', domain);
+    }
 
-    const backendUrl = getBackendUrl();
-    const res = await fetch(`${backendUrl}/memory/search`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ query, domainCode: domainCode || undefined, minScore: parseFloat(minScore), limit: parseInt(topK) }),
-      signal: AbortSignal.timeout(30000),
+    const backendRes = await fetch(backendUrl.toString(), {
+      headers: buildHeaders(request),
+      signal: AbortSignal.timeout(15000),
     });
 
-    const data = await res.json();
+    const text = await backendRes.text();
+    const rewritten = rewriteBody(text, request);
 
-    // 统一返回格式，兼容前端
-    if (data.success && data.results) {
-      return NextResponse.json({
-        success: true,
-        chunks: data.results.map((r: Record<string, unknown>) => ({
-          content: r.content || r.chunkText || '',
-          score: r.score || 0,
-          docId: r.cardId || r.id,
-          domain: r.domainCode,
-          title: r.title,
-        })),
-      });
-    }
-
-    return NextResponse.json(data, { status: res.status });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '未知错误';
-    console.error('[Knowledge Search] 代理失败:', msg);
-    return NextResponse.json({ error: '搜索失败', details: msg }, { status: 500 });
+    return new NextResponse(rewritten, {
+      status: backendRes.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('[Knowledge Search Proxy] error:', error);
+    return NextResponse.json({ error: '后端服务不可用' }, { status: 503 });
   }
 }

@@ -1,8 +1,11 @@
+import { NextRequest, NextResponse } from 'next/server';
+
 /**
- * /api/knowledge/chat - 代理到 Java 后端 /memory/chat
- * MiniMax 流式AI对话（双库检索）
+ * 知识库对话代理路由
+ * /api/knowledge/chat -> Java后端 /memory/chat (SSE流式)
  */
-import { NextRequest } from 'next/server';
+
+const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 function getSessionId(request: NextRequest): string | null {
   const header = request.headers.get('x-session-id');
@@ -12,111 +15,68 @@ function getSessionId(request: NextRequest): string | null {
   return null;
 }
 
-function getBackendUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  return envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8080/api';
+function buildHeaders(request: NextRequest): Headers {
+  const headers = new Headers();
+
+  const skipHeaders = new Set([
+    'host', 'connection', 'content-length', 'transfer-encoding',
+    'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
+    'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
+    'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
+    'x-invoke-path', 'x-invoke-query', 'rsc', 'next-url',
+  ]);
+  request.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
+      headers.set(key, value);
+    }
+  });
+
+  const sessionId = getSessionId(request);
+  if (sessionId) {
+    headers.set('X-Session-Id', sessionId);
+  }
+
+  return headers;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, sessionId: chatSessionId, history } = await request.json();
+    const body = await request.json();
+    const { message, sessionId: clientSessionId } = body;
 
     if (!message) {
-      return new Response(JSON.stringify({ error: '请提供 message 参数' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json({ error: '消息不能为空' }, { status: 400 });
     }
 
-    const sessionId = getSessionId(request);
-    const headers: Record<string, string> = {
-      'Accept': 'text/event-stream',
-    };
-    if (sessionId) headers['X-Session-Id'] = sessionId;
+    // 构造请求参数 - 使用Java后端记忆库chat接口
+    const params = new URLSearchParams();
+    params.set('message', message);
+    params.set('sessionId', clientSessionId || 'knowledge-session-' + Date.now());
 
-    const backendUrl = getBackendUrl();
-    const params = new URLSearchParams({ message });
-    if (chatSessionId) params.set('sessionId', chatSessionId);
+    const backendUrl = `${BACKEND_BASE}/memory/chat?${params.toString()}`;
 
-    const backendRes = await fetch(`${backendUrl}/memory/chat?${params.toString()}`, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(180000),
+    const backendRes = await fetch(backendUrl, {
+      headers: buildHeaders(request),
+      signal: AbortSignal.timeout(300000),
     });
 
-    if (!backendRes.ok) {
-      const errText = await backendRes.text();
-      return new Response(JSON.stringify({ error: `后端返回 ${backendRes.status}`, detail: errText }), {
-        status: backendRes.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    const stream = backendRes.body;
+    if (!stream) {
+      return NextResponse.json({ error: '无法读取流' }, { status: 500 });
     }
 
-    // SSE流式透传
-    const reader = backendRes.body?.getReader();
-    if (!reader) {
-      return new Response(JSON.stringify({ error: 'SSE流为空' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) { controller.close(); return; }
-            const text = new TextDecoder().decode(value);
-
-            // Java后端SSE格式转换为前端格式
-            const lines = text.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('data:')) {
-                const data = line.slice(5).trim();
-                if (data === '[DONE]') {
-                  controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                  continue;
-                }
-                try {
-                  const parsed = JSON.parse(data);
-                  // 转换为前端期望的 { content } 格式
-                  if (parsed.content) {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: parsed.content })}\n\n`));
-                  } else if (parsed.type === 'done') {
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                  }
-                } catch {
-                  // 非JSON数据，原样透传
-                  controller.enqueue(encoder.encode(`${line}\n\n`));
-                }
-              } else if (line.startsWith('event:')) {
-                // 透传事件类型
-                controller.enqueue(encoder.encode(`${line}\n`));
-              }
-            }
-          }
-        } catch (e) {
-          console.error('[Knowledge Chat] SSE流中断:', e);
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
+    return new NextResponse(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+        'Access-Control-Allow-Credentials': 'true',
       },
     });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '未知错误';
-    console.error('[Knowledge Chat] 对话失败:', msg);
-    return new Response(JSON.stringify({ error: '对话失败', details: msg }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  } catch (error) {
+    console.error('[Knowledge Chat Proxy] error:', error);
+    return NextResponse.json({ error: '后端服务不可用' }, { status: 503 });
   }
 }

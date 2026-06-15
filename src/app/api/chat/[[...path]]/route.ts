@@ -1,53 +1,24 @@
-/**
- * /api/chat/* 代理路由 - 转发到 Java 后端 /api/chat/*
- *
- * 接口:
- *   GET  /api/chat/smart?message=xxx&sessionId=xxx  → AI智能对话(SSE流式, 双库检索)
- *   GET  /api/chat/history?sessionId=xxx            → 获取对话历史
- *   DELETE /api/chat/history?sessionId=xxx          → 清空对话历史
- */
 import { NextRequest, NextResponse } from 'next/server';
 
-// 获取后端候选地址
-function getBackendCandidates(request?: NextRequest): string[] {
-  const candidates: string[] = [];
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  if (envUrl) candidates.push(envUrl.replace(/\/$/, ''));
-  candidates.push('http://localhost:8080/api');
-  return [...new Set(candidates)];
-}
+// Java 后端配置
+const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_HOST || 'localhost:8080';
+const backendUrl = `http://${BACKEND_HOST}/api`;
 
-// 探测后端
-async function probeBackend(candidates: string[]): Promise<string | null> {
-  for (const url of candidates) {
-    try {
-      const res = await fetch(`${url}/albums`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-        headers: { 'Accept': 'application/json' },
-      });
-      if (res.ok || res.status === 401) return url;
-    } catch { /* next */ }
-  }
-  return null;
-}
-
-// 获取Session ID（与 /api/proxy 保持一致）
-function getSessionId(request: NextRequest): string | null {
-  // 1. 从请求头获取（前端直接传的 X-Session-Id）
-  const header = request.headers.get('x-session-id');
+// 获取 sessionId
+function getSessionId(req: NextRequest): string | null {
+  // 1. 从请求头获取
+  const header = req.headers.get('x-session-id');
   if (header) return header;
   // 2. 从 cookie 获取（兜底）
-  const cookie = request.cookies.get('session_id')?.value;
+  const cookie = req.cookies.get('session_id')?.value;
   if (cookie) return cookie;
   return null;
 }
 
-// 构建转发请求头（与 /api/proxy 保持一致：复制原始头 + 补充session）
-function buildHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = {};
-  
-  // 复制原始请求头（跳过不应转发的头）
+// 构建转发请求头（与 /api/proxy 完全一致：复制原始头 + 补充session）
+function buildHeaders(request: NextRequest): Headers {
+  const headers = new Headers();
+
   const skipHeaders = new Set([
     'host', 'connection', 'content-length', 'transfer-encoding',
     'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
@@ -58,22 +29,20 @@ function buildHeaders(request: NextRequest): Record<string, string> {
   request.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
     if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
-      headers[key] = value;
+      headers.set(key, value);
     }
   });
-  
-  // 确保 X-Session-Id 存在（统一大写，避免重复key）
+
+  // 确保 X-Session-Id 存在（Headers.set 大小写不敏感，同名会被覆盖）
   const sessionId = getSessionId(request);
   if (sessionId) {
-    delete headers['x-session-id'];  // 先删小写版本
-    headers['X-Session-Id'] = sessionId;  // 统一用大写
+    headers.set('X-Session-Id', sessionId);
   }
 
-  // SSE请求不传Content-Type（让浏览器自动处理）
+  // SSE请求不传Content-Type
   const accept = request.headers.get('accept') || '';
   if (accept.includes('text/event-stream')) {
-    delete headers['content-type'];
-    delete headers['Content-Type'];
+    headers.delete('content-type');
   }
 
   return headers;
@@ -85,141 +54,103 @@ function isSSERequest(request: NextRequest): boolean {
   return url.pathname.includes('/smart') || url.pathname.includes('/chat/smart');
 }
 
-// 动态替换响应中的localhost URL
-function rewriteUrls(text: string, request: NextRequest): string {
-  const host = request.headers.get('host') || 'localhost:5000';
-  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
-
-  if (isLocal) {
-    // 本地: localhost:8080/xxx → /xxx (相对路径)
-    return text.replace(/http:\/\/localhost:8080\//g, '/');
-  } else {
-    // 映射域名: localhost:8080/xxx → http://域名/xxx
-    const protocol = request.headers.get('x-forwarded-proto') || 'http';
-    const domain = host.split(':')[0];
-    return text.replace(/http:\/\/localhost:8080\//g, `${protocol}://${domain}/`);
-  }
-}
-
-// GET 请求处理 (对话SSE + 历史查询)
-export async function GET(request: NextRequest) {
+async function proxyRequest(
+  request: NextRequest,
+  method: string,
+  body?: ReadableStream<Uint8Array> | null,
+  contentType?: string | null
+): Promise<NextResponse> {
   const url = new URL(request.url);
-  const pathParts = url.pathname.replace('/api/chat/', '');
-  const backendPath = `/chat/${pathParts}`;
+  const pathParts = url.pathname.replace('/api/chat', '');
+  const backendPath = '/chat' + pathParts;
   const query = url.searchParams.toString();
-
-  const candidates = getBackendCandidates(request);
-  const backendUrl = await probeBackend(candidates);
-
-  if (!backendUrl) {
-    return NextResponse.json(
-      { success: false, error: '后端服务不可用', message: '请确认 Java 后端已启动' },
-      { status: 502 }
-    );
-  }
-
   const targetUrl = `${backendUrl}${backendPath}${query ? '?' + query : ''}`;
+
   const headers = buildHeaders(request);
   const sse = isSSERequest(request);
-  
-  // 调试日志
+
+  if (contentType) {
+    headers.set('Content-Type', contentType);
+  }
+
   console.log('[Chat Proxy] target:', targetUrl);
-  console.log('[Chat Proxy] X-Session-Id:', headers['X-Session-Id'] || headers['x-session-id'] || 'MISSING');
+  console.log('[Chat Proxy] X-Session-Id:', headers.get('x-session-id') || 'MISSING');
 
   try {
     const backendRes = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Accept': sse ? 'text/event-stream' : 'application/json',
-      },
+      method,
+      headers,
+      body: body || undefined,
       signal: AbortSignal.timeout(sse ? 180000 : 30000),
     });
 
-    if (!backendRes.ok) {
-      const errText = await backendRes.text();
-      return NextResponse.json(
-        { success: false, error: `后端返回 ${backendRes.status}`, detail: errText },
-        { status: backendRes.status }
-      );
-    }
+    if (sse && backendRes.ok) {
+      // SSE 流式透传
+      const responseHeaders = new Headers(backendRes.headers);
+      responseHeaders.set('Content-Type', 'text/event-stream');
+      responseHeaders.set('Cache-Control', 'no-cache');
+      responseHeaders.set('Connection', 'keep-alive');
+      responseHeaders.set('Access-Control-Allow-Origin', '*');
 
-    if (sse) {
-      // SSE流式透传
-      const reader = backendRes.body?.getReader();
-      if (!reader) return NextResponse.json({ error: 'SSE流为空' }, { status: 500 });
-
-      const encoder = new TextEncoder();
-      const stream = new ReadableStream({
+      const readable = new ReadableStream({
         async start(controller) {
+          const reader = backendRes.body?.getReader();
+          if (!reader) {
+            controller.close();
+            return;
+          }
           try {
             while (true) {
               const { done, value } = await reader.read();
-              if (done) { controller.close(); return; }
-              const text = new TextDecoder().decode(value);
-              controller.enqueue(encoder.encode(rewriteUrls(text, request)));
+              if (done) break;
+              controller.enqueue(value);
             }
           } catch (e) {
-            console.error('[Chat Proxy] SSE流中断:', e);
+            console.error('[Chat Proxy] SSE error:', e);
+          } finally {
             controller.close();
           }
         },
       });
 
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    } else {
-      // 普通JSON响应
-      const data = await backendRes.text();
-      const rewritten = rewriteUrls(data, request);
-      return new Response(rewritten, {
+      return new NextResponse(readable, {
         status: backendRes.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers: responseHeaders,
       });
     }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '未知错误';
-    console.error('[Chat Proxy] 请求失败:', msg);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+
+    const responseBody = await backendRes.text();
+    const responseHeaders = new Headers();
+    responseHeaders.set('Content-Type', 'application/json');
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
+
+    return new NextResponse(responseBody, {
+      status: backendRes.status,
+      headers: responseHeaders,
+    });
+  } catch (error) {
+    console.error('[Chat Proxy] error:', error);
+    return NextResponse.json(
+      { success: false, error: '代理请求失败', message: String(error) },
+      { status: 502 }
+    );
   }
 }
 
-// DELETE 请求处理 (清空历史)
+export async function GET(request: NextRequest) {
+  return proxyRequest(request, 'GET');
+}
+
+export async function POST(request: NextRequest) {
+  const contentType = request.headers.get('content-type');
+  return proxyRequest(request, 'POST', request.body, contentType);
+}
+
+export async function PUT(request: NextRequest) {
+  const contentType = request.headers.get('content-type');
+  return proxyRequest(request, 'PUT', request.body, contentType);
+}
+
 export async function DELETE(request: NextRequest) {
-  const url = new URL(request.url);
-  const pathParts = url.pathname.replace('/api/chat/', '');
-  const backendPath = `/chat/${pathParts}`;
-  const query = url.searchParams.toString();
-
-  const candidates = getBackendCandidates(request);
-  const backendUrl = await probeBackend(candidates);
-
-  if (!backendUrl) {
-    return NextResponse.json({ success: false, error: '后端服务不可用' }, { status: 502 });
-  }
-
-  const targetUrl = `${backendUrl}${backendPath}${query ? '?' + query : ''}`;
-
-  try {
-    const backendRes = await fetch(targetUrl, {
-      method: 'DELETE',
-      headers: buildHeaders(request),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const data = await backendRes.text();
-    return new Response(data, {
-      status: backendRes.status,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '未知错误';
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
-  }
+  return proxyRequest(request, 'DELETE');
 }
