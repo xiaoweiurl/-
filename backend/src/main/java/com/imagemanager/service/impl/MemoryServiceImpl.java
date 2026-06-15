@@ -74,6 +74,9 @@ public class MemoryServiceImpl implements MemoryService {
     @Value("${app.minimax.embedding.model:embo-01}")
     private String minimaxEmbeddingModel;
 
+    @Value("${app.minimax.embedding.group-id:}")
+    private String minimaxGroupId;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -621,6 +624,10 @@ public class MemoryServiceImpl implements MemoryService {
     private float[] getEmbeddingMiniMaxLegacy(String text, String apiKey) {
         try {
             String url = "https://api.minimax.chat/v1/embeddings";
+            // 旧版接口需要 GroupId 作为 URL 参数
+            if (minimaxGroupId != null && !minimaxGroupId.isEmpty()) {
+                url += "?GroupId=" + minimaxGroupId;
+            }
             Map<String, Object> body = new HashMap<>();
             body.put("texts", List.of(text));
             body.put("model", "embo-01");
