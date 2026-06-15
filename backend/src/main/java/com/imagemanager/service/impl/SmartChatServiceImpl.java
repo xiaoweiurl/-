@@ -54,7 +54,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChat(String message, String sessionId, String userId) {
-        SseEmitter emitter = new SseEmitter(300000L); // 5分钟超时
+        SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         new Thread(() -> {
             try {
@@ -65,7 +65,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 2a. 记忆库检索(PostgreSQL向量)
                 List<MemorySearchResult> memoryResults = Collections.emptyList();
                 try {
-                    memoryResults = memoryService.search(message, null, 0.3, 5, userId);
+                    memoryResults = memoryService.search(message, null, 0.3, 3, userId);
                     log.info("记忆库检索到 {} 条结果", memoryResults.size());
                 } catch (Exception e) {
                     log.warn("记忆库检索异常: {}", e.getMessage());
@@ -133,7 +133,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     for (int i = 0; i < memoryResults.size(); i++) {
                         MemorySearchResult r = memoryResults.get(i);
                         String content = r.getContent();
-                        if (content != null && content.length() > 500) content = content.substring(0, 500) + "...";
+                        if (content != null && content.length() > 300) content = content.substring(0, 300) + "...";
                         knowledgeContext.append(String.format("### 卡片%d [%s] %s\n%s\n置信度: %s | 来源: %s\n\n",
                                 i + 1, r.getDomainName(), r.getTitle(), content,
                                 r.getConfidence(), r.getSource() != null ? r.getSource() : "未知"));
@@ -146,7 +146,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         Map<String, Object> r = knowledgeResults.get(i);
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
                         String content = r.getOrDefault("content", "").toString();
-                        if (content.length() > 500) content = content.substring(0, 500) + "...";
+                        if (content.length() > 300) content = content.substring(0, 300) + "...";
                         knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%%)\n%s\n\n",
                                 i + 1, score * 100, content));
                     }
@@ -175,7 +175,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         "保持专业、简洁、有帮助的回答风格。"));
 
                 // 加入历史对话(最近10轮)
-                int startIdx = Math.max(0, history.size() - 10);
+                int startIdx = Math.max(0, history.size() - 5);
                 for (int i = startIdx; i < history.size(); i++) {
                     messages.add(history.get(i));
                 }
@@ -293,7 +293,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             sql.append(") ");
             sql.append("ORDER BY is_main_image DESC, created_at DESC ");
-            sql.append("LIMIT 20");
+            sql.append("LIMIT 10");
 
             List<Object> params = new ArrayList<>();
             params.add(userId);
@@ -345,7 +345,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     private List<Map<String, Object>> searchKnowledgeBase(String query, String userId) {
         try {
             // 使用与记忆库相同的搜索逻辑，但不限定domainCode
-            List<MemorySearchResult> allResults = memoryService.search(query, null, 0.25, 10, userId);
+            List<MemorySearchResult> allResults = memoryService.search(query, null, 0.25, 5, userId);
             
             List<Map<String, Object>> results = new ArrayList<>();
             for (MemorySearchResult r : allResults) {
@@ -408,13 +408,14 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             Map<String, Object> body = new HashMap<>();
             body.put("model", minimaxModel);
-            body.put("max_tokens", 8192);
+            body.put("max_tokens", 16384);
             body.put("stream", true);
             body.put("system", "你是盈云产品智能中台的AI助手，专注于供应链、工厂管理和产品知识领域。" +
                     "请基于提供的记忆库知识卡片和知识库文档片段回答用户问题。" +
                     "回答时标注引用来源(记忆库/知识库)。" +
                     "如果参考资料中没有相关信息，请明确说明，不要编造。" +
-                    "回答使用中文。保持对话连贯性，参考上下文历史。");
+                    "回答使用中文。保持对话连贯性，参考上下文历史。" +
+                    "请确保回答完整输出，不要截断或省略任何内容。");
             body.put("messages", messages);
 
             HttpURLConnection conn = (HttpURLConnection) URI.create(minimaxBaseUrl).toURL().openConnection();
@@ -423,8 +424,8 @@ public class SmartChatServiceImpl implements SmartChatService {
             conn.setRequestProperty("Authorization", "Bearer " + apiKey);
             conn.setRequestProperty("anthropic-version", "2023-06-01");
             conn.setDoOutput(true);
-            conn.setConnectTimeout(30000);
-            conn.setReadTimeout(180000);
+            conn.setConnectTimeout(60000);
+            conn.setReadTimeout(600000);
 
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
@@ -456,6 +457,19 @@ public class SmartChatServiceImpl implements SmartChatService {
                             String eventType = node.path("type").asText("");
 
                             switch (eventType) {
+                                case "content_block_start":
+                                    JsonNode cbStart = node.path("content_block");
+                                    String cbType = cbStart.path("type").asText("");
+                                    if ("text".equals(cbType)) {
+                                        String text = cbStart.path("text").asText("");
+                                        if (!text.isEmpty()) {
+                                            fullResponse.append(text);
+                                            emitter.send(SseEmitter.event().name("message").data(
+                                                    objectMapper.writeValueAsString(Map.of("type", "content", "content", text))
+                                            ));
+                                        }
+                                    }
+                                    break;
                                 case "content_block_delta":
                                     JsonNode delta = node.path("delta");
                                     String deltaType = delta.path("type").asText("");
@@ -473,7 +487,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     JsonNode msgDelta = node.path("delta");
                                     String stopReason = msgDelta.path("stop_reason").asText("");
                                     if (!stopReason.isEmpty()) {
-                                        log.debug("MiniMax消息停止原因: {}", stopReason);
+                                        log.info("MiniMax消息停止原因: {}", stopReason);
                                     }
                                     break;
                                 case "message_stop":
