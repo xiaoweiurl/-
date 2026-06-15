@@ -1,8 +1,11 @@
-/**
- * /api/knowledge/add - 代理到 Java 后端 /memory/upload 或 /memory/cards
- * 知识文档导入（不再使用 Coze SDK）
- */
 import { NextRequest, NextResponse } from 'next/server';
+
+/**
+ * 知识库文档导入代理路由
+ * /api/knowledge/add -> Java后端 /memory/cards
+ */
+
+const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 function getSessionId(request: NextRequest): string | null {
   const header = request.headers.get('x-session-id');
@@ -12,80 +15,80 @@ function getSessionId(request: NextRequest): string | null {
   return null;
 }
 
-function getBackendUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  return envUrl ? envUrl.replace(/\/$/, '') : 'http://localhost:8080/api';
+function getUrlReplacement(request: NextRequest): { pattern: RegExp; replacement: string } | null {
+  const host = request.headers.get('host') || '';
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
+  if (isLocal) {
+    return { pattern: /http:\/\/localhost:8080/g, replacement: '' };
+  }
+  const origin = request.headers.get('origin') || `http://${host}`;
+  return { pattern: /http:\/\/localhost:8080/g, replacement: origin };
+}
+
+function rewriteBody(body: string, request: NextRequest): string {
+  const repl = getUrlReplacement(request);
+  if (!repl) return body;
+  return body.replace(repl.pattern, repl.replacement);
+}
+
+function buildHeaders(request: NextRequest): Headers {
+  const headers = new Headers();
+
+  const skipHeaders = new Set([
+    'host', 'connection', 'content-length', 'transfer-encoding',
+    'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
+    'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
+    'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
+    'x-invoke-path', 'x-invoke-query', 'rsc', 'next-url',
+  ]);
+  request.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
+      headers.set(key, value);
+    }
+  });
+
+  const sessionId = getSessionId(request);
+  if (sessionId) {
+    headers.set('X-Session-Id', sessionId);
+  }
+
+  return headers;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const sessionId = getSessionId(request);
-    const backendUrl = getBackendUrl();
+    const { title, content, domain, tags } = body;
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (sessionId) headers['X-Session-Id'] = sessionId;
-
-    // 文本内容导入 → 创建知识卡片
-    if (body.content) {
-      const cardBody = {
-        domainCode: body.domainCode || 'product',
-        title: body.title || '导入的文本知识',
-        content: body.content,
-        source: 'knowledge_base_import',
-        tags: body.tags || ['知识库导入'],
-      };
-
-      const res = await fetch(`${backendUrl}/memory/cards`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(cardBody),
-        signal: AbortSignal.timeout(30000),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        return NextResponse.json({
-          success: true,
-          doc_ids: [data.card?.id || Date.now().toString()],
-          message: '知识卡片创建成功',
-        });
-      }
-      return NextResponse.json(data, { status: res.status });
+    if (!title || !content) {
+      return NextResponse.json({ error: '标题和内容不能为空' }, { status: 400 });
     }
 
-    // URL 导入 → 创建知识卡片（URL作为内容）
-    if (body.url) {
-      const cardBody = {
-        domainCode: body.domainCode || 'product',
-        title: body.url,
-        content: `来源URL: ${body.url}\n请通过文档上传功能导入该URL的完整内容`,
-        source: 'url_import',
-        tags: ['URL导入'],
-      };
+    // 转交给Java后端记忆库的知识卡片接口
+    const backendUrl = `${BACKEND_BASE}/memory/cards`;
 
-      const res = await fetch(`${backendUrl}/memory/cards`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(cardBody),
-        signal: AbortSignal.timeout(30000),
-      });
+    const backendRes = await fetch(backendUrl, {
+      method: 'POST',
+      headers: buildHeaders(request),
+      body: JSON.stringify({
+        title,
+        content,
+        domain: domain || 'product',
+        tags: tags || [],
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
 
-      const data = await res.json();
-      if (data.success) {
-        return NextResponse.json({
-          success: true,
-          doc_ids: [data.card?.id || Date.now().toString()],
-          message: 'URL知识卡片创建成功',
-        });
-      }
-      return NextResponse.json(data, { status: res.status });
-    }
+    const text = await backendRes.text();
+    const rewritten = rewriteBody(text, request);
 
-    return NextResponse.json({ error: '请提供 content 或 url' }, { status: 400 });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '未知错误';
-    console.error('[Knowledge Add] 导入失败:', msg);
-    return NextResponse.json({ error: '导入失败', details: msg }, { status: 500 });
+    return new NextResponse(rewritten, {
+      status: backendRes.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('[Knowledge Add Proxy] error:', error);
+    return NextResponse.json({ error: '后端服务不可用' }, { status: 503 });
   }
 }
