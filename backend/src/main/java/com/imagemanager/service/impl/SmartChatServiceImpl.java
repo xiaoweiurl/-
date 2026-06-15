@@ -260,7 +260,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 图片搜索 - 按标题/描述/标签模糊匹配
+     * 图片搜索 - 按标题/描述/标签模糊匹配，按产品分组返回(主图+详情图)
      */
     private List<Map<String, Object>> searchImages(String query, String userId) {
         try {
@@ -277,7 +277,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 keywords.add(query.trim());
             }
 
-            // 构建动态SQL: 用 OR 连接多个关键词，匹配 title/description/image_tags
+            // 第一步: 先搜索匹配的图片(最多50张，确保每个产品都有图)
             StringBuilder sql = new StringBuilder();
             sql.append("SELECT id, title, url, thumbnail_url, is_main_image, file_type, ");
             sql.append("width, height, product_id, album_name, created_at ");
@@ -293,7 +293,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             sql.append(") ");
             sql.append("ORDER BY is_main_image DESC, created_at DESC ");
-            sql.append("LIMIT 10");
+            sql.append("LIMIT 50");
 
             List<Object> params = new ArrayList<>();
             params.add(userId);
@@ -305,7 +305,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 params.add(pattern);
             }
 
-            return jdbcTemplate.query(sql.toString(),
+            List<Map<String, Object>> rawImages = jdbcTemplate.query(sql.toString(),
                     (rs, rowNum) -> {
                         Map<String, Object> img = new LinkedHashMap<>();
                         img.put("id", rs.getString("id"));
@@ -324,6 +324,50 @@ public class SmartChatServiceImpl implements SmartChatService {
                     },
                     params.toArray()
             );
+
+            // 第二步: 按 product_id 分组，每个产品保留主图+详情图
+            Map<String, List<Map<String, Object>>> productGroups = new LinkedHashMap<>();
+            for (Map<String, Object> img : rawImages) {
+                String pid = img.getOrDefault("productId", "").toString();
+                if (pid == null || pid.isEmpty()) {
+                    pid = "no_product_" + img.get("id");
+                }
+                productGroups.computeIfAbsent(pid, k -> new ArrayList<>()).add(img);
+            }
+
+            // 第三步: 构建按产品分组的结果(最多10个产品)
+            List<Map<String, Object>> products = new ArrayList<>();
+            int productCount = 0;
+            for (Map.Entry<String, List<Map<String, Object>>> entry : productGroups.entrySet()) {
+                if (productCount >= 10) break;
+                List<Map<String, Object>> imgs = entry.getValue();
+                if (imgs.isEmpty()) continue;
+
+                Map<String, Object> mainImage = null;
+                List<Map<String, Object>> detailImages = new ArrayList<>();
+                for (Map<String, Object> img : imgs) {
+                    if (Boolean.TRUE.equals(img.get("isMainImage"))) {
+                        mainImage = img;
+                    } else {
+                        detailImages.add(img);
+                    }
+                }
+                // 如果没有主图，用第一张作为主图
+                if (mainImage == null && !detailImages.isEmpty()) {
+                    mainImage = detailImages.remove(0);
+                }
+
+                Map<String, Object> product = new LinkedHashMap<>();
+                product.put("productId", entry.getKey());
+                product.put("productName", mainImage != null ? mainImage.getOrDefault("title", "") : "");
+                product.put("mainImage", mainImage);
+                product.put("detailImages", detailImages);
+                product.put("albumName", mainImage != null ? mainImage.getOrDefault("albumName", "") : "");
+                products.add(product);
+                productCount++;
+            }
+
+            return products;
         } catch (Exception e) {
             log.warn("图片搜索失败: {}", e.getMessage());
             return Collections.emptyList();
