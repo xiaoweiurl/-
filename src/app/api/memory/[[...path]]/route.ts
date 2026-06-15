@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * - SSE 流式透传（/chat 接口）
  * - FormData 文件上传
  * - Session 传递（复制原始头 + 补充 X-Session-Id）
- * - 响应中 localhost:8080 URL 动态替换（映射访问时）
+ * - 响应原样透传
  */
 
 const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
@@ -19,24 +19,6 @@ function getSessionId(request: NextRequest): string | null {
   const cookie = request.cookies.get('session_id')?.value;
   if (cookie) return cookie;
   return null;
-}
-
-function getUrlReplacement(request: NextRequest): { pattern: RegExp; replacement: string } | null {
-  const host = request.headers.get('host') || '';
-  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
-
-  if (isLocal) {
-    return { pattern: /http:\/\/localhost:8080/g, replacement: '' };
-  } else {
-    const origin = request.headers.get('origin') || `http://${host}`;
-    return { pattern: /http:\/\/localhost:8080/g, replacement: origin };
-  }
-}
-
-function rewriteBody(body: string, request: NextRequest): string {
-  const repl = getUrlReplacement(request);
-  if (!repl) return body;
-  return body.replace(repl.pattern, repl.replacement);
 }
 
 function buildBackendUrl(pathname: string, search: string): string {
@@ -104,9 +86,8 @@ export async function GET(request: NextRequest) {
     }
 
     const text = await backendRes.text();
-    const rewritten = rewriteBody(text, request);
 
-    return new NextResponse(rewritten, {
+    return new NextResponse(text, {
       status: backendRes.status,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -147,9 +128,8 @@ export async function POST(request: NextRequest) {
     }
 
     const text = await res.text();
-    const rewritten = rewriteBody(text, request);
 
-    return new NextResponse(rewritten, {
+    return new NextResponse(text, {
       status: res.status,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -177,9 +157,8 @@ export async function PUT(request: NextRequest) {
     });
 
     const text = await res.text();
-    const rewritten = rewriteBody(text, request);
 
-    return new NextResponse(rewritten, {
+    return new NextResponse(text, {
       status: res.status,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -202,9 +181,8 @@ export async function DELETE(request: NextRequest) {
     });
 
     const text = await res.text();
-    const rewritten = rewriteBody(text, request);
 
-    return new NextResponse(rewritten, {
+    return new NextResponse(text, {
       status: res.status,
       headers: { 'Content-Type': 'application/json' },
     });

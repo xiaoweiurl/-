@@ -15,22 +15,6 @@ function getSessionId(request: NextRequest): string | null {
   return null;
 }
 
-function getUrlReplacement(request: NextRequest): { pattern: RegExp; replacement: string } | null {
-  const host = request.headers.get('host') || '';
-  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
-  if (isLocal) {
-    return { pattern: /http:\/\/localhost:8080/g, replacement: '' };
-  }
-  const origin = request.headers.get('origin') || `http://${host}`;
-  return { pattern: /http:\/\/localhost:8080/g, replacement: origin };
-}
-
-function rewriteBody(body: string, request: NextRequest): string {
-  const repl = getUrlReplacement(request);
-  if (!repl) return body;
-  return body.replace(repl.pattern, repl.replacement);
-}
-
 function buildHeaders(request: NextRequest): Headers {
   const headers = new Headers();
 
@@ -78,9 +62,8 @@ export async function GET(request: NextRequest) {
     });
 
     const text = await backendRes.text();
-    const rewritten = rewriteBody(text, request);
 
-    return new NextResponse(rewritten, {
+    return new NextResponse(text, {
       status: backendRes.status,
       headers: { 'Content-Type': 'application/json' },
     });

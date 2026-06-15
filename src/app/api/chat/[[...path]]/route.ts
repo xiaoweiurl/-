@@ -3,17 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * Chat API 代理路由
  * 
- * 与 /api/proxy 使用相同的后端探测和URL重写策略：
- * - 自动探测后端可用性
- * - 根据请求来源域名动态替换 localhost:8080 URL
- * - SSE 流式透传
- * - 支持 CORS
+ * 将前端 /api/chat/* 请求转发到 Java 后端的 /chat/* 路径。
+ * 支持普通请求和 SSE 流式请求的透传。
  */
 
-// 后端地址探测结果缓存（与 /api/proxy 共享逻辑）
+// 后端地址探测结果缓存
 let cachedBackendUrl: string | null = null;
 let lastProbeTime = 0;
-const PROBE_CACHE_TTL = 60000; // 1分钟缓存
+const PROBE_CACHE_TTL = 60000;
 
 function getBackendCandidates(): string[] {
   const candidates: string[] = [];
@@ -23,7 +20,6 @@ function getBackendCandidates(): string[] {
   if (process.env.NEXT_PUBLIC_BACKEND_API_URL) {
     candidates.push(process.env.NEXT_PUBLIC_BACKEND_API_URL);
   }
-  // 总是尝试直连本地后端
   candidates.push('http://localhost:8080/api');
   return [...new Set(candidates)];
 }
@@ -60,13 +56,11 @@ async function getAvailableBackend(): Promise<string | null> {
     }
   }
 
-  // 缓存失败结果（短缓存）
   cachedBackendUrl = null;
   lastProbeTime = now;
   return null;
 }
 
-// 获取 sessionId
 function getSessionId(req: NextRequest): string | null {
   const header = req.headers.get('x-session-id');
   if (header) return header;
@@ -75,28 +69,6 @@ function getSessionId(req: NextRequest): string | null {
   return null;
 }
 
-// 根据请求的 Host 头判断当前访问方式
-function getReplacementPrefix(request: NextRequest): string {
-  const host = request.headers.get('host') || '';
-  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('0.0.0.0');
-
-  if (isLocal) {
-    return ''; // 本地访问：替换为相对路径
-  }
-
-  // 映射域名访问：替换为映射域名
-  const hostname = host.split(':')[0];
-  const forwardedProto = request.headers.get('x-forwarded-proto');
-  const protocol = forwardedProto || 'http';
-  return `${protocol}://${hostname}`;
-}
-
-// 改写响应体中的 localhost:8080 URL
-function rewriteResponseBody(body: string, replacementPrefix: string): string {
-  return body.replace(/https?:\/\/(?:localhost|127\.0\.0\.1):8080/g, replacementPrefix);
-}
-
-// 构建转发请求头
 function buildHeaders(request: NextRequest, contentType?: string | null): Headers {
   const headers = new Headers();
 
@@ -114,7 +86,6 @@ function buildHeaders(request: NextRequest, contentType?: string | null): Header
     }
   });
 
-  // 确保 X-Session-Id 存在
   const sessionId = getSessionId(request);
   if (sessionId) {
     headers.set('X-Session-Id', sessionId);
@@ -130,7 +101,6 @@ function buildHeaders(request: NextRequest, contentType?: string | null): Header
     headers.set('Content-Type', contentType);
   }
 
-  // 设置正确的 Host 头
   try {
     const backendUrl = cachedBackendUrl || 'http://localhost:8080/api';
     const backendHost = new URL(backendUrl).host;
@@ -140,7 +110,6 @@ function buildHeaders(request: NextRequest, contentType?: string | null): Header
   return headers;
 }
 
-// 判断是否SSE请求
 function isSSERequest(request: NextRequest): boolean {
   const url = new URL(request.url);
   return url.pathname.includes('/smart') || url.pathname.includes('/chat/smart');
@@ -152,7 +121,6 @@ async function proxyRequest(
   body?: ReadableStream<Uint8Array> | null,
   contentType?: string | null
 ): Promise<NextResponse> {
-  // 自动探测后端
   const backendUrl = await getAvailableBackend();
 
   if (!backendUrl) {
@@ -184,23 +152,23 @@ async function proxyRequest(
       method,
       headers,
       body: body || undefined,
-      signal: AbortSignal.timeout(sse ? 600000 : 30000), // SSE: 10分钟, 普通: 30秒
+      signal: AbortSignal.timeout(sse ? 600000 : 30000),
+    });
+
+    // 构建响应头
+    const responseHeaders = new Headers();
+    const responseSkipHeaders = new Set(['transfer-encoding', 'connection', 'keep-alive']);
+    backendRes.headers.forEach((value, key) => {
+      if (!responseSkipHeaders.has(key.toLowerCase())) {
+        responseHeaders.set(key, value);
+      }
     });
 
     if (sse && backendRes.ok) {
       // SSE 流式透传
-      const responseHeaders = new Headers();
-      // 复制后端响应头（排除不需要的）
-      const responseSkipHeaders = new Set(['transfer-encoding', 'connection', 'keep-alive']);
-      backendRes.headers.forEach((value, key) => {
-        if (!responseSkipHeaders.has(key.toLowerCase())) {
-          responseHeaders.set(key, value);
-        }
-      });
       responseHeaders.set('Content-Type', 'text/event-stream');
       responseHeaders.set('Cache-Control', 'no-cache');
       responseHeaders.set('Connection', 'keep-alive');
-      // CORS 头
       if (!responseHeaders.has('access-control-allow-origin')) {
         responseHeaders.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
       }
@@ -235,38 +203,18 @@ async function proxyRequest(
       });
     }
 
-    // 普通响应：根据请求来源动态替换 localhost URL
-    const replacementPrefix = getReplacementPrefix(request);
+    // 普通响应：直接透传
     const responseBody = await backendRes.text();
-    const responseContentType = backendRes.headers.get('content-type') || '';
-
-    let finalBody = responseBody;
-    if (responseContentType.includes('application/json') || responseContentType.includes('text/')) {
-      finalBody = rewriteResponseBody(responseBody, replacementPrefix);
-    }
-
-    const responseHeaders = new Headers();
-    const responseSkipHeaders = new Set(['transfer-encoding', 'connection', 'keep-alive']);
-    backendRes.headers.forEach((value, key) => {
-      if (!responseSkipHeaders.has(key.toLowerCase())) {
-        responseHeaders.set(key, value);
-      }
-    });
-    responseHeaders.set('Content-Type', responseContentType || 'application/json');
+    responseHeaders.set('Content-Type', backendRes.headers.get('content-type') || 'application/json');
     if (!responseHeaders.has('access-control-allow-origin')) {
       responseHeaders.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
     }
 
-    if (replacementPrefix !== '') {
-      console.log(`[Chat Proxy] URL替换: localhost:8080 → ${replacementPrefix}`);
-    }
-
-    return new NextResponse(finalBody, {
+    return new NextResponse(responseBody, {
       status: backendRes.status,
       headers: responseHeaders,
     });
   } catch (error) {
-    // 清除后端缓存
     cachedBackendUrl = null;
     lastProbeTime = 0;
 

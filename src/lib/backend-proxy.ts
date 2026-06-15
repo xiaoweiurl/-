@@ -9,9 +9,6 @@
 // 后端 API 基础 URL（服务端直连用）
 const BACKEND_INTERNAL_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
-// 数据库中存储的静态资源前缀
-const LOCAL_STATIC_PREFIX = 'http://localhost:8080';
-
 /**
  * 判断当前是否在服务端执行
  */
@@ -39,30 +36,7 @@ export function getBackendInternalUrl(): string {
 }
 
 /**
- * 重写静态资源 URL - 已弃用
- * 后端代理层已自动处理 URL 替换，前端不需要做任何转换
- * @deprecated 保留此函数仅为向后兼容，实际直接返回原URL
- */
-export function rewriteStaticUrl(url: string): string {
-  return url;
-}
-
-/**
- * 批量重写对象中的静态资源 URL - 已弃用
- * 后端代理层已自动处理 URL 替换，前端不需要做任何转换
- * @deprecated 保留此函数仅为向后兼容，实际直接返回原对象
- */
-export function rewriteStaticUrls<T>(obj: T): T {
-  return obj;
-}
-
-/**
  * 图片URL透传
- * 
- * 后端代理层已根据请求来源自动替换 localhost:8080：
- * - 本地访问: /api/proxy 返回的 JSON 中已经是相对路径 /api/uploads/xxx
- * - 映射访问: /api/proxy 返回的 JSON 中已经是 http://映射域名/api/uploads/xxx
- * 
  * 前端无需做任何URL转换，直接透传即可
  */
 export function proxyImageUrl(url: string | undefined): string {
