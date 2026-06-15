@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  X,
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -30,8 +31,9 @@ interface ChatMessage {
 interface DocEntry {
   id: string;
   title: string;
-  type: 'text' | 'url';
+  type: 'text' | 'url' | 'file';
   content?: string;
+  status?: string;
   createdAt: Date;
 }
 
@@ -45,7 +47,10 @@ export default function KnowledgePage() {
   // 知识库管理
   const [documents, setDocuments] = useState<DocEntry[]>([]);
   const [showAddPanel, setShowAddPanel] = useState(false);
-  const [addType, setAddType] = useState<'text' | 'url'>('text');
+  const [addType, setAddType] = useState<'text' | 'url' | 'file'>('text');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [addContent, setAddContent] = useState('');
   const [addTitle, setAddTitle] = useState('');
   const [addUrl, setAddUrl] = useState('');
@@ -55,6 +60,37 @@ export default function KnowledgePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showDocs, setShowDocs] = useState(true);
+
+  // 加载文档列表
+  const loadDocuments = useCallback(async () => {
+    try {
+      const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+      const headers: Record<string, string> = {};
+      if (sid) headers['X-Session-Id'] = sid;
+      const res = await fetch('/api/memory/documents?domain=default', {
+        credentials: 'include',
+        headers,
+      });
+      const data = await res.json();
+      if (data.success && data.documents) {
+        setDocuments(
+          data.documents.map((doc: Record<string, unknown>) => ({
+            id: String(doc.id),
+            title: String(doc.title || doc.filename || '未命名'),
+            type: 'file' as const,
+            status: String(doc.status || 'completed'),
+            createdAt: new Date(String(doc.createdAt || Date.now())),
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('加载文档失败:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
 
   // 登录检查
   useEffect(() => {
@@ -167,10 +203,49 @@ export default function KnowledgePage() {
     }
   }, [input, isLoading, messages]);
 
+  // 文件上传
+  const handleFileUpload = async () => {
+    if (!uploadFile) return;
+    setIsUploading(true);
+    setUploadProgress(0);
+    try {
+      const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('domain', 'default');
+      if (sid) formData.append('sessionId', sid);
+
+      const res = await fetch('/api/memory/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : undefined,
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUploadFile(null);
+        setShowAddPanel(false);
+        await loadDocuments();
+      } else {
+        alert(data.error || '上传失败');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('上传失败');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
   // 导入文档
   const handleAddDoc = async () => {
     if (addType === 'text' && (!addTitle.trim() || !addContent.trim())) return;
     if (addType === 'url' && !addUrl.trim()) return;
+    if (addType === 'file') {
+      await handleFileUpload();
+      return;
+    }
 
     setIsAdding(true);
     try {
@@ -237,8 +312,21 @@ export default function KnowledgePage() {
   };
 
   // 删除文档
-  const handleDeleteDoc = (id: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
+  const handleDeleteDoc = async (id: string) => {
+    if (!confirm('确定删除此文档？')) return;
+    try {
+      const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
+      const headers: Record<string, string> = {};
+      if (sid) headers['X-Session-Id'] = sid;
+      await fetch(`/api/memory/documents/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers,
+      });
+      await loadDocuments();
+    } catch (err) {
+      console.error('删除文档失败:', err);
+    }
   };
 
   // 键盘快捷键
@@ -307,6 +395,17 @@ export default function KnowledgePage() {
                     文本
                   </button>
                   <button
+                    onClick={() => setAddType('file')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      addType === 'file'
+                        ? 'bg-violet-500 text-white'
+                        : 'bg-white text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    文件
+                  </button>
+                  <button
                     onClick={() => setAddType('url')}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                       addType === 'url'
@@ -335,6 +434,41 @@ export default function KnowledgePage() {
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white resize-none"
                     />
                   </>
+                ) : addType === 'file' ? (
+                  <div className="space-y-2">
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-violet-400 hover:bg-violet-50/30 transition-colors">
+                      <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                      <span className="text-xs text-slate-500">
+                        {uploadFile ? uploadFile.name : '点击选择文件'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">支持 PDF、Word、Excel、TXT</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        className="hidden"
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {uploadFile && (
+                      <div className="flex items-center justify-between px-2 py-1.5 bg-slate-50 rounded-lg">
+                        <span className="text-xs text-slate-600 truncate max-w-[180px]">{uploadFile.name}</span>
+                        <button onClick={() => setUploadFile(null)} className="p-0.5 hover:bg-slate-200 rounded">
+                          <X className="w-3 h-3 text-slate-400" />
+                        </button>
+                      </div>
+                    )}
+                    {isUploading && (
+                      <div className="space-y-1">
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center">上传并处理中...</p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <input
                     value={addUrl}
@@ -346,11 +480,11 @@ export default function KnowledgePage() {
 
                 <button
                   onClick={handleAddDoc}
-                  disabled={isAdding}
+                  disabled={isAdding || isUploading || (addType === 'file' && !uploadFile)}
                   className="w-full py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-600 hover:to-purple-700 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {isAdding ? '导入中...' : '导入知识库'}
+                  {isAdding || isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {isAdding ? '导入中...' : isUploading ? '上传中...' : addType === 'file' ? '上传文件' : '导入知识库'}
                 </button>
               </div>
             )}
@@ -438,6 +572,8 @@ export default function KnowledgePage() {
                       <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
                         {doc.type === 'url' ? (
                           <Link className="w-3.5 h-3.5 text-violet-600" />
+                        ) : doc.type === 'file' ? (
+                          <Upload className="w-3.5 h-3.5 text-violet-600" />
                         ) : (
                           <FileText className="w-3.5 h-3.5 text-violet-600" />
                         )}
@@ -445,7 +581,7 @@ export default function KnowledgePage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-700 truncate">{doc.title}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">
-                          {doc.createdAt.toLocaleDateString()} {doc.type === 'url' ? 'URL' : '文本'}
+                          {doc.createdAt.toLocaleDateString()} {doc.type === 'url' ? 'URL' : doc.type === 'file' ? '文件' : '文本'}
                         </p>
                       </div>
                       <button

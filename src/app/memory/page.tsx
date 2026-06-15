@@ -487,7 +487,9 @@ export default function MemoryPage() {
 
   // 新建对话
   const handleNewChat = () => {
-    const newSid = crypto.randomUUID();
+    const newSid = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 14)}`;
     setSessionId(newSid);
     setChatMessages([]);
   };
