@@ -155,13 +155,30 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (!imageResults.isEmpty()) {
                     knowledgeContext.append("## 图片库搜索结果：\n");
                     for (int i = 0; i < imageResults.size(); i++) {
-                        Map<String, Object> img = imageResults.get(i);
-                        String imgTitle = img.getOrDefault("title", "").toString();
-                        String imgType = Boolean.TRUE.equals(img.get("isMainImage")) ? "主图" : "详情图";
-                        knowledgeContext.append(String.format("- [%s] %s (URL: %s)\n",
-                                imgType, imgTitle, img.getOrDefault("url", "")));
+                        Map<String, Object> product = imageResults.get(i);
+                        String productName = product.getOrDefault("productName", "").toString();
+                        String albumName = product.getOrDefault("albumName", "").toString();
+                        knowledgeContext.append(String.format("产品%d: %s (相册: %s)\n", i + 1, productName, albumName));
+
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> mainImage = (Map<String, Object>) product.get("mainImage");
+                        if (mainImage != null) {
+                            knowledgeContext.append(String.format("  [主图] %s (URL: %s)\n",
+                                    mainImage.getOrDefault("title", ""), mainImage.getOrDefault("url", "")));
+                        }
+
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> detailImages = (List<Map<String, Object>>) product.get("detailImages");
+                        if (detailImages != null && !detailImages.isEmpty()) {
+                            knowledgeContext.append(String.format("  [详情图 %d张] ", detailImages.size()));
+                            for (int j = 0; j < detailImages.size() && j < 5; j++) {
+                                Map<String, Object> di = detailImages.get(j);
+                                knowledgeContext.append(String.format("%s ", di.getOrDefault("title", "")));
+                            }
+                            knowledgeContext.append("\n");
+                        }
                     }
-                    knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些图片。\n");
+                    knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些产品及其图片。\n");
                 }
 
                 // 5. 构建messages(含历史上下文)
@@ -278,6 +295,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
 
             // 第一步: 先搜索匹配的图片(最多50张，确保每个产品都有图)
+            // 只用 images 表现有字段搜索，避免依赖可能不存在的 image_tags/image_ai_tags 表
             StringBuilder sql = new StringBuilder();
             sql.append("SELECT id, title, url, thumbnail_url, is_main_image, file_type, ");
             sql.append("width, height, product_id, album_name, created_at ");
@@ -285,11 +303,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             sql.append("AND (");
             for (int i = 0; i < keywords.size(); i++) {
                 if (i > 0) sql.append(" OR ");
-                sql.append("(title ILIKE ? OR description ILIKE ? OR EXISTS (");
-                sql.append("SELECT 1 FROM image_tags WHERE image_id = images.id AND tag ILIKE ?");
-                sql.append(") OR EXISTS (");
-                sql.append("SELECT 1 FROM image_ai_tags WHERE image_id = images.id AND tag ILIKE ?");
-                sql.append("))");
+                sql.append("(COALESCE(title, '') ILIKE ? OR COALESCE(description, '') ILIKE ? OR COALESCE(album_name, '') ILIKE ?)");
             }
             sql.append(") ");
             sql.append("ORDER BY is_main_image DESC, created_at DESC ");
@@ -302,8 +316,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                 params.add(pattern);
                 params.add(pattern);
                 params.add(pattern);
-                params.add(pattern);
             }
+
+            log.info("图片搜索SQL: {}", sql.toString());
+            log.info("图片搜索参数: userId={}, keywords={}", userId, keywords);
 
             List<Map<String, Object>> rawImages = jdbcTemplate.query(sql.toString(),
                     (rs, rowNum) -> {
@@ -324,6 +340,37 @@ public class SmartChatServiceImpl implements SmartChatService {
                     },
                     params.toArray()
             );
+
+            log.info("图片搜索关键词匹配到 {} 条原始记录", rawImages.size());
+
+            // 如果关键词搜索不到，兜底返回用户最新的20张图片
+            if (rawImages.isEmpty()) {
+                log.info("关键词未匹配到图片，兜底返回用户最新图片");
+                String fallbackSql = "SELECT id, title, url, thumbnail_url, is_main_image, file_type, " +
+                        "width, height, product_id, album_name, created_at " +
+                        "FROM images WHERE deleted = false AND user_id = ? " +
+                        "ORDER BY created_at DESC LIMIT 20";
+                rawImages = jdbcTemplate.query(fallbackSql,
+                        (rs, rowNum) -> {
+                            Map<String, Object> img = new LinkedHashMap<>();
+                            img.put("id", rs.getString("id"));
+                            img.put("title", rs.getString("title"));
+                            img.put("url", rs.getString("url"));
+                            img.put("thumbnailUrl", rs.getString("thumbnail_url"));
+                            img.put("isMainImage", rs.getBoolean("is_main_image"));
+                            img.put("fileType", rs.getString("file_type"));
+                            img.put("width", rs.getInt("width"));
+                            img.put("height", rs.getInt("height"));
+                            img.put("productId", rs.getString("product_id"));
+                            img.put("albumName", rs.getString("album_name"));
+                            img.put("createdAt", rs.getTimestamp("created_at") != null
+                                    ? rs.getTimestamp("created_at").toLocalDateTime().toString() : null);
+                            return img;
+                        },
+                        userId
+                );
+                log.info("兜底查询返回 {} 条图片", rawImages.size());
+            }
 
             // 第二步: 按 product_id 分组，每个产品保留主图+详情图
             Map<String, List<Map<String, Object>>> productGroups = new LinkedHashMap<>();
@@ -367,9 +414,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                 productCount++;
             }
 
+            log.info("图片搜索最终返回 {} 个产品", products.size());
             return products;
         } catch (Exception e) {
-            log.warn("图片搜索失败: {}", e.getMessage());
+            log.error("图片搜索失败", e);
             return Collections.emptyList();
         }
     }
