@@ -98,6 +98,7 @@ public class MemoryServiceImpl implements MemoryService {
     @Transactional
     public KnowledgeCard createCard(KnowledgeCard card, String userId) {
         card.setUserId(userId);
+        card.setCreatedBy(userId);
         if (card.getStatus() == null) card.setStatus("published");
         if (card.getReviewStatus() == null) card.setReviewStatus("pending");
         if (card.getConfidence() == null) card.setConfidence("medium");
@@ -190,6 +191,7 @@ public class MemoryServiceImpl implements MemoryService {
                         card.setTitle(originalFilename + " (片段" + (i + 1) + "/" + chunks.size() + ")");
                         card.setContent(chunk);
                         card.setUserId(userId);
+                        card.setCreatedBy(userId);
                         card.setSource(originalFilename);
                         card.setStatus("published");
                         card.setReviewStatus("approved");
