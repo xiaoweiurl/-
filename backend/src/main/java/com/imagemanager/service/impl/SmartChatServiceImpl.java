@@ -54,7 +54,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChat(String message, String sessionId, String userId) {
-        SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
+        SseEmitter emitter = new SseEmitter(300000L); // 5分钟超时
 
         new Thread(() -> {
             try {
@@ -114,8 +114,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                     knowledgeContext.append("## 记忆库相关知识卡片：\n");
                     for (int i = 0; i < memoryResults.size(); i++) {
                         MemorySearchResult r = memoryResults.get(i);
+                        String content = r.getContent();
+                        if (content != null && content.length() > 500) content = content.substring(0, 500) + "...";
                         knowledgeContext.append(String.format("### 卡片%d [%s] %s\n%s\n置信度: %s | 来源: %s\n\n",
-                                i + 1, r.getDomainName(), r.getTitle(), r.getContent(),
+                                i + 1, r.getDomainName(), r.getTitle(), content,
                                 r.getConfidence(), r.getSource() != null ? r.getSource() : "未知"));
                     }
                 }
@@ -125,8 +127,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                     for (int i = 0; i < knowledgeResults.size(); i++) {
                         Map<String, Object> r = knowledgeResults.get(i);
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
+                        String content = r.getOrDefault("content", "").toString();
+                        if (content.length() > 500) content = content.substring(0, 500) + "...";
                         knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%%)\n%s\n\n",
-                                i + 1, score * 100, r.getOrDefault("content", "")));
+                                i + 1, score * 100, content));
                     }
                 }
 
@@ -141,7 +145,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         "保持专业、简洁、有帮助的回答风格。"));
 
                 // 加入历史对话(最近10轮)
-                int startIdx = Math.max(0, history.size() - 20);
+                int startIdx = Math.max(0, history.size() - 10);
                 for (int i = startIdx; i < history.size(); i++) {
                     messages.add(history.get(i));
                 }
@@ -279,7 +283,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             Map<String, Object> body = new HashMap<>();
             body.put("model", minimaxModel);
-            body.put("max_tokens", 4096);
+            body.put("max_tokens", 8192);
             body.put("stream", true);
             body.put("system", "你是盈云产品智能中台的AI助手，专注于供应链、工厂管理和产品知识领域。" +
                     "请基于提供的记忆库知识卡片和知识库文档片段回答用户问题。" +
@@ -340,6 +344,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                                         }
                                     }
                                     break;
+                                case "message_delta":
+                                    JsonNode msgDelta = node.path("delta");
+                                    String stopReason = msgDelta.path("stop_reason").asText("");
+                                    if (!stopReason.isEmpty()) {
+                                        log.debug("MiniMax消息停止原因: {}", stopReason);
+                                    }
+                                    break;
                                 case "message_stop":
                                     emitter.send(SseEmitter.event().name("message").data(
                                             objectMapper.writeValueAsString(Map.of("type", "done"))
@@ -348,6 +359,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 case "error":
                                     String errorMsg = node.path("error").path("message").asText("未知错误");
                                     throw new RuntimeException("MiniMax流式错误: " + errorMsg);
+                                default:
+                                    if (!eventType.isEmpty()) {
+                                        log.debug("未处理的SSE事件类型: {}", eventType);
+                                    }
+                                    break;
                             }
                         } catch (Exception parseEx) {
                             if (parseEx instanceof RuntimeException) throw parseEx;
