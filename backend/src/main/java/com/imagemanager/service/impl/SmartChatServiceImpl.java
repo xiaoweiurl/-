@@ -56,6 +56,11 @@ public class SmartChatServiceImpl implements SmartChatService {
     public SseEmitter smartChat(String message, String sessionId, String userId) {
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
+        // 校验sessionId必须为合法UUID格式
+        if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
+            sessionId = java.util.UUID.randomUUID().toString();
+        }
+
         new Thread(() -> {
             try {
                 // 1. 加载历史对话
@@ -235,6 +240,9 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public List<Map<String, Object>> getChatHistory(String sessionId, String userId) {
+        if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
+            return Collections.emptyList();
+        }
         String sql = "SELECT role, content, created_at FROM smart_chat_history " +
                 "WHERE session_id = ?::uuid AND user_id = ? ORDER BY created_at ASC";
         return jdbcTemplate.query(sql,
@@ -252,6 +260,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Override
     @Transactional
     public void clearChatHistory(String sessionId, String userId) {
+        if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
+            return;
+        }
         jdbcTemplate.update(
                 "DELETE FROM smart_chat_history WHERE session_id = ?::uuid AND user_id = ?",
                 sessionId, userId
