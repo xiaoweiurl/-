@@ -133,6 +133,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 5. 构建messages(含历史上下文)
                 List<Map<String, Object>> messages = new ArrayList<>();
 
+                // System prompt: 定义AI角色和行为
+                messages.add(Map.of("role", "system", "content",
+                        "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）的访问权限。" +
+                        "回答问题时优先基于检索到的知识库内容，并标注引用来源。" +
+                        "如果知识库中没有相关信息，你可以基于自身知识回答，但要说明信息来源。" +
+                        "保持专业、简洁、有帮助的回答风格。"));
+
                 // 加入历史对话(最近10轮)
                 int startIdx = Math.max(0, history.size() - 20);
                 for (int i = startIdx; i < history.size(); i++) {
@@ -143,7 +150,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                 String userContent = message;
                 if (!knowledgeContext.isEmpty()) {
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message +
-                            "\n\n请基于以上知识回答用户问题。如果参考资料中没有相关信息，请说明。回答时标注引用来源和出处(记忆库/知识库)。";
+                            "\n\n请基于以上知识回答用户问题，并标注引用来源和出处(记忆库/知识库)。";
+                } else {
+                    userContent = "用户问题: " + message +
+                            "\n\n(知识库中未检索到相关内容，请基于自身知识回答。)";
                 }
                 messages.add(Map.of("role", "user", "content", userContent));
 

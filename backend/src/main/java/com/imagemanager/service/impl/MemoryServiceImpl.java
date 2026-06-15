@@ -347,6 +347,12 @@ public class MemoryServiceImpl implements MemoryService {
                 // 5. 构建messages（含历史上下文）
                 List<Map<String, Object>> messages = new ArrayList<>();
 
+                // System prompt
+                messages.add(Map.of("role", "system", "content",
+                        "你是盈云产品智能中台的AI助手，拥有企业记忆库知识卡片的访问权限。" +
+                        "回答问题时优先基于检索到的知识卡片内容，并标注引用来源。" +
+                        "如果知识库中没有相关信息，你可以基于自身知识回答，但要说明信息来源。"));
+
                 // 加入历史对话（最近10轮）
                 int startIdx = Math.max(0, history.size() - 20);
                 for (int i = startIdx; i < history.size(); i++) {
@@ -357,7 +363,10 @@ public class MemoryServiceImpl implements MemoryService {
                 String userContent = message;
                 if (!knowledgeContext.isEmpty()) {
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message +
-                            "\n\n请基于以上知识回答用户问题。如果知识卡片中没有相关信息，请说明。回答时标注引用来源。";
+                            "\n\n请基于以上知识回答用户问题，并标注引用来源。";
+                } else {
+                    userContent = "用户问题: " + message +
+                            "\n\n(记忆库中未检索到相关内容，请基于自身知识回答。)";
                 }
                 messages.add(Map.of("role", "user", "content", userContent));
 
