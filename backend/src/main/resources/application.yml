@@ -97,9 +97,11 @@ app:
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com/anthropic/v1/messages}
     model: ${MINIMAX_MODEL:MiniMax-M3}
     # MiniMax Embedding 配置（向量维度 1536）
+    # group-id: 旧版 api.minimax.chat 接口需要，新版 api.minimaxi.com OpenAI兼容格式不需要
     embedding:
       base-url: ${MINIMAX_EMBEDDING_URL:https://api.minimaxi.com/v1/embeddings}
       model: ${MINIMAX_EMBEDDING_MODEL:embo-01}
+      group-id: ${MINIMAX_GROUP_ID:}
   
   # 去水印配置
   watermark:
