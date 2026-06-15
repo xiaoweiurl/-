@@ -71,12 +71,6 @@ public class MemoryServiceImpl implements MemoryService {
     @Value("${app.frontend.url:http://localhost:5000}")
     private String frontendUrl;
 
-    @Value("${app.ollama.url:http://localhost:11434}")
-    private String ollamaUrl;
-
-    @Value("${app.ollama.model:nomic-embed-text}")
-    private String ollamaModel;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
