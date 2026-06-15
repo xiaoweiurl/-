@@ -83,10 +83,11 @@ app:
     # 所以 base-url 应该是 http://localhost:8080/api
     base-url: ${STORAGE_BASE_URL:http://localhost:8080/api}
   
-  # AI 配置
+  # AI 配置（向量化 Embedding + 对话）
+  # Coze API Token: 登录 https://www.coze.cn/ → 个人空间 → 设置 → 开发者令牌
   ai:
-    enabled: false
-    api-key: ${AI_API_KEY:}
+    enabled: true
+    api-key: ${AI_API_KEY:sat_771wJAC7QY2cvkZYQ4Sh80DrF2rXLJNf6nEhSFtGaVN6bx4c907CCbjXrsJgRyXP}
     base-url: ${AI_BASE_URL:https://api.coze.cn}
     model: doubao-seed-1-6-vision-250815
   
