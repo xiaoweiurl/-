@@ -82,4 +82,26 @@ public class Document {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    /**
+     * 实体加载后自动处理 URL
+     * 将数据库中存储的绝对路径（如 http://localhost:8080/api/uploads/...）
+     * 转换为相对路径（/api/uploads/...），避免外网访问时 localhost 无法解析
+     */
+    @PostLoad
+    public void postLoad() {
+        this.url = normalizeUrl(this.url);
+        this.filePath = normalizeUrl(this.filePath);
+    }
+
+    private String normalizeUrl(String url) {
+        if (url == null) return null;
+        if (url.startsWith("http://localhost:8080")) {
+            return url.substring("http://localhost:8080".length());
+        }
+        if (url.startsWith("https://localhost:8080")) {
+            return url.substring("https://localhost:8080".length());
+        }
+        return url;
+    }
 }
