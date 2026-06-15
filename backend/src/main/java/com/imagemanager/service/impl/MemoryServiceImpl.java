@@ -68,6 +68,9 @@ public class MemoryServiceImpl implements MemoryService {
     @Value("${app.minimax.model:MiniMax-M3}")
     private String minimaxModel;
 
+    @Value("${app.frontend.url:http://localhost:5000}")
+    private String frontendUrl;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -551,26 +554,15 @@ public class MemoryServiceImpl implements MemoryService {
 
     private float[] getEmbedding(String text) {
         try {
-            String apiKey = System.getenv("COZE_API_TOKEN");
-            if (apiKey == null || apiKey.isEmpty()) {
-                apiKey = aiApiKey;
-            }
-            if (apiKey == null || apiKey.isEmpty()) {
-                log.warn("未配置AI API密钥, 跳过向量化");
-                return null;
-            }
-
-            String url = aiBaseUrl + "/v3/embeddings";
+            String url = frontendUrl + "/api/embedding";
             Map<String, Object> body = new HashMap<>();
-            body.put("model", "text-embedding-v3");
-            body.put("input", Map.of("text", text));
-            body.put("dimensions", 1024);
+            body.put("text", text);
 
-            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            String response = doPostInternal(url, objectMapper.writeValueAsString(body));
             JsonNode root = objectMapper.readTree(response);
 
-            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
-                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
+            if (root.has("success") && root.get("success").asBoolean() && root.has("embedding")) {
+                JsonNode embeddingNode = root.get("embedding");
                 float[] embedding = new float[embeddingNode.size()];
                 for (int i = 0; i < embeddingNode.size(); i++) {
                     embedding[i] = (float) embeddingNode.get(i).asDouble();
@@ -583,6 +575,29 @@ public class MemoryServiceImpl implements MemoryService {
         } catch (Exception e) {
             log.error("获取Embedding失败: {}", e.getMessage());
             return null;
+        }
+    }
+
+    private String doPostInternal(String url, String jsonBody) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setDoOutput(true);
+        conn.setConnectTimeout(30000);
+        conn.setReadTimeout(60000);
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            return sb.toString();
         }
     }
 
