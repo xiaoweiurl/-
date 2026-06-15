@@ -578,16 +578,36 @@ public class MemoryServiceImpl implements MemoryService {
                 return null;
             }
 
-            // Token Plan Key 使用 OpenAI 兼容格式端点
             String url = minimaxEmbeddingUrl;
             Map<String, Object> body = new HashMap<>();
-            body.put("input", text);
             body.put("model", minimaxEmbeddingModel);
 
-            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
-            JsonNode root = objectMapper.readTree(response);
+            String response;
+            JsonNode root;
 
-            // OpenAI 兼容格式: data[0].embedding
+            // 优先尝试 MiniMax 原生格式 (Token Plan Key 实际走此格式)
+            body.put("texts", new String[]{text});
+            response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            root = objectMapper.readTree(response);
+
+            // 原生格式: vectors[0]
+            if (root.has("vectors") && root.get("vectors").isArray() && root.get("vectors").size() > 0) {
+                JsonNode embeddingNode = root.get("vectors").get(0);
+                if (embeddingNode != null && embeddingNode.isArray()) {
+                    float[] embedding = new float[embeddingNode.size()];
+                    for (int i = 0; i < embeddingNode.size(); i++) {
+                        embedding[i] = (float) embeddingNode.get(i).asDouble();
+                    }
+                    log.info("MiniMax Embedding成功 (原生格式), 维度: {}", embedding.length);
+                    return embedding;
+                }
+            }
+
+            // 兜底尝试 OpenAI 兼容格式
+            body.remove("texts");
+            body.put("input", text);
+            response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            root = objectMapper.readTree(response);
             if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
                 JsonNode embeddingNode = root.get("data").get(0).get("embedding");
                 if (embeddingNode != null && embeddingNode.isArray()) {
