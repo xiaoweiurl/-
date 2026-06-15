@@ -473,21 +473,26 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 case "content_block_delta":
                                     JsonNode delta = node.path("delta");
                                     String deltaType = delta.path("type").asText("");
-                                    if ("text_delta".equals(deltaType)) {
-                                        String text = delta.path("text").asText("");
+                                    // MiniMax兼容: 支持 text_delta 和 text 两种类型
+                                    if ("text_delta".equals(deltaType) || "text".equals(deltaType)) {
+                                        String text = delta.has("text") ? delta.path("text").asText("")
+                                                : delta.has("content") ? delta.path("content").asText("")
+                                                : delta.path("partial_json").asText("");
                                         if (!text.isEmpty()) {
                                             fullResponse.append(text);
                                             emitter.send(SseEmitter.event().name("message").data(
                                                     objectMapper.writeValueAsString(Map.of("type", "content", "content", text))
                                             ));
                                         }
+                                    } else if (!deltaType.isEmpty()) {
+                                        log.debug("未处理的delta类型: {}", deltaType);
                                     }
                                     break;
                                 case "message_delta":
                                     JsonNode msgDelta = node.path("delta");
                                     String stopReason = msgDelta.path("stop_reason").asText("");
                                     if (!stopReason.isEmpty()) {
-                                        log.info("MiniMax消息停止原因: {}", stopReason);
+                                        log.info("MiniMax消息停止原因: {}, 累计输出字符数: {}", stopReason, fullResponse.length());
                                     }
                                     break;
                                 case "message_stop":
@@ -500,7 +505,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     throw new RuntimeException("MiniMax流式错误: " + errorMsg);
                                 default:
                                     if (!eventType.isEmpty()) {
-                                        log.debug("未处理的SSE事件类型: {}", eventType);
+                                        log.info("未处理的SSE事件类型: {}, data: {}", eventType, data.substring(0, Math.min(data.length(), 200)));
                                     }
                                     break;
                             }
