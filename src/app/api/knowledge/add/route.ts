@@ -7,9 +7,9 @@ import { NextRequest, NextResponse } from 'next/server';
 function getSessionId(request: NextRequest): string | null {
   const header = request.headers.get('x-session-id');
   if (header) return header;
-  const cookie = request.headers.get('cookie') || '';
-  const match = cookie.match(/session_id=([^;]+)/);
-  return match ? match[1] : null;
+  const cookie = request.cookies.get('session_id')?.value;
+  if (cookie) return cookie;
+  return null;
 }
 
 function getBackendUrl(): string {

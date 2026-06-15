@@ -32,26 +32,47 @@ async function probeBackend(candidates: string[]): Promise<string | null> {
   return null;
 }
 
-// 获取Session ID
+// 获取Session ID（与 /api/proxy 保持一致）
 function getSessionId(request: NextRequest): string | null {
+  // 1. 从请求头获取（前端直接传的 X-Session-Id）
   const header = request.headers.get('x-session-id');
   if (header) return header;
-  const cookie = request.headers.get('cookie') || '';
-  const match = cookie.match(/session_id=([^;]+)/);
-  return match ? match[1] : null;
+  // 2. 从 cookie 获取（兜底）
+  const cookie = request.cookies.get('session_id')?.value;
+  if (cookie) return cookie;
+  return null;
 }
 
-// 构建转发请求头
+// 构建转发请求头（与 /api/proxy 保持一致：复制原始头 + 补充session）
 function buildHeaders(request: NextRequest): Record<string, string> {
   const headers: Record<string, string> = {};
+  
+  // 复制原始请求头（跳过不应转发的头）
+  const skipHeaders = new Set([
+    'host', 'connection', 'content-length', 'transfer-encoding',
+    'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
+    'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
+    'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
+    'x-invoke-path', 'x-invoke-query', 'rsc', 'next-url',
+  ]);
+  request.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
+      headers[key] = value;
+    }
+  });
+  
+  // 确保 X-Session-Id 存在
   const sessionId = getSessionId(request);
-  if (sessionId) headers['X-Session-Id'] = sessionId;
+  if (sessionId) {
+    headers['X-Session-Id'] = sessionId;
+  }
 
-  // 非SSE请求转发Content-Type
+  // SSE请求不传Content-Type（让浏览器自动处理）
   const accept = request.headers.get('accept') || '';
-  if (!accept.includes('text/event-stream')) {
-    const ct = request.headers.get('content-type');
-    if (ct) headers['Content-Type'] = ct;
+  if (accept.includes('text/event-stream')) {
+    delete headers['content-type'];
+    delete headers['Content-Type'];
   }
 
   return headers;
