@@ -14,13 +14,12 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 function getSessionId(request: NextRequest): string | null {
+  // 1. 从请求头获取（前端直接传的 X-Session-Id）
   const headerSession = request.headers.get('x-session-id');
   if (headerSession) return headerSession;
-  const cookies = request.headers.get('cookie');
-  if (cookies) {
-    const match = cookies.match(/session_id=([^;]+)/);
-    if (match) return match[1];
-  }
+  // 2. 从 cookie 获取（兜底）
+  const cookie = request.cookies.get('session_id')?.value;
+  if (cookie) return cookie;
   return null;
 }
 
