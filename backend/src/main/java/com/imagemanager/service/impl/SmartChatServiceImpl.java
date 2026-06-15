@@ -57,14 +57,17 @@ public class SmartChatServiceImpl implements SmartChatService {
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         // 校验sessionId必须为合法UUID格式
+        final String effectiveSessionId;
         if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
-            sessionId = java.util.UUID.randomUUID().toString();
+            effectiveSessionId = java.util.UUID.randomUUID().toString();
+        } else {
+            effectiveSessionId = sessionId;
         }
 
         new Thread(() -> {
             try {
                 // 1. 加载历史对话
-                List<Map<String, Object>> history = loadChatHistory(sessionId);
+                List<Map<String, Object>> history = loadChatHistory(effectiveSessionId);
 
                 // 2. 双库检索
                 // 2a. 记忆库检索(PostgreSQL向量)
@@ -214,14 +217,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 messages.add(Map.of("role", "user", "content", userContent));
 
                 // 6. 保存用户消息
-                saveChatMessage(sessionId, userId, "user", message);
+                saveChatMessage(effectiveSessionId, userId, "user", message);
 
                 // 7. 流式调用MiniMax
                 StringBuilder fullResponse = new StringBuilder();
                 streamChat(emitter, messages, fullResponse);
 
                 // 8. 保存AI回复
-                saveChatMessage(sessionId, userId, "assistant", fullResponse.toString());
+                saveChatMessage(effectiveSessionId, userId, "assistant", fullResponse.toString());
 
                 emitter.complete();
             } catch (Exception e) {
