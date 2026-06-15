@@ -576,51 +576,32 @@ public class MemoryServiceImpl implements MemoryService {
                 return null;
             }
 
-            float[] result = getEmbeddingMiniMaxNative(text, apiKey);
-            if (result != null) return result;
-
-            return null;
-        } catch (Exception e) {
-            log.error("获取Embedding失败: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * MiniMax原生格式调用 Embedding
-     */
-    private float[] getEmbeddingMiniMaxNative(String text, String apiKey) {
-        try {
-            String url = "https://api.minimax.chat/v1/embeddings";
-            // 旧版接口需要 GroupId 作为 URL 参数
-            if (minimaxGroupId != null && !minimaxGroupId.isEmpty()) {
-                url += "?GroupId=" + minimaxGroupId;
-            }
+            // Token Plan Key 使用 OpenAI 兼容格式端点
+            String url = minimaxEmbeddingUrl;
             Map<String, Object> body = new HashMap<>();
-            body.put("texts", List.of(text));
-            body.put("model", "embo-01");
-            body.put("type", "db");
+            body.put("input", text);
+            body.put("model", minimaxEmbeddingModel);
 
             String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
             JsonNode root = objectMapper.readTree(response);
 
-            // MiniMax原生格式: vectors[0]
-            if (root.has("vectors") && root.get("vectors").isArray() && root.get("vectors").size() > 0) {
-                JsonNode embeddingNode = root.get("vectors").get(0);
+            // OpenAI 兼容格式: data[0].embedding
+            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
+                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
                 if (embeddingNode != null && embeddingNode.isArray()) {
                     float[] embedding = new float[embeddingNode.size()];
                     for (int i = 0; i < embeddingNode.size(); i++) {
                         embedding[i] = (float) embeddingNode.get(i).asDouble();
                     }
-                    log.info("MiniMax Embedding成功 (原生格式), 维度: {}", embedding.length);
+                    log.info("MiniMax Embedding成功 (OpenAI兼容格式), 维度: {}", embedding.length);
                     return embedding;
                 }
             }
 
-            log.warn("MiniMax原生格式返回异常: {}", response);
+            log.warn("MiniMax Embedding返回异常: {}", response);
             return null;
         } catch (Exception e) {
-            log.warn("MiniMax原生格式Embedding失败: {}", e.getMessage());
+            log.error("获取Embedding失败: {}", e.getMessage());
             return null;
         }
     }
