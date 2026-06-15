@@ -31,6 +31,7 @@ function buildHeaders(request: NextRequest): Headers {
 
   const skipHeaders = new Set([
     'host', 'connection', 'content-length', 'transfer-encoding',
+    'content-type', // fetch 发送 FormData 时会自动计算 boundary，不能手动传旧值
     'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
     'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
     'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
