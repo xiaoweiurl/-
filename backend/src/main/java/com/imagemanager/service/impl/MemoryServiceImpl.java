@@ -324,7 +324,7 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     public SseEmitter chat(String message, String sessionId, String userId) {
-        SseEmitter emitter = new SseEmitter(300000L);
+        SseEmitter emitter = new SseEmitter(600000L);
 
         executorService.execute(() -> {
             try {
