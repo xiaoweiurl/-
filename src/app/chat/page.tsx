@@ -45,22 +45,44 @@ interface ChatSession {
 // ===== 工具函数 =====
 function getLoginSessionId(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('session_id');
+  try {
+    return localStorage.getItem('session_id');
+  } catch {
+    return null;
+  }
 }
 
 function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  if (diffMs < 60000) return '刚刚';
-  if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}分钟前`;
-  if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}小时前`;
-  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    if (diffMs < 60000) return '刚刚';
+    if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}分钟前`;
+    if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}小时前`;
+    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+// 生成UUID（兼容不支持crypto.randomUUID的环境）
+function generateId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+  } catch { /* fallback */ }
+  return 'xxxx-xxxx-xxxx-xxxx-xxxx'.replace(/x/g, () =>
+    Math.floor(Math.random() * 16).toString(16)
+  );
 }
 
 // ===== 主组件 =====
 export default function ChatPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -71,12 +93,55 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // 客户端挂载标记 - 防止hydration不匹配
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 检查登录状态
+  useEffect(() => {
+    if (!mounted) return;
+
+    const checkAuth = () => {
+      try {
+        const sid = localStorage.getItem('session_id');
+        const expires = localStorage.getItem('session_expires');
+
+        if (!sid) {
+          window.location.href = '/login';
+          return;
+        }
+
+        if (expires && Date.now() > parseInt(expires, 10)) {
+          localStorage.removeItem('session_id');
+          localStorage.removeItem('session_expires');
+          localStorage.removeItem('portal_type');
+          window.location.href = '/login';
+          return;
+        }
+
+        setAuthChecked(true);
+      } catch {
+        // localStorage不可用时仍然允许访问
+        setAuthChecked(true);
+      }
+    };
+
+    checkAuth();
+  }, [mounted]);
+
   // 初始化session
   useEffect(() => {
-    const sid = sessionStorage.getItem('chat_session_id') || crypto.randomUUID();
-    setSessionId(sid);
-    sessionStorage.setItem('chat_session_id', sid);
-  }, []);
+    if (!authChecked) return;
+    try {
+      const sid = sessionStorage.getItem('chat_session_id') || generateId();
+      setSessionId(sid);
+      sessionStorage.setItem('chat_session_id', sid);
+    } catch {
+      const sid = generateId();
+      setSessionId(sid);
+    }
+  }, [authChecked]);
 
   // 加载对话历史
   useEffect(() => {
@@ -86,7 +151,10 @@ export default function ChatPage() {
       credentials: 'include',
       headers: sid ? { 'X-Session-Id': sid } : {},
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data.success && data.history?.length > 0) {
           setMessages(data.history.map((m: { role: string; content: string }) => ({
@@ -236,9 +304,9 @@ export default function ChatPage() {
 
   // 新建对话
   const handleNewChat = () => {
-    const newSid = crypto.randomUUID();
+    const newSid = generateId();
     setSessionId(newSid);
-    sessionStorage.setItem('chat_session_id', newSid);
+    try { sessionStorage.setItem('chat_session_id', newSid); } catch { /* ignore */ }
     setMessages([]);
     setSessions(prev => [{
       id: newSid,
@@ -269,6 +337,21 @@ export default function ChatPage() {
     '织造环节的成本占比是多少？',
   ];
 
+  // 未挂载或未认证时显示加载状态（避免hydration问题）
+  if (!mounted || !authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-violet-50/30">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600
+            flex items-center justify-center shadow-lg shadow-violet-200/50 animate-pulse">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <p className="text-sm text-slate-400">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-violet-50/30">
       {/* 左侧边栏 */}
@@ -298,7 +381,7 @@ export default function ChatPage() {
               sessions.map(s => (
                 <button
                   key={s.id}
-                  onClick={() => { setSessionId(s.id); sessionStorage.setItem('chat_session_id', s.id); }}
+                  onClick={() => { setSessionId(s.id); try { sessionStorage.setItem('chat_session_id', s.id); } catch { /* ignore */ } }}
                   className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200
                     ${s.id === sessionId
                       ? 'bg-violet-50 text-violet-700 border border-violet-200/60'
@@ -460,7 +543,7 @@ export default function ChatPage() {
                           </svg>
                           为您找到 {msg.images.length} 个相关产品
                         </div>
-                        {msg.images.map((product: any, pIdx: number) => (
+                        {msg.images.map((product: ChatImage & { mainImage?: ChatImage; detailImages?: ChatImage[]; productName?: string; albumName?: string }, pIdx: number) => (
                           <div key={pIdx} className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
                             {/* 产品标题 */}
                             {(product.productName || product.albumName) && (
@@ -483,6 +566,7 @@ export default function ChatPage() {
                                   className="group block rounded-lg overflow-hidden border border-violet-200/60 bg-violet-50/30 relative"
                                 >
                                   <div className="aspect-[4/3] relative">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                       src={product.mainImage.thumbnailUrl || product.mainImage.url}
                                       alt={product.mainImage.title || '主图'}
@@ -509,7 +593,7 @@ export default function ChatPage() {
                               <div className="px-2 pb-2">
                                 <p className="text-[10px] text-slate-400 mb-1.5">详情图 ({product.detailImages.length}张)</p>
                                 <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
-                                  {product.detailImages.map((img: any, dIdx: number) => (
+                                  {product.detailImages.map((img: ChatImage, dIdx: number) => (
                                     <a
                                       key={dIdx}
                                       href={img.url}
@@ -519,6 +603,7 @@ export default function ChatPage() {
                                       title={img.title || '详情图'}
                                     >
                                       <div className="aspect-square relative">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                           src={img.thumbnailUrl || img.url}
                                           alt={img.title || '详情图'}
