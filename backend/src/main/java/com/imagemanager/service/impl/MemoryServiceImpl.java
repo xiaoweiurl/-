@@ -587,7 +587,11 @@ public class MemoryServiceImpl implements MemoryService {
 
             // 优先尝试 MiniMax 原生格式 (Token Plan Key 实际走此格式)
             body.put("texts", new String[]{text});
-            response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
+            body.put("type", "db");
+            String jsonBody = objectMapper.writeValueAsString(body);
+            log.info("MiniMax Embedding请求体: {}", jsonBody);
+            response = doPost(url, jsonBody, apiKey);
+            log.info("MiniMax Embedding响应: {}", response);
             root = objectMapper.readTree(response);
 
             // 原生格式: vectors[0]
