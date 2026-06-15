@@ -62,10 +62,11 @@ function buildHeaders(request: NextRequest): Record<string, string> {
     }
   });
   
-  // 确保 X-Session-Id 存在
+  // 确保 X-Session-Id 存在（统一大写，避免重复key）
   const sessionId = getSessionId(request);
   if (sessionId) {
-    headers['X-Session-Id'] = sessionId;
+    delete headers['x-session-id'];  // 先删小写版本
+    headers['X-Session-Id'] = sessionId;  // 统一用大写
   }
 
   // SSE请求不传Content-Type（让浏览器自动处理）
@@ -120,6 +121,10 @@ export async function GET(request: NextRequest) {
   const targetUrl = `${backendUrl}${backendPath}${query ? '?' + query : ''}`;
   const headers = buildHeaders(request);
   const sse = isSSERequest(request);
+  
+  // 调试日志
+  console.log('[Chat Proxy] target:', targetUrl);
+  console.log('[Chat Proxy] X-Session-Id:', headers['X-Session-Id'] || headers['x-session-id'] || 'MISSING');
 
   try {
     const backendRes = await fetch(targetUrl, {
