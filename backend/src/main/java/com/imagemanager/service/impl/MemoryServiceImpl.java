@@ -576,12 +576,7 @@ public class MemoryServiceImpl implements MemoryService {
                 return null;
             }
 
-            // 方式1: OpenAI兼容格式 (api.minimaxi.com/v1/embeddings)
-            float[] result = getEmbeddingOpenAI(text, apiKey);
-            if (result != null) return result;
-
-            // 方式2: MiniMax原生格式 (api.minimax.chat/v1/embeddings)
-            result = getEmbeddingMiniMaxLegacy(text, apiKey);
+            float[] result = getEmbeddingMiniMaxNative(text, apiKey);
             if (result != null) return result;
 
             return null;
@@ -592,43 +587,9 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     /**
-     * OpenAI兼容格式调用 MiniMax Embedding
+     * MiniMax原生格式调用 Embedding
      */
-    private float[] getEmbeddingOpenAI(String text, String apiKey) {
-        try {
-            String url = minimaxEmbeddingUrl;
-            Map<String, Object> body = new HashMap<>();
-            body.put("model", minimaxEmbeddingModel);
-            body.put("input", text);
-
-            String response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
-            JsonNode root = objectMapper.readTree(response);
-
-            // OpenAI兼容格式: data[0].embedding
-            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
-                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
-                if (embeddingNode != null && embeddingNode.isArray()) {
-                    float[] embedding = new float[embeddingNode.size()];
-                    for (int i = 0; i < embeddingNode.size(); i++) {
-                        embedding[i] = (float) embeddingNode.get(i).asDouble();
-                    }
-                    log.info("MiniMax Embedding成功 (OpenAI格式), 维度: {}", embedding.length);
-                    return embedding;
-                }
-            }
-
-            log.warn("OpenAI兼容格式返回异常: {}", response);
-            return null;
-        } catch (Exception e) {
-            log.warn("OpenAI兼容格式Embedding失败: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * MiniMax原生格式调用 Embedding (fallback)
-     */
-    private float[] getEmbeddingMiniMaxLegacy(String text, String apiKey) {
+    private float[] getEmbeddingMiniMaxNative(String text, String apiKey) {
         try {
             String url = "https://api.minimax.chat/v1/embeddings";
             // 旧版接口需要 GroupId 作为 URL 参数
