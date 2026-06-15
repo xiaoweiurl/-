@@ -270,43 +270,50 @@ public class MemoryServiceImpl implements MemoryService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            String sql = """
-                SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code,
-                       c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text,
-                       1 - (e.embedding <=> CAST(? AS vector)) AS score
-                FROM knowledge_embeddings e
-                JOIN knowledge_cards c ON e.card_id = c.id
-                WHERE c.status = 'published'
-                AND c.user_id = ?
-                AND (? IS NULL OR c.domain_code = ?)
-                AND 1 - (e.embedding <=> CAST(? AS vector)) >= ?
-                ORDER BY e.embedding <=> CAST(? AS vector)
-                LIMIT ?
-                """;
+            // 向量直接拼接到 SQL（内部生成，无注入风险），普通参数用 PreparedStatement 绑定
+            String sql = "SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code, " +
+                    "c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text, " +
+                    "1 - (e.embedding <=> '" + vectorStr + "'::vector) AS score " +
+                    "FROM knowledge_embeddings e " +
+                    "JOIN knowledge_cards c ON e.card_id = c.id " +
+                    "WHERE c.status = 'published' " +
+                    "AND c.user_id = ? " +
+                    "AND (? IS NULL OR c.domain_code = ?) " +
+                    "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
+                    "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
+                    "LIMIT ?";
 
-            return jdbcTemplate.query(sql,
-                    (rs, rowNum) -> {
-                        KnowledgeDomain domain = domainRepository.findByCode(rs.getString("domain_code")).orElse(null);
-                        return MemorySearchResult.builder()
-                                .id(UUID.fromString(rs.getString("id")))
-                                .title(rs.getString("title"))
-                                .content(rs.getString("content"))
-                                .domainCode(rs.getString("domain_code"))
-                                .domainName(domain != null ? domain.getName() : "")
-                                .domainIcon(domain != null ? domain.getIcon() : "")
-                                .domainColor(domain != null ? domain.getColor() : "")
-                                .productCode(rs.getString("product_code"))
-                                .source(rs.getString("source"))
-                                .confidence(rs.getString("confidence"))
-                                .createdBy(rs.getString("created_by"))
-                                .createdAt(rs.getTimestamp("created_at") != null ?
-                                        rs.getTimestamp("created_at").toLocalDateTime() : null)
-                                .chunkText(rs.getString("chunk_text"))
-                                .score(rs.getDouble("score"))
-                                .build();
-                    },
-                    vectorStr, userId, domainCode, domainCode, vectorStr, minScore, vectorStr, limit
-            );
+            return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
+                ps.setString(1, userId);
+                if (domainCode == null) {
+                    ps.setNull(2, java.sql.Types.VARCHAR);
+                    ps.setNull(3, java.sql.Types.VARCHAR);
+                } else {
+                    ps.setString(2, domainCode);
+                    ps.setString(3, domainCode);
+                }
+                ps.setDouble(4, minScore);
+                ps.setInt(5, limit);
+            }, (rs, rowNum) -> {
+                KnowledgeDomain domain = domainRepository.findByCode(rs.getString("domain_code")).orElse(null);
+                return MemorySearchResult.builder()
+                        .id(UUID.fromString(rs.getString("id")))
+                        .title(rs.getString("title"))
+                        .content(rs.getString("content"))
+                        .domainCode(rs.getString("domain_code"))
+                        .domainName(domain != null ? domain.getName() : "")
+                        .domainIcon(domain != null ? domain.getIcon() : "")
+                        .domainColor(domain != null ? domain.getColor() : "")
+                        .productCode(rs.getString("product_code"))
+                        .source(rs.getString("source"))
+                        .confidence(rs.getString("confidence"))
+                        .createdBy(rs.getString("created_by"))
+                        .createdAt(rs.getTimestamp("created_at") != null ?
+                                rs.getTimestamp("created_at").toLocalDateTime() : null)
+                        .chunkText(rs.getString("chunk_text"))
+                        .score(rs.getDouble("score"))
+                        .build();
+            });
         } catch (Exception e) {
             log.error("语义检索失败: {}", e.getMessage());
             return Collections.emptyList();
