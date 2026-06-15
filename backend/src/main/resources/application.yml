@@ -89,7 +89,7 @@ app:
     enabled: true
     api-key: ${AI_API_KEY:REDACTED_DOUBAO_KEY}
     base-url: ${AI_BASE_URL:https://api.coze.cn}
-    model: doubao-seed-1-6-vision-250815
+    model: doubao-seed-2-0-pro-260215
   
   # MiniMax 配置（记忆库AI对话）
   minimax:
