@@ -138,7 +138,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 String vectorStr = arrayToVectorString(embedding);
                 KnowledgeEmbedding emb = KnowledgeEmbedding.builder()
                         .id(UUID.randomUUID())
-                        .cardId(docId)
+                        .cardId(null)
                         .embedding(vectorStr)
                         .embeddingModel(minimaxEmbeddingModel)
                         .chunkText(chunk)
