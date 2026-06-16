@@ -283,15 +283,27 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private boolean isImageSearchIntent(String message) {
         String lower = message.toLowerCase();
-        String[] keywords = {
-            "找", "搜", "查", "看", "有", "推荐",
-            "图", "图片", "照片", "主图", "详情图", "效果图",
-            "风格", "款式", "颜色", "样式", "设计"
+        // 精确匹配：仅当用户明确表达查找图片意图时才触发
+        String[] strongPatterns = {
+            "找图", "搜图", "查图", "看图",
+            "找图片", "搜图片", "查图片",
+            "图片搜索", "图片查询",
+            "找照片", "搜照片",
+            "主图", "详情图", "效果图",
+            "产品图", "商品图",
+            "图片库", "图片列表"
         };
-        for (String kw : keywords) {
+        for (String kw : strongPatterns) {
             if (lower.contains(kw)) return true;
         }
-        return false;
+        // 弱匹配：需要同时包含动作词+图片词
+        String[] actionWords = {"找", "搜", "查", "看", "推荐", "展示", "显示"};
+        String[] imageWords = {"图片", "照片", "相册"};
+        boolean hasAction = false;
+        boolean hasImage = false;
+        for (String a : actionWords) { if (lower.contains(a)) { hasAction = true; break; } }
+        for (String i : imageWords) { if (lower.contains(i)) { hasImage = true; break; } }
+        return hasAction && hasImage;
     }
 
     /**
