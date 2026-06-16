@@ -202,6 +202,34 @@ public class KnowledgeBaseController {
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
+    // ====== 文档下载 ======
+
+    /**
+     * 获取文档下载链接
+     */
+    @GetMapping("/docs/{id}/download")
+    public ResponseEntity<?> downloadDocument(@PathVariable UUID id, HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        try {
+            var doc = knowledgeBaseService.getDocumentById(id, userId);
+            if (doc.getUrl() != null) {
+                return ResponseEntity.ok(Map.of("success", true, "url", doc.getUrl(),
+                        "fileName", doc.getOriginalName() != null ? doc.getOriginalName() : doc.getName()));
+            } else if (doc.getFilePath() != null) {
+                String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
+                String downloadUrl = baseUrl + "/api/knowledge/docs/" + id + "/file";
+                return ResponseEntity.ok(Map.of("success", true, "url", downloadUrl,
+                        "fileName", doc.getOriginalName() != null ? doc.getOriginalName() : doc.getName()));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "error", "文件不可下载"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
     // ====== 统计 ======
 
     /**
@@ -232,5 +260,20 @@ public class KnowledgeBaseController {
 
         var results = knowledgeBaseService.search(query, minScore, limit, userId);
         return ResponseEntity.ok(Map.of("success", true, "results", results));
+    }
+
+    /**
+     * 重新向量化失败文档
+     */
+    @PostMapping("/docs/{id}/reembed")
+    public ResponseEntity<?> reembedDoc(@PathVariable String id, HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        try {
+            knowledgeBaseService.retryEmbedding(id, userId);
+            return ResponseEntity.ok(Map.of("success", true, "message", "已触发重新向量化"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
     }
 }

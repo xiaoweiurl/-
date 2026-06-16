@@ -187,6 +187,28 @@ export default function MemoryPage() {
   // 左侧面板模式
   const [leftPanel, setLeftPanel] = useState<'domains' | 'documents' | 'upload'>('domains');
 
+  // 登录检查
+  useEffect(() => {
+    const sessionId = localStorage.getItem('session_id');
+    if (!sessionId) {
+      window.location.href = '/login';
+    }
+  }, []);
+
+  // 浏览器后退防护
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        const sessionId = localStorage.getItem('session_id');
+        if (!sessionId) {
+          window.location.href = '/login';
+        }
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
+
   // 加载知识域
   useEffect(() => {
     fetchDomains();
@@ -226,6 +248,7 @@ export default function MemoryPage() {
   const fetchCards = async () => {
     try {
       const params = new URLSearchParams({ domainCode: activeDomain });
+      if (searchKeyword) params.set('keyword', searchKeyword);
       const res = await memoryApi.get(`/cards?${params}`);
       const data = await res.json();
       if (data.success) {
@@ -553,9 +576,9 @@ export default function MemoryPage() {
         <div className="p-4 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-violet-600" />
-            <h1 className="font-bold text-slate-800 text-lg">RAG 知识库</h1>
+            <h1 className="font-bold text-slate-800 text-lg">记忆库</h1>
           </div>
-          <p className="text-xs text-slate-500 mt-1">上传行业知识 → 向量化 → AI智能检索</p>
+          <p className="text-xs text-slate-500 mt-1">上传知识 → 向量化 → AI语义检索与对话</p>
         </div>
 
         {/* 左侧Tab切换 */}
@@ -738,7 +761,7 @@ export default function MemoryPage() {
           )}
         </div>
 
-        {/* 底部 - AI问答入口 */}
+        {/* 底部 - AI问答入口 + 退出登录 */}
         <div className="p-3 border-t border-slate-200 space-y-2">
           <button
             onClick={() => setShowChat(!showChat)}
@@ -760,6 +783,12 @@ export default function MemoryPage() {
               新建对话
             </button>
           )}
+          <button
+            onClick={() => { localStorage.removeItem('session_id'); localStorage.removeItem('portal_type'); window.location.href = '/login'; }}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            退出登录
+          </button>
         </div>
       </div>
 

@@ -107,11 +107,17 @@ public class MemoryController {
     @GetMapping("/cards")
     public ResponseEntity<?> getCardsByDomain(
             @RequestParam(required = false) String domainCode,
+            @RequestParam(required = false) String keyword,
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        List<KnowledgeCard> cards = memoryService.getCardsByDomain(domainCode, userId);
+        List<KnowledgeCard> cards;
+        if (keyword != null && !keyword.isBlank()) {
+            cards = memoryService.searchCards(keyword, userId);
+        } else {
+            cards = memoryService.getCardsByDomain(domainCode, userId);
+        }
         return ResponseEntity.ok(Map.of("success", true, "cards", cards, "total", cards.size()));
     }
 

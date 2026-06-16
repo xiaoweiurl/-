@@ -250,6 +250,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
+    public KnowledgeBaseDoc getDocumentById(UUID id, String userId) {
+        var doc = docRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("文档不存在"));
+        if (!userId.equals(doc.getUserId())) {
+            throw new RuntimeException("无权访问此文档");
+        }
+        return doc;
+    }
+
+    @Override
     public List<MemorySearchResult> search(String query, double minScore, int limit, String userId) {
         try {
             float[] queryEmbedding = getEmbedding(query);
@@ -292,6 +302,26 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.error("知识库向量搜索失败: {}", e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public void retryEmbedding(String docId, String userId) {
+        var docOpt = docRepository.findById(UUID.fromString(docId));
+        if (docOpt.isEmpty()) {
+            throw new RuntimeException("文档不存在");
+        }
+        var doc = docOpt.get();
+        if (!userId.equals(doc.getUserId())) {
+            throw new RuntimeException("无权操作此文档");
+        }
+        if (!"FAILED".equals(doc.getEmbeddingStatus()) && !"PENDING".equals(doc.getEmbeddingStatus())) {
+            throw new RuntimeException("只有失败或等待中的文档可以重新处理");
+        }
+        // Reset status and re-process
+        doc.setEmbeddingStatus("PENDING");
+        docRepository.save(doc);
+        executorService.execute(() -> processEmbedding(doc));
+        log.info("触发重新向量化, docId={}", docId);
     }
 
     private String determineFileType(String extension) {

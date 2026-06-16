@@ -130,6 +130,11 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
+    public List<KnowledgeCard> searchCards(String keyword, String userId) {
+        return cardRepository.searchByKeyword(userId, keyword);
+    }
+
+    @Override
     @Transactional
     public void deleteCard(String cardId, String userId) {
         Optional<KnowledgeCard> cardOpt = cardRepository.findById(UUID.fromString(cardId));

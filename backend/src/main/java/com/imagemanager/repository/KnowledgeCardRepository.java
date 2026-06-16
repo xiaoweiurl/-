@@ -41,6 +41,9 @@ public interface KnowledgeCardRepository extends JpaRepository<KnowledgeCard, UU
 
     Optional<KnowledgeCard> findByIdAndUserId(UUID id, String userId);
 
+    @Query("SELECT c FROM KnowledgeCard c WHERE c.userId = :userId AND (LOWER(c.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(c.content) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    List<KnowledgeCard> searchByKeyword(@Param("userId") String userId, @Param("keyword") String keyword);
+
     @Modifying
     @Query("DELETE FROM KnowledgeCard c WHERE c.id = :id AND c.userId = :userId")
     void deleteByIdAndUserId(@Param("id") UUID id, @Param("userId") String userId);

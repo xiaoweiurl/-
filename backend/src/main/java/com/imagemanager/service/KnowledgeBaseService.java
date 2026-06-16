@@ -27,6 +27,11 @@ public interface KnowledgeBaseService {
     // 统计
     long getDocumentCount(String userId);
 
+    KnowledgeBaseDoc getDocumentById(UUID id, String userId);
+
     // 向量搜索
     List<MemorySearchResult> search(String query, double minScore, int limit, String userId);
+
+    // 重新向量化失败文档
+    void retryEmbedding(String docId, String userId);
 }

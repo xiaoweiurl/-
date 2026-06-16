@@ -24,6 +24,9 @@ public interface MemoryService {
     /** 获取知识域下的卡片列表(用户隔离) */
     List<KnowledgeCard> getCardsByDomain(String domainCode, String userId);
 
+    /** 按关键字搜索卡片(用户隔离) */
+    List<KnowledgeCard> searchCards(String keyword, String userId);
+
     /** 删除知识卡片(含向量) - 只能删自己的 */
     void deleteCard(String cardId, String userId);
 

@@ -134,7 +134,9 @@ export default function KnowledgePage() {
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 新建分类
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -341,6 +343,45 @@ export default function KnowledgePage() {
     }
   };
 
+  // 下载文档
+  const handleDownloadDoc = async (doc: DocEntry) => {
+    try {
+      const res = await knowledgeApi.get(`/docs/${doc.id}/download`);
+      const data = await res.json();
+      if (data.url) {
+        const response = await fetch(data.url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = doc.fileName || doc.title;
+        link.click();
+        window.URL.revokeObjectURL(blobUrl);
+      } else if (data.success === false) {
+        alert(data.error || '下载失败');
+      }
+    } catch (err) {
+      console.error('下载失败:', err);
+      alert('下载失败');
+    }
+  };
+
+  // 重新向量化失败文档
+  const handleRetryEmbedding = async (id: string) => {
+    try {
+      const res = await knowledgeApi.post(`/docs/${id}/reembed`);
+      const data = await res.json();
+      if (data.success) {
+        await fetchDocuments();
+      } else {
+        alert(data.error || '重新处理失败');
+      }
+    } catch (err) {
+      console.error('重新处理失败:', err);
+      alert('重新处理失败');
+    }
+  };
+
   // 搜索
   const handleSearch = () => {
     // fetchDocuments already includes searchQuery in its dependency,
@@ -381,8 +422,17 @@ export default function KnowledgePage() {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+                  searchTimerRef.current = setTimeout(() => fetchDocuments(), 400);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+                    fetchDocuments();
+                  }
+                }}
                 placeholder="搜索文档..."
                 className="pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white w-56"
               />
@@ -743,11 +793,20 @@ export default function KnowledgePage() {
             </div>
 
             <div
-              className="border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4"
+              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 ${
+                dragOver ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'
+              }`}
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                if (e.dataTransfer.files.length > 0) setUploadFiles(e.dataTransfer.files);
+              }}
             >
-              <Upload className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm text-slate-600 mb-1">点击选择文件或拖拽到此处</p>
+              <Upload className={`w-10 h-10 mx-auto mb-3 ${dragOver ? 'text-indigo-500' : 'text-slate-300'}`} />
+              <p className="text-sm text-slate-600 mb-1">{dragOver ? '松开以上传文件' : '点击选择文件或拖拽到此处'}</p>
               <p className="text-xs text-slate-400">支持 PDF、Word、Excel、TXT、Markdown</p>
               <input
                 ref={fileInputRef}
@@ -920,6 +979,24 @@ export default function KnowledgePage() {
             </div>
 
             <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-200/60">
+              {viewingDoc.embeddingStatus === 'FAILED' && (
+                <button
+                  onClick={() => { handleRetryEmbedding(viewingDoc.id); setViewingDoc(null); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  重新向量化
+                </button>
+              )}
+              {viewingDoc.fileName && (
+                <button
+                  onClick={() => handleDownloadDoc(viewingDoc)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  下载
+                </button>
+              )}
               <button
                 onClick={() => {
                   handleDeleteDoc(viewingDoc.id);
