@@ -211,15 +211,18 @@ export default function ChatPage() {
       let sources: ChatMessage['sources'] = [];
       let images: ChatImage[] = [];
       const decoder = new TextDecoder();
+      let sseBuffer = ''; // SSE 行缓冲区，防止跨 chunk 断行
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split('\n');
+        sseBuffer += decoder.decode(value, { stream: true });
+        // 按双换行分割SSE事件，保留不完整的末尾
+        const parts = sseBuffer.split('\n');
+        sseBuffer = parts.pop() || ''; // 最后一个元素可能不完整，留到下次
 
-        for (const line of lines) {
+        for (const line of parts) {
           if (!line.startsWith('data:')) continue;
           const data = line.substring(5).trim();
           if (!data) continue;
@@ -283,6 +286,38 @@ export default function ChatPage() {
               });
             }
           } catch { /* ignore parse errors */ }
+        }
+      }
+
+      // 处理缓冲区中可能残留的最后一条数据
+      if (sseBuffer.startsWith('data:')) {
+        const data = sseBuffer.substring(5).trim();
+        if (data) {
+          try {
+            const event = JSON.parse(data);
+            if (event.type === 'done') {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last) {
+                  updated[updated.length - 1] = { ...last, isStreaming: false };
+                }
+                return updated;
+              });
+            } else if (event.type === 'content') {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.isStreaming) {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: last.content + event.content,
+                  };
+                }
+                return updated;
+              });
+            }
+          } catch { /* ignore */ }
         }
       }
     } catch (err: unknown) {

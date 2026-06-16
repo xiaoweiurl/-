@@ -167,8 +167,12 @@ async function proxyRequest(
     if (sse && backendRes.ok) {
       // SSE 流式透传
       responseHeaders.set('Content-Type', 'text/event-stream');
-      responseHeaders.set('Cache-Control', 'no-cache');
+      responseHeaders.set('Cache-Control', 'no-cache, no-transform');
       responseHeaders.set('Connection', 'keep-alive');
+      // 禁止反向代理/CDN/Next.js压缩缓冲SSE数据
+      responseHeaders.set('X-Accel-Buffering', 'no');
+      responseHeaders.delete('content-encoding');
+      responseHeaders.delete('content-length');
       if (!responseHeaders.has('access-control-allow-origin')) {
         responseHeaders.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
       }

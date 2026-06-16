@@ -370,16 +370,18 @@ export default function MemoryPage() {
       const decoder = new TextDecoder();
       let fullContent = '';
       let sources: ChatMessage['sources'] = [];
+      let sseBuffer = ''; // SSE 行缓冲区，防止跨 chunk 断行
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value, { stream: true });
-        // 解析SSE格式 - Java后端可能返回标准SSE或自定义格式
-        const lines = text.split('\n');
+        sseBuffer += decoder.decode(value, { stream: true });
+        // 按换行分割SSE事件，保留不完整的末尾
+        const parts = sseBuffer.split('\n');
+        sseBuffer = parts.pop() || ''; // 最后一个元素可能不完整，留到下次
 
-        for (const line of lines) {
+        for (const line of parts) {
           if (line.startsWith('data:')) {
             const dataStr = line.substring(5).trim();
             if (!dataStr) continue;
@@ -456,6 +458,21 @@ export default function MemoryPage() {
           } else if (line.trim() && !line.startsWith('event:') && !line.startsWith(':')) {
             // 非标准SSE行，可能是纯文本
           }
+        }
+      }
+
+      // 处理缓冲区中可能残留的最后一条数据
+      if (sseBuffer.startsWith('data:')) {
+        const dataStr = sseBuffer.substring(5).trim();
+        if (dataStr) {
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.type === 'content') {
+              fullContent += parsed.content;
+            } else if (parsed.type === 'done') {
+              // already handled below
+            }
+          } catch { /* ignore */ }
         }
       }
 
