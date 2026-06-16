@@ -93,6 +93,20 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // SSE 流式路由禁止缓冲
+      {
+        source: '/api/chat/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-transform',
+          },
+          {
+            key: 'X-Accel-Buffering',
+            value: 'no',
+          },
+        ],
+      },
       // API路由添加额外的安全头
       {
         source: '/api/:path*',

@@ -84,8 +84,9 @@ export async function GET(request: NextRequest) {
       return new NextResponse(stream, {
         headers: {
           'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-transform',
           'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
           'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
           'Access-Control-Allow-Credentials': 'true',
         },
