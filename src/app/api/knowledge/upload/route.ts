@@ -11,6 +11,12 @@ export async function POST(request: NextRequest) {
     headers['X-Session-Id'] = sessionId;
   }
 
+  // 显式传递 cookie
+  const sessionCookie = request.cookies.get('session_id');
+  if (sessionCookie) {
+    headers['Cookie'] = `session_id=${sessionCookie.value}`;
+  }
+
   try {
     const body = await request.formData();
     const res = await fetch(`${backendBase}/knowledge/upload`, {

@@ -107,6 +107,11 @@ async function proxyRequest(request: NextRequest, method: string) {
       headers.set('X-Session-Id', sessionIdFromCookie);
     }
 
+    // 显式传递 cookie（Next.js request.headers 中可能不包含 cookie）
+    if (sessionIdFromCookie) {
+      headers.set('Cookie', `session_id=${sessionIdFromCookie}`);
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 

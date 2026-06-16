@@ -49,6 +49,12 @@ function buildHeaders(request: NextRequest): Headers {
     headers.set('X-Session-Id', sessionId);
   }
 
+  // 显式传递 cookie（Next.js request.headers 中可能不包含 cookie）
+  const sessionCookie = request.cookies.get('session_id');
+  if (sessionCookie) {
+    headers.set('Cookie', `session_id=${sessionCookie.value}`);
+  }
+
   return headers;
 }
 
