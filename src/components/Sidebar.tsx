@@ -743,8 +743,8 @@ export default function Sidebar({
     },
     {
       id: 'knowledge',
-      label: 'RAG 知识库',
-      icon: Sparkles,
+      label: '知识库',
+      icon: BookOpen,
     },
     {
       id: 'memory',
