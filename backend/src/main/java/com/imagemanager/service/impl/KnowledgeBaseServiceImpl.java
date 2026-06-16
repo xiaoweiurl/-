@@ -99,17 +99,30 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 
+    private void updateDocEmbeddingStatus(UUID docId, int chunkCount, String status) {
+        try {
+            KnowledgeBaseDoc d = docRepository.findById(docId).orElse(null);
+            if (d != null) {
+                d.setChunkCount(chunkCount);
+                d.setEmbeddingStatus(status);
+                docRepository.save(d);
+            }
+        } catch (Exception e) {
+            log.error("更新文档 {} 向量化状态失败: {}", docId, e.getMessage());
+        }
+    }
+
     private void processEmbedding(UUID docId, MultipartFile file, String fileType, String userId) {
         try {
             // 只有文本类文件才提取内容向量化
             if (!isTextExtractable(fileType)) {
-                docRepository.updateEmbeddingStatus(docId, 0, "SKIPPED");
+                updateDocEmbeddingStatus(docId, 0, "SKIPPED");
                 return;
             }
 
             String text = documentParserService.parseDocument(file);
             if (text == null || text.trim().isEmpty()) {
-                docRepository.updateEmbeddingStatus(docId, 0, "EMPTY");
+                updateDocEmbeddingStatus(docId, 0, "EMPTY");
                 return;
             }
 
@@ -152,11 +165,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 successCount++;
             }
 
-            docRepository.updateEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
+            updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
             log.info("知识库文档 {} 向量化完成: {}/{} 切片成功", docId, successCount, chunks.size());
         } catch (Exception e) {
             log.error("知识库文档 {} 向量化失败: {}", docId, e.getMessage(), e);
-            docRepository.updateEmbeddingStatus(docId, 0, "FAILED");
+            updateDocEmbeddingStatus(docId, 0, "FAILED");
         }
     }
 

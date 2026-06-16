@@ -4,8 +4,6 @@ import com.imagemanager.entity.KnowledgeBaseDoc;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -25,8 +23,4 @@ public interface KnowledgeBaseDocRepository extends JpaRepository<KnowledgeBaseD
 
     List<KnowledgeBaseDoc> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, String status);
     long countByCategoryId(UUID categoryId);
-
-    @Modifying
-    @Query("UPDATE KnowledgeBaseDoc d SET d.chunkCount = :chunkCount, d.embeddingStatus = :status WHERE d.id = :id")
-    void updateEmbeddingStatus(@Param("id") UUID id, @Param("chunkCount") int chunkCount, @Param("status") String status);
 }
