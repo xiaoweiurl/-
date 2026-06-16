@@ -104,13 +104,16 @@ public class KnowledgeBaseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(value = "categoryId", required = false) String categoryId,
+            @RequestParam(value = "keyword", required = false) String keyword,
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
         Pageable pageable = PageRequest.of(page, size);
         Page<KnowledgeBaseDoc> docs;
-        if (categoryId != null && !categoryId.isEmpty()) {
+        if (keyword != null && !keyword.isEmpty()) {
+            docs = knowledgeBaseService.searchDocuments(userId, keyword, pageable);
+        } else if (categoryId != null && !categoryId.isEmpty()) {
             List<KnowledgeBaseDoc> list = knowledgeBaseService.getDocumentsByCategory(userId, UUID.fromString(categoryId));
             docs = new org.springframework.data.domain.PageImpl<>(list);
         } else {
