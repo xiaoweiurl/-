@@ -62,8 +62,18 @@ src/
 │   │   ├── auth/
 │   │   │   └── login/
 │   │   │       └── route.ts # 登录/登出/检查登录状态 API
+│   │   ├── knowledge/
+│   │   │   └── [[...path]]/route.ts  # 知识库 API 代理 (/api/knowledge/docs/*)
+│   │   ├── memory/
+│   │   │   └── [[...path]]/route.ts  # 记忆库 API 代理 (/api/memory/*)
 │   │   └── users/
 │   │       └── route.ts    # 用户管理 API（管理员权限）
+│   ├── knowledge/
+│   │   └── page.tsx        # 知识库页面（独立文档管理）
+│   ├── memory/
+│   │   └── page.tsx        # 记忆库页面（RAG 语义搜索 + AI 对话）
+│   ├── chat/
+│   │   └── page.tsx        # AI 对话页面
 │   ├── api-docs/
 │   │   └── page.tsx        # Swagger API 文档页面
 │   └── globals.css         # 全局样式
@@ -250,6 +260,28 @@ npx tsc --noEmit          # TypeScript 类型检查
 - `images` - 图片表
 - `notifications` - 通知表
 
+#### 记忆库（Memory）表
+数据库迁移脚本：`backend/src/main/resources/db/migration/V16__create_memory_knowledge_base.sql`
+
+记忆库用于 AI 对话时的 RAG 知识检索，支持文档上传、自动切片、向量化存储：
+
+| 表名 | 说明 |
+|------|------|
+| `knowledge_domains` | 知识域（如"时尚知识库"） |
+| `knowledge_cards` | 知识卡片（手动创建 + 文档自动切片生成） |
+| `knowledge_documents` | 上传的原始文档元数据 |
+| `knowledge_embeddings` | 文档切片的向量嵌入（MiniMax Embedding） |
+
+#### 知识库（KnowledgeBase）表
+数据库迁移脚本：`backend/src/main/resources/db/migration/V18__create_knowledge_base.sql`
+
+知识库是独立的文件知识管理系统，与记忆库物理隔离：
+
+| 表名 | 说明 |
+|------|------|
+| `knowledge_base_categories` | 知识库分类 |
+| `knowledge_base_docs` | 知识库文档（上传的 PDF/Word/Excel/TXT） |
+
 2. **功能增强**
    - 知识标签系统
    - 智能分类管理
@@ -388,6 +420,35 @@ export const ROLE_PERMISSIONS = {
 - `deleted` - 是否删除（软删除）
 - `created_at` - 创建时间
 - `updated_at` - 更新时间
+
+#### 记忆库（Memory）API
+记忆库用于 AI 对话时的 RAG 知识检索，与知识库完全独立：
+
+- `GET /api/memory/domains` - 获取知识域列表
+- `POST /api/memory/domains` - 创建知识域
+- `GET /api/memory/cards` - 获取知识卡片列表（按 domain）
+- `POST /api/memory/cards` - 创建知识卡片
+- `DELETE /api/memory/cards/{id}` - 删除知识卡片
+- `POST /api/memory/upload` - 上传文档（自动切片、向量化）
+- `GET /api/memory/documents` - 获取文档列表
+- `DELETE /api/memory/documents/{id}` - 删除文档
+- `GET /api/memory/search` - 语义搜索（向量检索）
+- `POST /api/memory/chat` - AI 对话（基于 RAG）
+- `GET /api/memory/chat/history` - 获取对话历史
+- `DELETE /api/memory/chat/history` - 清空对话历史
+
+#### 知识库（KnowledgeBase）API
+知识库是独立的文件知识管理系统，与记忆库物理隔离：
+
+- `GET /api/knowledge/docs` - 获取知识库文档列表
+  - 参数: `categoryId`, `keyword`, `page`, `size`
+- `POST /api/knowledge/docs` - 创建文本/URL 知识文档
+- `POST /api/knowledge/upload` - 上传文件（PDF/Word/Excel/TXT）
+- `GET /api/knowledge/docs/search` - 关键词搜索
+  - 参数: `keyword`, `page`, `size`
+- `DELETE /api/knowledge/docs/{id}` - 删除知识文档
+- `GET /api/knowledge/categories` - 获取分类列表
+- `POST /api/knowledge/categories` - 创建分类
 
 #### 相册/分类管理
 - `GET /api/albums` - 获取相册列表
