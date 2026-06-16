@@ -2,21 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080';
 
+function getSessionId(request: NextRequest): string | null {
+  const header = request.headers.get('x-session-id');
+  if (header) return header;
+  const cookie = request.cookies.get('session_id')?.value;
+  if (cookie) return cookie;
+  return null;
+}
+
+function buildHeaders(request: NextRequest): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const skipHeaders = new Set([
+    'host', 'connection', 'content-length', 'transfer-encoding',
+    'content-type', // fetch 发送 FormData 时会自动计算 boundary，不能手动传旧值
+    'accept-encoding',
+    'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
+    'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
+    'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
+    'x-invoke-path', 'x-invoke-query', 'rsc', 'next-url',
+  ]);
+  request.headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
+      headers[key] = value;
+    }
+  });
+
+  const sessionId = getSessionId(request);
+  if (sessionId) {
+    headers['X-Session-Id'] = sessionId;
+  }
+
+  return headers;
+}
+
 async function proxy(request: NextRequest, method: string) {
   const segments = request.nextUrl.pathname.replace('/api/knowledge', '').split('/').filter(Boolean);
   const backendPath = '/knowledge' + (segments.length > 0 ? '/' + segments.join('/') : '');
   const url = new URL(backendPath + request.nextUrl.search, BACKEND_URL);
 
-  const headers: Record<string, string> = {};
-  const skipHeaders = new Set([
-    'host', 'connection', 'content-length', 'cookie',
-    'accept-encoding', 'transfer-encoding', 'content-type'
-  ]);
-  request.headers.forEach((value, key) => {
-    if (!skipHeaders.has(key.toLowerCase())) {
-      headers[key] = value;
-    }
-  });
+  const headers = buildHeaders(request);
 
   let body: BodyInit | undefined;
   if (method !== 'GET' && method !== 'HEAD') {
