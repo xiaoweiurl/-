@@ -69,7 +69,7 @@ src/
 │   │   └── users/
 │   │       └── route.ts    # 用户管理 API（管理员权限）
 │   ├── knowledge/
-│   │   └── page.tsx        # 知识库页面（独立文档管理）
+│   │   └── page.tsx        # 知识库页面（独立文档管理、分类、向量化状态）
 │   ├── memory/
 │   │   └── page.tsx        # 记忆库页面（RAG 语义搜索 + AI 对话）
 │   ├── chat/
