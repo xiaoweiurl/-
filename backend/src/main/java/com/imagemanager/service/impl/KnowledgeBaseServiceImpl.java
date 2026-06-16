@@ -164,6 +164,61 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 
+    /**
+     * 重试向量化：基于已提取的 fileContent 重新切片和向量化，不需要重新上传文件
+     */
+    private void processEmbeddingRetry(UUID docId) {
+        try {
+            KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
+            if (doc == null) {
+                log.warn("重试向量化: 文档 {} 不存在", docId);
+                return;
+            }
+
+            String text = doc.getFileContent();
+            if (text == null || text.trim().isEmpty()) {
+                updateDocEmbeddingStatus(docId, 0, "FAILED");
+                log.warn("重试向量化: 文档 {} 无文本内容", docId);
+                return;
+            }
+
+            doc.setEmbeddingStatus("PROCESSING");
+            docRepository.save(doc);
+
+            // 先删除旧的向量记录
+            jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?::uuid", docId.toString());
+
+            // 切片
+            List<String> chunks = documentParserService.chunkText(text, 800, 100);
+            int successCount = 0;
+
+            for (int i = 0; i < chunks.size(); i++) {
+                String chunk = chunks.get(i);
+                if (chunk.trim().isEmpty()) continue;
+
+                float[] embedding = getEmbedding(chunk);
+                if (embedding == null || embedding.length == 0) {
+                    log.warn("文档 {} 切片 {} 向量化失败", docId, i);
+                    continue;
+                }
+
+                String vectorStr = arrayToVectorString(embedding);
+                jdbcTemplate.update(
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, created_at) " +
+                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, NOW())",
+                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString()
+                );
+                successCount++;
+            }
+
+            updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
+            log.info("知识库文档 {} 重试向量化完成: {}/{} 切片成功", docId, successCount, chunks.size());
+        } catch (Exception e) {
+            log.error("知识库文档 {} 重试向量化失败: {}", docId, e.getMessage(), e);
+            updateDocEmbeddingStatus(docId, 0, "FAILED");
+        }
+    }
+
     private boolean isTextExtractable(String fileType) {
         return "pdf".equals(fileType) || "word".equals(fileType) || "txt".equals(fileType)
                 || "markdown".equals(fileType) || "excel".equals(fileType) || "ppt".equals(fileType);
@@ -320,7 +375,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         // Reset status and re-process
         doc.setEmbeddingStatus("PENDING");
         docRepository.save(doc);
-        executorService.execute(() -> processEmbedding(doc));
+        final UUID docUuid = doc.getId();
+        executorService.execute(() -> processEmbeddingRetry(docUuid));
         log.info("触发重新向量化, docId={}", docId);
     }
 
