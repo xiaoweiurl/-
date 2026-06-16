@@ -88,7 +88,7 @@ public class KnowledgeBaseController {
     /**
      * 获取知识库文档列表
      */
-    @GetMapping("/documents")
+    @GetMapping("/docs")
     public ResponseEntity<?> getDocuments(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -118,7 +118,7 @@ public class KnowledgeBaseController {
     /**
      * 获取文档详情
      */
-    @GetMapping("/documents/{id}")
+    @GetMapping("/docs/{id}")
     public ResponseEntity<?> getDocumentDetail(@PathVariable UUID id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
@@ -132,7 +132,7 @@ public class KnowledgeBaseController {
     /**
      * 删除知识库文档
      */
-    @DeleteMapping("/documents/{id}")
+    @DeleteMapping("/docs/{id}")
     public ResponseEntity<?> deleteDocument(@PathVariable UUID id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
