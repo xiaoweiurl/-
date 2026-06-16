@@ -24,7 +24,7 @@ public class KnowledgeEmbedding {
     @Column(name = "card_id")
     private UUID cardId;
 
-    @Column(name = "embedding", nullable = false, columnDefinition = "vector(1024)")
+    @Column(name = "embedding", nullable = false, columnDefinition = "vector(1536)")
     private String embedding; // 存储为字符串格式的向量, 通过原生SQL操作
 
     @Column(name = "embedding_model", length = 100)
