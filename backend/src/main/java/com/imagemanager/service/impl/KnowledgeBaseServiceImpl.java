@@ -80,7 +80,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
         // 删除存储的文件
         try {
-            fileStorageService.deleteFile(doc.getFileUrl());
+            fileStorageService.deleteFile(doc.getFilePath());
         } catch (Exception e) {
             log.warn("删除知识库文件失败: {}", e.getMessage());
         }
