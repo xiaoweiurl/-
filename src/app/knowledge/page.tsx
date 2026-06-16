@@ -143,8 +143,6 @@ export default function KnowledgePage() {
 
   // 搜索
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<DocEntry[]>([]);
 
   // 新建文本文档
   const [showAddText, setShowAddText] = useState(false);
@@ -200,7 +198,7 @@ export default function KnowledgePage() {
       const params = new URLSearchParams();
       if (activeCategory) params.set('categoryId', activeCategory);
       if (searchQuery) params.set('keyword', searchQuery);
-      params.set('page', '1');
+      params.set('page', '0');
       params.set('size', '100');
 
       const res = await knowledgeApi.get(`/docs?${params}`);
@@ -344,37 +342,10 @@ export default function KnowledgePage() {
   };
 
   // 搜索
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      await fetchDocuments();
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const res = await knowledgeApi.get(`/docs/search?keyword=${encodeURIComponent(searchQuery)}&page=1&size=50`);
-      const data = await res.json();
-      if (data.success) {
-        const docs = (data.documents || data.docs || []).map((doc: Record<string, unknown>) => ({
-          id: String(doc.id),
-          title: String(doc.title || doc.fileName || '未命名文档'),
-          type: String(doc.type || getFileExtension(String(doc.fileName || doc.title || 'txt'))),
-          fileName: String(doc.fileName || ''),
-          fileSize: Number(doc.fileSize || 0),
-          category: String(doc.categoryId || doc.category || ''),
-          categoryName: String(doc.categoryName || ''),
-          content: String(doc.fileContent || doc.content || ''),
-          embeddingStatus: String(doc.embeddingStatus || 'PENDING'),
-          chunkCount: Number(doc.chunkCount || 0),
-          createdAt: String(doc.createdAt || new Date().toISOString()),
-        }));
-        setSearchResults(docs);
-      }
-    } catch (err) {
-      console.error('搜索失败:', err);
-    } finally {
-      setIsSearching(false);
-    }
+  const handleSearch = () => {
+    // fetchDocuments already includes searchQuery in its dependency,
+    // so just triggering a refetch is enough
+    fetchDocuments();
   };
 
   // 退出登录
@@ -384,7 +355,7 @@ export default function KnowledgePage() {
     window.location.href = '/login';
   };
 
-  const displayDocs = searchResults.length > 0 ? searchResults : documents;
+  const displayDocs = documents;
 
   // 统计
   const totalDocs = documents.length;
@@ -418,16 +389,14 @@ export default function KnowledgePage() {
             </div>
             <button
               onClick={handleSearch}
-              disabled={isSearching}
-              className="px-3 py-1.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors text-sm disabled:opacity-50"
+              className="px-3 py-1.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors text-sm"
             >
-              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : '搜索'}
+              搜索
             </button>
-            {searchResults.length > 0 && (
+            {searchQuery && (
               <button
                 onClick={() => {
                   setSearchQuery('');
-                  setSearchResults([]);
                   fetchDocuments();
                 }}
                 className="text-xs text-slate-500 hover:text-slate-700"

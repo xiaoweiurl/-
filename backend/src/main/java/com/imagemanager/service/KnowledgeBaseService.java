@@ -14,6 +14,7 @@ public interface KnowledgeBaseService {
     // 文档管理
     KnowledgeBaseDoc uploadDocument(MultipartFile file, String title, UUID categoryId, List<String> tags, String userId);
     Page<KnowledgeBaseDoc> getDocuments(String userId, Pageable pageable);
+    Page<KnowledgeBaseDoc> searchDocuments(String userId, String keyword, Pageable pageable);
     List<KnowledgeBaseDoc> getDocumentsByCategory(String userId, UUID categoryId);
     void deleteDocument(UUID id, String userId);
     KnowledgeBaseDoc getDocumentDetail(UUID id, String userId);
