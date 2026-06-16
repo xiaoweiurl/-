@@ -1,5 +1,6 @@
 package com.imagemanager.service;
 
+import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.entity.KnowledgeBaseCategory;
 import com.imagemanager.entity.KnowledgeBaseDoc;
 import org.springframework.data.domain.Page;
@@ -24,4 +25,7 @@ public interface KnowledgeBaseService {
 
     // 统计
     long getDocumentCount(String userId);
+
+    // 向量搜索
+    List<MemorySearchResult> search(String query, double minScore, int limit, String userId);
 }

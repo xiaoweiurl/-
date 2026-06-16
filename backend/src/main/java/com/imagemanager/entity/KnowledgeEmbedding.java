@@ -21,7 +21,7 @@ public class KnowledgeEmbedding {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @Column(name = "card_id", nullable = false)
+    @Column(name = "card_id")
     private UUID cardId;
 
     @Column(name = "embedding", nullable = false, columnDefinition = "vector(1024)")
@@ -36,6 +36,13 @@ public class KnowledgeEmbedding {
     @Column(name = "chunk_index")
     @Builder.Default
     private Integer chunkIndex = 0;
+
+    @Column(name = "source_type", length = 20)
+    @Builder.Default
+    private String sourceType = "MEMORY";
+
+    @Column(name = "source_doc_id", length = 100)
+    private String sourceDocId;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

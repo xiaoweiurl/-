@@ -3,6 +3,7 @@ package com.imagemanager.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.MemorySearchResult;
+import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.MemoryService;
 import com.imagemanager.service.SmartChatService;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,9 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Autowired
     private MemoryService memoryService;
+
+    @Autowired
+    private KnowledgeBaseService knowledgeBaseService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -445,14 +449,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 知识库检索 - 直接查PostgreSQL向量(与记忆库共用knowledge_cards表)
-     * 不再调用Next.js的Coze SDK接口，统一使用数据库向量搜索
+     * 知识库检索 - 查询知识库独立的向量表(knowledge_embeddings, source_type='KNOWLEDGE_BASE')
      */
     private List<Map<String, Object>> searchKnowledgeBase(String query, String userId) {
         try {
-            // 使用与记忆库相同的搜索逻辑，但不限定domainCode
-            List<MemorySearchResult> allResults = memoryService.search(query, null, 0.25, 5, userId);
-            
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.25, 5, userId);
+
             List<Map<String, Object>> results = new ArrayList<>();
             for (MemorySearchResult r : allResults) {
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -460,8 +462,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("score", r.getScore() != null ? r.getScore() : 0);
                 item.put("cardId", r.getId().toString());
                 item.put("title", r.getTitle() != null ? r.getTitle() : "");
-                item.put("domain", r.getDomainName() != null ? r.getDomainName() : "");
-                item.put("source", "knowledge");
+                item.put("domain", r.getDomainName() != null ? r.getDomainName() : "知识库");
+                item.put("source", "knowledge_base");
                 results.add(item);
             }
             return results;

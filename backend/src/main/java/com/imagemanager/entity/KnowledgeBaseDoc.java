@@ -41,8 +41,17 @@ public class KnowledgeBaseDoc {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "file_content", columnDefinition = "TEXT")
+    private String fileContent;
+
     @Column(length = 20)
     private String status = "active";
+
+    @Column(name = "chunk_count")
+    private Integer chunkCount = 0;
+
+    @Column(name = "embedding_status", length = 20)
+    private String embeddingStatus = "PENDING";
 
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(columnDefinition = "text[]")

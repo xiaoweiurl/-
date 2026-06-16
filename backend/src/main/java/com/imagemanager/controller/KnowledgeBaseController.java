@@ -201,4 +201,22 @@ public class KnowledgeBaseController {
         long count = knowledgeBaseService.getDocumentCount(userId);
         return ResponseEntity.ok(Map.of("success", true, "count", count));
     }
+
+    // ====== 向量搜索 ======
+
+    /**
+     * 知识库向量搜索
+     */
+    @GetMapping("/search")
+    public ResponseEntity<?> search(
+            @RequestParam("q") String query,
+            @RequestParam(defaultValue = "0.25") double minScore,
+            @RequestParam(defaultValue = "5") int limit,
+            HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        var results = knowledgeBaseService.search(query, minScore, limit, userId);
+        return ResponseEntity.ok(Map.of("success", true, "results", results));
+    }
 }

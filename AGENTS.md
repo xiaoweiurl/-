@@ -282,6 +282,30 @@ npx tsc --noEmit          # TypeScript 类型检查
 | `knowledge_base_categories` | 知识库分类 |
 | `knowledge_base_docs` | 知识库文档（上传的 PDF/Word/Excel/TXT） |
 
+#### 知识库向量化（V20）
+数据库迁移脚本：`backend/src/main/resources/db/migration/V20__knowledge_base_embedding.sql`
+
+知识库文档支持自动向量化，与记忆库共用 `knowledge_embeddings` 表，通过 `source_type` 区分来源：
+
+| 字段 | 说明 |
+|------|------|
+| `knowledge_base_docs.chunk_count` | 文档切片数量 |
+| `knowledge_base_docs.embedding_status` | 向量化状态：PENDING/PROCESSING/COMPLETED/FAILED/SKIPPED |
+| `knowledge_base_docs.file_content` | 提取的文本内容 |
+| `knowledge_embeddings.source_type` | 来源类型：MEMORY(记忆库) / KNOWLEDGE_BASE(知识库) |
+| `knowledge_embeddings.source_doc_id` | 知识库文档ID（KNOWLEDGE_BASE时有效） |
+
+**向量化流程**：
+1. 上传文本类文件（PDF/Word/Excel/TXT/Markdown）
+2. 后台异步提取文本、切片（800字符/片，100字符重叠）
+3. 调用 MiniMax Embedding API 获取向量
+4. 存入 `knowledge_embeddings`（source_type='KNOWLEDGE_BASE'）
+5. 前端文档列表显示向量化状态标签
+
+**删除清理**：删除知识库文档时，同步删除 `knowledge_embeddings` 中 source_type='KNOWLEDGE_BASE' 且 source_doc_id 匹配的记录。
+
+**RAG检索**：AI对话时，`SmartChatServiceImpl` 同时调用 `MemoryService.search`（记忆库）和 `KnowledgeBaseService.search`（知识库），合并结果作为上下文。
+
 2. **功能增强**
    - 知识标签系统
    - 智能分类管理
@@ -446,7 +470,9 @@ export const ROLE_PERMISSIONS = {
 - `POST /api/knowledge/upload` - 上传文件（PDF/Word/Excel/TXT）
 - `GET /api/knowledge/docs/search` - 关键词搜索
   - 参数: `keyword`, `page`, `size`
-- `DELETE /api/knowledge/docs/{id}` - 删除知识文档
+- `DELETE /api/knowledge/docs/{id}` - 删除知识文档（同时删除向量记录）
+- `GET /api/knowledge/search` - 向量语义搜索（查询知识库 embeddings）
+  - 参数: `q` (查询文本), `minScore` (默认0.25), `limit` (默认5)
 - `GET /api/knowledge/categories` - 获取分类列表
 - `POST /api/knowledge/categories` - 创建分类
 

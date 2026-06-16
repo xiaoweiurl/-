@@ -34,6 +34,8 @@ interface DocEntry {
   type: 'text' | 'url' | 'file';
   content?: string;
   status?: string;
+  embeddingStatus?: string;
+  chunkCount?: number;
   createdAt: Date;
 }
 
@@ -54,6 +56,7 @@ export default function KnowledgePage() {
   const [addContent, setAddContent] = useState('');
   const [addTitle, setAddTitle] = useState('');
   const [addUrl, setAddUrl] = useState('');
+  const [addTags, setAddTags] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ content: string; score: number; docId?: string }>>([]);
@@ -76,9 +79,11 @@ export default function KnowledgePage() {
         setDocuments(
           data.documents.map((doc: Record<string, unknown>) => ({
             id: String(doc.id),
-            title: String(doc.title || doc.filename || '未命名'),
+            title: String(doc.title || doc.fileName || '未命名'),
             type: 'file' as const,
-            status: String(doc.status || 'completed'),
+            status: String(doc.status || 'active'),
+            embeddingStatus: String(doc.embeddingStatus || 'PENDING'),
+            chunkCount: Number(doc.chunkCount || 0),
             createdAt: new Date(String(doc.createdAt || Date.now())),
           }))
         );
@@ -580,9 +585,33 @@ export default function KnowledgePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-700 truncate">{doc.title}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {doc.createdAt.toLocaleDateString()} {doc.type === 'url' ? 'URL' : doc.type === 'file' ? '文件' : '文本'}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-slate-400">
+                            {doc.createdAt.toLocaleDateString()}
+                          </span>
+                          {doc.embeddingStatus === 'COMPLETED' ? (
+                            <span className="text-[10px] px-1 py-0.5 bg-green-50 text-green-600 rounded">
+                              已向量化 {doc.chunkCount ? `${doc.chunkCount}片` : ''}
+                            </span>
+                          ) : doc.embeddingStatus === 'PROCESSING' ? (
+                            <span className="text-[10px] px-1 py-0.5 bg-amber-50 text-amber-600 rounded flex items-center gap-0.5">
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              处理中
+                            </span>
+                          ) : doc.embeddingStatus === 'FAILED' ? (
+                            <span className="text-[10px] px-1 py-0.5 bg-red-50 text-red-500 rounded">
+                              向量化失败
+                            </span>
+                          ) : doc.embeddingStatus === 'SKIPPED' ? (
+                            <span className="text-[10px] px-1 py-0.5 bg-slate-50 text-slate-400 rounded">
+                              无需向量化
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-1 py-0.5 bg-slate-50 text-slate-400 rounded">
+                              等待处理
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={() => handleDeleteDoc(doc.id)}
