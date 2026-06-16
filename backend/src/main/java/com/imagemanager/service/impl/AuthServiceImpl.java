@@ -12,12 +12,16 @@ import com.imagemanager.util.RateLimiter;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,7 +45,10 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private PasswordEncoder passwordEncoder;
     
-    // 内存存储会话（生产环境应使用 Redis）
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    
+    // 内存缓存会话（启动时从数据库加载未过期会话）
     // key: sessionId, value: SessionInfo
     private final Map<String, SessionInfo> sessions = new ConcurrentHashMap<>();
     
@@ -71,6 +78,9 @@ public class AuthServiceImpl implements AuthService {
         long expiresAt;
         boolean rememberMe;
         
+        SessionInfo() {
+        }
+        
         SessionInfo(LoginResponse.UserInfo userInfo, boolean rememberMe) {
             this.userInfo = userInfo;
             this.createTime = System.currentTimeMillis();
@@ -98,76 +108,112 @@ public class AuthServiceImpl implements AuthService {
     }
     
     /**
-     * 初始化默认用户
+     * 初始化默认用户，并加载数据库中的有效会话
      */
     @PostConstruct
     public void initDefaultData() {
         if (userRepository.count() > 0) {
             log.info("用户数据已存在，跳过初始化");
-            return;
+        } else {
+            log.info("初始化默认用户...");
+            
+            // 创建管理员用户
+            User adminUser = User.builder()
+                    .id("admin-1")
+                    .username("admin")
+                    .password(passwordEncoder.encode("Admin@123"))  // BCrypt 加密
+                    .email("admin@example.com")
+                    .avatarUrl(null)
+                    .nickname("Administrator")
+                    .bio("系统管理员")
+                    .phone("13900139000")
+                    .role("admin")
+                    .membership("premium")
+                    .storageUsed(0L)
+                    .storageLimit(1024L * 1024 * 1024 * 100)  // 100GB
+                    .createdAt(LocalDateTime.now())
+                    .lastLoginAt(null)
+                    .build();
+            userRepository.save(adminUser);
+            log.info("创建管理员用户: admin / Admin@123");
+            
+            // 创建普通用户
+            User defaultUser = User.builder()
+                    .id("user-1")
+                    .username("user")
+                    .password(passwordEncoder.encode("User@123"))  // BCrypt 加密
+                    .email("user@example.com")
+                    .avatarUrl(null)
+                    .nickname("普通用户")
+                    .bio("普通用户账号")
+                    .phone("13800138000")
+                    .role("user")
+                    .membership("pro")
+                    .storageUsed(1024L * 1024 * 1024 * 5)  // 5GB
+                    .storageLimit(1024L * 1024 * 1024 * 50)  // 50GB
+                    .createdAt(LocalDateTime.now())
+                    .lastLoginAt(null)
+                    .build();
+            userRepository.save(defaultUser);
+            log.info("创建普通用户: user / User@123");
+            
+            // 初始化用户设置
+            UserSettings settings = UserSettings.builder()
+                    .theme("system")
+                    .language("zh-CN")
+                    .pageSize(40)
+                    .defaultSort("createdAt")
+                    .aiRecognitionEnabled(true)
+                    .emailNotifications(true)
+                    .systemNotifications(true)
+                    .uploadNotifications(true)
+                    .autoPlayVideos(true)
+                    .highQualityPreviews(true)
+                    .compactMode(false)
+                    .showFileInfo(true)
+                    .defaultView("grid")
+                    .build();
+            userSettingsMap.put("user-1", settings);
+            
+            log.info("默认用户初始化完成");
         }
         
-        log.info("初始化默认用户...");
-        
-        // 创建管理员用户
-        User adminUser = User.builder()
-                .id("admin-1")
-                .username("admin")
-                .password(passwordEncoder.encode("Admin@123"))  // BCrypt 加密
-                .email("admin@example.com")
-                .avatarUrl(null)
-                .nickname("Administrator")
-                .bio("系统管理员")
-                .phone("13900139000")
-                .role("admin")
-                .membership("premium")
-                .storageUsed(0L)
-                .storageLimit(1024L * 1024 * 1024 * 100)  // 100GB
-                .createdAt(LocalDateTime.now())
-                .lastLoginAt(null)
-                .build();
-        userRepository.save(adminUser);
-        log.info("创建管理员用户: admin / Admin@123");
-        
-        // 创建普通用户
-        User defaultUser = User.builder()
-                .id("user-1")
-                .username("user")
-                .password(passwordEncoder.encode("User@123"))  // BCrypt 加密
-                .email("user@example.com")
-                .avatarUrl(null)
-                .nickname("普通用户")
-                .bio("普通用户账号")
-                .phone("13800138000")
-                .role("user")
-                .membership("pro")
-                .storageUsed(1024L * 1024 * 1024 * 5)  // 5GB
-                .storageLimit(1024L * 1024 * 1024 * 50)  // 50GB
-                .createdAt(LocalDateTime.now())
-                .lastLoginAt(null)
-                .build();
-        userRepository.save(defaultUser);
-        log.info("创建普通用户: user / User@123");
-        
-        // 初始化用户设置
-        UserSettings settings = UserSettings.builder()
-                .theme("system")
-                .language("zh-CN")
-                .pageSize(40)
-                .defaultSort("createdAt")
-                .aiRecognitionEnabled(true)
-                .emailNotifications(true)
-                .systemNotifications(true)
-                .uploadNotifications(true)
-                .autoPlayVideos(true)
-                .highQualityPreviews(true)
-                .compactMode(false)
-                .showFileInfo(true)
-                .defaultView("grid")
-                .build();
-        userSettingsMap.put("user-1", settings);
-        
-        log.info("默认用户初始化完成");
+        // 从数据库加载未过期的会话到内存缓存
+        loadSessionsFromDb();
+    }
+    
+    /**
+     * 从数据库加载未过期的会话
+     */
+    private void loadSessionsFromDb() {
+        try {
+            String sql = "SELECT id, user_id, username, email, avatar_url, role, membership, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE expires_at > ?";
+            long now = System.currentTimeMillis();
+            jdbcTemplate.query(sql, (rs, rowNum) -> {
+                String sessionId = rs.getString("id");
+                LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
+                        .id(rs.getString("user_id"))
+                        .username(rs.getString("username"))
+                        .email(rs.getString("email"))
+                        .avatar(rs.getString("avatar_url"))
+                        .role(rs.getString("role"))
+                        .membership(rs.getString("membership"))
+                        .build();
+                boolean rememberMe = rs.getBoolean("remember_me");
+                SessionInfo sessionInfo = new SessionInfo(userInfo, rememberMe);
+                sessionInfo.createTime = rs.getLong("created_at");
+                sessionInfo.lastAccessTime = rs.getLong("last_access_at");
+                sessionInfo.expiresAt = rs.getLong("expires_at");
+                sessions.put(sessionId, sessionInfo);
+                
+                // 统计用户会话数
+                userSessionCount.computeIfAbsent(userInfo.getId(), k -> new AtomicInteger(0)).incrementAndGet();
+                return null;
+            }, now);
+            log.info("从数据库加载了 {} 个有效会话", sessions.size());
+        } catch (Exception e) {
+            log.warn("从数据库加载会话失败: {}", e.getMessage());
+        }
     }
     
     @Override
@@ -237,6 +283,26 @@ public class AuthServiceImpl implements AuthService {
         SessionInfo sessionInfo = new SessionInfo(userInfo, rememberMe);
         sessions.put(sessionId, sessionInfo);
         
+        // 同时存入数据库持久化
+        try {
+            jdbcTemplate.update(
+                "INSERT INTO user_sessions (id, user_id, username, email, avatar_url, role, membership, remember_me, created_at, last_access_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                sessionId,
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getAvatarUrl(),
+                user.getRole(),
+                user.getMembership(),
+                rememberMe,
+                sessionInfo.createTime,
+                sessionInfo.lastAccessTime,
+                sessionInfo.expiresAt
+            );
+        } catch (Exception e) {
+            log.warn("保存会话到数据库失败: {}", e.getMessage());
+        }
+        
         // 增加用户会话计数
         sessionCount.incrementAndGet();
         
@@ -299,6 +365,12 @@ public class AuthServiceImpl implements AuthService {
             sessions.remove(oldestKey);
             log.info("删除最早会话: userId={}, sessionCount={}", userId, 
                     userSessionCount.get(userId).decrementAndGet());
+            // 同时删除数据库中的会话
+            try {
+                jdbcTemplate.update("DELETE FROM user_sessions WHERE id = ?", oldestKey);
+            } catch (Exception e) {
+                log.warn("删除数据库最早会话失败: {}", e.getMessage());
+            }
         }
     }
     
@@ -312,11 +384,26 @@ public class AuthServiceImpl implements AuthService {
             }
             log.info("用户登出：{}", sessionInfo.userInfo.getUsername());
         }
+        // 同时删除数据库中的会话
+        try {
+            jdbcTemplate.update("DELETE FROM user_sessions WHERE id = ?", sessionId);
+        } catch (Exception e) {
+            log.warn("删除数据库会话失败: {}", e.getMessage());
+        }
     }
     
     @Override
     public LoginResponse.UserInfo validateSession(String sessionId) {
         SessionInfo sessionInfo = sessions.get(sessionId);
+        
+        // 如果内存中没有，尝试从数据库加载
+        if (sessionInfo == null) {
+            sessionInfo = loadSessionFromDb(sessionId);
+            if (sessionInfo != null) {
+                sessions.put(sessionId, sessionInfo);
+                userSessionCount.computeIfAbsent(sessionInfo.userInfo.getId(), k -> new AtomicInteger(0)).incrementAndGet();
+            }
+        }
         
         if (sessionInfo == null) {
             return null;
@@ -328,6 +415,12 @@ public class AuthServiceImpl implements AuthService {
             AtomicInteger count = userSessionCount.get(sessionInfo.userInfo.getId());
             if (count != null) {
                 count.decrementAndGet();
+            }
+            // 同时删除数据库中的过期会话
+            try {
+                jdbcTemplate.update("DELETE FROM user_sessions WHERE id = ?", sessionId);
+            } catch (Exception e) {
+                log.warn("删除过期数据库会话失败: {}", e.getMessage());
             }
             log.info("会话已过期：{}", sessionId);
             return null;
@@ -342,7 +435,53 @@ public class AuthServiceImpl implements AuthService {
         // 更新最后访问时间
         sessionInfo.updateAccess();
         
+        // 异步更新数据库中的访问时间（不阻塞请求）
+        try {
+            jdbcTemplate.update(
+                "UPDATE user_sessions SET last_access_at = ?, expires_at = ? WHERE id = ?",
+                sessionInfo.lastAccessTime,
+                sessionInfo.expiresAt,
+                sessionId
+            );
+        } catch (Exception e) {
+            log.warn("更新数据库会话访问时间失败: {}", e.getMessage());
+        }
+        
         return sessionInfo.userInfo;
+    }
+    
+    /**
+     * 从数据库加载单个会话
+     */
+    private SessionInfo loadSessionFromDb(String sessionId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                "SELECT user_id, username, email, avatar_url, role, membership, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE id = ? AND expires_at > ?",
+                (rs, rowNum) -> {
+                    LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
+                            .id(rs.getString("user_id"))
+                            .username(rs.getString("username"))
+                            .email(rs.getString("email"))
+                            .avatar(rs.getString("avatar_url"))
+                            .role(rs.getString("role"))
+                            .membership(rs.getString("membership"))
+                            .build();
+                    boolean rememberMe = rs.getBoolean("remember_me");
+                    SessionInfo info = new SessionInfo(userInfo, rememberMe);
+                    info.createTime = rs.getLong("created_at");
+                    info.lastAccessTime = rs.getLong("last_access_at");
+                    info.expiresAt = rs.getLong("expires_at");
+                    return info;
+                },
+                sessionId,
+                System.currentTimeMillis()
+            );
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        } catch (Exception e) {
+            log.warn("从数据库加载会话失败: {}", e.getMessage());
+            return null;
+        }
     }
     
     @Override

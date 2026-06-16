@@ -39,6 +39,18 @@ interface DocEntry {
   createdAt: Date;
 }
 
+// 统一处理 API 响应，401 时自动跳转登录页
+async function handleApiResponse(res: Response): Promise<unknown> {
+  const data = await res.json();
+  if (res.status === 401 || (data && typeof data === 'object' && 'code' in data && data.code === 401)) {
+    localStorage.removeItem('session_id');
+    document.cookie = 'session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    window.location.href = '/login';
+    throw new Error('会话已过期，请重新登录');
+  }
+  return data;
+}
+
 export default function KnowledgePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -74,7 +86,7 @@ export default function KnowledgePage() {
         credentials: 'include',
         headers,
       });
-      const data = await res.json();
+      const data = await handleApiResponse(res) as { success: boolean; documents?: Record<string, unknown>[] };
       if (data.success && data.documents) {
         setDocuments(
           data.documents.map((doc: Record<string, unknown>) => ({
@@ -226,7 +238,7 @@ export default function KnowledgePage() {
         headers: sid ? { 'X-Session-Id': sid } : undefined,
         body: formData,
       });
-      const data = await res.json();
+      const data = await handleApiResponse(res) as { success: boolean; doc?: Record<string, unknown>; document?: Record<string, unknown>; error?: string };
       if (data.success) {
         setUploadFile(null);
         setShowAddPanel(false);
@@ -268,7 +280,7 @@ export default function KnowledgePage() {
         ),
       });
 
-      const data = await res.json();
+      const data = await handleApiResponse(res) as { success: boolean; doc_ids?: string[]; error?: string };
       if (data.success) {
         const newDoc: DocEntry = {
           id: data.doc_ids?.[0] || Date.now().toString(),
@@ -305,7 +317,7 @@ export default function KnowledgePage() {
         credentials: 'include',
         headers: searchHeaders,
       });
-      const data = await res.json();
+      const data = await handleApiResponse(res) as { success: boolean; chunks?: Array<{ content: string; score: number; docId?: string }> };
       if (data.success) {
         setSearchResults(data.chunks || []);
       }
@@ -323,11 +335,12 @@ export default function KnowledgePage() {
       const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const headers: Record<string, string> = {};
       if (sid) headers['X-Session-Id'] = sid;
-      await fetch(`/api/knowledge/docs/${id}`, {
+      const res = await fetch(`/api/knowledge/docs/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers,
       });
+      await handleApiResponse(res);
       await loadDocuments();
     } catch (err) {
       console.error('删除文档失败:', err);
