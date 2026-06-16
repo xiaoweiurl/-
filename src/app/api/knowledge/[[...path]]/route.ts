@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
 
 function getSessionId(request: NextRequest): string | null {
   const header = request.headers.get('x-session-id');
@@ -37,9 +37,8 @@ function buildHeaders(request: NextRequest): Record<string, string> {
 }
 
 async function proxy(request: NextRequest, method: string) {
-  const segments = request.nextUrl.pathname.replace('/api/knowledge', '').split('/').filter(Boolean);
-  const backendPath = '/knowledge' + (segments.length > 0 ? '/' + segments.join('/') : '');
-  const url = new URL(backendPath + request.nextUrl.search, BACKEND_URL);
+  const backendPath = request.nextUrl.pathname.replace('/api/knowledge', '/knowledge');
+  const url = BACKEND_URL + backendPath + request.nextUrl.search;
 
   const headers = buildHeaders(request);
 

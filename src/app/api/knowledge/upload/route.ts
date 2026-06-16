@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
-  const backendBase = process.env.BACKEND_API_URL || 'http://localhost:8080';
+  const backendBase = process.env.BACKEND_API_URL || 'http://localhost:8080/api';
   const sessionId = request.headers.get('X-Session-Id') || request.cookies.get('session_id')?.value;
 
   const headers: Record<string, string> = {};
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.formData();
-    const res = await fetch(`${backendBase}/knowledge/docs/upload`, {
+    const res = await fetch(`${backendBase}/knowledge/upload`, {
       method: 'POST',
       headers,
       body,
