@@ -5,10 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.entity.KnowledgeBaseCategory;
 import com.imagemanager.entity.KnowledgeBaseDoc;
-import com.imagemanager.entity.KnowledgeEmbedding;
 import com.imagemanager.repository.KnowledgeBaseCategoryRepository;
 import com.imagemanager.repository.KnowledgeBaseDocRepository;
-import com.imagemanager.repository.KnowledgeEmbeddingRepository;
 import com.imagemanager.service.DocumentParserService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
@@ -42,7 +40,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final KnowledgeBaseCategoryRepository categoryRepository;
     private final FileStorageService fileStorageService;
     private final DocumentParserService documentParserService;
-    private final KnowledgeEmbeddingRepository embeddingRepository;
     private final JdbcTemplate jdbcTemplate;
 
     @Value("${app.minimax.api-key:}")
@@ -149,19 +146,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
-                KnowledgeEmbedding emb = KnowledgeEmbedding.builder()
-                        .id(UUID.randomUUID())
-                        .cardId(null)
-                        .embedding(vectorStr)
-                        .embeddingModel(minimaxEmbeddingModel)
-                        .chunkText(chunk)
-                        .chunkIndex(i)
-                        .sourceType("KNOWLEDGE_BASE")
-                        .sourceDocId(docId.toString())
-                        .createdAt(LocalDateTime.now())
-                        .build();
-
-                embeddingRepository.save(emb);
+                // 必须用 JdbcTemplate + CAST(? AS vector) 插入，因为 embedding 列是 pgvector 类型，
+                // JPA save() 会把 String 参数绑定为 varchar 导致类型不匹配
+                jdbcTemplate.update(
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, created_at) " +
+                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, NOW())",
+                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString()
+                );
                 successCount++;
             }
 
