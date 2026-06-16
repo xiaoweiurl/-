@@ -214,14 +214,12 @@ public class KnowledgeBaseController {
 
         try {
             var doc = knowledgeBaseService.getDocumentById(id, userId);
-            if (doc.getUrl() != null) {
-                return ResponseEntity.ok(Map.of("success", true, "url", doc.getUrl(),
-                        "fileName", doc.getOriginalName() != null ? doc.getOriginalName() : doc.getName()));
-            } else if (doc.getFilePath() != null) {
+            if (doc.getFilePath() != null) {
                 String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
-                String downloadUrl = baseUrl + "/api/knowledge/docs/" + id + "/file";
+                String downloadUrl = baseUrl + "/api/knowledge/docs/" + doc.getId() + "/file";
+                String downloadName = doc.getFileName() != null ? doc.getFileName() : doc.getTitle();
                 return ResponseEntity.ok(Map.of("success", true, "url", downloadUrl,
-                        "fileName", doc.getOriginalName() != null ? doc.getOriginalName() : doc.getName()));
+                        "fileName", downloadName));
             } else {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "error", "文件不可下载"));
             }
