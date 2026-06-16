@@ -21,4 +21,5 @@ public interface KnowledgeBaseDocRepository extends JpaRepository<KnowledgeBaseD
     long countByUserId(String userId);
 
     List<KnowledgeBaseDoc> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, String status);
+    long countByCategoryId(UUID categoryId);
 }

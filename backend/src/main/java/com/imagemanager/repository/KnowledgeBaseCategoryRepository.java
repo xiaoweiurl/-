@@ -15,4 +15,5 @@ public interface KnowledgeBaseCategoryRepository extends JpaRepository<Knowledge
     Optional<KnowledgeBaseCategory> findByIdAndUserId(UUID id, String userId);
 
     long countByUserId(String userId);
+    List<KnowledgeBaseCategory> findByUserIdOrderByCreatedAtDesc(String userId);
 }
