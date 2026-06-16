@@ -67,7 +67,7 @@ export default function KnowledgePage() {
       const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const headers: Record<string, string> = {};
       if (sid) headers['X-Session-Id'] = sid;
-      const res = await fetch('/api/memory/documents?domain=default', {
+      const res = await fetch('/api/knowledge/docs', {
         credentials: 'include',
         headers,
       });
@@ -149,7 +149,7 @@ export default function KnowledgePage() {
       const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const chatHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (sid) chatHeaders['X-Session-Id'] = sid;
-      const response = await fetch('/api/knowledge/chat', {
+      const response = await fetch('/api/memory/chat', {
         method: 'POST',
         credentials: 'include',
         headers: chatHeaders,
@@ -215,7 +215,7 @@ export default function KnowledgePage() {
       formData.append('domain', 'default');
       if (sid) formData.append('sessionId', sid);
 
-      const res = await fetch('/api/memory/upload', {
+      const res = await fetch('/api/knowledge/upload', {
         method: 'POST',
         credentials: 'include',
         headers: sid ? { 'X-Session-Id': sid } : undefined,
@@ -252,14 +252,14 @@ export default function KnowledgePage() {
       const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const addHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (sid) addHeaders['X-Session-Id'] = sid;
-      const res = await fetch('/api/knowledge/add', {
+      const res = await fetch('/api/knowledge/docs', {
         method: 'POST',
         credentials: 'include',
         headers: addHeaders,
         body: JSON.stringify(
           addType === 'text'
-            ? { content: `标题: ${addTitle}\n\n${addContent}` }
-            : { url: addUrl },
+            ? { title: addTitle, content: addContent, tags: addTags }
+            : { title: addUrl, content: addUrl, tags: ['url', '导入'] },
         ),
       });
 
@@ -296,7 +296,7 @@ export default function KnowledgePage() {
       const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const searchHeaders: Record<string, string> = {};
       if (sid) searchHeaders['X-Session-Id'] = sid;
-      const res = await fetch(`/api/knowledge/search?query=${encodeURIComponent(searchQuery)}&topK=5&minScore=0.3`, {
+      const res = await fetch(`/api/knowledge/docs/search?q=${encodeURIComponent(searchQuery)}`, {
         credentials: 'include',
         headers: searchHeaders,
       });
@@ -318,7 +318,7 @@ export default function KnowledgePage() {
       const sid = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const headers: Record<string, string> = {};
       if (sid) headers['X-Session-Id'] = sid;
-      await fetch(`/api/memory/documents/${id}`, {
+      await fetch(`/api/knowledge/docs/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers,
