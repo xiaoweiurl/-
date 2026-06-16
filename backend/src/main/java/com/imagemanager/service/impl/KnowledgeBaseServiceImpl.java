@@ -176,7 +176,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public Page<KnowledgeBaseDoc> searchDocuments(String userId, String keyword, Pageable pageable) {
-        return docRepository.findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDesc(userId, keyword, pageable);
+        return docRepository.searchByKeyword(userId, keyword, pageable);
     }
 
     @Override
