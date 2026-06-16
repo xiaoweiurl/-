@@ -1,74 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080/api';
+// 后端探测：与 proxy 路由一致的候选地址
+const BACKEND_CANDIDATES = [
+  process.env.NEXT_PUBLIC_BACKEND_API_URL,
+  'http://localhost:8080/api',
+  'http://127.0.0.1:8080/api',
+].filter(Boolean) as string[];
 
-function getSessionId(request: NextRequest): string | null {
-  const header = request.headers.get('x-session-id');
-  if (header) return header;
-  const cookie = request.cookies.get('session_id')?.value;
-  if (cookie) return cookie;
-  return null;
+let cachedBackendUrl: string | null = null;
+
+async function detectBackend(): Promise<string> {
+  if (cachedBackendUrl) return cachedBackendUrl;
+  for (const url of BACKEND_CANDIDATES) {
+    try {
+      const res = await fetch(`${url}/auth/session`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000),
+      });
+      cachedBackendUrl = url;
+      return url;
+    } catch { /* next */ }
+  }
+  return BACKEND_CANDIDATES[0]; // 兜底
 }
 
-function buildHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = {};
+async function proxy(request: NextRequest, method: string) {
+  const backendUrl = await detectBackend();
+  const backendPath = request.nextUrl.pathname.replace('/api/knowledge', '/knowledge');
+  const targetUrl = `${backendUrl}${backendPath}${request.nextUrl.search}`;
+
+  // ===== 与 proxy 路由完全一致的 header 构建方式 =====
+  const headers = new Headers();
   const skipHeaders = new Set([
     'host', 'connection', 'content-length', 'transfer-encoding',
-    'content-type', // fetch 发送 FormData 时会自动计算 boundary，不能手动传旧值
-    'accept-encoding',
     'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host',
     'x-real-ip', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
     'x-middleware-request-', 'x-nextjs-data', 'x-invoke-output',
     'x-invoke-path', 'x-invoke-query', 'rsc', 'next-url',
   ]);
+
+  // 1. 复制前端请求头
   request.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
     if (!skipHeaders.has(lowerKey) && !lowerKey.startsWith('x-middleware')) {
-      headers[key] = value;
+      headers.set(key, value);
     }
   });
 
-  const sessionId = getSessionId(request);
-  if (sessionId) {
-    headers['X-Session-Id'] = sessionId;
+  // 2. 设置 Host
+  try {
+    const backendHost = new URL(backendUrl).host;
+    headers.set('Host', backendHost);
+  } catch { /* ignore */ }
+
+  // 3. 显式从 cookie 读取 session_id 并设置到 X-Session-Id（如果没有的话）
+  const sessionIdFromCookie = request.cookies.get('session_id')?.value;
+  if (sessionIdFromCookie && !headers.has('x-session-id')) {
+    headers.set('X-Session-Id', sessionIdFromCookie);
   }
 
-  // 显式传递 cookie（Next.js request.headers 中可能不包含 cookie）
-  const sessionCookie = request.cookies.get('session_id');
-  if (sessionCookie) {
-    headers['Cookie'] = `session_id=${sessionCookie.value}`;
+  // 4. 显式传递 Cookie header
+  if (sessionIdFromCookie) {
+    headers.set('Cookie', `session_id=${sessionIdFromCookie}`);
   }
 
-  return headers;
-}
+  // ===== 调试日志 =====
+  const xSessionId = headers.get('X-Session-Id');
+  const cookieHeader = headers.get('Cookie');
+  console.log(`[Knowledge Proxy] ${method} ${targetUrl}`);
+  console.log(`[Knowledge Proxy] X-Session-Id: ${xSessionId || '(none)'}`);
+  console.log(`[Knowledge Proxy] Cookie: ${cookieHeader || '(none)'}`);
+  console.log(`[Knowledge Proxy] sessionIdFromCookie: ${sessionIdFromCookie || '(none)'}`);
 
-async function proxy(request: NextRequest, method: string) {
-  const backendPath = request.nextUrl.pathname.replace('/api/knowledge', '/knowledge');
-  const url = BACKEND_URL + backendPath + request.nextUrl.search;
+  // ===== body 处理 =====
+  const fetchOptions: RequestInit = {
+    method,
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(30000),
+  };
 
-  const headers = buildHeaders(request);
-
-  let body: BodyInit | undefined;
   if (method !== 'GET' && method !== 'HEAD') {
-    const ct = request.headers.get('content-type') || '';
-    if (ct.includes('multipart/form-data')) {
-      body = await request.formData();
-    } else if (ct.includes('application/json')) {
-      body = await request.text();
-      headers['content-type'] = 'application/json';
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      // FormData：转发原始 body，删除手动 content-type 让 fetch 自动计算 boundary
+      fetchOptions.body = await request.arrayBuffer();
+      headers.delete('content-type');
+    } else if (contentType.includes('application/json')) {
+      fetchOptions.body = await request.text();
+      headers.set('content-type', 'application/json');
     } else {
-      body = await request.arrayBuffer();
-      if (ct) headers['content-type'] = ct;
+      fetchOptions.body = await request.arrayBuffer();
+      if (contentType) headers.set('content-type', contentType);
     }
   }
 
   try {
-    const res = await fetch(url.toString(), {
-      method,
-      headers,
-      body,
-      cache: 'no-store',
-    });
+    const res = await fetch(targetUrl, fetchOptions);
 
     const responseHeaders = new Headers();
     res.headers.forEach((value, key) => {
