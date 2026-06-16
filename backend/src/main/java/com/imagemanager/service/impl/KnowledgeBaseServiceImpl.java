@@ -47,12 +47,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             doc.setId(UUID.randomUUID());
             doc.setTitle(title != null && !title.isEmpty() ? title : originalFilename);
             doc.setFileName(originalFilename);
-            doc.setFileUrl(fileUrl);
+            doc.setFilePath(fileUrl);
             doc.setFileType(fileType);
             doc.setFileSize(file.getSize());
             doc.setCategoryId(categoryId);
             doc.setTags(tags);
-            doc.setUserId(UUID.fromString(userId));
+            doc.setUserId(userId);
             doc.setCreatedAt(LocalDateTime.now());
             doc.setUpdatedAt(LocalDateTime.now());
 
@@ -65,17 +65,17 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public Page<KnowledgeBaseDoc> getDocuments(String userId, Pageable pageable) {
-        return docRepository.findByUserIdOrderByCreatedAtDesc(UUID.fromString(userId), pageable);
+        return docRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
 
     @Override
     public List<KnowledgeBaseDoc> getDocumentsByCategory(String userId, UUID categoryId) {
-        return docRepository.findByUserIdAndCategoryIdOrderByCreatedAtDesc(UUID.fromString(userId), categoryId);
+        return docRepository.findByUserIdAndCategoryIdOrderByCreatedAtDesc(userId, categoryId);
     }
 
     @Override
     public void deleteDocument(UUID id, String userId) {
-        KnowledgeBaseDoc doc = docRepository.findByIdAndUserId(id, UUID.fromString(userId))
+        KnowledgeBaseDoc doc = docRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
 
         // 删除存储的文件
@@ -90,7 +90,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public KnowledgeBaseDoc getDocumentDetail(UUID id, String userId) {
-        return docRepository.findByIdAndUserId(id, UUID.fromString(userId))
+        return docRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
     }
 
@@ -101,7 +101,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         category.setName(name);
         category.setDescription(description);
         category.setParentId(parentId);
-        category.setUserId(UUID.fromString(userId));
+        category.setUserId(userId);
         category.setCreatedAt(LocalDateTime.now());
         category.setUpdatedAt(LocalDateTime.now());
         return categoryRepository.save(category);
@@ -109,7 +109,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public List<KnowledgeBaseCategory> getCategories(String userId) {
-        return categoryRepository.findByUserIdOrderByCreatedAtDesc(UUID.fromString(userId));
+        return categoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     @Override
@@ -120,14 +120,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             throw new RuntimeException("该分类下存在文档，无法删除");
         }
 
-        KnowledgeBaseCategory category = categoryRepository.findByIdAndUserId(id, UUID.fromString(userId))
+        KnowledgeBaseCategory category = categoryRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("分类不存在或无权限"));
         categoryRepository.delete(category);
     }
 
     @Override
     public long getDocumentCount(String userId) {
-        return docRepository.countByUserId(UUID.fromString(userId));
+        return docRepository.countByUserId(userId);
     }
 
     private String determineFileType(String extension) {
