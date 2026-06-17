@@ -83,8 +83,8 @@ public class MemoryServiceImpl implements MemoryService {
     // ========== 知识域 ==========
 
     @Override
-    public List<KnowledgeDomain> getAllDomains(String company, String userId) {
-        return domainRepository.findByCompanyAndUserId(company, userId);
+    public List<KnowledgeDomain> getAllDomains(String company) {
+        return domainRepository.findByCompanyOrderByCreatedAtDesc(company);
     }
 
     @Override
