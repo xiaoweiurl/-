@@ -83,8 +83,8 @@ public class MemoryServiceImpl implements MemoryService {
     // ========== 知识域 ==========
 
     @Override
-    public List<KnowledgeDomain> getAllDomains() {
-        return domainRepository.findAll();
+    public List<KnowledgeDomain> getAllDomains(String company, String userId) {
+        return domainRepository.findByCompanyAndUserId(company, userId);
     }
 
     @Override
@@ -96,9 +96,10 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     @Transactional
-    public KnowledgeCard createCard(KnowledgeCard card, String userId) {
+    public KnowledgeCard createCard(KnowledgeCard card, String userId, String company) {
         card.setUserId(userId);
         card.setCreatedBy(userId);
+        card.setCompany(company);
         if (card.getStatus() == null) card.setStatus("published");
         if (card.getReviewStatus() == null) card.setReviewStatus("pending");
         if (card.getConfidence() == null) card.setConfidence("medium");
@@ -125,13 +126,13 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public List<KnowledgeCard> getCardsByDomain(String domainCode, String userId) {
-        return cardRepository.findByDomainCodeAndUserId(domainCode, userId);
+    public List<KnowledgeCard> getCardsByDomain(String domainCode, String company, String userId) {
+        return cardRepository.findByDomainCodeAndCompanyAndUserId(domainCode, company, userId);
     }
 
     @Override
-    public List<KnowledgeCard> searchCards(String keyword, String userId) {
-        return cardRepository.searchByKeyword(userId, keyword);
+    public List<KnowledgeCard> searchCards(String keyword, String company, String userId) {
+        return cardRepository.searchByKeywordAndCompany(company, userId, keyword);
     }
 
     @Override
@@ -238,8 +239,8 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public List<KnowledgeDocument> getDocuments(String userId) {
-        return documentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public List<KnowledgeDocument> getDocuments(String company, String userId) {
+        return documentRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, userId);
     }
 
     @Override
@@ -269,7 +270,7 @@ public class MemoryServiceImpl implements MemoryService {
     // ========== 语义检索 ==========
 
     @Override
-    public List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit, String userId) {
+    public List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit, String company, String userId) {
         try {
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
@@ -285,6 +286,7 @@ public class MemoryServiceImpl implements MemoryService {
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_cards c ON e.card_id = c.id " +
                     "WHERE c.status = 'published' " +
+                    "AND c.company = ? " +
                     "AND c.user_id = ? " +
                     "AND (? IS NULL OR c.domain_code = ?) " +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
@@ -292,16 +294,17 @@ public class MemoryServiceImpl implements MemoryService {
                     "LIMIT ?";
 
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
-                ps.setString(1, userId);
+                ps.setString(1, company);
+                ps.setString(2, userId);
                 if (domainCode == null) {
-                    ps.setNull(2, java.sql.Types.VARCHAR);
                     ps.setNull(3, java.sql.Types.VARCHAR);
+                    ps.setNull(4, java.sql.Types.VARCHAR);
                 } else {
-                    ps.setString(2, domainCode);
                     ps.setString(3, domainCode);
+                    ps.setString(4, domainCode);
                 }
-                ps.setDouble(4, minScore);
-                ps.setInt(5, limit);
+                ps.setDouble(5, minScore);
+                ps.setInt(6, limit);
             }, (rs, rowNum) -> {
                 KnowledgeDomain domain = domainRepository.findByCode(rs.getString("domain_code")).orElse(null);
                 return MemorySearchResult.builder()

@@ -55,7 +55,13 @@ public class Document {
     
     @Column(name = "user_id", length = 36, nullable = false)
     private String userId;
-    
+
+    /**
+     * 所属公司（宝娜斯/盈云）
+     */
+    @Column(length = 20)
+    private String company;
+
     @Column(name = "deleted")
     private Boolean deleted;
     

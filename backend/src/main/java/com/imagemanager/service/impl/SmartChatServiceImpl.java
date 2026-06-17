@@ -57,7 +57,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     private String minimaxModel;
 
     @Override
-    public SseEmitter smartChat(String message, String sessionId, String userId) {
+    public SseEmitter smartChat(String message, String sessionId, String userId, String company) {
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         // 校验sessionId必须为合法UUID格式
@@ -77,7 +77,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 2a. 记忆库检索(PostgreSQL向量)
                 List<MemorySearchResult> memoryResults = Collections.emptyList();
                 try {
-                    memoryResults = memoryService.search(message, null, 0.3, 3, userId);
+                    memoryResults = memoryService.search(message, null, 0.3, 3, company, userId);
                     log.info("记忆库检索到 {} 条结果", memoryResults.size());
                 } catch (Exception e) {
                     log.warn("记忆库检索异常: {}", e.getMessage());
@@ -86,7 +86,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 2b. 知识库检索(Coze SDK via Next.js)
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
                 try {
-                    knowledgeResults = searchKnowledgeBase(message, userId);
+                    knowledgeResults = searchKnowledgeBase(message, userId, company);
                     log.info("知识库检索到 {} 条结果", knowledgeResults.size());
                 } catch (Exception e) {
                     log.warn("知识库检索异常: {}", e.getMessage());
@@ -463,9 +463,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 知识库检索 - 查询知识库独立的向量表(knowledge_embeddings, source_type='KNOWLEDGE_BASE')
      */
-    private List<Map<String, Object>> searchKnowledgeBase(String query, String userId) {
+    private List<Map<String, Object>> searchKnowledgeBase(String query, String userId, String company) {
         try {
-            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.25, 5, userId);
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.25, 5, company, userId);
 
             List<Map<String, Object>> results = new ArrayList<>();
             for (MemorySearchResult r : allResults) {

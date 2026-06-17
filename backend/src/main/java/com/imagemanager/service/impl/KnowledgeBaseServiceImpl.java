@@ -226,24 +226,24 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public Page<KnowledgeBaseDoc> getDocuments(String userId, Pageable pageable) {
-        return docRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+    public Page<KnowledgeBaseDoc> getDocuments(String company, String userId, Pageable pageable) {
+        return docRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, userId, pageable);
     }
 
     @Override
-    public Page<KnowledgeBaseDoc> searchDocuments(String userId, String keyword, Pageable pageable) {
-        return docRepository.searchByKeyword(userId, keyword, pageable);
+    public Page<KnowledgeBaseDoc> searchDocuments(String company, String userId, String keyword, Pageable pageable) {
+        return docRepository.searchByKeyword(company, userId, keyword, pageable);
     }
 
     @Override
-    public List<KnowledgeBaseDoc> getDocumentsByCategory(String userId, UUID categoryId) {
-        return docRepository.findByUserIdAndCategoryIdOrderByCreatedAtDesc(userId, categoryId);
+    public List<KnowledgeBaseDoc> getDocumentsByCategory(String company, String userId, UUID categoryId) {
+        return docRepository.findByCompanyAndUserIdAndCategoryIdOrderByCreatedAtDesc(company, userId, categoryId);
     }
 
     @Override
     @Transactional
-    public void deleteDocument(UUID id, String userId) {
-        KnowledgeBaseDoc doc = docRepository.findByIdAndUserId(id, userId)
+    public void deleteDocument(UUID id, String company, String userId) {
+        KnowledgeBaseDoc doc = docRepository.findByIdAndCompanyAndUserId(id, company, userId)
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
 
         // 删除存储的文件
@@ -265,58 +265,59 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public KnowledgeBaseDoc getDocumentDetail(UUID id, String userId) {
-        return docRepository.findByIdAndUserId(id, userId)
+    public KnowledgeBaseDoc getDocumentDetail(UUID id, String company, String userId) {
+        return docRepository.findByIdAndCompanyAndUserId(id, company, userId)
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
     }
 
     @Override
-    public KnowledgeBaseCategory createCategory(String name, String description, UUID parentId, String userId) {
+    public KnowledgeBaseCategory createCategory(String name, String description, UUID parentId, String userId, String company) {
         KnowledgeBaseCategory category = new KnowledgeBaseCategory();
         category.setId(UUID.randomUUID());
         category.setName(name);
         category.setDescription(description);
         category.setParentId(parentId);
         category.setUserId(userId);
+        category.setCompany(company);
         category.setCreatedAt(LocalDateTime.now());
         category.setUpdatedAt(LocalDateTime.now());
         return categoryRepository.save(category);
     }
 
     @Override
-    public List<KnowledgeBaseCategory> getCategories(String userId) {
-        return categoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public List<KnowledgeBaseCategory> getCategories(String company, String userId) {
+        return categoryRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, userId);
     }
 
     @Override
-    public void deleteCategory(UUID id, String userId) {
+    public void deleteCategory(UUID id, String company, String userId) {
         long docCount = docRepository.countByCategoryId(id);
         if (docCount > 0) {
             throw new RuntimeException("该分类下存在文档，无法删除");
         }
 
-        KnowledgeBaseCategory category = categoryRepository.findByIdAndUserId(id, userId)
+        KnowledgeBaseCategory category = categoryRepository.findByIdAndCompanyAndUserId(id, company, userId)
                 .orElseThrow(() -> new RuntimeException("分类不存在或无权限"));
         categoryRepository.delete(category);
     }
 
     @Override
-    public long getDocumentCount(String userId) {
-        return docRepository.countByUserId(userId);
+    public long getDocumentCount(String company, String userId) {
+        return docRepository.countByCompanyAndUserId(company, userId);
     }
 
     @Override
-    public KnowledgeBaseDoc getDocumentById(UUID id, String userId) {
+    public KnowledgeBaseDoc getDocumentById(UUID id, String company, String userId) {
         var doc = docRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("文档不存在"));
-        if (!userId.equals(doc.getUserId())) {
+        if (!company.equals(doc.getCompany()) || !userId.equals(doc.getUserId())) {
             throw new RuntimeException("无权访问此文档");
         }
         return doc;
     }
 
     @Override
-    public List<MemorySearchResult> search(String query, double minScore, int limit, String userId) {
+    public List<MemorySearchResult> search(String query, double minScore, int limit, String company, String userId) {
         try {
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
@@ -331,15 +332,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND d.user_id = ? " +
+                    "AND d.company = ? AND d.user_id = ? " +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
                     "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
                     "LIMIT ?";
 
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
-                ps.setString(1, userId);
-                ps.setDouble(2, minScore);
-                ps.setInt(3, limit);
+                ps.setString(1, company);
+                ps.setString(2, userId);
+                ps.setDouble(3, minScore);
+                ps.setInt(4, limit);
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
                     .title(rs.getString("title"))
@@ -361,13 +363,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public void retryEmbedding(String docId, String userId) {
+    public void retryEmbedding(String docId, String company, String userId) {
         var docOpt = docRepository.findById(UUID.fromString(docId));
         if (docOpt.isEmpty()) {
             throw new RuntimeException("文档不存在");
         }
         var doc = docOpt.get();
-        if (!userId.equals(doc.getUserId())) {
+        if (!userId.equals(doc.getUserId()) || !company.equals(doc.getCompany())) {
             throw new RuntimeException("无权操作此文档");
         }
         if (!"FAILED".equals(doc.getEmbeddingStatus()) && !"PENDING".equals(doc.getEmbeddingStatus())) {

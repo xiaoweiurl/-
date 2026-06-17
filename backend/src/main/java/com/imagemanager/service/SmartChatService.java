@@ -17,9 +17,10 @@ public interface SmartChatService {
      * @param message   用户消息
      * @param sessionId 会话ID
      * @param userId    用户ID
+     * @param company   用户所属公司
      * @return SSE流式发射器
      */
-    SseEmitter smartChat(String message, String sessionId, String userId);
+    SseEmitter smartChat(String message, String sessionId, String userId, String company);
 
     /**
      * 获取对话历史
