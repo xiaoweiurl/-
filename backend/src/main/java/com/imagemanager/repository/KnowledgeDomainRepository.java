@@ -11,7 +11,8 @@ import java.util.Optional;
 public interface KnowledgeDomainRepository extends JpaRepository<KnowledgeDomain, Integer> {
     Optional<KnowledgeDomain> findByCode(String code);
 
-    // 按 company 过滤
+    // 按 company + userId 过滤
+    List<KnowledgeDomain> findByCompanyAndUserIdOrderByCreatedAtDesc(String company, String userId);
     List<KnowledgeDomain> findByCompanyOrderByCreatedAtDesc(String company);
     Optional<KnowledgeDomain> findByCodeAndCompany(String code, String company);
 }

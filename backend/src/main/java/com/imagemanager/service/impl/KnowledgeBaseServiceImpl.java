@@ -291,7 +291,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public void deleteCategory(UUID id, String company, String userId) {
-        long docCount = docRepository.countByCategoryId(id);
+        long docCount = docRepository.countByCompanyAndCategoryId(company, id);
         if (docCount > 0) {
             throw new RuntimeException("该分类下存在文档，无法删除");
         }

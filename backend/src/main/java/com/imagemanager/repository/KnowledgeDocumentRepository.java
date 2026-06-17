@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Repository
 public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocument, UUID> {
-    List<KnowledgeDocument> findByUserIdOrderByCreatedAtDesc(String userId);
-    List<KnowledgeDocument> findByUserIdAndStatus(String userId, String status);
-    long countByUserId(String userId);
+    List<KnowledgeDocument> findByCompanyAndUserIdOrderByCreatedAtDesc(String company, String userId);
+    List<KnowledgeDocument> findByCompanyAndUserIdAndStatus(String company, String userId, String status);
+    long countByCompanyAndUserId(String company, String userId);
 }
