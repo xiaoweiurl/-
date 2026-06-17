@@ -85,6 +85,20 @@ public class ChatController {
     }
 
     /**
+     * 获取对话历史
+     */
+    @GetMapping("/history")
+    public ResponseEntity<?> getChatHistory(
+            @RequestParam String sessionId,
+            HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+
+        List<Map<String, Object>> history = smartChatService.getChatHistory(sessionId, user.getCompany(), userId);
+        return ResponseEntity.ok(Map.of("success", true, "history", history));
+    }
+
+    /**
      * 清空对话历史
      */
     @DeleteMapping("/history")
@@ -94,7 +108,7 @@ public class ChatController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        smartChatService.clearChatHistory(sessionId, userId, user.getCompany());
+        smartChatService.clearChatHistory(sessionId, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
     }
 }

@@ -136,9 +136,9 @@ export default function ChatPage() {
   useEffect(() => {
     if (!authChecked) return;
     try {
-      const sid = sessionStorage.getItem('chat_session_id') || generateId();
+      const sid = localStorage.getItem('chat_session_id') || generateId();
       setSessionId(sid);
-      sessionStorage.setItem('chat_session_id', sid);
+      localStorage.setItem('chat_session_id', sid);
     } catch {
       const sid = generateId();
       setSessionId(sid);
@@ -344,7 +344,7 @@ export default function ChatPage() {
   const handleNewChat = () => {
     const newSid = generateId();
     setSessionId(newSid);
-    try { sessionStorage.setItem('chat_session_id', newSid); } catch { /* ignore */ }
+    try { localStorage.setItem('chat_session_id', newSid); } catch { /* ignore */ }
     setMessages([]);
     setSessions(prev => [{
       id: newSid,
@@ -419,7 +419,7 @@ export default function ChatPage() {
               sessions.map(s => (
                 <button
                   key={s.id}
-                  onClick={() => { setSessionId(s.id); try { sessionStorage.setItem('chat_session_id', s.id); } catch { /* ignore */ } }}
+                  onClick={() => { setSessionId(s.id); try { localStorage.setItem('chat_session_id', s.id); } catch { /* ignore */ } }}
                   className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200
                     ${s.id === sessionId
                       ? 'bg-violet-50 text-violet-700 border border-violet-200/60'

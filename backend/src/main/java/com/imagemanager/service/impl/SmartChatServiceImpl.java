@@ -222,14 +222,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 messages.add(Map.of("role", "user", "content", userContent));
 
                 // 6. 保存用户消息
-                saveChatMessage(effectiveSessionId, userId, "user", message);
+                saveChatMessage(effectiveSessionId, userId, "user", message, company);
 
                 // 7. 流式调用MiniMax
                 StringBuilder fullResponse = new StringBuilder();
                 streamChat(emitter, messages, fullResponse);
 
                 // 8. 保存AI回复
-                saveChatMessage(effectiveSessionId, userId, "assistant", fullResponse.toString());
+                saveChatMessage(effectiveSessionId, userId, "assistant", fullResponse.toString(), company);
 
                 emitter.complete();
             } catch (Exception e) {
@@ -252,7 +252,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             return Collections.emptyList();
         }
         String sql = "SELECT role, content, created_at FROM smart_chat_history " +
-                "WHERE session_id = ?::uuid AND user_id = ? ORDER BY created_at ASC";
+                "WHERE session_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) ORDER BY created_at ASC";
         return jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> msg = new LinkedHashMap<>();
@@ -261,7 +261,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
                     return msg;
                 },
-                sessionId, userId
+                sessionId, userId, company
         );
     }
 
@@ -272,8 +272,8 @@ public class SmartChatServiceImpl implements SmartChatService {
             return;
         }
         jdbcTemplate.update(
-                "DELETE FROM smart_chat_history WHERE session_id = ?::uuid AND user_id = ?",
-                sessionId, userId
+                "DELETE FROM smart_chat_history WHERE session_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                sessionId, userId, company
         );
     }
 
@@ -501,12 +501,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 保存对话消息
      */
-    private void saveChatMessage(String sessionId, String userId, String role, String content) {
+    private void saveChatMessage(String sessionId, String userId, String role, String content, String company) {
         try {
             jdbcTemplate.update(
-                    "INSERT INTO smart_chat_history (id, session_id, role, content, user_id, created_at) " +
-                            "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, NOW())",
-                    sessionId, role, content, userId
+                    "INSERT INTO smart_chat_history (id, session_id, role, content, user_id, company, created_at) " +
+                            "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, ?, NOW())",
+                    sessionId, role, content, userId, company
             );
         } catch (Exception e) {
             log.warn("保存对话消息失败: {}", e.getMessage());
