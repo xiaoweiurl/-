@@ -2,6 +2,7 @@ package com.imagemanager.service;
 
 import com.imagemanager.dto.LoginRequest;
 import com.imagemanager.dto.LoginResponse;
+import com.imagemanager.dto.RegisterRequest;
 import com.imagemanager.dto.UpdateProfileRequest;
 import com.imagemanager.dto.UserSettings;
 
@@ -17,6 +18,11 @@ public interface AuthService {
      * 用户登录
      */
     LoginResponse login(LoginRequest request);
+    
+    /**
+     * 用户注册
+     */
+    LoginResponse register(RegisterRequest request);
     
     /**
      * 用户登出

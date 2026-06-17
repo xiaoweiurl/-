@@ -37,6 +37,7 @@ export interface CurrentUser {
   username: string;
   email: string;
   role: 'admin' | 'user';
+  company?: string;
 }
 
 interface HeaderProps {
@@ -385,7 +386,19 @@ export default function Header({
             className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors group"
           >
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-slate-700">{currentUser?.username || '未登录'}</p>
+              <p className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                {currentUser?.username || '未登录'}
+                {currentUser?.company && (
+                  <span className={cn(
+                    "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold",
+                    currentUser.company === '宝娜斯'
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-indigo-100 text-indigo-700"
+                  )}>
+                    {currentUser.company}
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-slate-400 flex items-center gap-1">
                 {currentUser?.role === 'admin' && <Shield className="w-3 h-3 text-violet-500" />}
                 {currentUser?.role === 'admin' ? '管理员' : '普通用户'}

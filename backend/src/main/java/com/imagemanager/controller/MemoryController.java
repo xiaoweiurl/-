@@ -96,6 +96,7 @@ public class MemoryController {
         card.setReviewStatus("pending");
         card.setCreatedBy(user.getUsername());
         card.setUserId(userId);
+        card.setCompany(user.getCompany());
 
         KnowledgeCard saved = memoryService.createCard(card, userId);
         return ResponseEntity.ok(Map.of("success", true, "card", saved));
@@ -160,7 +161,7 @@ public class MemoryController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "不支持的文件格式，仅支持 PDF/Word/Excel/TXT"));
         }
 
-        KnowledgeDocument doc = memoryService.uploadDocument(file, domainCode, userId);
+        KnowledgeDocument doc = memoryService.uploadDocument(file, domainCode, userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "document", doc, "message", "文档上传成功，正在后台处理解析和向量化"));
     }
 

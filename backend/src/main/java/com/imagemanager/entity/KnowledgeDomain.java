@@ -41,6 +41,9 @@ public class KnowledgeDomain {
     @Column(name = "card_count")
     private Integer cardCount;
 
+    @Column(length = 20)
+    private String company;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

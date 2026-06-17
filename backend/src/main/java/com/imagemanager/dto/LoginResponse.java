@@ -46,5 +46,6 @@ public class LoginResponse {
         private String avatar;
         private String role;
         private String membership;
+        private String company;
     }
 }

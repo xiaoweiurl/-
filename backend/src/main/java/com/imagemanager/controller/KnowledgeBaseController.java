@@ -86,7 +86,7 @@ public class KnowledgeBaseController {
             catId = UUID.fromString(categoryId);
         }
 
-        KnowledgeBaseDoc doc = knowledgeBaseService.uploadDocument(file, title, catId, tags, userId);
+        KnowledgeBaseDoc doc = knowledgeBaseService.uploadDocument(file, title, catId, tags, userId, user.getCompany());
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "doc", doc,

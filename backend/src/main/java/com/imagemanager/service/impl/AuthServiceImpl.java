@@ -2,6 +2,7 @@ package com.imagemanager.service.impl;
 
 import com.imagemanager.dto.LoginRequest;
 import com.imagemanager.dto.LoginResponse;
+import com.imagemanager.dto.RegisterRequest;
 import com.imagemanager.dto.UpdateProfileRequest;
 import com.imagemanager.dto.UserSettings;
 import com.imagemanager.entity.User;
@@ -187,7 +188,7 @@ public class AuthServiceImpl implements AuthService {
      */
     private void loadSessionsFromDb() {
         try {
-            String sql = "SELECT id, user_id, username, email, avatar_url, role, membership, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE expires_at > ?";
+            String sql = "SELECT id, user_id, username, email, avatar_url, role, membership, company, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE expires_at > ?";
             long now = System.currentTimeMillis();
             jdbcTemplate.query(sql, (rs, rowNum) -> {
                 String sessionId = rs.getString("id");
@@ -198,6 +199,7 @@ public class AuthServiceImpl implements AuthService {
                         .avatar(rs.getString("avatar_url"))
                         .role(rs.getString("role"))
                         .membership(rs.getString("membership"))
+                        .company(rs.getString("company"))
                         .build();
                 boolean rememberMe = rs.getBoolean("remember_me");
                 SessionInfo sessionInfo = new SessionInfo(userInfo, rememberMe);
@@ -277,6 +279,7 @@ public class AuthServiceImpl implements AuthService {
                 .avatar(user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty() ? user.getAvatarUrl() : null)
                 .role(normalizedRole)
                 .membership(user.getMembership())
+                .company(user.getCompany())
                 .build();
         
         boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
@@ -286,7 +289,7 @@ public class AuthServiceImpl implements AuthService {
         // 同时存入数据库持久化
         try {
             jdbcTemplate.update(
-                "INSERT INTO user_sessions (id, user_id, username, email, avatar_url, role, membership, remember_me, created_at, last_access_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO user_sessions (id, user_id, username, email, avatar_url, role, membership, company, remember_me, created_at, last_access_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 sessionId,
                 user.getId(),
                 user.getUsername(),
@@ -294,6 +297,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getAvatarUrl(),
                 user.getRole(),
                 user.getMembership(),
+                user.getCompany(),
                 rememberMe,
                 sessionInfo.createTime,
                 sessionInfo.lastAccessTime,
@@ -319,6 +323,67 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
     
+    /**
+     * 用户注册
+     */
+    @Override
+    public LoginResponse register(RegisterRequest request) {
+        log.info("用户注册：username={}, company={}", request.getUsername(), request.getCompany());
+        
+        // 参数校验
+        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
+            throw new RuntimeException("用户名不能为空");
+        }
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            throw new RuntimeException("密码长度不能少于6位");
+        }
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new RuntimeException("邮箱不能为空");
+        }
+        if (request.getCompany() == null || request.getCompany().trim().isEmpty()) {
+            throw new RuntimeException("请选择所属公司");
+        }
+        if (!"宝娜斯".equals(request.getCompany()) && !"盈云".equals(request.getCompany())) {
+            throw new RuntimeException("公司只能选择宝娜斯或盈云");
+        }
+        
+        // 检查用户名是否已存在
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new RuntimeException("用户名已存在");
+        }
+        
+        // 检查邮箱是否已存在
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new RuntimeException("邮箱已被注册");
+        }
+        
+        // 创建用户
+        String userId = UUID.randomUUID().toString();
+        User newUser = User.builder()
+                .id(userId)
+                .username(request.getUsername().trim())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .email(request.getEmail().trim())
+                .nickname(request.getUsername().trim())
+                .role("user")
+                .company(request.getCompany())
+                .membership("free")
+                .storageUsed(0L)
+                .storageLimit(1024L * 1024 * 1024 * 10)  // 10GB
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        userRepository.save(newUser);
+        log.info("用户注册成功：{}, 公司：{}", request.getUsername(), request.getCompany());
+        
+        // 自动登录
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsername(request.getUsername());
+        loginRequest.setPassword(request.getPassword());
+        loginRequest.setRememberMe(true);
+        return login(loginRequest);
+    }
+
     /**
      * 生成安全的 Session ID
      */

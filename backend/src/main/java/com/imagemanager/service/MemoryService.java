@@ -31,7 +31,7 @@ public interface MemoryService {
     void deleteCard(String cardId, String userId);
 
     /** 上传文档(PDF/Word/Excel/TXT) → 解析 → 切片 → 向量化入库 */
-    KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId);
+    KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId, String company);
 
     /** 获取用户的文档列表 */
     List<KnowledgeDocument> getDocuments(String userId);

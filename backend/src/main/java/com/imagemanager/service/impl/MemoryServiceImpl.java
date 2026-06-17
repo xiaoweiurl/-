@@ -153,7 +153,7 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     @Transactional
-    public KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId) {
+    public KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId, String company) {
         String originalFilename = file.getOriginalFilename();
         String ext = originalFilename != null ?
                 originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase() : "";
@@ -197,6 +197,7 @@ public class MemoryServiceImpl implements MemoryService {
                         card.setContent(chunk);
                         card.setUserId(userId);
                         card.setCreatedBy(userId);
+                        card.setCompany(company);
                         card.setSource(originalFilename);
                         card.setStatus("published");
                         card.setReviewStatus("approved");

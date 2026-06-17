@@ -56,7 +56,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     @Transactional
-    public KnowledgeBaseDoc uploadDocument(MultipartFile file, String title, UUID categoryId, List<String> tags, String userId) {
+    public KnowledgeBaseDoc uploadDocument(MultipartFile file, String title, UUID categoryId, List<String> tags, String userId, String company) {
         try {
             String originalFilename = file.getOriginalFilename();
             String extension = "";
@@ -78,6 +78,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             doc.setCategoryId(categoryId);
             doc.setTags(tags);
             doc.setUserId(userId);
+            doc.setCompany(company);
             doc.setEmbeddingStatus("PENDING");
             doc.setChunkCount(0);
             doc.setCreatedAt(LocalDateTime.now());

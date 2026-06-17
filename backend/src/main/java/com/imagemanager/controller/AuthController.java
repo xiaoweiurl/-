@@ -34,6 +34,33 @@ public class AuthController {
     private ImageTableService imageTableService;
     
     /**
+     * 用户注册
+     */
+    @PostMapping("/register")
+    @Operation(summary = "用户注册", description = "注册新用户，需选择所属公司（宝娜斯/盈云）")
+    public ApiResponse<LoginResponse> register(
+            @RequestBody RegisterRequest request,
+            HttpServletResponse response) {
+        log.info("收到注册请求: username={}, company={}", request.getUsername(), request.getCompany());
+        
+        try {
+            LoginResponse loginResponse = authService.register(request);
+            
+            String sessionId = loginResponse.getSessionId();
+            
+            response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+            response.setHeader("Access-Control-Expose-Headers", "X-Session-Id");
+            response.setHeader("X-Session-Id", sessionId);
+
+            return ApiResponse.success("注册成功", loginResponse);
+        } catch (Exception e) {
+            log.error("注册失败: ", e);
+            return ApiResponse.error(400, e.getMessage());
+        }
+    }
+    
+    /**
      * 用户登录
      */
     @PostMapping("/login")

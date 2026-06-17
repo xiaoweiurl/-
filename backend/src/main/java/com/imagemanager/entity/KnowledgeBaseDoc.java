@@ -57,6 +57,9 @@ public class KnowledgeBaseDoc {
     @Column(columnDefinition = "text[]")
     private List<String> tags;
 
+    @Column(length = 20)
+    private String company;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
