@@ -521,7 +521,7 @@ public class AuthServiceImpl implements AuthService {
     private SessionInfo loadSessionFromDb(String sessionId) {
         try {
             return jdbcTemplate.queryForObject(
-                "SELECT user_id, username, email, avatar_url, role, membership, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE id = ? AND expires_at > ?",
+                "SELECT user_id, username, email, avatar_url, role, membership, company, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE id = ? AND expires_at > ?",
                 (rs, rowNum) -> {
                     LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                             .id(rs.getString("user_id"))
@@ -530,6 +530,7 @@ public class AuthServiceImpl implements AuthService {
                             .avatar(rs.getString("avatar_url"))
                             .role(rs.getString("role"))
                             .membership(rs.getString("membership"))
+                            .company(rs.getString("company"))
                             .build();
                     boolean rememberMe = rs.getBoolean("remember_me");
                     SessionInfo info = new SessionInfo(userInfo, rememberMe);
