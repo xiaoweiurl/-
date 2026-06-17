@@ -239,7 +239,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        long count = knowledgeBaseService.getDocumentCount(userId);
+        long count = knowledgeBaseService.getDocumentCount(user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "count", count));
     }
 
@@ -257,7 +257,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        var results = knowledgeBaseService.search(query, minScore, limit, userId);
+        var results = knowledgeBaseService.search(query, minScore, limit, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "results", results));
     }
 
@@ -269,7 +269,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
         try {
-            knowledgeBaseService.retryEmbedding(id, userId);
+            knowledgeBaseService.retryEmbedding(id, user.getCompany(), userId);
             return ResponseEntity.ok(Map.of("success", true, "message", "已触发重新向量化"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));

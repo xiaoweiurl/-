@@ -80,7 +80,7 @@ public class ChatController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        List<Map<String, Object>> history = smartChatService.getChatHistory(sessionId, userId);
+        List<Map<String, Object>> history = smartChatService.getChatHistory(sessionId, userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "history", history));
     }
 
@@ -94,7 +94,7 @@ public class ChatController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        smartChatService.clearChatHistory(sessionId, userId);
+        smartChatService.clearChatHistory(sessionId, userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
     }
 }

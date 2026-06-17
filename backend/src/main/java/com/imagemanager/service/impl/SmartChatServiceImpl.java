@@ -71,7 +71,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         new Thread(() -> {
             try {
                 // 1. 加载历史对话
-                List<Map<String, Object>> history = loadChatHistory(effectiveSessionId);
+                List<Map<String, Object>> history = loadChatHistory(effectiveSessionId, company);
 
                 // 2. 双库检索
                 // 2a. 记忆库检索(PostgreSQL向量)
@@ -246,7 +246,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     @Override
-    public List<Map<String, Object>> getChatHistory(String sessionId, String userId) {
+    public List<Map<String, Object>> getChatHistory(String sessionId, String company, String userId) {
         if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
             return Collections.emptyList();
         }
@@ -266,7 +266,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     @Transactional
-    public void clearChatHistory(String sessionId, String userId) {
+    public void clearChatHistory(String sessionId, String company, String userId) {
         if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
             return;
         }
@@ -488,10 +488,10 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 加载对话历史
      */
-    private List<Map<String, Object>> loadChatHistory(String sessionId) {
+    private List<Map<String, Object>> loadChatHistory(String sessionId, String company) {
         if (sessionId == null || sessionId.isEmpty()) return Collections.emptyList();
         try {
-            return getChatHistory(sessionId, "system");
+            return getChatHistory(sessionId, company, "system");
         } catch (Exception e) {
             return Collections.emptyList();
         }
