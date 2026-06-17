@@ -11,27 +11,27 @@ import java.util.List;
 import java.util.UUID;
 
 public interface KnowledgeBaseService {
-    // 文档管理
+    // 文档管理 - userId 用于所有权, company 用于数据隔离
     KnowledgeBaseDoc uploadDocument(MultipartFile file, String title, UUID categoryId, List<String> tags, String userId, String company);
-    Page<KnowledgeBaseDoc> getDocuments(String userId, Pageable pageable);
-    Page<KnowledgeBaseDoc> searchDocuments(String userId, String keyword, Pageable pageable);
-    List<KnowledgeBaseDoc> getDocumentsByCategory(String userId, UUID categoryId);
-    void deleteDocument(UUID id, String userId);
-    KnowledgeBaseDoc getDocumentDetail(UUID id, String userId);
+    Page<KnowledgeBaseDoc> getDocuments(String company, Pageable pageable);
+    Page<KnowledgeBaseDoc> searchDocuments(String company, String keyword, Pageable pageable);
+    List<KnowledgeBaseDoc> getDocumentsByCategory(String company, UUID categoryId);
+    void deleteDocument(UUID id, String userId, String company);
+    KnowledgeBaseDoc getDocumentDetail(UUID id, String company);
 
     // 分类管理
-    KnowledgeBaseCategory createCategory(String name, String description, UUID parentId, String userId);
-    List<KnowledgeBaseCategory> getCategories(String userId);
-    void deleteCategory(UUID id, String userId);
+    KnowledgeBaseCategory createCategory(String name, String description, UUID parentId, String userId, String company);
+    List<KnowledgeBaseCategory> getCategories(String company);
+    void deleteCategory(UUID id, String userId, String company);
 
     // 统计
-    long getDocumentCount(String userId);
+    long getDocumentCount(String company);
 
-    KnowledgeBaseDoc getDocumentById(UUID id, String userId);
+    KnowledgeBaseDoc getDocumentById(UUID id, String company);
 
     // 向量搜索
-    List<MemorySearchResult> search(String query, double minScore, int limit, String userId);
+    List<MemorySearchResult> search(String query, double minScore, int limit, String company);
 
     // 重新向量化失败文档
-    void retryEmbedding(String docId, String userId);
+    void retryEmbedding(String docId, String userId, String company);
 }
