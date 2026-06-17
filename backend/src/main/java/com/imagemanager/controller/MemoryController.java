@@ -130,7 +130,7 @@ public class MemoryController {
         LoginResponse.UserInfo userInfo = getCurrentUser(request);
         String userId = userInfo.getId() != null ? userInfo.getId() : userInfo.getUsername();
 
-        memoryService.deleteCard(id, user.getCompany(), userId);
+        memoryService.deleteCard(id, userInfo.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
@@ -226,7 +226,7 @@ public class MemoryController {
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
         String chatSessionId = sessionId != null ? sessionId : UUID.randomUUID().toString();
-        return memoryService.chat(message, chatSessionId, userId, user.getCompany());
+        return memoryService.chat(message, chatSessionId, user.getCompany(), userId);
     }
 
     /**

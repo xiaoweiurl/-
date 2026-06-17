@@ -88,8 +88,8 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public KnowledgeDomain getDomainByCode(String code) {
-        return domainRepository.findByCode(code).orElse(null);
+    public KnowledgeDomain getDomainByCode(String code, String company) {
+        return domainRepository.findByCodeAndCompany(code, company).orElse(null);
     }
 
     // ========== 知识卡片 ==========

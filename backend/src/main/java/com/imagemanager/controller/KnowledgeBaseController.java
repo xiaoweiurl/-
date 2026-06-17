@@ -175,7 +175,7 @@ public class KnowledgeBaseController {
             parentUUID = UUID.fromString(parentId);
         }
 
-        KnowledgeBaseCategory category = knowledgeBaseService.createCategory(name, description, parentUUID, user.getCompany(), userId);
+        KnowledgeBaseCategory category = knowledgeBaseService.createCategory(name, description, parentUUID, userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "category", category));
     }
 

@@ -19,7 +19,7 @@ public interface MemoryService {
     KnowledgeDomain getDomainByCode(String code, String company);
 
     /** 创建知识卡片(自动向量化) - 绑定用户和公司 */
-    KnowledgeCard createCard(KnowledgeCard card, String company, String userId);
+    KnowledgeCard createCard(KnowledgeCard card, String userId, String company);
 
     /** 获取知识域下的卡片列表(公司+用户隔离) */
     List<KnowledgeCard> getCardsByDomain(String domainCode, String company, String userId);
@@ -31,7 +31,7 @@ public interface MemoryService {
     void deleteCard(String cardId, String company, String userId);
 
     /** 上传文档(PDF/Word/Excel/TXT) → 解析 → 切片 → 向量化入库 */
-    KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String company, String userId);
+    KnowledgeDocument uploadDocument(MultipartFile file, String domainCode, String userId, String company);
 
     /** 获取用户的文档列表(公司+用户隔离) */
     List<KnowledgeDocument> getDocuments(String company, String userId);
