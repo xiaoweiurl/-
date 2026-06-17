@@ -112,9 +112,9 @@ public class MemoryServiceImpl implements MemoryService {
             if (embedding != null && embedding.length > 0) {
                 String vectorStr = arrayToVectorString(embedding);
                 jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
-                                "VALUES (gen_random_uuid(), ?::uuid, CAST(? AS vector), ?, ?, 0, NOW())",
-                        card.getId().toString(), vectorStr, "embo-01", text
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, company, created_at) " +
+                                "VALUES (gen_random_uuid(), ?::uuid, CAST(? AS vector), ?, ?, 0, ?, NOW())",
+                        card.getId().toString(), vectorStr, "embo-01", text, company
                 );
                 log.info("知识卡片向量化成功, cardId={}", card.getId());
             }
@@ -215,9 +215,9 @@ public class MemoryServiceImpl implements MemoryService {
                         if (embedding != null && embedding.length > 0) {
                             String vectorStr = arrayToVectorString(embedding);
                             jdbcTemplate.update(
-                                    "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, created_at) " +
-                                            "VALUES (gen_random_uuid(), ?::uuid, CAST(? AS vector), ?, ?, ?, NOW())",
-                                    card.getId().toString(), vectorStr, "embo-01", chunk, i
+                                    "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, company, created_at) " +
+                                            "VALUES (gen_random_uuid(), ?::uuid, CAST(? AS vector), ?, ?, ?, ?, NOW())",
+                                    card.getId().toString(), vectorStr, "embo-01", chunk, i, company
                             );
                             successCount++;
                         }
@@ -294,7 +294,7 @@ public class MemoryServiceImpl implements MemoryService {
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_cards c ON e.card_id = c.id " +
                     "WHERE c.status = 'published' " +
-                    "AND c.company = ? " +
+                    "AND e.company = ? " +
                     "AND c.user_id = ? " +
                     "AND (? IS NULL OR c.domain_code = ?) " +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +

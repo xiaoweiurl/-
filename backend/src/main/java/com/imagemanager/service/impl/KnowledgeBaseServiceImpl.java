@@ -88,7 +88,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             // 异步向量化
             final UUID docId = doc.getId();
-            executorService.execute(() -> processEmbedding(docId, file, fileType, userId));
+            final String docCompany = company;
+            executorService.execute(() -> processEmbedding(docId, file, fileType, userId, docCompany));
 
             return doc;
         } catch (Exception e) {
@@ -110,7 +111,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 
-    private void processEmbedding(UUID docId, MultipartFile file, String fileType, String userId) {
+    private void processEmbedding(UUID docId, MultipartFile file, String fileType, String userId, String company) {
         try {
             // 只有文本类文件才提取内容向量化
             if (!isTextExtractable(fileType)) {
@@ -150,9 +151,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 // 必须用 JdbcTemplate + CAST(? AS vector) 插入，因为 embedding 列是 pgvector 类型，
                 // JPA save() 会把 String 参数绑定为 varchar 导致类型不匹配
                 jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, created_at) " +
-                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, NOW())",
-                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString()
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString(), company
                 );
                 successCount++;
             }
@@ -204,10 +205,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
+                String docCompany = doc.getCompany();
                 jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, created_at) " +
-                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, NOW())",
-                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString()
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString(), docCompany
                 );
                 successCount++;
             }
@@ -332,7 +334,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND d.company = ? AND d.user_id = ? " +
+                    "AND e.company = ? " +
+                    "AND d.user_id = ? " +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
                     "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
                     "LIMIT ?";
