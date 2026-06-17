@@ -33,6 +33,7 @@ public class ImageTableServiceImpl implements ImageTableService {
         }
 
         String tableName = getUserTableName(username);
+        log.info("createUserImageTable: username={}, tableName={}", username, tableName);
         
         // 检查表是否已存在
         if (userImageTableExists(username)) {
@@ -174,15 +175,31 @@ public class ImageTableServiceImpl implements ImageTableService {
 
     @Override
     public String getUserTableName(String username) {
-        // 将用户名中的特殊字符替换为下划线（如 "zhangsan" -> "images_zhangsan"）
-        String sanitizedUsername = username.replaceAll("[^a-zA-Z0-9]", "_");
-        return TABLE_PREFIX + sanitizedUsername;
+        // 保留中文、字母、数字，其余特殊字符替换为下划线
+        // 例如: "admin" -> "images_admin", "张三" -> "images_张三", "user-1" -> "images_user_1"
+        String sanitizedUsername = username.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff\\u3400-\\u4dbf]", "_");
+        // 去除连续下划线和首尾下划线
+        sanitizedUsername = sanitizedUsername.replaceAll("_+", "_").replaceAll("^_|_$", "");
+        // 如果清理后为空（极端情况：用户名全是特殊字符），使用原始用户名的 hashCode 作为兜底
+        if (sanitizedUsername.isEmpty()) {
+            sanitizedUsername = "u" + Math.abs(username.hashCode());
+            log.warn("用户名清理后为空，使用 hashCode 兜底: username={}, sanitizedUsername={}", username, sanitizedUsername);
+        }
+        String tableName = TABLE_PREFIX + sanitizedUsername;
+        log.info("getUserTableName: username={}, sanitizedUsername={}, tableName={}", username, sanitizedUsername, tableName);
+        return tableName;
     }
 
     @Override
     @Transactional
     public boolean ensureUserImageTable(String username) {
+        log.info("ensureUserImageTable 调用: username={}", username);
+        if (username == null || username.isEmpty()) {
+            log.error("ensureUserImageTable: 用户名为空，无法创建表");
+            return false;
+        }
         if (userImageTableExists(username)) {
+            log.info("ensureUserImageTable: 表已存在, username={}, tableName={}", username, getUserTableName(username));
             return true;
         }
         return createUserImageTable(username);
