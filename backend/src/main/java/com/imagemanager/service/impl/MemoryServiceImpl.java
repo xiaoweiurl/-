@@ -280,10 +280,13 @@ public class MemoryServiceImpl implements MemoryService {
     @Override
     public List<MemorySearchResult> search(String query, String domainCode, double minScore, int limit, String company, String userId) {
         try {
+            log.info("记忆库搜索: query='{}', domainCode='{}', minScore={}, limit={}, company='{}', userId='{}'", query, domainCode, minScore, limit, company, userId);
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
+                log.warn("记忆库搜索: 获取查询Embedding失败, 返回空结果");
                 return Collections.emptyList();
             }
+            log.info("记忆库搜索: 获取查询Embedding成功, 维度={}", queryEmbedding.length);
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
