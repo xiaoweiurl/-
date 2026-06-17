@@ -294,8 +294,8 @@ public class MemoryServiceImpl implements MemoryService {
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_cards c ON e.card_id = c.id " +
                     "WHERE c.status = 'published' " +
-                    "AND e.company = ? " +
-                    "AND c.user_id = ? " +
+                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (c.company = ? OR c.company IS NULL) " +
                     "AND (? IS NULL OR c.domain_code = ?) " +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
                     "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
@@ -303,7 +303,7 @@ public class MemoryServiceImpl implements MemoryService {
 
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 ps.setString(1, company);
-                ps.setString(2, userId);
+                ps.setString(2, company);
                 if (domainCode == null) {
                     ps.setNull(3, java.sql.Types.VARCHAR);
                     ps.setNull(4, java.sql.Types.VARCHAR);

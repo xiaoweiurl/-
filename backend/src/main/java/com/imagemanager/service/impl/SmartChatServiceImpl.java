@@ -77,7 +77,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 2a. 记忆库检索(PostgreSQL向量)
                 List<MemorySearchResult> memoryResults = Collections.emptyList();
                 try {
-                    memoryResults = memoryService.search(message, null, 0.3, 3, company, userId);
+                    memoryResults = memoryService.search(message, null, 0.2, 5, company, userId);
                     log.info("记忆库检索到 {} 条结果", memoryResults.size());
                 } catch (Exception e) {
                     log.warn("记忆库检索异常: {}", e.getMessage());
@@ -465,7 +465,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private List<Map<String, Object>> searchKnowledgeBase(String query, String userId, String company) {
         try {
-            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.25, 5, company, userId);
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.15, 8, company, userId);
 
             List<Map<String, Object>> results = new ArrayList<>();
             for (MemorySearchResult r : allResults) {

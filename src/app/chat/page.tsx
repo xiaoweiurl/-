@@ -191,7 +191,8 @@ export default function ChatPage() {
 
     try {
       const sid = getLoginSessionId();
-      const params = new URLSearchParams({ message: input.trim(), sessionId });
+      const params = new URLSearchParams({ message: input.trim() });
+      if (sid) params.set('sessionId', sid);
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (sid) headers['X-Session-Id'] = sid;
 

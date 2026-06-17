@@ -334,15 +334,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND e.company = ? " +
-                    "AND d.user_id = ? " +
+                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (d.company = ? OR d.company IS NULL) " +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
                     "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
                     "LIMIT ?";
 
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 ps.setString(1, company);
-                ps.setString(2, userId);
+                ps.setString(2, company);
                 ps.setDouble(3, minScore);
                 ps.setInt(4, limit);
             }, (rs, rowNum) -> MemorySearchResult.builder()
