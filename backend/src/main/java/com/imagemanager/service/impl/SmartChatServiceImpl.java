@@ -58,6 +58,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChat(String message, String sessionId, String userId, String company) {
+        log.info("智能对话: message='{}', sessionId='{}', userId='{}', company='{}'", message, sessionId, userId, company);
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         // 校验sessionId必须为合法UUID格式
