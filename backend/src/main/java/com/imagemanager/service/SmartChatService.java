@@ -25,10 +25,10 @@ public interface SmartChatService {
     /**
      * 获取对话历史
      */
-    List<Map<String, Object>> getChatHistory(String sessionId, String userId);
+    List<Map<String, Object>> getChatHistory(String sessionId, String company, String userId);
 
     /**
      * 清空对话历史
      */
-    void clearChatHistory(String sessionId, String userId);
+    void clearChatHistory(String sessionId, String company, String userId);
 }

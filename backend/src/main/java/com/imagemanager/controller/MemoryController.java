@@ -226,7 +226,7 @@ public class MemoryController {
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
         String chatSessionId = sessionId != null ? sessionId : UUID.randomUUID().toString();
-        return memoryService.chat(message, chatSessionId, userId);
+        return memoryService.chat(message, chatSessionId, userId, user.getCompany());
     }
 
     /**
@@ -239,7 +239,7 @@ public class MemoryController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        List<Map<String, Object>> history = memoryService.getChatHistory(sessionId, userId);
+        List<Map<String, Object>> history = memoryService.getChatHistory(sessionId, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "history", history));
     }
 
@@ -253,7 +253,7 @@ public class MemoryController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        memoryService.clearChatHistory(sessionId, userId);
+        memoryService.clearChatHistory(sessionId, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
     }
 }

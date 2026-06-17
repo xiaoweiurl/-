@@ -334,7 +334,7 @@ public class MemoryServiceImpl implements MemoryService {
     // ========== AI对话(含上下文) ==========
 
     @Override
-    public SseEmitter chat(String message, String sessionId, String userId) {
+    public SseEmitter chat(String message, String sessionId, String company, String userId) {
         SseEmitter emitter = new SseEmitter(600000L);
 
         executorService.execute(() -> {
@@ -343,7 +343,7 @@ public class MemoryServiceImpl implements MemoryService {
                 List<Map<String, Object>> history = loadChatHistory(sessionId);
 
                 // 2. 语义检索(用户隔离)
-                List<MemorySearchResult> searchResults = search(message, null, 0.3, 5, userId);
+                List<MemorySearchResult> searchResults = search(message, null, 0.3, 5, company, userId);
 
                 // 3. 发送来源
                 List<Map<String, Object>> sources = new ArrayList<>();
@@ -423,9 +423,9 @@ public class MemoryServiceImpl implements MemoryService {
     }
 
     @Override
-    public List<Map<String, Object>> getChatHistory(String sessionId, String userId) {
+    public List<Map<String, Object>> getChatHistory(String sessionId, String company, String userId) {
         String sql = "SELECT role, content, created_at FROM knowledge_chat_history " +
-                "WHERE session_id = ?::uuid AND user_id = ? ORDER BY created_at ASC";
+                "WHERE session_id = ?::uuid AND company = ? AND user_id = ? ORDER BY created_at ASC";
         return jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> msg = new LinkedHashMap<>();
@@ -434,16 +434,16 @@ public class MemoryServiceImpl implements MemoryService {
                     msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
                     return msg;
                 },
-                sessionId, userId
+                sessionId, company, userId
         );
     }
 
     @Override
     @Transactional
-    public void clearChatHistory(String sessionId, String userId) {
+    public void clearChatHistory(String sessionId, String company, String userId) {
         jdbcTemplate.update(
-                "DELETE FROM knowledge_chat_history WHERE session_id = ?::uuid AND user_id = ?",
-                sessionId, userId
+                "DELETE FROM knowledge_chat_history WHERE session_id = ?::uuid AND company = ? AND user_id = ?",
+                sessionId, company, userId
         );
     }
 
