@@ -65,7 +65,7 @@ public class MemoryController {
     @GetMapping("/domains")
     public ResponseEntity<?> getDomains(HttpServletRequest request) {
         getCurrentUser(request);
-        List<KnowledgeDomain> domains = memoryService.getAllDomains();
+        List<KnowledgeDomain> domains = memoryService.getAllDomains(user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "domains", domains));
     }
 
@@ -98,7 +98,7 @@ public class MemoryController {
         card.setUserId(userId);
         card.setCompany(user.getCompany());
 
-        KnowledgeCard saved = memoryService.createCard(card, userId);
+        KnowledgeCard saved = memoryService.createCard(card, userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "card", saved));
     }
 
@@ -115,9 +115,9 @@ public class MemoryController {
 
         List<KnowledgeCard> cards;
         if (keyword != null && !keyword.isBlank()) {
-            cards = memoryService.searchCards(keyword, userId);
+            cards = memoryService.searchCards(keyword, user.getCompany(), userId);
         } else {
-            cards = memoryService.getCardsByDomain(domainCode, userId);
+            cards = memoryService.getCardsByDomain(domainCode, user.getCompany(), userId);
         }
         return ResponseEntity.ok(Map.of("success", true, "cards", cards, "total", cards.size()));
     }
@@ -130,7 +130,7 @@ public class MemoryController {
         LoginResponse.UserInfo userInfo = getCurrentUser(request);
         String userId = userInfo.getId() != null ? userInfo.getId() : userInfo.getUsername();
 
-        memoryService.deleteCard(id, userId);
+        memoryService.deleteCard(id, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
@@ -173,7 +173,7 @@ public class MemoryController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        List<KnowledgeDocument> docs = memoryService.getDocuments(userId);
+        List<KnowledgeDocument> docs = memoryService.getDocuments(user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "documents", docs, "total", docs.size()));
     }
 
@@ -185,7 +185,7 @@ public class MemoryController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        memoryService.deleteDocument(id, userId);
+        memoryService.deleteDocument(id, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "文档及关联知识已删除"));
     }
 
@@ -208,7 +208,7 @@ public class MemoryController {
         int limit = body.containsKey("limit") ?
                 ((Number) body.get("limit")).intValue() : 10;
 
-        List<MemorySearchResult> results = memoryService.search(query, domainCode, minScore, limit, userId);
+        List<MemorySearchResult> results = memoryService.search(query, domainCode, minScore, limit, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "query", query, "results", results, "total", results.size()));
     }
 

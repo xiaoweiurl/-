@@ -14,17 +14,23 @@ import java.util.UUID;
 
 @Repository
 public interface KnowledgeBaseDocRepository extends JpaRepository<KnowledgeBaseDoc, UUID> {
+    // 按 company + userId 双重过滤
+    Page<KnowledgeBaseDoc> findByCompanyAndUserIdOrderByCreatedAtDesc(String company, String userId, Pageable pageable);
+
+    List<KnowledgeBaseDoc> findByCompanyAndUserIdAndCategoryIdOrderByCreatedAtDesc(String company, String userId, UUID categoryId);
+
+    Optional<KnowledgeBaseDoc> findByIdAndCompanyAndUserId(UUID id, String company, String userId);
+
+    long countByCompanyAndUserId(String company, String userId);
+
+    List<KnowledgeBaseDoc> findByCompanyAndUserIdAndStatusOrderByCreatedAtDesc(String company, String userId, String status);
+
+    @Query("SELECT d FROM KnowledgeBaseDoc d WHERE d.company = :company AND d.userId = :userId AND (LOWER(d.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.fileName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.fileContent) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<KnowledgeBaseDoc> searchByKeyword(@Param("company") String company, @Param("userId") String userId, @Param("keyword") String keyword, Pageable pageable);
+
+    // 旧方法保留兼容（无 company 过滤）
     Page<KnowledgeBaseDoc> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
-
     List<KnowledgeBaseDoc> findByUserIdAndCategoryIdOrderByCreatedAtDesc(String userId, UUID categoryId);
-
     Optional<KnowledgeBaseDoc> findByIdAndUserId(UUID id, String userId);
-
     long countByUserId(String userId);
-
-    List<KnowledgeBaseDoc> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, String status);
-    long countByCategoryId(UUID categoryId);
-
-    @Query("SELECT d FROM KnowledgeBaseDoc d WHERE d.userId = :userId AND (LOWER(d.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.fileName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.fileContent) LIKE LOWER(CONCAT('%', :keyword, '%')))")
-    Page<KnowledgeBaseDoc> searchByKeyword(@Param("userId") String userId, @Param("keyword") String keyword, Pageable pageable);
 }

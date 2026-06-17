@@ -173,6 +173,12 @@ public class Image {
      */
     @Column(name = "user_id", length = 36)
     private String userId;
+
+    /**
+     * 所属公司（宝娜斯/盈云）
+     */
+    @Column(length = 20)
+    private String company;
     
     /**
      * 是否已删除（回收站标记）

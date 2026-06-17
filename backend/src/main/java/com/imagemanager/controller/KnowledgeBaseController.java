@@ -110,14 +110,15 @@ public class KnowledgeBaseController {
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
         Pageable pageable = PageRequest.of(page, size);
+        String company = user.getCompany();
         Page<KnowledgeBaseDoc> docs;
         if (keyword != null && !keyword.isEmpty()) {
-            docs = knowledgeBaseService.searchDocuments(userId, keyword, pageable);
+            docs = knowledgeBaseService.searchDocuments(company, userId, keyword, pageable);
         } else if (categoryId != null && !categoryId.isEmpty()) {
-            List<KnowledgeBaseDoc> list = knowledgeBaseService.getDocumentsByCategory(userId, UUID.fromString(categoryId));
+            List<KnowledgeBaseDoc> list = knowledgeBaseService.getDocumentsByCategory(company, userId, UUID.fromString(categoryId));
             docs = new org.springframework.data.domain.PageImpl<>(list);
         } else {
-            docs = knowledgeBaseService.getDocuments(userId, pageable);
+            docs = knowledgeBaseService.getDocuments(company, userId, pageable);
         }
 
         return ResponseEntity.ok(Map.of(
@@ -137,7 +138,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        KnowledgeBaseDoc doc = knowledgeBaseService.getDocumentDetail(id, userId);
+        KnowledgeBaseDoc doc = knowledgeBaseService.getDocumentDetail(id, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "doc", doc));
     }
 
@@ -151,7 +152,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        knowledgeBaseService.deleteDocument(id, userId);
+        knowledgeBaseService.deleteDocument(id, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
@@ -174,7 +175,7 @@ public class KnowledgeBaseController {
             parentUUID = UUID.fromString(parentId);
         }
 
-        KnowledgeBaseCategory category = knowledgeBaseService.createCategory(name, description, parentUUID, userId);
+        KnowledgeBaseCategory category = knowledgeBaseService.createCategory(name, description, parentUUID, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "category", category));
     }
 
@@ -186,7 +187,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        List<KnowledgeBaseCategory> categories = knowledgeBaseService.getCategories(userId);
+        List<KnowledgeBaseCategory> categories = knowledgeBaseService.getCategories(user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "categories", categories));
     }
 
@@ -198,7 +199,7 @@ public class KnowledgeBaseController {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
-        knowledgeBaseService.deleteCategory(id, userId);
+        knowledgeBaseService.deleteCategory(id, user.getCompany(), userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
@@ -213,7 +214,7 @@ public class KnowledgeBaseController {
         String userId = user.getId() != null ? user.getId() : user.getUsername();
 
         try {
-            var doc = knowledgeBaseService.getDocumentById(id, userId);
+            var doc = knowledgeBaseService.getDocumentById(id, user.getCompany(), userId);
             if (doc.getFilePath() != null) {
                 String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
                 String downloadUrl = baseUrl + "/api/knowledge/docs/" + doc.getId() + "/file";

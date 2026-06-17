@@ -16,6 +16,12 @@ public class KnowledgeDocument {
     @Column(name = "user_id", nullable = false, length = 100)
     private String userId;
 
+    /**
+     * 所属公司（宝娜斯/盈云）
+     */
+    @Column(length = 20)
+    private String company;
+
     @Column(name = "file_name", nullable = false, length = 500)
     private String fileName;
 

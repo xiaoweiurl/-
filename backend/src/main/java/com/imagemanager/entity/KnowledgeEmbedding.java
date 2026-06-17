@@ -44,6 +44,12 @@ public class KnowledgeEmbedding {
     @Column(name = "source_doc_id", length = 100)
     private String sourceDocId;
 
+    /**
+     * 所属公司（宝娜斯/盈云）
+     */
+    @Column(length = 20)
+    private String company;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

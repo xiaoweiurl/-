@@ -65,8 +65,9 @@ public class ChatController {
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = user.getCompany() != null ? user.getCompany() : "盈云";
         String chatSessionId = sessionId != null ? sessionId : UUID.randomUUID().toString();
-        return smartChatService.smartChat(message, chatSessionId, userId);
+        return smartChatService.smartChat(message, chatSessionId, company, userId);
     }
 
     /**
