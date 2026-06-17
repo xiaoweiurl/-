@@ -26,16 +26,16 @@ public class ImageTableServiceImpl implements ImageTableService {
     private static final String TABLE_PREFIX = "images_";
 
     @Override
-    public boolean createUserImageTable(String userId) {
-        if (userId == null || userId.isEmpty()) {
-            log.error("用户ID为空，无法创建表");
+    public boolean createUserImageTable(String username) {
+        if (username == null || username.isEmpty()) {
+            log.error("用户名为空，无法创建表");
             return false;
         }
 
-        String tableName = getUserTableName(userId);
+        String tableName = getUserTableName(username);
         
         // 检查表是否已存在
-        if (userImageTableExists(userId)) {
+        if (userImageTableExists(username)) {
             log.info("用户图片表已存在: {}", tableName);
             return true;
         }
@@ -93,12 +93,12 @@ public class ImageTableServiceImpl implements ImageTableService {
     }
 
     @Override
-    public boolean userImageTableExists(String userId) {
-        if (userId == null || userId.isEmpty()) {
+    public boolean userImageTableExists(String username) {
+        if (username == null || username.isEmpty()) {
             return false;
         }
         
-        String tableName = getUserTableName(userId);
+        String tableName = getUserTableName(username);
         
         try {
             // PostgreSQL 查询表是否存在
@@ -123,15 +123,15 @@ public class ImageTableServiceImpl implements ImageTableService {
 
     @Override
     @Transactional
-    public boolean deleteUserImageTable(String userId) {
-        if (userId == null || userId.isEmpty()) {
-            log.error("用户ID为空，无法删除表");
+    public boolean deleteUserImageTable(String username) {
+        if (username == null || username.isEmpty()) {
+            log.error("用户名为空，无法删除表");
             return false;
         }
 
-        String tableName = getUserTableName(userId);
+        String tableName = getUserTableName(username);
         
-        if (!userImageTableExists(userId)) {
+        if (!userImageTableExists(username)) {
             log.info("用户图片表不存在: {}", tableName);
             return true;
         }
@@ -181,10 +181,10 @@ public class ImageTableServiceImpl implements ImageTableService {
 
     @Override
     @Transactional
-    public boolean ensureUserImageTable(String userId) {
-        if (userImageTableExists(userId)) {
+    public boolean ensureUserImageTable(String username) {
+        if (userImageTableExists(username)) {
             return true;
         }
-        return createUserImageTable(userId);
+        return createUserImageTable(username);
     }
 }
