@@ -117,6 +117,6 @@ async function proxy(request: NextRequest, method: string) {
 
 export async function GET(request: NextRequest) { return proxy(request, 'GET'); }
 export async function POST(request: NextRequest) { return proxy(request, 'POST'); }
+export async function DELETE(request: NextRequest) { return proxy(request, 'DELETE'); }
 export async function PUT(request: NextRequest) { return proxy(request, 'PUT'); }
 export async function PATCH(request: NextRequest) { return proxy(request, 'PATCH'); }
-export async function DELETE(request: NextRequest) { return proxy(request, 'DELETE'); }

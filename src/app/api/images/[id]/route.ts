@@ -65,3 +65,41 @@ export async function GET(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const cookieHeader = request.headers.get('cookie') || '';
+
+    const response = await backendFetch(`/images/${id}`, {
+      method: 'DELETE',
+      requestHeaders: { cookie: cookieHeader },
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return NextResponse.json(result);
+    }
+
+    const errorText = await response.text();
+    return NextResponse.json(
+      { success: false, error: errorText || '删除图片失败' },
+      { status: response.status }
+    );
+  } catch (error) {
+    const backendUrl = getBackendUrl();
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[Image Delete] Error:', errorMessage);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: `无法连接到后端服务 (${backendUrl})`,
+        detail: errorMessage
+      },
+      { status: 500 }
+    );
+  }
+}
