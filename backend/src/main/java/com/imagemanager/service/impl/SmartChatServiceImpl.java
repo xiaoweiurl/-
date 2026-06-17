@@ -585,7 +585,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 case "content_block_start":
                                     JsonNode cbStart = node.path("content_block");
                                     String cbType = cbStart.path("type").asText("");
-                                    log.info("content_block_start 类型: {}", cbType);
+                                    log.debug("content_block_start 类型: {}", cbType);
                                     if ("text".equals(cbType)) {
                                         String text = cbStart.path("text").asText("");
                                         if (!text.isEmpty()) {
@@ -610,7 +610,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                             emitter.send(SseEmitter.event().name("message").data(
                                                     objectMapper.writeValueAsString(Map.of("type", "content", "content", text))
                                             ));
-                                            log.info("text_delta: 长度={}, 内容={}", text.length(), text.substring(0, Math.min(text.length(), 100)));
+                                            log.debug("text_delta: 长度={}", text.length());
                                         }
                                     } else if (!deltaType.isEmpty()) {
                                         log.info("未处理的delta类型: {}, 数据: {}", deltaType, delta.toString().substring(0, Math.min(delta.toString().length(), 200)));
@@ -618,7 +618,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     break;
                                 case "content_block_stop":
                                     int cbIndex = node.path("index").asInt(-1);
-                                    log.info("content_block_stop index: {}", cbIndex);
+                                    log.debug("content_block_stop index: {}", cbIndex);
                                     break;
                                 case "message_delta":
                                     JsonNode msgDelta = node.path("delta");
@@ -636,8 +636,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     String errorMsg = node.path("error").path("message").asText("未知错误");
                                     throw new RuntimeException("MiniMax流式错误: " + errorMsg);
                                 default:
-                                    if (!eventType.isEmpty()) {
-                                        log.info("未处理的SSE事件类型: {}, data: {}", eventType, data.substring(0, Math.min(data.length(), 200)));
+                                    // message_start, ping 等事件是正常协议事件，无需处理
+                                    if (!eventType.isEmpty() && !"message_start".equals(eventType) && !"ping".equals(eventType)) {
+                                        log.debug("未处理的SSE事件类型: {}, data: {}", eventType, data.substring(0, Math.min(data.length(), 200)));
                                     }
                                     break;
                             }
