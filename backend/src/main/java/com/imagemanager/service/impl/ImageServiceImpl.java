@@ -127,22 +127,28 @@ public class ImageServiceImpl implements ImageService {
      * 优先从 SessionUtil 获取，失败时通过 userId 查询数据库兜底
      */
     private String getCurrentUsernameForTable() {
+        // 1. 优先从 Session 获取用户名
         String username = SessionUtil.getCurrentUsername();
         if (username != null && !username.isEmpty()) {
+            log.debug("getCurrentUsernameForTable: 从 Session 获取用户名={}", username);
             return username;
         }
-        // fallback: 通过 userId 查数据库获取用户名
+        // 2. fallback: 通过 userId 查数据库获取用户名
         String userId = SessionUtil.getCurrentUserId();
+        log.info("getCurrentUsernameForTable: Session 无用户名, 尝试通过 userId={} 查数据库", userId);
         if (userId != null && userService != null) {
             try {
                 User user = userService.getUserById(userId);
                 if (user != null && user.getUsername() != null) {
+                    log.info("getCurrentUsernameForTable: 从数据库获取用户名={}", user.getUsername());
                     return user.getUsername();
                 }
             } catch (Exception e) {
                 log.warn("通过 userId 查询用户名失败: {}", userId);
             }
         }
+        // 3. 最后 fallback: 使用 userId（UUID格式）
+        log.warn("getCurrentUsernameForTable: 所有方式均失败, fallback userId={}", userId);
         return userId;
     }
 
@@ -681,10 +687,10 @@ public class ImageServiceImpl implements ImageService {
             try {
                 imageTableService.ensureUserImageTable(currentUsername);
                 imageDynamicRepository.save(image, currentUsername);
-                log.info("图片已保存到用户动态表: images_{}", currentUserId.replaceAll("[^a-zA-Z0-9]", "_"));
+                log.info("图片已保存到用户动态表: username={}", currentUsername);
             } catch (Exception e) {
-                log.error("保存到用户动态表失败: userId={}, username={}, table=images_{}, error={}", 
-                    currentUserId, currentUsername, currentUsername.replaceAll("[^a-zA-Z0-9]", "_"), e.getMessage(), e);
+                log.error("保存到用户动态表失败: userId={}, username={}, error={}", 
+                    currentUserId, currentUsername, e.getMessage(), e);
             }
             
             // 更新相册图片数量

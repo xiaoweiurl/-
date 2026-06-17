@@ -37,10 +37,21 @@ public class ImageDynamicRepository {
 
     /**
      * 获取用户表名（按用户名生成）
+     * 与 ImageTableServiceImpl.getUserTableName 保持一致
      */
     public String getUserTableName(String username) {
-        String safeUsername = username.replaceAll("-", "_").replaceAll("[^a-zA-Z0-9_]", "");
-        return "images_" + safeUsername;
+        // 保留中文、字母、数字，其余特殊字符替换为下划线
+        String sanitizedUsername = username.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff\\u3400-\\u4dbf]", "_");
+        // 去除连续下划线和首尾下划线
+        sanitizedUsername = sanitizedUsername.replaceAll("_+", "_").replaceAll("^_|_$", "");
+        // 如果清理后为空，使用 hashCode 兜底
+        if (sanitizedUsername.isEmpty()) {
+            sanitizedUsername = "u" + Math.abs(username.hashCode());
+            log.warn("getUserTableName: 用户名清理后为空，使用 hashCode 兜底: username={}, sanitizedUsername={}", username, sanitizedUsername);
+        }
+        String tableName = "images_" + sanitizedUsername;
+        log.debug("ImageDynamicRepository.getUserTableName: username={}, tableName={}", username, tableName);
+        return tableName;
     }
 
     /**

@@ -48,6 +48,13 @@ public class AuthController {
             
             String sessionId = loginResponse.getSessionId();
             
+            // 注册成功后，确保用户图片表存在
+            String username = loginResponse.getUser().getUsername();
+            if (username != null && !username.isEmpty()) {
+                boolean tableCreated = imageTableService.ensureUserImageTable(username);
+                log.info("注册后用户图片表检查完成: username={}, tableCreated={}", username, tableCreated);
+            }
+            
             response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Access-Control-Expose-Headers", "X-Session-Id");
