@@ -13,7 +13,7 @@ import java.util.Map;
 public interface MemoryService {
 
     /** 获取用户所属公司的知识域 */
-    List<KnowledgeDomain> getAllDomains(String company);
+    List<KnowledgeDomain> getAllDomains(String company, String userId);
 
     /** 获取知识域详情 */
     KnowledgeDomain getDomainByCode(String code, String company);

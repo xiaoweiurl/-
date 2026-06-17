@@ -64,8 +64,8 @@ public class MemoryController {
      */
     @GetMapping("/domains")
     public ResponseEntity<?> getDomains(HttpServletRequest request) {
-        getCurrentUser(request);
-        List<KnowledgeDomain> domains = memoryService.getAllDomains(user.getCompany());
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        List<KnowledgeDomain> domains = memoryService.getAllDomains(user.getCompany(), user.getId());
         return ResponseEntity.ok(Map.of("success", true, "domains", domains));
     }
 
