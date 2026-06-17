@@ -7,6 +7,7 @@ import com.imagemanager.dto.PageResponse;
 import com.imagemanager.entity.Album;
 import com.imagemanager.entity.Image;
 import com.imagemanager.entity.Product;
+import com.imagemanager.entity.User;
 import com.imagemanager.repository.AlbumRepository;
 import com.imagemanager.repository.ImageDynamicRepository;
 import com.imagemanager.repository.ImageRepository;
@@ -122,6 +123,30 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /**
+     * 获取当前登录用户的用户名（用于动态表命名）
+     * 优先从 SessionUtil 获取，失败时通过 userId 查询数据库兜底
+     */
+    private String getCurrentUsernameForTable() {
+        String username = SessionUtil.getCurrentUsername();
+        if (username != null && !username.isEmpty()) {
+            return username;
+        }
+        // fallback: 通过 userId 查数据库获取用户名
+        String userId = SessionUtil.getCurrentUserId();
+        if (userId != null && userService != null) {
+            try {
+                User user = userService.getUserById(userId);
+                if (user != null && user.getUsername() != null) {
+                    return user.getUsername();
+                }
+            } catch (Exception e) {
+                log.warn("通过 userId 查询用户名失败: {}", userId);
+            }
+        }
+        return userId;
+    }
+
+    /**
      * 同步图片数据到动态表
      */
     private void syncToDynamicTable(Image image) {
@@ -205,7 +230,7 @@ public class ImageServiceImpl implements ImageService {
         // 获取当前用户ID（final，lambda 需要捕获）
         final String currentUserId = SessionUtil.getCurrentUserId();
         // 获取当前用户名（用于动态表命名）
-        String currentUsername = SessionUtil.getCurrentUsername();
+        String currentUsername = getCurrentUsernameForTable();
         if (currentUsername == null) {
             currentUsername = currentUserId;
         }
@@ -617,7 +642,7 @@ public class ImageServiceImpl implements ImageService {
                 currentUserId = "user-1"; // 降级默认
             }
             // 获取当前用户名（用于动态表命名）
-            String currentUsername = SessionUtil.getCurrentUsername();
+            String currentUsername = getCurrentUsernameForTable();
             if (currentUsername == null) {
                 currentUsername = currentUserId;
             }
@@ -1256,7 +1281,7 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
-                String currentUsername = SessionUtil.getCurrentUsername();
+                String currentUsername = getCurrentUsernameForTable();
                 if (currentUsername == null) currentUsername = currentUserId;
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setFavorite(true);
@@ -1291,7 +1316,7 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
-                String currentUsername = SessionUtil.getCurrentUsername();
+                String currentUsername = getCurrentUsernameForTable();
                 if (currentUsername == null) currentUsername = currentUserId;
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setDeleted(true);
@@ -1330,7 +1355,7 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
-                String currentUsername = SessionUtil.getCurrentUsername();
+                String currentUsername = getCurrentUsernameForTable();
                 if (currentUsername == null) currentUsername = currentUserId;
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setPage(page);
@@ -1371,7 +1396,7 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
-                String currentUsername = SessionUtil.getCurrentUsername();
+                String currentUsername = getCurrentUsernameForTable();
                 if (currentUsername == null) currentUsername = currentUserId;
                 return imageDynamicRepository.countDeleted(currentUsername);
             } catch (Exception e) {

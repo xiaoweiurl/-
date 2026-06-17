@@ -94,9 +94,8 @@ public class ImageDynamicRepository {
                 image.setId(UUID.randomUUID().toString());
             }
 
-            image.setUserId(userId);
-            image.setSourceTable(tableName);
-
+            // 不修改传入 Image 实体的 userId/sourceTable，避免影响 JPA 主表
+            // 动态表 INSERT 直接使用 image 原始字段值
             LocalDateTime now = LocalDateTime.now();
             if (image.getCreatedAt() == null) {
                 image.setCreatedAt(now);
