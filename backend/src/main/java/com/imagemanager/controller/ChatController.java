@@ -13,11 +13,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * 智能对话控制器 - 双库检索(知识库+记忆库) + MiniMax流式对话
  * 前端 Next.js /chat 页面专用
+ * 对话历史按 userId+company 绑定，不依赖 sessionId
  */
 @RestController
 @RequestMapping("/chat")
@@ -56,59 +56,37 @@ public class ChatController {
 
     /**
      * 智能对话 (SSE流式, 双库检索)
-     * 同时检索知识库(Coze SDK)和记忆库(PostgreSQL向量), 合并结果后调MiniMax
+     * 同时检索知识库和记忆库, 合并结果后调MiniMax
      */
     @GetMapping(value = "/smart", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter smartChat(
             @RequestParam String message,
-            @RequestParam(required = false) String sessionId,
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
         String company = user.getCompany() != null ? user.getCompany() : "盈云";
-        String chatSessionId = sessionId != null ? sessionId : UUID.randomUUID().toString();
-        return smartChatService.smartChat(message, chatSessionId, userId, company);
+        return smartChatService.smartChat(message, userId, company);
     }
 
     /**
-     * 获取对话历史
+     * 获取对话历史（按userId+company，最近10轮）
      */
     @GetMapping("/history")
-    public ResponseEntity<?> getChatHistory(
-            @RequestParam String sessionId,
-            HttpServletRequest request) {
+    public ResponseEntity<?> getChatHistory(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
-
-        List<Map<String, Object>> history = smartChatService.getChatHistory(sessionId, userId, user.getCompany());
+        List<Map<String, Object>> history = smartChatService.getChatHistory(userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "history", history));
     }
 
     /**
-     * 获取对话历史
-     */
-    @GetMapping("/history")
-    public ResponseEntity<?> getChatHistory(
-            @RequestParam String sessionId,
-            HttpServletRequest request) {
-        LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
-
-        List<Map<String, Object>> history = smartChatService.getChatHistory(sessionId, user.getCompany(), userId);
-        return ResponseEntity.ok(Map.of("success", true, "history", history));
-    }
-
-    /**
-     * 清空对话历史
+     * 清空对话历史（按userId+company）
      */
     @DeleteMapping("/history")
-    public ResponseEntity<?> clearChatHistory(
-            @RequestParam String sessionId,
-            HttpServletRequest request) {
+    public ResponseEntity<?> clearChatHistory(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
-
-        smartChatService.clearChatHistory(sessionId, user.getCompany(), userId);
+        smartChatService.clearChatHistory(userId, user.getCompany());
         return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
     }
 }

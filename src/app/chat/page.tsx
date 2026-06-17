@@ -85,7 +85,6 @@ export default function ChatPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [sessionId, setSessionId] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
@@ -132,24 +131,11 @@ export default function ChatPage() {
     checkAuth();
   }, [mounted]);
 
-  // 初始化session
+  // 加载对话历史（按userId+company绑定，不需要sessionId）
   useEffect(() => {
     if (!authChecked) return;
-    try {
-      const sid = localStorage.getItem('chat_session_id') || generateId();
-      setSessionId(sid);
-      localStorage.setItem('chat_session_id', sid);
-    } catch {
-      const sid = generateId();
-      setSessionId(sid);
-    }
-  }, [authChecked]);
-
-  // 加载对话历史
-  useEffect(() => {
-    if (!sessionId) return;
     const sid = getLoginSessionId();
-    fetch(`/api/chat/history?sessionId=${sessionId}`, {
+    fetch('/api/chat/history', {
       credentials: 'include',
       headers: sid ? { 'X-Session-Id': sid } : {},
     })
@@ -166,7 +152,7 @@ export default function ChatPage() {
         }
       })
       .catch(() => {});
-  }, [sessionId]);
+  }, [authChecked]);
 
   // 自动滚动
   useEffect(() => {
@@ -192,7 +178,6 @@ export default function ChatPage() {
     try {
       const loginSid = getLoginSessionId();
       const params = new URLSearchParams({ message: input.trim() });
-      if (sessionId) params.set('sessionId', sessionId);
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (loginSid) headers['X-Session-Id'] = loginSid;
 
@@ -231,13 +216,7 @@ export default function ChatPage() {
           try {
             const event = JSON.parse(data);
 
-            if (event.type === 'session') {
-              // 后端返回实际使用的sessionId，更新本地存储
-              if (event.sessionId) {
-                setSessionId(event.sessionId);
-                localStorage.setItem('chat_session_id', event.sessionId);
-              }
-            } else if (event.type === 'sources') {
+            if (event.type === 'sources') {
               sources = event.sources || [];
               setMessages(prev => {
                 const updated = [...prev];
@@ -344,16 +323,13 @@ export default function ChatPage() {
     } finally {
       setIsChatting(false);
     }
-  }, [input, isChatting, sessionId]);
+  }, [input, isChatting]);
 
   // 新建对话
   const handleNewChat = () => {
-    const newSid = generateId();
-    setSessionId(newSid);
-    try { localStorage.setItem('chat_session_id', newSid); } catch { /* ignore */ }
     setMessages([]);
     setSessions(prev => [{
-      id: newSid,
+      id: generateId(),
       title: '新对话',
       lastMessage: '',
       timestamp: Date.now(),
@@ -364,7 +340,7 @@ export default function ChatPage() {
   const handleClearChat = async () => {
     const sid = getLoginSessionId();
     try {
-      await fetch(`/api/chat/history?sessionId=${sessionId}`, {
+      await fetch('/api/chat/history', {
         method: 'DELETE',
         credentials: 'include',
         headers: sid ? { 'X-Session-Id': sid } : {},
@@ -425,11 +401,7 @@ export default function ChatPage() {
               sessions.map(s => (
                 <button
                   key={s.id}
-                  onClick={() => { setSessionId(s.id); try { localStorage.setItem('chat_session_id', s.id); } catch { /* ignore */ } }}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200
-                    ${s.id === sessionId
-                      ? 'bg-violet-50 text-violet-700 border border-violet-200/60'
-                      : 'hover:bg-slate-50 text-slate-600'}`}
+                  className="w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200 bg-violet-50 text-violet-700 border border-violet-200/60"
                 >
                   <div className="text-sm font-medium truncate">{s.title}</div>
                   <div className="text-xs text-slate-400 mt-0.5">{formatTime(s.timestamp)}</div>

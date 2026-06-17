@@ -15,20 +15,19 @@ public interface SmartChatService {
      * 同时检索知识库和记忆库, 合并上下文后调MiniMax
      *
      * @param message   用户消息
-     * @param sessionId 会话ID
      * @param userId    用户ID
      * @param company   用户所属公司
      * @return SSE流式发射器
      */
-    SseEmitter smartChat(String message, String sessionId, String userId, String company);
+    SseEmitter smartChat(String message, String userId, String company);
 
     /**
-     * 获取对话历史
+     * 获取对话历史（按userId+company，最近10轮）
      */
-    List<Map<String, Object>> getChatHistory(String sessionId, String company, String userId);
+    List<Map<String, Object>> getChatHistory(String userId, String company);
 
     /**
-     * 清空对话历史
+     * 清空对话历史（按userId+company）
      */
-    void clearChatHistory(String sessionId, String company, String userId);
+    void clearChatHistory(String userId, String company);
 }
