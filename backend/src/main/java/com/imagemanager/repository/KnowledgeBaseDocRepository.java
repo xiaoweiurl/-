@@ -33,4 +33,6 @@ public interface KnowledgeBaseDocRepository extends JpaRepository<KnowledgeBaseD
     List<KnowledgeBaseDoc> findByUserIdAndCategoryIdOrderByCreatedAtDesc(String userId, UUID categoryId);
     Optional<KnowledgeBaseDoc> findByIdAndUserId(UUID id, String userId);
     long countByUserId(String userId);
+
+    long countByCompanyAndCategoryId(String company, UUID categoryId);
 }
