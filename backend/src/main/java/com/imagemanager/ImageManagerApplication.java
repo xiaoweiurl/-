@@ -13,6 +13,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class ImageManagerApplication {
 
     public static void main(String[] args) {
+        // PDFBox: 跳过系统字体扫描，避免损坏字体导致 'head' table is mandatory 错误
+        System.setProperty("org.apache.pdfbox.font.autoload", "false");
         SpringApplication.run(ImageManagerApplication.class, args);
         System.out.println("========================================");
         System.out.println("  图片管理系统后端服务启动成功！");

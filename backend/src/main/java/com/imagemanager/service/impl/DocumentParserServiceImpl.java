@@ -7,12 +7,10 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.font.FontMappers;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -20,19 +18,6 @@ import java.util.List;
 
 @Service
 public class DocumentParserServiceImpl implements DocumentParserService {
-
-    /**
-     * 安装一个安全的 FontMapper，避免扫描系统字体目录时遇到损坏字体报错。
-     * 使用 LastDitch 策略：仅用 JVM 内置字体，跳过系统字体扫描。
-     */
-    @PostConstruct
-    public void initFontMapper() {
-        try {
-            FontMappers.set(FontMappers.lastDitch());
-        } catch (Exception e) {
-            // 如果设置失败，不影响启动
-        }
-    }
 
     @Override
     public String parseDocument(MultipartFile file) throws Exception {
