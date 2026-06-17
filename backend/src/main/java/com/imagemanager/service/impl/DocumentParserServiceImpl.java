@@ -7,10 +7,12 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.font.FontMappers;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -18,6 +20,19 @@ import java.util.List;
 
 @Service
 public class DocumentParserServiceImpl implements DocumentParserService {
+
+    /**
+     * 安装一个安全的 FontMapper，避免扫描系统字体目录时遇到损坏字体报错。
+     * 使用 LastDitch 策略：仅用 JVM 内置字体，跳过系统字体扫描。
+     */
+    @PostConstruct
+    public void initFontMapper() {
+        try {
+            FontMappers.set(FontMappers.lastDitch());
+        } catch (Exception e) {
+            // 如果设置失败，不影响启动
+        }
+    }
 
     @Override
     public String parseDocument(MultipartFile file) throws Exception {
@@ -41,8 +56,36 @@ public class DocumentParserServiceImpl implements DocumentParserService {
         try (PDDocument document = Loader.loadPDF(file.getBytes())) {
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(true);
-            return stripper.getText(document);
+            stripper.setSuppressDuplicateOverlappingText(true);
+            String text;
+            try {
+                text = stripper.getText(document);
+            } catch (Exception fontError) {
+                // 字体相关错误降级处理：尝试逐页提取
+                text = extractTextPageByPage(document);
+            }
+            return text != null ? text : "";
         }
+    }
+
+    private String extractTextPageByPage(PDDocument document) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < document.getNumberOfPages(); i++) {
+            try {
+                PDFTextStripper stripper = new PDFTextStripper();
+                stripper.setSortByPosition(true);
+                stripper.setStartPage(i + 1);
+                stripper.setEndPage(i + 1);
+                String pageText = stripper.getText(document);
+                if (pageText != null && !pageText.isBlank()) {
+                    sb.append(pageText).append("\n");
+                }
+            } catch (Exception e) {
+                // 跳过无法解析的页面
+                sb.append("[第").append(i + 1).append("页无法解析]\n");
+            }
+        }
+        return sb.toString();
     }
 
     private String parseWord(InputStream is) throws Exception {
