@@ -26,7 +26,6 @@ public class ImageTableServiceImpl implements ImageTableService {
     private static final String TABLE_PREFIX = "images_";
 
     @Override
-    @Transactional
     public boolean createUserImageTable(String userId) {
         if (userId == null || userId.isEmpty()) {
             log.error("用户ID为空，无法创建表");
@@ -174,13 +173,14 @@ public class ImageTableServiceImpl implements ImageTableService {
     }
 
     @Override
-    public String getUserTableName(String userId) {
-        // 将 userId 中的特殊字符替换为下划线（如 "user-1" -> "images_user_1"）
-        String sanitizedUserId = userId.replaceAll("[^a-zA-Z0-9]", "_");
-        return TABLE_PREFIX + sanitizedUserId;
+    public String getUserTableName(String username) {
+        // 将用户名中的特殊字符替换为下划线（如 "zhangsan" -> "images_zhangsan"）
+        String sanitizedUsername = username.replaceAll("[^a-zA-Z0-9]", "_");
+        return TABLE_PREFIX + sanitizedUsername;
     }
 
     @Override
+    @Transactional
     public boolean ensureUserImageTable(String userId) {
         if (userImageTableExists(userId)) {
             return true;

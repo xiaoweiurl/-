@@ -400,7 +400,7 @@ public class UserServiceImpl implements UserService {
         createDefaultSettings(user.getId());
         
         // 创建用户图片表（动态表方案）
-        boolean tableCreated = imageTableService.ensureUserImageTable(user.getId());
+        boolean tableCreated = imageTableService.ensureUserImageTable(user.getUsername());
         log.info("用户图片表创建: userId={}, result={}", user.getId(), tableCreated);
         
         log.info("用户创建成功，ID：{}", user.getId());

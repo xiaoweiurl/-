@@ -36,11 +36,11 @@ public class ImageDynamicRepository {
     // ==================== 工具方法 ====================
 
     /**
-     * 获取用户表名
+     * 获取用户表名（按用户名生成）
      */
-    public String getUserTableName(String userId) {
-        String safeUserId = userId.replaceAll("-", "_").replaceAll("[^a-zA-Z0-9_]", "");
-        return "images_" + safeUserId;
+    public String getUserTableName(String username) {
+        String safeUsername = username.replaceAll("-", "_").replaceAll("[^a-zA-Z0-9_]", "");
+        return "images_" + safeUsername;
     }
 
     /**

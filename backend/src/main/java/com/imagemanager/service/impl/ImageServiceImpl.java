@@ -104,17 +104,35 @@ public class ImageServiceImpl implements ImageService {
     private boolean enableSuperResolution;
 
     /**
+     * 根据图片中的 userId 获取对应用户名（用于动态表命名）
+     */
+    private String getUsernameForTable(Image image) {
+        if (image == null || image.getUserId() == null) return null;
+        try {
+            if (userService != null) {
+                User user = userService.getUserById(image.getUserId());
+                if (user != null && user.getUsername() != null) {
+                    return user.getUsername();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取用户名失败，fallback 使用 userId: {}", image.getUserId());
+        }
+        return image.getUserId();
+    }
+
+    /**
      * 同步图片数据到动态表
      */
     private void syncToDynamicTable(Image image) {
         if (image == null || image.getUserId() == null) return;
+        String tableKey = getUsernameForTable(image);
         try {
-            String userId = image.getUserId();
-            imageTableService.ensureUserImageTable(userId);
-            imageDynamicRepository.update(image, userId);
-            log.debug("同步到动态表成功, userId={}, imageId={}", userId, image.getId());
+            imageTableService.ensureUserImageTable(tableKey);
+            imageDynamicRepository.update(image, tableKey);
+            log.debug("同步到动态表成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
-            log.error("同步到动态表失败: userId={}, imageId={}, error={}", userId, image.getId(), e.getMessage(), e);
+            log.error("同步到动态表失败: tableKey={}, imageId={}, error={}", tableKey, image.getId(), e.getMessage(), e);
         }
     }
 
@@ -123,10 +141,10 @@ public class ImageServiceImpl implements ImageService {
      */
     private void deleteFromDynamicTable(Image image) {
         if (image == null || image.getUserId() == null) return;
+        String tableKey = getUsernameForTable(image);
         try {
-            String userId = image.getUserId();
-            imageDynamicRepository.softDelete(image.getId(), userId);
-            log.debug("动态表软删除成功, userId={}, imageId={}", userId, image.getId());
+            imageDynamicRepository.softDelete(image.getId(), tableKey);
+            log.debug("动态表软删除成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
             log.error("动态表软删除失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
         }
@@ -137,10 +155,10 @@ public class ImageServiceImpl implements ImageService {
      */
     private void hardDeleteFromDynamicTable(Image image) {
         if (image == null || image.getUserId() == null) return;
+        String tableKey = getUsernameForTable(image);
         try {
-            String userId = image.getUserId();
-            imageDynamicRepository.hardDelete(image.getId(), userId);
-            log.debug("动态表硬删除成功, userId={}, imageId={}", userId, image.getId());
+            imageDynamicRepository.hardDelete(image.getId(), tableKey);
+            log.debug("动态表硬删除成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
             log.error("动态表硬删除失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
         }
@@ -151,10 +169,10 @@ public class ImageServiceImpl implements ImageService {
      */
     private void restoreInDynamicTable(Image image) {
         if (image == null || image.getUserId() == null) return;
+        String tableKey = getUsernameForTable(image);
         try {
-            String userId = image.getUserId();
-            imageDynamicRepository.restore(image.getId(), userId);
-            log.debug("动态表恢复成功, userId={}, imageId={}", userId, image.getId());
+            imageDynamicRepository.restore(image.getId(), tableKey);
+            log.debug("动态表恢复成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
             log.error("动态表恢复失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
         }
@@ -186,22 +204,27 @@ public class ImageServiceImpl implements ImageService {
 
         // 获取当前用户ID（final，lambda 需要捕获）
         final String currentUserId = SessionUtil.getCurrentUserId();
-        log.info("数据隔离检查：currentUserId={}, onlyMine={}", currentUserId, request.getOnlyMine());
+        // 获取当前用户名（用于动态表命名）
+        String currentUsername = SessionUtil.getCurrentUsername();
+        if (currentUsername == null) {
+            currentUsername = currentUserId;
+        }
+        log.info("数据隔离检查：currentUserId={}, currentUsername={}, onlyMine={}", currentUserId, currentUsername, request.getOnlyMine());
 
         // 动态表查询模式
         if (currentUserId != null) {
             // 确保用户动态表存在
             try {
-                imageTableService.ensureUserImageTable(currentUserId);
+                imageTableService.ensureUserImageTable(currentUsername);
             } catch (Exception e) {
                 log.warn("确保用户表存在失败: {}", e.getMessage());
             }
 
             // 我的知识库 - 查当前用户动态表
             if (request.getOnlyMine() != null && request.getOnlyMine()) {
-                log.info("查询【我的知识库】(动态表), userId={}", currentUserId);
+                log.info("查询【我的知识库】(动态表), userId={}, username={}", currentUserId, currentUsername);
                 try {
-                    PageResponse<Image> result = imageDynamicRepository.queryMyImages(request, currentUserId);
+                    PageResponse<Image> result = imageDynamicRepository.queryMyImages(request, currentUsername);
                     log.info("我的知识库查询结果: {} 张", result.getTotal());
                     return result;
                 } catch (Exception e) {
@@ -212,9 +235,9 @@ public class ImageServiceImpl implements ImageService {
 
             // 二创中心 - 查其他用户动态表 UNION ALL（不降级主表）
             if (request.getOtherUsers() != null && request.getOtherUsers()) {
-                log.info("查询【二创中心】(其他用户动态表), currentUserId={}", currentUserId);
+                log.info("查询【二创中心】(其他用户动态表), currentUserId={}, currentUsername={}", currentUserId, currentUsername);
                 try {
-                    PageResponse<Image> result = imageDynamicRepository.queryOtherUsersImages(request, currentUserId);
+                    PageResponse<Image> result = imageDynamicRepository.queryOtherUsersImages(request, currentUsername);
                     log.info("二创中心查询结果: {} 张", result.getTotal());
                     return result;
                 } catch (Exception e) {
@@ -225,9 +248,9 @@ public class ImageServiceImpl implements ImageService {
 
             // 收藏夹 - 查当前用户动态表（不降级主表）
             if (request.getFavorite() != null && request.getFavorite()) {
-                log.info("查询【收藏夹】(动态表), userId={}", currentUserId);
+                log.info("查询【收藏夹】(动态表), userId={}, username={}", currentUserId, currentUsername);
                 try {
-                    PageResponse<Image> result = imageDynamicRepository.queryFavorites(request, currentUserId);
+                    PageResponse<Image> result = imageDynamicRepository.queryFavorites(request, currentUsername);
                     log.info("收藏夹查询结果: {} 张", result.getTotal());
                     return result;
                 } catch (Exception e) {
@@ -238,9 +261,9 @@ public class ImageServiceImpl implements ImageService {
 
             // 回收站 - 查当前用户动态表（不降级主表）
             if (request.getDeleted() != null && request.getDeleted()) {
-                log.info("查询【回收站】(动态表), userId={}", currentUserId);
+                log.info("查询【回收站】(动态表), userId={}, username={}", currentUserId, currentUsername);
                 try {
-                    PageResponse<Image> result = imageDynamicRepository.queryTrash(request, currentUserId);
+                    PageResponse<Image> result = imageDynamicRepository.queryTrash(request, currentUsername);
                     log.info("回收站查询结果: {} 张", result.getTotal());
                     return result;
                 } catch (Exception e) {
@@ -593,7 +616,12 @@ public class ImageServiceImpl implements ImageService {
             if (currentUserId == null) {
                 currentUserId = "user-1"; // 降级默认
             }
-            log.info("上传图片，用户ID：{}", currentUserId);
+            // 获取当前用户名（用于动态表命名）
+            String currentUsername = SessionUtil.getCurrentUsername();
+            if (currentUsername == null) {
+                currentUsername = currentUserId;
+            }
+            log.info("上传图片，用户ID：{}, 用户名：{}", currentUserId, currentUsername);
             
             // 创建图片记录
             Image image = Image.builder()
@@ -626,12 +654,12 @@ public class ImageServiceImpl implements ImageService {
             
             // 同时保存到用户动态表（方案A：物理隔离）
             try {
-                imageTableService.ensureUserImageTable(currentUserId);
-                imageDynamicRepository.save(image, currentUserId);
+                imageTableService.ensureUserImageTable(currentUsername);
+                imageDynamicRepository.save(image, currentUsername);
                 log.info("图片已保存到用户动态表: images_{}", currentUserId.replaceAll("[^a-zA-Z0-9]", "_"));
             } catch (Exception e) {
-                log.error("保存到用户动态表失败: userId={}, table=images_{}, error={}", 
-                    currentUserId, currentUserId.replaceAll("[^a-zA-Z0-9]", "_"), e.getMessage(), e);
+                log.error("保存到用户动态表失败: userId={}, username={}, table=images_{}, error={}", 
+                    currentUserId, currentUsername, currentUsername.replaceAll("[^a-zA-Z0-9]", "_"), e.getMessage(), e);
             }
             
             // 更新相册图片数量
@@ -859,8 +887,9 @@ public class ImageServiceImpl implements ImageService {
         // 同步收藏状态到动态表
         if (image.getUserId() != null) {
             try {
-                imageDynamicRepository.toggleFavorite(image.getId(), image.getUserId());
-                log.debug("动态表收藏状态同步成功, imageId={}", image.getId());
+                String tableKey = getUsernameForTable(image);
+                imageDynamicRepository.toggleFavorite(image.getId(), tableKey);
+                log.debug("动态表收藏状态同步成功, imageId={}, tableKey={}", image.getId(), tableKey);
             } catch (Exception e) {
                 log.error("动态表收藏状态同步失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
             }
@@ -1227,13 +1256,15 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
+                String currentUsername = SessionUtil.getCurrentUsername();
+                if (currentUsername == null) currentUsername = currentUserId;
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setFavorite(true);
                 request.setPage(page);
                 request.setPageSize(pageSize);
                 // 不限制 onlyMainImage，动态表中所有收藏的图片都应显示
                 request.setUserId(currentUserId);
-                return imageDynamicRepository.queryFavorites(request, currentUserId);
+                return imageDynamicRepository.queryFavorites(request, currentUsername);
             } catch (Exception e) {
                 log.warn("动态表查询收藏夹失败，降级到JPA: {}", e.getMessage());
             }
@@ -1260,6 +1291,8 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
+                String currentUsername = SessionUtil.getCurrentUsername();
+                if (currentUsername == null) currentUsername = currentUserId;
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setDeleted(true);
                 request.setIncludeDeleted(true);
@@ -1270,7 +1303,7 @@ public class ImageServiceImpl implements ImageService {
                 }
                 // 不限制 onlyMainImage，动态表中所有删除的图片都应显示
                 request.setUserId(currentUserId);
-                return imageDynamicRepository.queryTrash(request, currentUserId);
+                return imageDynamicRepository.queryTrash(request, currentUsername);
             } catch (Exception e) {
                 log.warn("动态表查询回收站失败，降级到JPA: {}", e.getMessage());
             }
@@ -1297,6 +1330,8 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
+                String currentUsername = SessionUtil.getCurrentUsername();
+                if (currentUsername == null) currentUsername = currentUserId;
                 ImageQueryRequest request = new ImageQueryRequest();
                 request.setPage(page);
                 request.setPageSize(pageSize);
@@ -1307,7 +1342,7 @@ public class ImageServiceImpl implements ImageService {
                 request.setSortBy("created_at");
                 request.setSortOrder("desc");
                 request.setUserId(currentUserId);
-                return imageDynamicRepository.queryMyImages(request, currentUserId);
+                return imageDynamicRepository.queryMyImages(request, currentUsername);
             } catch (Exception e) {
                 log.warn("动态表查询最近图片失败，降级到JPA: {}", e.getMessage());
             }
@@ -1336,7 +1371,9 @@ public class ImageServiceImpl implements ImageService {
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
             try {
-                return imageDynamicRepository.countDeleted(currentUserId);
+                String currentUsername = SessionUtil.getCurrentUsername();
+                if (currentUsername == null) currentUsername = currentUserId;
+                return imageDynamicRepository.countDeleted(currentUsername);
             } catch (Exception e) {
                 log.warn("动态表查询回收站数量失败，降级到JPA: {}", e.getMessage());
             }

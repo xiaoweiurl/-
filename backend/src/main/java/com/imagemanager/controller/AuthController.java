@@ -77,10 +77,10 @@ public class AuthController {
             log.info("登录成功，sessionId: {}", sessionId);
             
             // 登录成功后，确保用户图片表存在
-            String userId = loginResponse.getUser().getId();
-            if (userId != null && !userId.isEmpty()) {
-                boolean tableCreated = imageTableService.ensureUserImageTable(userId);
-                log.info("用户图片表检查完成: userId={}, tableCreated={}", userId, tableCreated);
+            String username = loginResponse.getUser().getUsername();
+            if (username != null && !username.isEmpty()) {
+                boolean tableCreated = imageTableService.ensureUserImageTable(username);
+                log.info("用户图片表检查完成: username={}, tableCreated={}", username, tableCreated);
             }
 
             // 设置 CORS 响应头（关键：允许前端访问）
