@@ -331,6 +331,26 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
+            // 诊断：检查 knowledge_embeddings 中是否有 KNOWLEDGE_BASE 类型的数据
+            try {
+                Integer totalEmbeddings = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE'", Integer.class);
+                Integer matchingCompany = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND (company = ? OR company IS NULL)",
+                        Integer.class, company);
+                Integer withDoc = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings e JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                                "WHERE e.source_type = 'KNOWLEDGE_BASE'", Integer.class);
+                Integer matchingScore = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' " +
+                                "AND 1 - (embedding <=> '" + vectorStr + "'::vector) >= ?",
+                        Integer.class, minScore);
+                log.info("知识库搜索诊断: 总KNOWLEDGE_BASE记录={}, 匹配company='{}'的={}, JOIN文档成功的={}, 相似度>={}的={}",
+                        totalEmbeddings, company, matchingCompany, withDoc, minScore, matchingScore);
+            } catch (Exception diagEx) {
+                log.warn("知识库搜索诊断查询失败: {}", diagEx.getMessage());
+            }
+
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
                     "d.file_name, e.chunk_index, e.created_at, " +
                     "1 - (e.embedding <=> '" + vectorStr + "'::vector) AS score " +

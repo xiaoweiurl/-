@@ -290,6 +290,26 @@ public class MemoryServiceImpl implements MemoryService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
+            // 诊断：检查 knowledge_embeddings 中是否有 MEMORY 类型的数据
+            try {
+                Integer totalMemory = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'MEMORY' OR card_id IS NOT NULL", Integer.class);
+                Integer matchingCompany = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE (source_type = 'MEMORY' OR card_id IS NOT NULL) AND (company = ? OR company IS NULL)",
+                        Integer.class, company);
+                Integer withCard = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings e JOIN knowledge_cards c ON e.card_id = c.id",
+                        Integer.class);
+                Integer matchingScore = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE (source_type = 'MEMORY' OR card_id IS NOT NULL) " +
+                                "AND 1 - (embedding <=> '" + vectorStr + "'::vector) >= ?",
+                        Integer.class, minScore);
+                log.info("记忆库搜索诊断: 总MEMORY记录={}, 匹配company='{}'的={}, JOIN卡片成功的={}, 相似度>={}的={}",
+                        totalMemory, company, matchingCompany, withCard, minScore, matchingScore);
+            } catch (Exception diagEx) {
+                log.warn("记忆库搜索诊断查询失败: {}", diagEx.getMessage());
+            }
+
             // 向量直接拼接到 SQL（内部生成，无注入风险），普通参数用 PreparedStatement 绑定
             String sql = "SELECT c.id, c.title, c.content, c.domain_code, c.tags, c.product_code, " +
                     "c.source, c.confidence, c.created_by, c.user_id, c.created_at, e.chunk_text, " +
