@@ -127,7 +127,7 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     public List<KnowledgeCard> getCardsByDomain(String domainCode, String company, String userId) {
-        return cardRepository.findByDomainCodeAndCompanyAndUserId(domainCode, company, userId);
+        return cardRepository.findByCompanyAndDomainCodeAndUserId(company, domainCode, userId);
     }
 
     @Override

@@ -12,6 +12,7 @@ public interface KnowledgeDomainRepository extends JpaRepository<KnowledgeDomain
     Optional<KnowledgeDomain> findByCode(String code);
 
     // 按 company + userId 过滤
+    List<KnowledgeDomain> findByCompanyAndUserId(String company, String userId);
     List<KnowledgeDomain> findByCompanyAndUserIdOrderByCreatedAtDesc(String company, String userId);
     List<KnowledgeDomain> findByCompanyOrderByCreatedAtDesc(String company);
     Optional<KnowledgeDomain> findByCodeAndCompany(String code, String company);
