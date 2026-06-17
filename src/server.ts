@@ -25,9 +25,9 @@ app.prepare().then(() => {
     console.error(err);
     process.exit(1);
   });
-  server.listen(port, () => {
+  server.listen(port, '0.0.0.0', () => {
     console.log(
-      `> Server listening at http://${hostname}:${port} as ${
+      `> Server listening at http://0.0.0.0:${port} as ${
         dev ? 'development' : process.env.COZE_PROJECT_ENV
       }`,
     );
