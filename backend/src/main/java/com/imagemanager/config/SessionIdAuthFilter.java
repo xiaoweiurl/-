@@ -143,6 +143,7 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
      */
     private boolean isPublicEndpoint(String path) {
         return path.startsWith("/auth/login") ||
+               path.startsWith("/auth/register") ||
                path.startsWith("/auth/session") ||
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||
