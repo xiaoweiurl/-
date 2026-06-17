@@ -57,27 +57,14 @@ public class SmartChatServiceImpl implements SmartChatService {
     private String minimaxModel;
 
     @Override
-    public SseEmitter smartChat(String message, String sessionId, String userId, String company) {
-        log.info("智能对话: message='{}', sessionId='{}', userId='{}', company='{}'", message, sessionId, userId, company);
+    public SseEmitter smartChat(String message, String userId, String company) {
+        log.info("智能对话: message='{}', userId='{}', company='{}'", message, userId, company);
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
-
-        // 校验sessionId必须为合法UUID格式
-        final String effectiveSessionId;
-        if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
-            effectiveSessionId = java.util.UUID.randomUUID().toString();
-        } else {
-            effectiveSessionId = sessionId;
-        }
 
         new Thread(() -> {
             try {
-                // 0. 发送服务端使用的sessionId（前端可能传了无效值，后端会生成新的）
-                emitter.send(SseEmitter.event().name("message").data(
-                        objectMapper.writeValueAsString(Map.of("type", "session", "sessionId", effectiveSessionId))
-                ));
-
-                // 1. 加载历史对话
-                List<Map<String, Object>> history = loadChatHistory(effectiveSessionId, company);
+                // 1. 加载历史对话（按userId+company绑定）
+                List<Map<String, Object>> history = getChatHistory(userId, company);
 
                 // 2. 双库检索
                 // 2a. 记忆库检索(PostgreSQL向量)
@@ -227,14 +214,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 messages.add(Map.of("role", "user", "content", userContent));
 
                 // 6. 保存用户消息
-                saveChatMessage(effectiveSessionId, userId, "user", message, company);
+                saveChatMessage(userId, userId, "user", message, company);
 
                 // 7. 流式调用MiniMax
                 StringBuilder fullResponse = new StringBuilder();
                 streamChat(emitter, messages, fullResponse);
 
                 // 8. 保存AI回复
-                saveChatMessage(effectiveSessionId, userId, "assistant", fullResponse.toString(), company);
+                saveChatMessage(userId, userId, "assistant", fullResponse.toString(), company);
 
                 emitter.complete();
             } catch (Exception e) {
@@ -252,13 +239,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     @Override
-    public List<Map<String, Object>> getChatHistory(String sessionId, String company, String userId) {
-        if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
-            return Collections.emptyList();
-        }
+    public List<Map<String, Object>> getChatHistory(String userId, String company) {
+        // 按userId+company查询最近10轮对话（20条消息：10个user + 10个assistant）
         String sql = "SELECT role, content, created_at FROM smart_chat_history " +
-                "WHERE session_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) ORDER BY created_at ASC";
-        return jdbcTemplate.query(sql,
+                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                "ORDER BY created_at DESC LIMIT 20";
+        List<Map<String, Object>> results = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> msg = new LinkedHashMap<>();
                     msg.put("role", rs.getString("role"));
@@ -266,19 +252,19 @@ public class SmartChatServiceImpl implements SmartChatService {
                     msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
                     return msg;
                 },
-                sessionId, userId, company
+                userId, company
         );
+        // 反转回时间正序
+        Collections.reverse(results);
+        return results;
     }
 
     @Override
     @Transactional
-    public void clearChatHistory(String sessionId, String company, String userId) {
-        if (sessionId == null || !sessionId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
-            return;
-        }
+    public void clearChatHistory(String userId, String company) {
         jdbcTemplate.update(
-                "DELETE FROM smart_chat_history WHERE session_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
-                sessionId, userId, company
+                "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
+                userId, company
         );
     }
 
@@ -494,20 +480,14 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 加载对话历史
      */
-    private List<Map<String, Object>> loadChatHistory(String sessionId, String company) {
-        if (sessionId == null || sessionId.isEmpty()) return Collections.emptyList();
-        try {
-            return getChatHistory(sessionId, company, "system");
-        } catch (Exception e) {
-            return Collections.emptyList();
-        }
-    }
 
     /**
-     * 保存对话消息
+     * 保存对话消息（按userId+company绑定，session_id存储为基于userId生成的确定性UUID）
      */
-    private void saveChatMessage(String sessionId, String userId, String role, String content, String company) {
+    private void saveChatMessage(String userId, String _unused, String role, String content, String company) {
         try {
+            // 用 userId 生成确定性 UUID 作为 session_id（同一用户始终相同）
+            String sessionId = UUID.nameUUIDFromBytes(("chat-" + userId).getBytes()).toString();
             jdbcTemplate.update(
                     "INSERT INTO smart_chat_history (id, session_id, role, content, user_id, company, created_at) " +
                             "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, ?, NOW())",
