@@ -130,6 +130,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 公开端点
                 .requestMatchers("/auth/login").permitAll()
+                .requestMatchers("/auth/register").permitAll()
                 .requestMatchers("/auth/session").permitAll()
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
