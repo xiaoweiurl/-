@@ -22,6 +22,7 @@ interface LoginResponse {
       avatar?: string;
       role: string;
       membership?: string;
+      company?: string;
     };
   };
 }
@@ -72,6 +73,11 @@ export default function LoginPage() {
 
         // 根据入口类型存储并跳转
         localStorage.setItem('portal_type', portal || 'designer');
+
+        // 存储公司标签
+        if (result.data.user?.company) {
+          localStorage.setItem('user_company', result.data.user.company);
+        }
 
         toast.success('登录成功', {
           description: `欢迎回来，${result.data.user?.username || '用户'}！`,
@@ -348,6 +354,17 @@ export default function LoginPage() {
                 普通用户登录
               </button>
             </div>
+          </div>
+
+          {/* 注册链接 */}
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => router.push('/register')}
+              className="text-sm text-slate-500 hover:text-indigo-600 transition-colors"
+            >
+              没有账号？立即注册
+            </button>
           </div>
 
           {/* 返回入口选择 */}
