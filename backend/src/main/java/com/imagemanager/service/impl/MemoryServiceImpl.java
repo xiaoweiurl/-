@@ -137,12 +137,16 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     @Transactional
-    public void deleteCard(String cardId, String userId) {
+    public void deleteCard(String cardId, String company, String userId) {
         Optional<KnowledgeCard> cardOpt = cardRepository.findById(UUID.fromString(cardId));
         if (cardOpt.isEmpty()) {
             throw new RuntimeException("卡片不存在");
         }
-        if (!userId.equals(cardOpt.get().getUserId())) {
+        KnowledgeCard card = cardOpt.get();
+        if (!company.equals(card.getCompany())) {
+            throw new RuntimeException("无权删除此卡片");
+        }
+        if (!userId.equals(card.getUserId())) {
             throw new RuntimeException("无权删除此卡片");
         }
         jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE card_id = ?::uuid", cardId);
@@ -245,12 +249,16 @@ public class MemoryServiceImpl implements MemoryService {
 
     @Override
     @Transactional
-    public void deleteDocument(String docId, String userId) {
+    public void deleteDocument(String docId, String company, String userId) {
         Optional<KnowledgeDocument> docOpt = documentRepository.findById(UUID.fromString(docId));
         if (docOpt.isEmpty()) {
             throw new RuntimeException("文档不存在");
         }
-        if (!userId.equals(docOpt.get().getUserId())) {
+        KnowledgeDocument doc = docOpt.get();
+        if (!company.equals(doc.getCompany())) {
+            throw new RuntimeException("无权删除此文档");
+        }
+        if (!userId.equals(doc.getUserId())) {
             throw new RuntimeException("无权删除此文档");
         }
 
