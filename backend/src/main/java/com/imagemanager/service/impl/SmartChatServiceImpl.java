@@ -71,6 +71,11 @@ public class SmartChatServiceImpl implements SmartChatService {
 
         new Thread(() -> {
             try {
+                // 0. 发送服务端使用的sessionId（前端可能传了无效值，后端会生成新的）
+                emitter.send(SseEmitter.event().name("message").data(
+                        objectMapper.writeValueAsString(Map.of("type", "session", "sessionId", effectiveSessionId))
+                ));
+
                 // 1. 加载历史对话
                 List<Map<String, Object>> history = loadChatHistory(effectiveSessionId, company);
 

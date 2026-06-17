@@ -190,11 +190,11 @@ export default function ChatPage() {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const sid = getLoginSessionId();
+      const loginSid = getLoginSessionId();
       const params = new URLSearchParams({ message: input.trim() });
-      if (sid) params.set('sessionId', sid);
+      if (sessionId) params.set('sessionId', sessionId);
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
-      if (sid) headers['X-Session-Id'] = sid;
+      if (loginSid) headers['X-Session-Id'] = loginSid;
 
       const res = await fetch(`/api/chat/smart?${params}`, {
         credentials: 'include',
@@ -231,7 +231,13 @@ export default function ChatPage() {
           try {
             const event = JSON.parse(data);
 
-            if (event.type === 'sources') {
+            if (event.type === 'session') {
+              // 后端返回实际使用的sessionId，更新本地存储
+              if (event.sessionId) {
+                setSessionId(event.sessionId);
+                localStorage.setItem('chat_session_id', event.sessionId);
+              }
+            } else if (event.type === 'sources') {
               sources = event.sources || [];
               setMessages(prev => {
                 const updated = [...prev];
