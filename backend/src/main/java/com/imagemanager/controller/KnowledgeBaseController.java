@@ -24,7 +24,7 @@ import java.util.UUID;
 
 /**
  * 知识库控制器 - 独立的知识文档管理系统
- * 与记忆库(Memory)完全分离，各自独立的表和存储
+ * 数据按公司隔离，同一公司所有用户共享数据
  */
 @RestController
 @RequestMapping("/knowledge")
@@ -66,6 +66,10 @@ public class KnowledgeBaseController {
         return user;
     }
 
+    private String resolveCompany(LoginResponse.UserInfo user) {
+        return user.getCompany() != null ? user.getCompany() : "盈云";
+    }
+
     // ====== 文档上传 ======
 
     /**
@@ -80,18 +84,41 @@ public class KnowledgeBaseController {
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
         UUID catId = null;
         if (categoryId != null && !categoryId.isEmpty()) {
             catId = UUID.fromString(categoryId);
         }
 
-        KnowledgeBaseDoc doc = knowledgeBaseService.uploadDocument(file, title, catId, tags, userId, user.getCompany());
+        KnowledgeBaseDoc doc = knowledgeBaseService.uploadDocument(file, title, catId, tags, userId, company);
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "doc", doc,
                 "message", "上传成功"
         ));
+    }
+
+    /**
+     * 创建文本/URL 知识文档
+     */
+    @PostMapping("/docs")
+    public ResponseEntity<?> createTextDocument(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
+
+        String title = (String) body.get("title");
+        String content = (String) body.get("content");
+        String categoryId = (String) body.get("categoryId");
+
+        UUID catId = null;
+        if (categoryId != null && !categoryId.isEmpty()) {
+            catId = UUID.fromString(categoryId);
+        }
+
+        KnowledgeBaseDoc doc = knowledgeBaseService.createTextDocument(title, content, catId, userId, company);
+        return ResponseEntity.ok(Map.of("success", true, "doc", doc, "message", "创建成功"));
     }
 
     // ====== 文档列表 ======
@@ -107,18 +134,17 @@ public class KnowledgeBaseController {
             @RequestParam(value = "keyword", required = false) String keyword,
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
         Pageable pageable = PageRequest.of(page, size);
-        String company = user.getCompany();
         Page<KnowledgeBaseDoc> docs;
         if (keyword != null && !keyword.isEmpty()) {
-            docs = knowledgeBaseService.searchDocuments(company, userId, keyword, pageable);
+            docs = knowledgeBaseService.searchDocuments(company, keyword, pageable);
         } else if (categoryId != null && !categoryId.isEmpty()) {
-            List<KnowledgeBaseDoc> list = knowledgeBaseService.getDocumentsByCategory(company, userId, UUID.fromString(categoryId));
+            List<KnowledgeBaseDoc> list = knowledgeBaseService.getDocumentsByCategory(company, UUID.fromString(categoryId));
             docs = new org.springframework.data.domain.PageImpl<>(list);
         } else {
-            docs = knowledgeBaseService.getDocuments(company, userId, pageable);
+            docs = knowledgeBaseService.getDocuments(company, pageable);
         }
 
         return ResponseEntity.ok(Map.of(
@@ -136,9 +162,9 @@ public class KnowledgeBaseController {
     @GetMapping("/docs/{id}")
     public ResponseEntity<?> getDocumentDetail(@PathVariable UUID id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
-        KnowledgeBaseDoc doc = knowledgeBaseService.getDocumentDetail(id, user.getCompany(), userId);
+        KnowledgeBaseDoc doc = knowledgeBaseService.getDocumentDetail(id, company);
         return ResponseEntity.ok(Map.of("success", true, "doc", doc));
     }
 
@@ -150,9 +176,9 @@ public class KnowledgeBaseController {
     @DeleteMapping("/docs/{id}")
     public ResponseEntity<?> deleteDocument(@PathVariable UUID id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
-        knowledgeBaseService.deleteDocument(id, user.getCompany(), userId);
+        knowledgeBaseService.deleteDocument(id, company);
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
@@ -165,6 +191,7 @@ public class KnowledgeBaseController {
     public ResponseEntity<?> createCategory(@RequestBody Map<String, Object> body, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
         String name = (String) body.get("name");
         String description = (String) body.get("description");
@@ -175,7 +202,7 @@ public class KnowledgeBaseController {
             parentUUID = UUID.fromString(parentId);
         }
 
-        KnowledgeBaseCategory category = knowledgeBaseService.createCategory(name, description, parentUUID, userId, user.getCompany());
+        KnowledgeBaseCategory category = knowledgeBaseService.createCategory(name, description, parentUUID, userId, company);
         return ResponseEntity.ok(Map.of("success", true, "category", category));
     }
 
@@ -185,9 +212,9 @@ public class KnowledgeBaseController {
     @GetMapping("/categories")
     public ResponseEntity<?> getCategories(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
-        List<KnowledgeBaseCategory> categories = knowledgeBaseService.getCategories(user.getCompany(), userId);
+        List<KnowledgeBaseCategory> categories = knowledgeBaseService.getCategories(company);
         return ResponseEntity.ok(Map.of("success", true, "categories", categories));
     }
 
@@ -197,9 +224,9 @@ public class KnowledgeBaseController {
     @DeleteMapping("/categories/{id}")
     public ResponseEntity<?> deleteCategory(@PathVariable UUID id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
-        knowledgeBaseService.deleteCategory(id, user.getCompany(), userId);
+        knowledgeBaseService.deleteCategory(id, company);
         return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
     }
 
@@ -211,10 +238,10 @@ public class KnowledgeBaseController {
     @GetMapping("/docs/{id}/download")
     public ResponseEntity<?> downloadDocument(@PathVariable UUID id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
         try {
-            var doc = knowledgeBaseService.getDocumentById(id, user.getCompany(), userId);
+            var doc = knowledgeBaseService.getDocumentById(id, company);
             if (doc.getFilePath() != null) {
                 String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
                 String downloadUrl = baseUrl + "/api/knowledge/docs/" + doc.getId() + "/file";
@@ -237,9 +264,9 @@ public class KnowledgeBaseController {
     @GetMapping("/stats")
     public ResponseEntity<?> getStats(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
-        long count = knowledgeBaseService.getDocumentCount(user.getCompany(), userId);
+        long count = knowledgeBaseService.getDocumentCount(company);
         return ResponseEntity.ok(Map.of("success", true, "count", count));
     }
 
@@ -255,9 +282,9 @@ public class KnowledgeBaseController {
             @RequestParam(defaultValue = "5") int limit,
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
 
-        var results = knowledgeBaseService.search(query, minScore, limit, user.getCompany(), userId);
+        var results = knowledgeBaseService.search(query, minScore, limit, company);
         return ResponseEntity.ok(Map.of("success", true, "results", results));
     }
 
@@ -267,9 +294,10 @@ public class KnowledgeBaseController {
     @PostMapping("/docs/{id}/reembed")
     public ResponseEntity<?> reembedDoc(@PathVariable String id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = resolveCompany(user);
+
         try {
-            knowledgeBaseService.retryEmbedding(id, user.getCompany(), userId);
+            knowledgeBaseService.retryEmbedding(id, company);
             return ResponseEntity.ok(Map.of("success", true, "message", "已触发重新向量化"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));

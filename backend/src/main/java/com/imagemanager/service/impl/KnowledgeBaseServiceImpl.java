@@ -64,7 +64,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 extension = originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase();
             }
 
-            String storagePath = "knowledge/" + userId + "/" + UUID.randomUUID() + "." + extension;
+            String storagePath = "knowledge/" + company + "/" + UUID.randomUUID() + "." + extension;
             String fileUrl = fileStorageService.uploadFile(file, storagePath);
             String fileType = determineFileType(extension);
 
@@ -95,6 +95,88 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         } catch (Exception e) {
             log.error("知识库文件上传失败: {}", e.getMessage(), e);
             throw new RuntimeException("文件上传失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeBaseDoc createTextDocument(String title, String content, UUID categoryId, String userId, String company) {
+        try {
+            KnowledgeBaseDoc doc = new KnowledgeBaseDoc();
+            doc.setId(UUID.randomUUID());
+            doc.setTitle(title);
+            doc.setFileName(title + ".txt");
+            doc.setFileType("txt");
+            doc.setFileSize((long) content.length());
+            doc.setCategoryId(categoryId);
+            doc.setUserId(userId);
+            doc.setCompany(company);
+            doc.setFileContent(content.substring(0, Math.min(content.length(), 50000)));
+            doc.setEmbeddingStatus("PENDING");
+            doc.setChunkCount(0);
+            doc.setCreatedAt(LocalDateTime.now());
+            doc.setUpdatedAt(LocalDateTime.now());
+
+            doc = docRepository.save(doc);
+
+            // 异步向量化
+            final UUID docId = doc.getId();
+            final String docCompany = company;
+            final String docContent = content;
+            executorService.execute(() -> processEmbeddingFromText(docId, docContent, docCompany));
+
+            return doc;
+        } catch (Exception e) {
+            log.error("创建文本文档失败: {}", e.getMessage(), e);
+            throw new RuntimeException("创建文本文档失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从文本内容向量化（用于文本/URL类型的文档）
+     */
+    private void processEmbeddingFromText(UUID docId, String text, String company) {
+        try {
+            if (text == null || text.trim().isEmpty()) {
+                updateDocEmbeddingStatus(docId, 0, "EMPTY");
+                return;
+            }
+
+            // 更新状态为处理中
+            KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
+            if (doc != null) {
+                doc.setEmbeddingStatus("PROCESSING");
+                docRepository.save(doc);
+            }
+
+            // 切片
+            List<String> chunks = documentParserService.chunkText(text, 800, 100);
+            int successCount = 0;
+
+            for (int i = 0; i < chunks.size(); i++) {
+                String chunk = chunks.get(i);
+                if (chunk.trim().isEmpty()) continue;
+
+                float[] embedding = getEmbedding(chunk);
+                if (embedding == null || embedding.length == 0) {
+                    log.warn("文档 {} 切片 {} 向量化失败", docId, i);
+                    continue;
+                }
+
+                String vectorStr = arrayToVectorString(embedding);
+                jdbcTemplate.update(
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString(), company
+                );
+                successCount++;
+            }
+
+            updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
+            log.info("文本文档 {} 向量化完成: {}/{} 切片成功", docId, successCount, chunks.size());
+        } catch (Exception e) {
+            log.error("文本文档 {} 向量化失败: {}", docId, e.getMessage(), e);
+            updateDocEmbeddingStatus(docId, 0, "FAILED");
         }
     }
 
@@ -148,8 +230,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
-                // 必须用 JdbcTemplate + CAST(? AS vector) 插入，因为 embedding 列是 pgvector 类型，
-                // JPA save() 会把 String 参数绑定为 varchar 导致类型不匹配
                 jdbcTemplate.update(
                         "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
                                 "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
@@ -193,6 +273,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 切片
             List<String> chunks = documentParserService.chunkText(text, 800, 100);
             int successCount = 0;
+            String docCompany = doc.getCompany();
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
@@ -205,7 +286,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
-                String docCompany = doc.getCompany();
                 jdbcTemplate.update(
                         "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
                                 "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
@@ -228,24 +308,24 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public Page<KnowledgeBaseDoc> getDocuments(String company, String userId, Pageable pageable) {
-        return docRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, userId, pageable);
+    public Page<KnowledgeBaseDoc> getDocuments(String company, Pageable pageable) {
+        return docRepository.findByCompanyOrderByCreatedAtDesc(company, pageable);
     }
 
     @Override
-    public Page<KnowledgeBaseDoc> searchDocuments(String company, String userId, String keyword, Pageable pageable) {
-        return docRepository.searchByKeyword(company, userId, keyword, pageable);
+    public Page<KnowledgeBaseDoc> searchDocuments(String company, String keyword, Pageable pageable) {
+        return docRepository.searchByKeyword(company, keyword, pageable);
     }
 
     @Override
-    public List<KnowledgeBaseDoc> getDocumentsByCategory(String company, String userId, UUID categoryId) {
-        return docRepository.findByCompanyAndUserIdAndCategoryIdOrderByCreatedAtDesc(company, userId, categoryId);
+    public List<KnowledgeBaseDoc> getDocumentsByCategory(String company, UUID categoryId) {
+        return docRepository.findByCompanyAndCategoryIdOrderByCreatedAtDesc(company, categoryId);
     }
 
     @Override
     @Transactional
-    public void deleteDocument(UUID id, String company, String userId) {
-        KnowledgeBaseDoc doc = docRepository.findByIdAndCompanyAndUserId(id, company, userId)
+    public void deleteDocument(UUID id, String company) {
+        KnowledgeBaseDoc doc = docRepository.findByIdAndCompany(id, company)
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
 
         // 删除存储的文件
@@ -267,8 +347,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public KnowledgeBaseDoc getDocumentDetail(UUID id, String company, String userId) {
-        return docRepository.findByIdAndCompanyAndUserId(id, company, userId)
+    public KnowledgeBaseDoc getDocumentDetail(UUID id, String company) {
+        return docRepository.findByIdAndCompany(id, company)
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
     }
 
@@ -287,41 +367,41 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public List<KnowledgeBaseCategory> getCategories(String company, String userId) {
-        return categoryRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, userId);
+    public List<KnowledgeBaseCategory> getCategories(String company) {
+        return categoryRepository.findByCompanyOrderByCreatedAtDesc(company);
     }
 
     @Override
-    public void deleteCategory(UUID id, String company, String userId) {
+    public void deleteCategory(UUID id, String company) {
         long docCount = docRepository.countByCompanyAndCategoryId(company, id);
         if (docCount > 0) {
             throw new RuntimeException("该分类下存在文档，无法删除");
         }
 
-        KnowledgeBaseCategory category = categoryRepository.findByIdAndCompanyAndUserId(id, company, userId)
+        KnowledgeBaseCategory category = categoryRepository.findByIdAndCompany(id, company)
                 .orElseThrow(() -> new RuntimeException("分类不存在或无权限"));
         categoryRepository.delete(category);
     }
 
     @Override
-    public long getDocumentCount(String company, String userId) {
-        return docRepository.countByCompanyAndUserId(company, userId);
+    public long getDocumentCount(String company) {
+        return docRepository.countByCompany(company);
     }
 
     @Override
-    public KnowledgeBaseDoc getDocumentById(UUID id, String company, String userId) {
+    public KnowledgeBaseDoc getDocumentById(UUID id, String company) {
         var doc = docRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("文档不存在"));
-        if (!company.equals(doc.getCompany()) || !userId.equals(doc.getUserId())) {
+        if (!company.equals(doc.getCompany())) {
             throw new RuntimeException("无权访问此文档");
         }
         return doc;
     }
 
     @Override
-    public List<MemorySearchResult> search(String query, double minScore, int limit, String company, String userId) {
+    public List<MemorySearchResult> search(String query, double minScore, int limit, String company) {
         try {
-            log.info("知识库搜索: query='{}', minScore={}, limit={}, company='{}', userId='{}'", query, minScore, limit, company, userId);
+            log.info("知识库搜索: query='{}', minScore={}, limit={}, company='{}'", query, minScore, limit, company);
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
                 log.warn("知识库搜索: 获取查询Embedding失败, 返回空结果");
@@ -338,15 +418,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 Integer matchingCompany = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND (company = ? OR company IS NULL)",
                         Integer.class, company);
-                Integer withDoc = jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM knowledge_embeddings e JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
-                                "WHERE e.source_type = 'KNOWLEDGE_BASE'", Integer.class);
-                Integer matchingScore = jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' " +
-                                "AND 1 - (embedding <=> '" + vectorStr + "'::vector) >= ?",
-                        Integer.class, minScore);
-                log.info("知识库搜索诊断: 总KNOWLEDGE_BASE记录={}, 匹配company='{}'的={}, JOIN文档成功的={}, 相似度>={}的={}",
-                        totalEmbeddings, company, matchingCompany, withDoc, minScore, matchingScore);
+                log.info("知识库搜索诊断: 总KNOWLEDGE_BASE记录={}, 匹配company='{}'的={}",
+                        totalEmbeddings, company, matchingCompany);
             } catch (Exception diagEx) {
                 log.warn("知识库搜索诊断查询失败: {}", diagEx.getMessage());
             }
@@ -389,13 +462,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public void retryEmbedding(String docId, String company, String userId) {
+    public void retryEmbedding(String docId, String company) {
         var docOpt = docRepository.findById(UUID.fromString(docId));
         if (docOpt.isEmpty()) {
             throw new RuntimeException("文档不存在");
         }
         var doc = docOpt.get();
-        if (!userId.equals(doc.getUserId()) || !company.equals(doc.getCompany())) {
+        if (!company.equals(doc.getCompany())) {
             throw new RuntimeException("无权操作此文档");
         }
         if (!"FAILED".equals(doc.getEmbeddingStatus()) && !"PENDING".equals(doc.getEmbeddingStatus())) {

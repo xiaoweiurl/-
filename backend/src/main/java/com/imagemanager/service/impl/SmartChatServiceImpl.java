@@ -113,7 +113,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
                 if (!skipVectorSearch) {
                     try {
-                        knowledgeResults = searchKnowledgeBase(message, userId, company);
+                        knowledgeResults = searchKnowledgeBase(message, company);
                         log.info("知识库检索到 {} 条结果", knowledgeResults.size());
                     } catch (Exception e) {
                         log.warn("知识库检索异常: {}", e.getMessage());
@@ -615,9 +615,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 知识库检索 - 查询知识库独立的向量表(knowledge_embeddings, source_type='KNOWLEDGE_BASE')
      */
-    private List<Map<String, Object>> searchKnowledgeBase(String query, String userId, String company) {
+    private List<Map<String, Object>> searchKnowledgeBase(String query, String company) {
         try {
-            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.15, 8, company, userId);
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.15, 8, company);
 
             List<Map<String, Object>> results = new ArrayList<>();
             for (MemorySearchResult r : allResults) {
