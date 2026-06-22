@@ -35,12 +35,11 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
     @Override
     public SseEmitter chat(String message, String userId, String company) {
-        log.info("市场营销对话: message='{}', userId='{}', company='{}'", message, userId, company);
         SseEmitter emitter = new SseEmitter(300000L);
 
         new Thread(() -> {
             try {
-                // 1. 加载历史对话（按userId+company隔离，最近10轮）
+                // 1. 加载历史对话（最近10轮）
                 List<Map<String, Object>> history = getChatHistory(userId, company);
 
                 // 2. 构建消息列表
@@ -82,7 +81,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 userMsg.put("content", message);
                 messages.add(userMsg);
 
-                // 3. 保存用户消息（按userId+company隔离）
+                // 3. 保存用户消息
                 saveChatMessage(userId, "user", message, company);
 
                 // 4. 调用 MiniMax V2 流式接口
@@ -193,10 +192,8 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
     @Override
     public List<Map<String, Object>> getChatHistory(String userId, String company) {
-        // 按userId+company查询最近10轮对话（20条消息：10个user + 10个assistant）
-        // 与SmartChatServiceImpl保持一致的隔离逻辑：(company = ? OR company IS NULL)
         String sql = "SELECT role, content, created_at FROM marketing_chat_history " +
-            "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+            "WHERE user_id = ? AND (company = ? OR company IS NULL OR ? IS NULL) " +
             "ORDER BY created_at DESC LIMIT 20";
         List<Map<String, Object>> results = jdbcTemplate.query(sql,
             (rs, rowNum) -> {
@@ -206,36 +203,25 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
                 return msg;
             },
-            userId, company
+            userId, company, company
         );
-        // 反转回时间正序
         Collections.reverse(results);
         return results;
     }
 
     @Override
     public void clearChatHistory(String userId, String company) {
-        // 按userId+company清空，与SmartChatServiceImpl保持一致的隔离逻辑
         jdbcTemplate.update(
-            "DELETE FROM marketing_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
-            userId, company
+            "DELETE FROM marketing_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL OR ? IS NULL)",
+            userId, company, company
         );
     }
 
-    /**
-     * 保存对话消息（按userId+company隔离，session_id存储为基于userId+company生成的确定性UUID）
-     */
     private void saveChatMessage(String userId, String role, String content, String company) {
-        try {
-            // 用 userId+company 生成确定性 UUID 作为 session_id（同用户同公司始终相同）
-            String sessionId = UUID.nameUUIDFromBytes(("marketing-" + userId + "-" + company).getBytes()).toString();
-            jdbcTemplate.update(
-                "INSERT INTO marketing_chat_history (id, session_id, user_id, company, role, content, created_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, NOW())",
-                UUID.randomUUID().toString(), sessionId, userId, company, role, content
-            );
-        } catch (Exception e) {
-            log.warn("保存营销对话消息失败: {}", e.getMessage());
-        }
+        jdbcTemplate.update(
+            "INSERT INTO marketing_chat_history (id, user_id, company, role, content, created_at) " +
+                "VALUES (?, ?, ?, ?, ?, NOW())",
+            UUID.randomUUID().toString(), userId, company, role, content
+        );
     }
 }
