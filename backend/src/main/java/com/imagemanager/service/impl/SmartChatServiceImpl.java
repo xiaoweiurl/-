@@ -70,26 +70,53 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 1. 加载历史对话（按userId+company绑定）
                 List<Map<String, Object>> history = getChatHistory(userId, company);
 
-                // 2. 双库检索
-                // 2a. 记忆库检索(PostgreSQL向量)
+                // 2. 意图识别：判断是否涉及供应链/工厂数据
+                boolean supplyChainIntent = isSupplyChainIntent(message);
+                boolean hasProductCode = extractProductCode(message) != null;
+                // 当用户提到具体产品编码+供应链意图时，认为是"强供应链意图"
+                boolean strongSupplyChainIntent = supplyChainIntent && hasProductCode;
+
+                // 3. 供应链/工厂数据检索(优先检索，命中后降低知识库检索权重)
+                List<Map<String, Object>> supplyChainResults = Collections.emptyList();
+                if (supplyChainIntent) {
+                    try {
+                        supplyChainResults = searchSupplyChain(message);
+                        log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
+                    } catch (Exception e) {
+                        log.warn("供应链数据检索异常: {}", e.getMessage());
+                    }
+                }
+
+                // 4. 双库检索（当强供应链意图且已找到数据时，跳过向量检索，避免不相关文档干扰）
+                boolean skipVectorSearch = strongSupplyChainIntent && !supplyChainResults.isEmpty();
+
+                // 4a. 记忆库检索(PostgreSQL向量)
                 List<MemorySearchResult> memoryResults = Collections.emptyList();
-                try {
-                    memoryResults = memoryService.search(message, null, 0.2, 5, company, userId);
-                    log.info("记忆库检索到 {} 条结果", memoryResults.size());
-                } catch (Exception e) {
-                    log.warn("记忆库检索异常: {}", e.getMessage());
+                if (!skipVectorSearch) {
+                    try {
+                        memoryResults = memoryService.search(message, null, 0.2, 5, company, userId);
+                        log.info("记忆库检索到 {} 条结果", memoryResults.size());
+                    } catch (Exception e) {
+                        log.warn("记忆库检索异常: {}", e.getMessage());
+                    }
+                } else {
+                    log.info("强供应链意图且已命中数据，跳过记忆库检索避免干扰");
                 }
 
-                // 2b. 知识库检索(Coze SDK via Next.js)
+                // 4b. 知识库检索(Coze SDK via Next.js)
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
-                try {
-                    knowledgeResults = searchKnowledgeBase(message, userId, company);
-                    log.info("知识库检索到 {} 条结果", knowledgeResults.size());
-                } catch (Exception e) {
-                    log.warn("知识库检索异常: {}", e.getMessage());
+                if (!skipVectorSearch) {
+                    try {
+                        knowledgeResults = searchKnowledgeBase(message, userId, company);
+                        log.info("知识库检索到 {} 条结果", knowledgeResults.size());
+                    } catch (Exception e) {
+                        log.warn("知识库检索异常: {}", e.getMessage());
+                    }
+                } else {
+                    log.info("强供应链意图且已命中数据，跳过知识库检索避免干扰");
                 }
 
-                // 2c. 图片搜索(当用户意图涉及找图时)
+                // 4c. 图片搜索(当用户意图涉及找图时)
                 List<Map<String, Object>> imageResults = Collections.emptyList();
                 if (isImageSearchIntent(message)) {
                     try {
@@ -97,17 +124,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.info("图片搜索匹配到 {} 条结果", imageResults.size());
                     } catch (Exception e) {
                         log.warn("图片搜索异常: {}", e.getMessage());
-                    }
-                }
-
-                // 2d. 供应链/工厂数据检索(当用户意图涉及报价、成本、原料、供应商等)
-                List<Map<String, Object>> supplyChainResults = Collections.emptyList();
-                if (isSupplyChainIntent(message)) {
-                    try {
-                        supplyChainResults = searchSupplyChain(message);
-                        log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
-                    } catch (Exception e) {
-                        log.warn("供应链数据检索异常: {}", e.getMessage());
                     }
                 }
 
@@ -154,8 +170,33 @@ public class SmartChatServiceImpl implements SmartChatService {
                     ));
                 }
 
-                // 4. 构建知识上下文
+                // 4. 构建知识上下文（供应链数据优先放置在前面，确保AI优先参考）
                 StringBuilder knowledgeContext = new StringBuilder();
+
+                // 供应链/工厂数据上下文（优先级最高，放在最前面）
+                if (!supplyChainResults.isEmpty()) {
+                    knowledgeContext.append("## 【重要】供应链/工厂业务数据（精确数据，优先引用）：\n");
+                    for (Map<String, Object> r : supplyChainResults) {
+                        String type = r.getOrDefault("type", "").toString();
+                        String summary = r.getOrDefault("summary", "").toString();
+                        knowledgeContext.append(String.format("### [%s] %s\n", type, summary));
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> data = (Map<String, Object>) r.get("data");
+                        if (data != null) {
+                            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                                Object val = entry.getValue();
+                                if (val != null) {
+                                    String valStr = val.toString();
+                                    if (valStr.length() > 200) valStr = valStr.substring(0, 200) + "...";
+                                    knowledgeContext.append(String.format("  %s: %s\n", entry.getKey(), valStr));
+                                }
+                            }
+                        }
+                        knowledgeContext.append("\n");
+                    }
+                    knowledgeContext.append("⚠️ 用户询问的是供应链/工厂相关问题，请务必基于以上精确业务数据回答，引用具体数字。" +
+                            "不要用知识库文档中的泛泛内容替代这些精确数据！\n\n");
+                }
 
                 if (!memoryResults.isEmpty()) {
                     knowledgeContext.append("## 记忆库相关知识卡片：\n");
@@ -210,40 +251,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                     knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些产品及其图片。\n");
                 }
 
-                // 供应链/工厂数据上下文
-                if (!supplyChainResults.isEmpty()) {
-                    knowledgeContext.append("## 供应链/工厂业务数据：\n");
-                    for (Map<String, Object> r : supplyChainResults) {
-                        String type = r.getOrDefault("type", "").toString();
-                        String summary = r.getOrDefault("summary", "").toString();
-                        knowledgeContext.append(String.format("### [%s] %s\n", type, summary));
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> data = (Map<String, Object>) r.get("data");
-                        if (data != null) {
-                            for (Map.Entry<String, Object> entry : data.entrySet()) {
-                                Object val = entry.getValue();
-                                if (val != null) {
-                                    String valStr = val.toString();
-                                    if (valStr.length() > 200) valStr = valStr.substring(0, 200) + "...";
-                                    knowledgeContext.append(String.format("  %s: %s\n", entry.getKey(), valStr));
-                                }
-                            }
-                        }
-                        knowledgeContext.append("\n");
-                    }
-                    knowledgeContext.append("用户询问供应链/工厂相关问题，请基于以上业务数据回答，包括报价、成本、原料、供应商等具体数据。\n");
-                }
-
                 // 5. 构建messages(含历史上下文)
                 List<Map<String, Object>> messages = new ArrayList<>();
 
                 // System prompt: 定义AI角色和行为
-                messages.add(Map.of("role", "system", "content",
-                        "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）和供应链业务数据的访问权限。" +
-                        "回答问题时优先基于检索到的知识库内容和业务数据，并标注引用来源。" +
-                        "当涉及产品报价、成本核算、原料采购、供应商对比、生产计划等问题时，务必基于检索到的供应链业务数据精确回答，包括具体数字。" +
-                        "如果知识库中没有相关信息，你可以基于自身知识回答，但要说明信息来源。" +
-                        "保持专业、简洁、有帮助的回答风格。"));
+                String systemPrompt = "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）和供应链业务数据的访问权限。" +
+                        "回答规则：" +
+                        "1. 当检索结果中包含【供应链/工厂业务数据】时，必须优先且主要基于这些精确的业务数据回答，引用具体数字，不要用知识库文档中的泛泛内容替代。" +
+                        "2. 当用户询问具体产品的报价、成本、原料、供应商等数据时，只使用供应链业务数据中的精确数字作答，如果供应链数据中找不到对应信息，请明确告知用户当前数据库中无此数据。" +
+                        "3. 知识库文档（PDF/Word等）中的内容属于参考资料，仅在没有精确业务数据时作为补充。" +
+                        "4. 回答时标注引用来源（供应链数据/记忆库/知识库）。" +
+                        "5. 保持专业、简洁、有帮助的回答风格。";
+                messages.add(Map.of("role", "system", "content", systemPrompt));
 
                 // 加入历史对话(最近10轮)
                 int startIdx = Math.max(0, history.size() - 5);
@@ -254,8 +273,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 当前用户消息(带知识上下文)
                 String userContent = message;
                 if (!knowledgeContext.isEmpty()) {
-                    userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message +
-                            "\n\n请基于以上知识和业务数据回答用户问题，并标注引用来源和出处(记忆库/知识库/供应链数据)。";
+                    boolean hasSupplyChain = !supplyChainResults.isEmpty();
+                    userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
+                    if (hasSupplyChain) {
+                        userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答，不要使用知识库文档内容替代业务数据。";
+                    } else {
+                        userContent += "\n\n请基于以上知识内容回答用户问题，并标注引用来源(记忆库/知识库)。";
+                    }
                 } else {
                     userContent = "用户问题: " + message +
                             "\n\n(知识库中未检索到相关内容，请基于自身知识回答。)";
@@ -596,8 +620,9 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 从用户消息中提取产品编码
      */
     private String extractProductCode(String query) {
-        // 匹配常见产品编码格式: HT01-S, HT01-M, HT01-L 等
-        Pattern pattern = Pattern.compile("\\b(HT\\d+[-][A-Z]+|[A-Z]{2}\\d+[A-Z]?)\\b");
+        // 匹配常见产品编码格式: HT01-S, HT01-M, HT01-L, AB12C 等
+        // 移除可能的中文前缀干扰，如"产品HT01-S"
+        Pattern pattern = Pattern.compile("(HT\\d+[-][A-Z]+|[A-Z]{2}\\d+[-]?[A-Z]?)");
         Matcher matcher = pattern.matcher(query);
         if (matcher.find()) {
             return matcher.group(1);
