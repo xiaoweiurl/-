@@ -82,6 +82,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 当用户提到具体产品编码+供应链意图时，认为是"强供应链意图"
                 boolean strongSupplyChainIntent = supplyChainIntent && hasProductCode;
 
+                // 岗位意图识别
+                boolean positionIntent = isPositionIntent(message);
+
                 // 3. 供应链/工厂数据检索(优先检索，命中后降低知识库检索权重)
                 List<Map<String, Object>> supplyChainResults = Collections.emptyList();
                 if (supplyChainIntent) {
@@ -96,7 +99,21 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 4. 双库检索（当强供应链意图且已找到数据时，跳过向量检索，避免不相关文档干扰）
                 boolean skipVectorSearch = strongSupplyChainIntent && !supplyChainResults.isEmpty();
 
-                // 4a. 记忆库检索(PostgreSQL向量)
+                // 4a. 岗位卡片向量检索（优先于知识库PDF，避免岗位问题被无关PDF干扰）
+                List<Map<String, Object>> positionCardResults = Collections.emptyList();
+                if (!skipVectorSearch) {
+                    try {
+                        positionCardResults = searchPositionCards(message, company);
+                        log.info("岗位卡片检索到 {} 条结果", positionCardResults.size());
+                    } catch (Exception e) {
+                        log.warn("岗位卡片检索异常: {}", e.getMessage());
+                    }
+                }
+
+                // 当岗位意图且岗位卡片有结果时，跳过知识库PDF检索，避免不相关文档干扰岗位问题
+                boolean skipKnowledgeSearch = skipVectorSearch || (positionIntent && !positionCardResults.isEmpty());
+
+                // 4b. 记忆库检索(PostgreSQL向量)
                 List<MemorySearchResult> memoryResults = Collections.emptyList();
                 if (!skipVectorSearch) {
                     try {
@@ -109,9 +126,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     log.info("强供应链意图且已命中数据，跳过记忆库检索避免干扰");
                 }
 
-                // 4b. 知识库检索(Coze SDK via Next.js)
+                // 4c. 知识库检索(Coze SDK via Next.js)
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
-                if (!skipVectorSearch) {
+                if (!skipKnowledgeSearch) {
                     try {
                         knowledgeResults = searchKnowledgeBase(message, company);
                         log.info("知识库检索到 {} 条结果", knowledgeResults.size());
@@ -119,18 +136,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("知识库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    log.info("强供应链意图且已命中数据，跳过知识库检索避免干扰");
-                }
-
-                // 4c. 岗位卡片向量检索
-                List<Map<String, Object>> positionCardResults = Collections.emptyList();
-                if (!skipVectorSearch) {
-                    try {
-                        positionCardResults = searchPositionCards(message, company);
-                        log.info("岗位卡片检索到 {} 条结果", positionCardResults.size());
-                    } catch (Exception e) {
-                        log.warn("岗位卡片检索异常: {}", e.getMessage());
-                    }
+                    log.info("跳过知识库检索避免干扰（原因: {}）", skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片");
                 }
 
                 // 4d. 图片搜索(当用户意图涉及找图时)
@@ -236,6 +242,28 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
+                // 岗位卡片上下文（岗位意图时标注优先级最高，排在知识库PDF之前）
+                if (!positionCardResults.isEmpty()) {
+                    if (positionIntent) {
+                        knowledgeContext.append("## 【重要】岗位知识卡片（用户询问的是岗位相关问题，请优先基于以下岗位卡片回答）：\n");
+                    } else {
+                        knowledgeContext.append("## 岗位知识卡片（员工实际工作经验）：\n");
+                    }
+                    for (int i = 0; i < positionCardResults.size(); i++) {
+                        Map<String, Object> r = positionCardResults.get(i);
+                        double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
+                        String content = r.getOrDefault("content", "").toString();
+                        if (content.length() > 500) content = content.substring(0, 500) + "...";
+                        knowledgeContext.append(String.format("### 岗位卡片%d (相关度: %.1f%%)\n%s\n\n",
+                                i + 1, score * 100, content));
+                    }
+                    if (positionIntent) {
+                        knowledgeContext.append("⚠️ 用户询问的是岗位相关问题，请务必基于以上岗位知识卡片中的实际工作经验回答，不要用知识库文档中的泛泛内容替代！\n");
+                    } else {
+                        knowledgeContext.append("⚠️ 以上来自员工填写的岗位知识卡片，包含真实工作经验和职责描述，回答岗位相关问题时应优先参考。\n");
+                    }
+                }
+
                 if (!knowledgeResults.isEmpty()) {
                     knowledgeContext.append("## 知识库相关文档片段：\n");
                     for (int i = 0; i < knowledgeResults.size(); i++) {
@@ -246,19 +274,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%%)\n%s\n\n",
                                 i + 1, score * 100, content));
                     }
-                }
-
-                if (!positionCardResults.isEmpty()) {
-                    knowledgeContext.append("## 岗位知识卡片（员工实际工作经验）：\n");
-                    for (int i = 0; i < positionCardResults.size(); i++) {
-                        Map<String, Object> r = positionCardResults.get(i);
-                        double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
-                        String content = r.getOrDefault("content", "").toString();
-                        if (content.length() > 500) content = content.substring(0, 500) + "...";
-                        knowledgeContext.append(String.format("### 岗位卡片%d (相关度: %.1f%%)\n%s\n\n",
-                                i + 1, score * 100, content));
-                    }
-                    knowledgeContext.append("⚠️ 以上来自员工填写的岗位知识卡片，包含真实工作经验和职责描述，回答岗位相关问题时应优先参考。\n");
                 }
 
                 if (!imageResults.isEmpty()) {
@@ -294,14 +309,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                 List<Map<String, Object>> messages = new ArrayList<>();
 
                 // System prompt: 定义AI角色和行为
-                String systemPrompt = "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）和供应链业务数据的访问权限。" +
+                String systemPrompt = "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）、岗位知识卡片和供应链业务数据的访问权限。" +
                         "回答规则：" +
                         "1. 当检索结果中包含【供应链/工厂业务数据】时，必须优先且主要基于这些精确的业务数据回答，引用具体数字，不要用知识库文档中的泛泛内容替代。" +
                         "2. 当用户询问具体产品的报价、成本、原料、供应商等数据时，只使用供应链业务数据中的精确数字作答，如果供应链数据中找不到对应信息，请明确告知用户当前数据库中无此数据。" +
-                        "3. 知识库文档（PDF/Word等）中的内容属于参考资料，仅在没有精确业务数据时作为补充。" +
-                        "4. 回答时标注引用来源（供应链数据/记忆库/知识库）。" +
-                        "5. 保持专业、简洁、有帮助的回答风格。" +
-                        "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。";
+                        "3. 当用户询问岗位职责、工作内容、任职要求、入职指导等问题时，必须优先基于【岗位知识卡片】中的实际工作经验回答，不要用知识库文档中的泛泛内容替代。" +
+                        "4. 知识库文档（PDF/Word等）中的内容属于参考资料，仅在没有精确业务数据或岗位卡片时作为补充。" +
+                        "5. 回答时标注引用来源（供应链数据/岗位卡片/记忆库/知识库）。" +
+                        "6. 保持专业、简洁、有帮助的回答风格。" +
+                        "7. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。";
                 messages.add(Map.of("role", "system", "content", systemPrompt));
 
                 // 加入历史对话(最近10轮)
@@ -314,11 +330,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 String userContent = message;
                 if (!knowledgeContext.isEmpty()) {
                     boolean hasSupplyChain = !supplyChainResults.isEmpty();
+                    boolean hasPositionCards = !positionCardResults.isEmpty();
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
                     if (hasSupplyChain) {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答，不要使用知识库文档内容替代业务数据。";
+                    } else if (positionIntent && hasPositionCards) {
+                        userContent += "\n\n请优先基于上方【岗位知识卡片】中的实际工作经验回答，不要使用知识库文档内容替代岗位卡片中的精确信息。";
                     } else {
-                        userContent += "\n\n请基于以上知识内容回答用户问题，并标注引用来源(记忆库/知识库)。";
+                        userContent += "\n\n请基于以上知识内容回答用户问题，并标注引用来源(岗位卡片/记忆库/知识库)。";
                     }
                 } else {
                     userContent = "用户问题: " + message +
@@ -593,7 +612,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'POSITION_CARD' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
-                    "AND 1 - (e.embedding <#> ?::vector) > 0.15 " +
+                    "AND 1 - (e.embedding <#> ?::vector) > 0.25 " +
                     "ORDER BY e.embedding <#> ?::vector " +
                     "LIMIT 5";
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
@@ -654,6 +673,25 @@ public class SmartChatServiceImpl implements SmartChatService {
             "多少钱", "价格", "费用", "花多少", "最便宜", "最低价",
             "对比", "比较价格", "供应商对比", "节省", "成本优化",
             "报价单", "成本核算", "成本分析", "智能报价"
+        };
+        for (String kw : patterns) {
+            if (lower.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 岗位意图识别 - 判断用户是否在询问岗位职责、工作内容等
+     */
+    private boolean isPositionIntent(String message) {
+        String lower = message.toLowerCase();
+        String[] patterns = {
+            "岗位", "职位", "职责", "工作内容", "任职要求", "能力要求",
+            "入职", "新人", "上手", "交接", "指导", "培训",
+            "产出物", "协作", "上下游", "改进", "瓶颈",
+            "做什么", "负责什么", "需要什么能力", "工作流程",
+            "团队", "部门职责", "岗位职责", "岗位要求",
+            "经验", "工作经历", "工作经验", "岗位卡片"
         };
         for (String kw : patterns) {
             if (lower.contains(kw)) return true;
