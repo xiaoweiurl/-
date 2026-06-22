@@ -58,10 +58,19 @@ public class MarketingChatController {
     public SseEmitter smartChatGet(
             @RequestParam String message,
             HttpServletRequest request) {
-        LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
-        String company = user.getCompany() != null ? user.getCompany() : "盈云";
-        return marketingChatService.chat(message, userId, company);
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = user.getId() != null ? user.getId() : user.getUsername();
+            String company = user.getCompany() != null ? user.getCompany() : "盈云";
+            return marketingChatService.chat(message, userId, company);
+        } catch (Exception e) {
+            SseEmitter emitter = new SseEmitter(60000L);
+            try {
+                emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
     }
 
     /**
@@ -81,10 +90,19 @@ public class MarketingChatController {
             } catch (Exception ignored) {}
             return emitter;
         }
-        LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
-        String company = user.getCompany() != null ? user.getCompany() : "盈云";
-        return marketingChatService.chat(message, userId, company);
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = user.getId() != null ? user.getId() : user.getUsername();
+            String company = user.getCompany() != null ? user.getCompany() : "盈云";
+            return marketingChatService.chat(message, userId, company);
+        } catch (Exception e) {
+            SseEmitter emitter = new SseEmitter(60000L);
+            try {
+                emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
     }
 
     /**
