@@ -195,8 +195,8 @@ public class MarketingChatServiceImpl implements MarketingChatService {
     @Override
     public List<Map<String, Object>> getChatHistory(String userId, String company) {
         String sql = "SELECT role, content, created_at FROM smart_chat_history " +
-            "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
-            "AND session_id = ? " +
+            "WHERE user_id = ?::uuid AND (company = ? OR company IS NULL) " +
+            "AND session_id = ?::uuid " +
             "ORDER BY created_at DESC LIMIT 20";
         // 使用固定的session_id标识营销对话（与智能对话区分）
         String marketingSessionId = UUID.nameUUIDFromBytes(("marketing_" + userId + "_" + company).getBytes()).toString();
@@ -218,7 +218,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
     public void clearChatHistory(String userId, String company) {
         String marketingSessionId = UUID.nameUUIDFromBytes(("marketing_" + userId + "_" + company).getBytes()).toString();
         jdbcTemplate.update(
-            "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL) AND session_id = ?",
+            "DELETE FROM smart_chat_history WHERE user_id = ?::uuid AND (company = ? OR company IS NULL) AND session_id = ?::uuid",
             userId, company, marketingSessionId
         );
     }
@@ -227,7 +227,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
         String marketingSessionId = UUID.nameUUIDFromBytes(("marketing_" + userId + "_" + company).getBytes()).toString();
         jdbcTemplate.update(
             "INSERT INTO smart_chat_history (id, user_id, session_id, role, content, company, created_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, NOW())",
+                "VALUES (?, ?::uuid, ?::uuid, ?, ?, ?, NOW())",
             UUID.randomUUID().toString(), userId, marketingSessionId, role, content, company
         );
     }
