@@ -6,6 +6,7 @@ import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
   Bot, User, BookOpen, Brain, Loader2, Sparkles
 } from 'lucide-react';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 // ===== 类型定义 =====
 interface ChatImage {
@@ -538,12 +539,16 @@ export default function ChatPage() {
                       </div>
                     )}
                     {/* 消息内容 */}
-                    <div className={`px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed whitespace-pre-wrap
+                    <div className={`px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed
                       ${msg.role === 'user'
                         ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-tr-sm'
                         : 'bg-white border border-slate-200/60 text-slate-600 shadow-sm rounded-tl-sm'}`}
                     >
-                      {msg.content}
+                      {msg.role === 'user' ? (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      ) : (
+                        <MarkdownRenderer content={msg.content || ''} />
+                      )}
                       {msg.isStreaming && (
                         <span className="inline-block w-1.5 h-3.5 bg-violet-500 animate-pulse ml-0.5 align-middle" />
                       )}

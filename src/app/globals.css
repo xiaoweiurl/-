@@ -181,3 +181,45 @@ body {
 .unread-badge {
   animation: unread-pulse 2s ease-in-out infinite;
 }
+
+/* Markdown渲染样式 */
+.markdown-body {
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.markdown-body > *:first-child {
+  margin-top: 0 !important;
+}
+
+.markdown-body > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 表格在聊天气泡内自适应 */
+.markdown-body .overflow-x-auto {
+  margin-left: -4px;
+  margin-right: -4px;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-body th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.markdown-body td, .markdown-body th {
+  padding: 4px 10px;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+  font-size: 12px;
+}
+
+.markdown-body tr:hover td {
+  background: #f8fafc;
+}

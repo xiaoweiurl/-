@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Trash2, Bot, User, Sparkles, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
 import { getCurrentBrand } from '@/lib/brand';
 import { cn } from '@/lib/utils';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 interface Message {
   id: string;
@@ -317,12 +318,18 @@ export default function MarketingChatPage() {
                   ? cn('bg-gradient-to-r text-white shadow-sm', brand.primaryFrom, brand.primaryTo)
                   : 'bg-white border border-slate-200/60 text-slate-600 shadow-sm'
               }`}>
-                <div className="whitespace-pre-wrap break-words">{msg.content || (
-                  <span className="inline-flex items-center gap-1 text-slate-400">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    思考中...
-                  </span>
-                )}</div>
+                <div className={msg.role === 'user' ? 'whitespace-pre-wrap break-words' : ''}>
+                  {msg.role === 'user' ? (
+                    msg.content || (
+                      <span className="inline-flex items-center gap-1 text-white/70">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        发送中...
+                      </span>
+                    )
+                  ) : (
+                    <MarkdownRenderer content={msg.content || ''} />
+                  )}
+                </div>
               </div>
               {msg.role === 'user' && (
                 <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-200/80 flex items-center justify-center">
