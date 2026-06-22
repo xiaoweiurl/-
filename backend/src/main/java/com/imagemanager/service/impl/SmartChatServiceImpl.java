@@ -242,7 +242,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     public List<Map<String, Object>> getChatHistory(String userId, String company) {
         // 按userId+company查询最近10轮对话（20条消息：10个user + 10个assistant）
         String sql = "SELECT role, content, created_at FROM smart_chat_history " +
-                "WHERE user_id = ?::uuid AND (company = ? OR company IS NULL) " +
+                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
                 "ORDER BY created_at DESC LIMIT 20";
         List<Map<String, Object>> results = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
@@ -263,7 +263,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Transactional
     public void clearChatHistory(String userId, String company) {
         jdbcTemplate.update(
-                "DELETE FROM smart_chat_history WHERE user_id = ?::uuid AND (company = ? OR company IS NULL)",
+                "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
                 userId, company
         );
     }
@@ -490,7 +490,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             String sessionId = UUID.nameUUIDFromBytes(("chat-" + userId).getBytes()).toString();
             jdbcTemplate.update(
                     "INSERT INTO smart_chat_history (id, session_id, role, content, user_id, company, created_at) " +
-                            "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?::uuid, ?, NOW())",
+                            "VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, NOW())",
                     sessionId, role, content, userId, company
             );
         } catch (Exception e) {
