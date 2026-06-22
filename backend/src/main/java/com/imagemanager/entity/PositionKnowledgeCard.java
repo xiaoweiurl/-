@@ -103,6 +103,10 @@ public class PositionKnowledgeCard {
     @Column(name = "additional_notes", columnDefinition = "TEXT")
     private String additionalNotes; // 补充说明
 
+    // ===== 向量化状态 =====
+    @Column(name = "embedding_status", length = 20)
+    private String embeddingStatus;   // 向量化状态: PENDING/PROCESSING/COMPLETED/FAILED
+
     // ===== 系统字段 =====
     @Column(name = "user_id", length = 100, nullable = false)
     private String userId;

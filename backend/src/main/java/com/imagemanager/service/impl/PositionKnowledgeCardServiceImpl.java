@@ -58,6 +58,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         card.setCompany(company);
         card.setCreatedAt(LocalDateTime.now());
         card.setUpdatedAt(LocalDateTime.now());
+        card.setEmbeddingStatus("PENDING");
 
         PositionKnowledgeCard saved = cardRepository.save(card);
         log.info("创建岗位知识卡片成功: id={}, code={}, position={}", saved.getId(), saved.getCardCode(), saved.getPositionName());
@@ -69,9 +70,26 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             public void afterCommit() {
                 try {
                     PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
-                    if (fresh != null) vectorizeCard(fresh);
+                    if (fresh != null) {
+                        fresh.setEmbeddingStatus("PROCESSING");
+                        cardRepository.save(fresh);
+                        vectorizeCard(fresh);
+                        fresh.setEmbeddingStatus("COMPLETED");
+                        cardRepository.save(fresh);
+                        log.info("岗位卡片向量化状态更新为COMPLETED: id={}", savedId);
+                    }
                 } catch (Exception e) {
                     log.warn("岗位卡片向量化失败，不影响保存: {}", e.getMessage());
+                    try {
+                        PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
+                        if (fresh != null) {
+                            fresh.setEmbeddingStatus("FAILED");
+                            cardRepository.save(fresh);
+                            log.info("岗位卡片向量化状态更新为FAILED: id={}", savedId);
+                        }
+                    } catch (Exception ex) {
+                        log.warn("更新向量化状态FAILED也失败: {}", ex.getMessage());
+                    }
                 }
             }
         });
@@ -114,6 +132,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         if (card.getAdditionalNotes() != null) existing.setAdditionalNotes(card.getAdditionalNotes());
 
         existing.setUpdatedAt(LocalDateTime.now());
+        existing.setEmbeddingStatus("PENDING");
 
         PositionKnowledgeCard saved = cardRepository.save(existing);
         log.info("更新岗位知识卡片成功: id={}, position={}", saved.getId(), saved.getPositionName());
@@ -126,9 +145,26 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                 try {
                     deleteCardVectors(savedId);
                     PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
-                    if (fresh != null) vectorizeCard(fresh);
+                    if (fresh != null) {
+                        fresh.setEmbeddingStatus("PROCESSING");
+                        cardRepository.save(fresh);
+                        vectorizeCard(fresh);
+                        fresh.setEmbeddingStatus("COMPLETED");
+                        cardRepository.save(fresh);
+                        log.info("岗位卡片重新向量化状态更新为COMPLETED: id={}", savedId);
+                    }
                 } catch (Exception e) {
                     log.warn("岗位卡片重新向量化失败: {}", e.getMessage());
+                    try {
+                        PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
+                        if (fresh != null) {
+                            fresh.setEmbeddingStatus("FAILED");
+                            cardRepository.save(fresh);
+                            log.info("岗位卡片向量化状态更新为FAILED: id={}", savedId);
+                        }
+                    } catch (Exception ex) {
+                        log.warn("更新向量化状态FAILED也失败: {}", ex.getMessage());
+                    }
                 }
             }
         });
