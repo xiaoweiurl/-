@@ -66,18 +66,21 @@ async function proxy(request: NextRequest, method: string) {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
       fetchOptions.body = await request.arrayBuffer();
+      fetchOptions.duplex = 'half';
       headers.delete('content-type');
     } else if (contentType.includes('application/json')) {
       fetchOptions.body = await request.text();
+      fetchOptions.duplex = 'half';
       headers.set('content-type', 'application/json');
     } else {
       fetchOptions.body = await request.arrayBuffer();
+      fetchOptions.duplex = 'half';
       if (contentType) headers.set('content-type', contentType);
     }
   }
 
   try {
-    const res = await fetch(targetUrl, fetchOptions);
+    const res = await fetch(targetUrl, fetchOptions as RequestInit);
 
     const responseHeaders = new Headers();
     res.headers.forEach((value, key) => {
