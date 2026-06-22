@@ -272,6 +272,9 @@ public class AuthServiceImpl implements AuthService {
         String sessionId = generateSecureSessionId();
         // 标准化角色：保持数据库原始值
         String normalizedRole = user.getRole();
+        // 登录时选择的公司优先（宝娜斯/盈云），否则使用用户数据库中的公司
+        String effectiveCompany = (request.getCompany() != null && !request.getCompany().isEmpty())
+                ? request.getCompany() : user.getCompany();
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -279,7 +282,7 @@ public class AuthServiceImpl implements AuthService {
                 .avatar(user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty() ? user.getAvatarUrl() : null)
                 .role(normalizedRole)
                 .membership(user.getMembership())
-                .company(user.getCompany())
+                .company(effectiveCompany)
                 .build();
         
         boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
@@ -297,7 +300,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getAvatarUrl(),
                 user.getRole(),
                 user.getMembership(),
-                user.getCompany(),
+                effectiveCompany,
                 rememberMe,
                 sessionInfo.createTime,
                 sessionInfo.lastAccessTime,

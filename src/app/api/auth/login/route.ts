@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    const { username, password, rememberMe } = validation.data;
+    const { username, password, rememberMe, company } = validation.data;
     
     // 检查后端是否可用
     const backendAvailable = await isBackendAvailable();
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     // 调用后端登录
     const response = await backendFetch('/auth/login', {
       method: 'POST',
-      body: { username, password, rememberMe },
+      body: { username, password, rememberMe, company },
     });
     
     // 打印后端响应信息

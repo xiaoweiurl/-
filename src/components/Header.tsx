@@ -30,7 +30,10 @@ import {
   RefreshCw,
   ImagePlus,
   Sparkles,
+  Scissors,
+  Cloud,
 } from 'lucide-react';
+import { type BrandConfig } from '@/lib/brand';
 
 export interface CurrentUser {
   id: string;
@@ -54,6 +57,7 @@ interface HeaderProps {
   onExcelUploadClick?: () => void;
   onExportClick?: () => void;
   hasAlbums?: boolean;
+  brand?: BrandConfig;
 
   showSearch?: boolean; // 是否显示搜索栏
   onBatchReplaceMainImage?: () => void; // 批量替换主图
@@ -74,6 +78,7 @@ export default function Header({
   onExportClick,
   hasAlbums = false,
   showSearch = true, // 默认显示搜索
+  brand,
   onBatchReplaceMainImage,
 }: HeaderProps) {
   const router = useRouter();
@@ -271,22 +276,22 @@ export default function Header({
         </Button>
         )}
 
-        {/* 盈云AI入口 */}
+        {/* 品牌AI入口 */}
         <a
-          href="https://www.yingyunai.com/login?redirect=/generate/text-to-image/new"
+          href={brand?.key === 'bonasi' ? 'https://www.bonasi.com' : 'https://www.yingyunai.com/login?redirect=/generate/text-to-image/new'}
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
             "inline-flex items-center gap-2 px-4 py-2 rounded-lg",
-            "bg-gradient-to-r from-violet-500 to-purple-600",
+            "bg-gradient-to-r",
+            brand?.primaryFrom || 'from-violet-500', brand?.primaryTo || 'to-purple-600',
             "text-white text-sm font-medium",
-            "hover:from-violet-600 hover:to-purple-700",
-            "shadow-md shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30",
-            "transition-all duration-200"
+            "hover:shadow-lg transition-all duration-200",
+            brand?.buttonShadow || 'shadow-purple-500/20'
           )}
         >
-          <Sparkles className="w-4 h-4" />
-          <span>盈云AI</span>
+          {brand?.key === 'bonasi' ? <Scissors className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+          <span>{brand?.name || '盈云'}AI</span>
         </a>
 
         {/* 通知 */}
@@ -391,9 +396,7 @@ export default function Header({
                 {currentUser?.company && (
                   <span className={cn(
                     "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold",
-                    currentUser.company === '宝娜斯'
-                      ? "bg-rose-100 text-rose-700"
-                      : "bg-indigo-100 text-indigo-700"
+                    brand?.tagBg || 'bg-indigo-100', brand?.tagText || 'text-indigo-700'
                   )}>
                     {currentUser.company}
                   </span>

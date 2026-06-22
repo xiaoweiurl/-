@@ -7,8 +7,10 @@ import {
   Search, Upload, Download, Plus, Edit3, Trash2, ChevronLeft,
   ChevronRight, RefreshCw, Calculator, Target, Zap,
   ChevronDown, Check, AlertCircle, Info, Warehouse,
-  ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles
+  ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud
 } from 'lucide-react';
+import { getCurrentBrand } from '@/lib/brand';
+import { cn } from '@/lib/utils';
 
 // ============ 类型定义 ============
 interface QuotationItem {
@@ -701,16 +703,19 @@ export default function SupplyChainPage() {
   };
 
   // ============ 主渲染 ============
+  const brand = getCurrentBrand();
+  const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-slate-50">
       {/* 顶部导航 */}
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 flex items-center justify-center text-white">
-                <Factory className="w-4 h-4" />
+              <div className={cn("w-8 h-8 rounded-lg bg-gradient-to-r flex items-center justify-center text-white", brand.primaryFrom, brand.primaryTo)}>
+                <BrandIcon className="w-4 h-4" />
               </div>
-              <h1 className="text-lg font-bold text-slate-800">盈云产品智能中台</h1>
+              <h1 className="text-lg font-bold text-slate-800">{brand.name}产品智能中台</h1>
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">供应链 & 工厂</span>
             </div>
           <div className="flex items-center gap-2">

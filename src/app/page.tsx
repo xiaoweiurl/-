@@ -22,6 +22,7 @@ import { BatchReplaceMainImageDialog } from '@/components/BatchReplaceMainImageD
 import type { SmartAlbumInfo } from '@/components/Sidebar';
 import { PRESET_SMART_ALBUMS, type MatchingConfig } from '@/lib/api/types';
 import { filterImagesBySmartAlbum, getSmartAlbumImageCount } from '@/lib/smart-album-engine';
+import { getCurrentBrand } from '@/lib/brand';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Loader2, Search as SearchIcon, Filter } from 'lucide-react';
@@ -1765,6 +1766,7 @@ export default function Home() {
         trashCount={trashCount}
         isAdmin={isAdmin}
         documentStats={documentStats}
+        brand={getCurrentBrand()}
         onAlbumCreated={fetchAlbums}
         onCreateSmartAlbum={() => {
           setEditingSmartAlbum(null);
@@ -1809,6 +1811,7 @@ export default function Home() {
           onBatchReplaceMainImage={handleBatchReplaceMainImage}
           hasAlbums={albums.length > 0}
           showSearch={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)}
+          brand={getCurrentBrand()}
         />
 
         {/* 主内容 */}

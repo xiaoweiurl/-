@@ -5,8 +5,8 @@ import { ClientProviders } from '@/components/ClientProviders';
 
 export const metadata: Metadata = {
   title: {
-    default: '盈云产品智能中台 | 智能知识管理平台',
-    template: '%s | 盈云产品智能中台',
+    default: '产品智能中台 | 智能知识管理平台',
+    template: '%s | 产品智能中台',
   },
   description:
     '一款精美的知识库管理系统，支持知识上传、分类、筛选、批量操作等功能，现代化极简设计，高效管理您的知识资源。',

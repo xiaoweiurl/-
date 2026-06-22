@@ -36,7 +36,10 @@ import {
   Library,
   Brain,
   MessageSquare,
+  Scissors,
+  Cloud,
 } from 'lucide-react';
+import { type BrandConfig } from '@/lib/brand';
 import {
   Dialog,
   DialogContent,
@@ -266,6 +269,7 @@ interface SidebarProps {
   trashCount?: number;
   documentStats?: Record<string, number>;
   isAdmin?: boolean;
+  brand?: BrandConfig;
   onAlbumCreated?: () => void;
   onCreateSmartAlbum?: () => void;
   /**
@@ -288,6 +292,7 @@ export default function Sidebar({
   trashCount = 0,
   isAdmin = false,
   documentStats = { all: 0, pdf: 0, word: 0, excel: 0, ppt: 0, zip: 0, other: 0 },
+  brand,
   onAlbumCreated,
   onCreateSmartAlbum,
   onAlbumClick,
@@ -812,15 +817,19 @@ export default function Sidebar({
       {/* Logo区域 */}
       <div className="h-16 flex items-center justify-center border-b border-slate-200/60 px-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-            <BookOpen className="w-5 h-5 text-white" />
+          <div className={cn(
+            'w-10 h-10 rounded-xl flex items-center justify-center shadow-lg',
+            'bg-gradient-to-br', brand?.primaryFrom || 'from-emerald-500', brand?.primaryTo || 'to-teal-600',
+            brand?.buttonShadow || 'shadow-emerald-500/25'
+          )}>
+            {brand?.key === 'bonasi' ? <Scissors className="w-5 h-5 text-white" /> : <BookOpen className="w-5 h-5 text-white" />}
           </div>
           {!collapsed && (
             <div className="flex flex-col">
               <span className="text-lg font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                盈云产品智能中台
+                {brand?.name || '盈云'}产品智能中台
               </span>
-              <span className="text-xs text-slate-400">Digital Knowledge Base</span>
+              <span className="text-xs text-slate-400">{brand?.slogan || 'Digital Knowledge Base'}</span>
             </div>
           )}
         </div>

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Trash2, Bot, User, Sparkles, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, Trash2, Bot, User, Sparkles, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
+import { getCurrentBrand } from '@/lib/brand';
+import { cn } from '@/lib/utils';
 
 interface Message {
   id: string;
@@ -230,8 +232,11 @@ export default function MarketingChatPage() {
     window.location.href = '/login';
   };
 
+  const brand = getCurrentBrand();
+  const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
+
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 via-white to-violet-50/30">
+    <div className={cn("h-screen flex flex-col", brand.loginBg)}>
       {/* Header */}
       <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -244,11 +249,14 @@ export default function MarketingChatPage() {
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-200">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className={cn(
+                "w-9 h-9 rounded-xl flex items-center justify-center shadow-md",
+                "bg-gradient-to-br", brand.primaryFrom, brand.primaryTo, brand.buttonShadow
+              )}>
+                <BrandIcon className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-base font-semibold text-slate-800">市场营销AI助手</h1>
+                <h1 className="text-base font-semibold text-slate-800">{brand.name}市场营销AI助手</h1>
                 <p className="text-xs text-slate-400">无缝针织行业专属</p>
               </div>
             </div>
@@ -268,10 +276,13 @@ export default function MarketingChatPage() {
         <div className="max-w-3xl mx-auto px-4 py-6">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 flex items-center justify-center mb-6">
-                <Sparkles className="w-10 h-10 text-violet-500" />
+              <div className={cn(
+                "w-20 h-20 rounded-2xl flex items-center justify-center mb-6",
+                "bg-gradient-to-br", brand.primaryFrom + '/10', brand.primaryTo + '/10'
+              )}>
+                <BrandIcon className={cn("w-10 h-10", brand.primarySolid)} />
               </div>
-              <h2 className="text-xl font-semibold text-slate-700 mb-2">市场营销AI助手</h2>
+              <h2 className="text-xl font-semibold text-slate-700 mb-2">{brand.name}市场营销AI助手</h2>
               <p className="text-slate-400 mb-8 max-w-md">
                 专注于无缝针织行业的市场营销专家，为您提供市场分析、品牌策略、产品推广等专业建议
               </p>
