@@ -1,35 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 后端探测：与 proxy 路由一致的候选地址
-const BACKEND_CANDIDATES = [
-  process.env.NEXT_PUBLIC_BACKEND_API_URL,
-  'http://localhost:8080/api',
-  'http://127.0.0.1:8080/api',
-].filter(Boolean) as string[];
+/**
+ * Knowledge API 代理路由
+ * 
+ * 将前端 /api/knowledge/* 请求转发到 Java 后端的 /knowledge/* 路径。
+ */
 
-let cachedBackendUrl: string | null = null;
-
-async function detectBackend(): Promise<string> {
-  if (cachedBackendUrl) return cachedBackendUrl;
-  for (const url of BACKEND_CANDIDATES) {
-    try {
-      const res = await fetch(`${url}/auth/session`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(2000),
-      });
-      cachedBackendUrl = url;
-      return url;
-    } catch { /* next */ }
-  }
-  return BACKEND_CANDIDATES[0]; // 兜底
+function getBackendUrl(): string {
+  if (process.env.BACKEND_API_URL) return process.env.BACKEND_API_URL;
+  if (process.env.NEXT_PUBLIC_BACKEND_API_URL) return process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  return 'http://localhost:8080/api';
 }
 
 async function proxy(request: NextRequest, method: string) {
-  const backendUrl = await detectBackend();
+  const backendUrl = getBackendUrl();
   const backendPath = request.nextUrl.pathname.replace('/api/knowledge', '/knowledge');
   const targetUrl = `${backendUrl}${backendPath}${request.nextUrl.search}`;
 
-  // ===== 与 proxy 路由完全一致的 header 构建方式 =====
+  // ===== Header 构建 =====
   const headers = new Headers();
   const skipHeaders = new Set([
     'host', 'connection', 'content-length', 'transfer-encoding',
@@ -53,7 +41,7 @@ async function proxy(request: NextRequest, method: string) {
     headers.set('Host', backendHost);
   } catch { /* ignore */ }
 
-  // 3. 显式从 cookie 读取 session_id 并设置到 X-Session-Id（如果没有的话）
+  // 3. 显式从 cookie 读取 session_id 并设置到 X-Session-Id
   const sessionIdFromCookie = request.cookies.get('session_id')?.value;
   if (sessionIdFromCookie && !headers.has('x-session-id')) {
     headers.set('X-Session-Id', sessionIdFromCookie);
@@ -64,13 +52,7 @@ async function proxy(request: NextRequest, method: string) {
     headers.set('Cookie', `session_id=${sessionIdFromCookie}`);
   }
 
-  // ===== 调试日志 =====
-  const xSessionId = headers.get('X-Session-Id');
-  const cookieHeader = headers.get('Cookie');
   console.log(`[Knowledge Proxy] ${method} ${targetUrl}`);
-  console.log(`[Knowledge Proxy] X-Session-Id: ${xSessionId || '(none)'}`);
-  console.log(`[Knowledge Proxy] Cookie: ${cookieHeader || '(none)'}`);
-  console.log(`[Knowledge Proxy] sessionIdFromCookie: ${sessionIdFromCookie || '(none)'}`);
 
   // ===== body 处理 =====
   const fetchOptions: RequestInit = {
@@ -83,7 +65,6 @@ async function proxy(request: NextRequest, method: string) {
   if (method !== 'GET' && method !== 'HEAD') {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
-      // FormData：转发原始 body，删除手动 content-type 让 fetch 自动计算 boundary
       fetchOptions.body = await request.arrayBuffer();
       headers.delete('content-type');
     } else if (contentType.includes('application/json')) {
@@ -110,13 +91,17 @@ async function proxy(request: NextRequest, method: string) {
       statusText: res.statusText,
       headers: responseHeaders,
     });
-  } catch {
-    return NextResponse.json({ error: '后端服务暂不可用' }, { status: 502 });
+  } catch (error) {
+    console.error('[Knowledge Proxy] error:', error);
+    return NextResponse.json(
+      { success: false, error: '后端服务暂不可用', message: String(error), target: targetUrl },
+      { status: 502 }
+    );
   }
 }
 
 export async function GET(request: NextRequest) { return proxy(request, 'GET'); }
 export async function POST(request: NextRequest) { return proxy(request, 'POST'); }
-export async function DELETE(request: NextRequest) { return proxy(request, 'DELETE'); }
 export async function PUT(request: NextRequest) { return proxy(request, 'PUT'); }
+export async function DELETE(request: NextRequest) { return proxy(request, 'DELETE'); }
 export async function PATCH(request: NextRequest) { return proxy(request, 'PATCH'); }
