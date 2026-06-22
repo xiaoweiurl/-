@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
   FileText, Plus, Trash2, Edit3, Eye, ChevronRight,
-  Briefcase, Users, Building2, Clock, Search
+  Briefcase, Users, Building2, Clock, Search, CheckCircle2, XCircle, Loader2
 } from 'lucide-react';
 
 interface KnowledgeCard {
@@ -17,6 +17,7 @@ interface KnowledgeCard {
   coreDuties: string;
   reportTo: string;
   createdAt: string;
+  embeddingStatus?: string; // PENDING/PROCESSING/COMPLETED/FAILED
 }
 
 interface Props {
@@ -74,6 +75,40 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
     if (team?.includes('供应链')) return 'bg-amber-50 text-amber-600 border-amber-200';
     if (team?.includes('财务')) return 'bg-emerald-50 text-emerald-600 border-emerald-200';
     return 'bg-slate-50 text-slate-600 border-slate-200';
+  };
+
+  const renderEmbeddingBadge = (status?: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3" />
+            已向量化
+          </span>
+        );
+      case 'FAILED':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-red-50 text-red-500 rounded-full border border-red-200">
+            <XCircle className="w-3 h-3" />
+            向量化失败
+          </span>
+        );
+      case 'PROCESSING':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-blue-50 text-blue-500 rounded-full border border-blue-200">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            向量化中
+          </span>
+        );
+      case 'PENDING':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-slate-50 text-slate-400 rounded-full border border-slate-200">
+            <Clock className="w-3 h-3" />
+            待向量化
+          </span>
+        );
+    }
   };
 
   if (loading) {
@@ -141,6 +176,7 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
                       <span className="text-[10px] text-slate-400">{card.cardCode}</span>
                     </div>
                   </div>
+                  {renderEmbeddingBadge(card.embeddingStatus)}
                 </div>
 
                 {/* Info Tags */}
