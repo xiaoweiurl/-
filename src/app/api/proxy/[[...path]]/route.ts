@@ -62,17 +62,20 @@ async function proxyRequest(request: NextRequest, method: string) {
       const contentType = request.headers.get('content-type') || '';
       if (contentType.includes('multipart/form-data')) {
         fetchOptions.body = await request.arrayBuffer();
+        fetchOptions.duplex = 'half';
         headers.delete('content-type');
       } else if (contentType.includes('application/json') || contentType.includes('text/')) {
         fetchOptions.body = await request.text();
+        fetchOptions.duplex = 'half';
       } else {
         fetchOptions.body = await request.arrayBuffer();
+        fetchOptions.duplex = 'half';
       }
     }
 
     console.log(`[Proxy] ${method} → ${targetUrl}`);
 
-    const backendResponse = await fetch(targetUrl, fetchOptions);
+    const backendResponse = await fetch(targetUrl, fetchOptions as RequestInit);
 
     console.log(`[Proxy] ← ${backendResponse.status} ${backendResponse.statusText}`);
 

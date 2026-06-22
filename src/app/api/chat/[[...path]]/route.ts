@@ -97,8 +97,9 @@ async function proxyRequest(
       method,
       headers,
       body: body || undefined,
+      duplex: body ? 'half' : undefined,
       signal: AbortSignal.timeout(sse ? 600000 : 30000),
-    });
+    } as RequestInit);
 
     // 构建响应头
     const responseHeaders = new Headers();

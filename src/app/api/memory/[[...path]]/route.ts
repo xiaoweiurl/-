@@ -122,8 +122,9 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers,
         body: formData,
+        duplex: 'half',
         signal: AbortSignal.timeout(60000),
-      });
+      } as RequestInit);
     } else {
       const body = await request.json();
       headers.set('Content-Type', 'application/json');
@@ -131,8 +132,9 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
+        duplex: 'half',
         signal: AbortSignal.timeout(15000),
-      });
+      } as RequestInit);
     }
 
     const text = await res.text();
@@ -161,8 +163,9 @@ export async function PUT(request: NextRequest) {
       method: 'PUT',
       headers,
       body: JSON.stringify(body),
+      duplex: 'half',
       signal: AbortSignal.timeout(15000),
-    });
+    } as RequestInit);
 
     const text = await res.text();
 
