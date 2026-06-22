@@ -291,10 +291,14 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 7. 流式调用MiniMax
                 StringBuilder fullResponse = new StringBuilder();
-                streamChat(emitter, messages, fullResponse);
-
-                // 8. 保存AI回复
-                saveChatMessage(userId, userId, "assistant", fullResponse.toString(), company);
+                try {
+                    streamChat(emitter, messages, fullResponse);
+                } finally {
+                    // 8. 无论流是否成功，都保存已收集的AI回复
+                    if (fullResponse.length() > 0) {
+                        saveChatMessage(userId, userId, "assistant", fullResponse.toString(), company);
+                    }
+                }
 
                 emitter.complete();
             } catch (Exception e) {
@@ -1007,15 +1011,21 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void saveChatMessage(String userId, String _unused, String role, String content, String company) {
         try {
+            if (content == null || content.trim().isEmpty()) {
+                log.warn("保存对话消息跳过: content为空, userId={}, role={}", userId, role);
+                return;
+            }
             // 用 userId 生成确定性 UUID 作为 session_id（同一用户始终相同）
             String sessionId = UUID.nameUUIDFromBytes(("chat-" + userId).getBytes()).toString();
+            log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, sessionId={}", userId, role, content.length(), company, sessionId);
             jdbcTemplate.update(
                     "INSERT INTO smart_chat_history (id, session_id, role, content, user_id, company, created_at) " +
-                            "VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, NOW())",
+                            "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, ?, NOW())",
                     sessionId, role, content, userId, company
             );
+            log.info("保存对话消息成功: userId={}, role={}", userId, role);
         } catch (Exception e) {
-            log.warn("保存对话消息失败: {}", e.getMessage());
+            log.error("保存对话消息失败: userId={}, role={}, error={}", userId, role, e.getMessage(), e);
         }
     }
 

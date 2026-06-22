@@ -84,7 +84,8 @@ public class ChatController {
     public ResponseEntity<?> getChatHistory(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
-        List<Map<String, Object>> history = smartChatService.getChatHistory(userId, user.getCompany());
+        String company = user.getCompany() != null ? user.getCompany() : "盈云";
+        List<Map<String, Object>> history = smartChatService.getChatHistory(userId, company);
         return ResponseEntity.ok(Map.of("success", true, "history", history));
     }
 
@@ -95,7 +96,8 @@ public class ChatController {
     public ResponseEntity<?> clearChatHistory(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
-        smartChatService.clearChatHistory(userId, user.getCompany());
+        String company = user.getCompany() != null ? user.getCompany() : "盈云";
+        smartChatService.clearChatHistory(userId, company);
         return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
     }
 }
