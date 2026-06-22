@@ -13,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -60,12 +62,19 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         PositionKnowledgeCard saved = cardRepository.save(card);
         log.info("创建岗位知识卡片成功: id={}, code={}, position={}", saved.getId(), saved.getCardCode(), saved.getPositionName());
 
-        // 异步向量化
-        try {
-            vectorizeCard(saved);
-        } catch (Exception e) {
-            log.warn("岗位卡片向量化失败，不影响保存: {}", e.getMessage());
-        }
+        // 事务提交后再向量化，避免向量化失败导致整个事务回滚
+        final String savedId = saved.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
+                    if (fresh != null) vectorizeCard(fresh);
+                } catch (Exception e) {
+                    log.warn("岗位卡片向量化失败，不影响保存: {}", e.getMessage());
+                }
+            }
+        });
 
         return saved;
     }
@@ -109,13 +118,20 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         PositionKnowledgeCard saved = cardRepository.save(existing);
         log.info("更新岗位知识卡片成功: id={}, position={}", saved.getId(), saved.getPositionName());
 
-        // 重新向量化
-        try {
-            deleteCardVectors(id);
-            vectorizeCard(saved);
-        } catch (Exception e) {
-            log.warn("岗位卡片重新向量化失败: {}", e.getMessage());
-        }
+        // 事务提交后再重新向量化，避免向量化失败导致整个事务回滚
+        final String savedId = saved.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    deleteCardVectors(savedId);
+                    PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
+                    if (fresh != null) vectorizeCard(fresh);
+                } catch (Exception e) {
+                    log.warn("岗位卡片重新向量化失败: {}", e.getMessage());
+                }
+            }
+        });
 
         return saved;
     }
