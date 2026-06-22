@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -27,7 +27,7 @@ interface LoginResponse {
   };
 }
 
-type PortalType = 'designer' | 'factory' | null;
+type PortalType = 'designer' | 'factory' | 'marketing' | null;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -85,6 +85,8 @@ export default function LoginPage() {
 
         if (portal === 'factory') {
           router.replace('/supply-chain');
+        } else if (portal === 'marketing') {
+          router.replace('/marketing');
         } else {
           router.replace('/');
         }
@@ -181,6 +183,30 @@ export default function LoginPage() {
                 </svg>
               </div>
             </button>
+
+            {/* 市场营销AI入口 */}
+            <button
+              onClick={() => setPortal('marketing')}
+              className={cn(
+                'group relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
+                'hover:shadow-xl hover:border-emerald-300 hover:-translate-y-1',
+                'transition-all duration-300 text-left'
+              )}
+            >
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25 mb-5">
+                <Megaphone className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">市场营销AI入口</h2>
+              <p className="text-sm text-slate-500 mb-4">
+                无缝针织行业营销策略、市场分析、文案生成
+              </p>
+              <div className="flex items-center text-emerald-600 text-sm font-medium group-hover:translate-x-1 transition-transform">
+                进入营销AI助手
+                <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
           </div>
 
           {/* 版权信息 */}
@@ -194,25 +220,30 @@ export default function LoginPage() {
 
   // 登录表单页面
   const isFactory = portal === 'factory';
-  const gradientFrom = isFactory ? 'from-amber-500' : 'from-violet-500';
-  const gradientTo = isFactory ? 'to-orange-600' : 'to-purple-600';
-  const ringColor = isFactory ? 'focus:ring-amber-500/20 focus:border-amber-500' : 'focus:ring-violet-500/20 focus:border-violet-500';
-  const btnFrom = isFactory ? 'from-amber-500' : 'from-violet-500';
-  const btnTo = isFactory ? 'to-orange-600' : 'to-purple-600';
-  const btnHoverFrom = isFactory ? 'from-amber-600' : 'from-violet-600';
-  const btnHoverTo = isFactory ? 'to-orange-700' : 'to-purple-700';
-  const shadowColor = isFactory ? 'shadow-amber-500/25' : 'shadow-violet-500/25';
+  const isMarketing = portal === 'marketing';
+  const gradientFrom = isFactory ? 'from-amber-500' : isMarketing ? 'from-emerald-500' : 'from-violet-500';
+  const gradientTo = isFactory ? 'to-orange-600' : isMarketing ? 'to-teal-600' : 'to-purple-600';
+  const ringColor = isFactory ? 'focus:ring-amber-500/20 focus:border-amber-500' : isMarketing ? 'focus:ring-emerald-500/20 focus:border-emerald-500' : 'focus:ring-violet-500/20 focus:border-violet-500';
+  const btnFrom = isFactory ? 'from-amber-500' : isMarketing ? 'from-emerald-500' : 'from-violet-500';
+  const btnTo = isFactory ? 'to-orange-600' : isMarketing ? 'to-teal-600' : 'to-purple-600';
+  const btnHoverFrom = isFactory ? 'from-amber-600' : isMarketing ? 'from-emerald-600' : 'from-violet-600';
+  const btnHoverTo = isFactory ? 'to-orange-700' : isMarketing ? 'to-teal-700' : 'to-purple-700';
+  const shadowColor = isFactory ? 'shadow-amber-500/25' : isMarketing ? 'shadow-emerald-500/25' : 'shadow-violet-500/25';
   const bgGradient = isFactory
     ? 'bg-gradient-to-br from-amber-50 via-white to-orange-50'
-    : 'bg-gradient-to-br from-emerald-50 via-white to-teal-50';
+    : isMarketing
+    ? 'bg-gradient-to-br from-emerald-50 via-white to-teal-50'
+    : 'bg-gradient-to-br from-violet-50 via-white to-purple-50';
   const iconBg = isFactory
     ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/30'
-    : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30';
-  const Icon = isFactory ? Factory : Palette;
-  const title = isFactory ? '供应链管理' : '盈云产品智能中台';
-  const subtitle = isFactory ? 'Supply Chain Management' : 'Digital Knowledge Base';
-  const quickBtnBg = isFactory ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' : 'bg-violet-50 text-violet-600 border-violet-200 hover:bg-violet-100';
-  const quickBtnBgAlt = isFactory ? 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100';
+    : isMarketing
+    ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30'
+    : 'bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/30';
+  const Icon = isFactory ? Factory : isMarketing ? Megaphone : Palette;
+  const title = isFactory ? '供应链管理' : isMarketing ? '市场营销助手' : '盈云产品智能中台';
+  const subtitle = isFactory ? 'Supply Chain Management' : isMarketing ? 'Marketing AI Assistant' : 'Digital Knowledge Base';
+  const quickBtnBg = isFactory ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' : isMarketing ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-violet-50 text-violet-600 border-violet-200 hover:bg-violet-100';
+  const quickBtnBgAlt = 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100';
 
   return (
     <div className={cn('min-h-screen flex items-center justify-center p-4', bgGradient)}>
