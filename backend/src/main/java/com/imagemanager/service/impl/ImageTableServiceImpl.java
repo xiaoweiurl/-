@@ -42,9 +42,9 @@ public class ImageTableServiceImpl implements ImageTableService {
         }
 
         try {
-            // 创建表的 DDL（复制 images 表结构）
+            // 创建表的 DDL（复制 images 表结构），使用 IF NOT EXISTS 防止并发创建
             String createTableSQL = String.format("""
-                CREATE TABLE %s (
+                CREATE TABLE IF NOT EXISTS %s (
                     id VARCHAR(36) PRIMARY KEY,
                     url VARCHAR(500) NOT NULL,
                     title VARCHAR(255),
@@ -70,13 +70,13 @@ public class ImageTableServiceImpl implements ImageTableService {
             
             entityManager.createNativeQuery(createTableSQL).executeUpdate();
             
-            // 创建索引
-            String createIndexSQL1 = String.format("CREATE INDEX idx_%s_album_id ON %s(album_id)", tableName.replace("_", "_"), tableName);
-            String createIndexSQL2 = String.format("CREATE INDEX idx_%s_product_id ON %s(product_id)", tableName.replace("_", "_"), tableName);
-            String createIndexSQL3 = String.format("CREATE INDEX idx_%s_deleted ON %s(deleted)", tableName.replace("_", "_"), tableName);
-            String createIndexSQL4 = String.format("CREATE INDEX idx_%s_is_main_image ON %s(is_main_image)", tableName.replace("_", "_"), tableName);
-            String createIndexSQL5 = String.format("CREATE INDEX idx_%s_favorite ON %s(favorite)", tableName.replace("_", "_"), tableName);
-            String createIndexSQL6 = String.format("CREATE INDEX idx_%s_created_at ON %s(created_at)", tableName.replace("_", "_"), tableName);
+            // 创建索引（使用 IF NOT EXISTS 防止重复创建）
+            String createIndexSQL1 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_album_id ON %s(album_id)", tableName.replace("_", "_"), tableName);
+            String createIndexSQL2 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_product_id ON %s(product_id)", tableName.replace("_", "_"), tableName);
+            String createIndexSQL3 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_deleted ON %s(deleted)", tableName.replace("_", "_"), tableName);
+            String createIndexSQL4 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_is_main_image ON %s(is_main_image)", tableName.replace("_", "_"), tableName);
+            String createIndexSQL5 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_favorite ON %s(favorite)", tableName.replace("_", "_"), tableName);
+            String createIndexSQL6 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_created_at ON %s(created_at)", tableName.replace("_", "_"), tableName);
             
             entityManager.createNativeQuery(createIndexSQL1).executeUpdate();
             entityManager.createNativeQuery(createIndexSQL2).executeUpdate();
@@ -107,7 +107,7 @@ public class ImageTableServiceImpl implements ImageTableService {
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_schema = 'public' 
-                    AND table_name = ?
+                    AND LOWER(table_name) = LOWER(?)
                 )
                 """;
             

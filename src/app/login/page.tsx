@@ -74,9 +74,12 @@ export default function LoginPage() {
         // 根据入口类型存储并跳转
         localStorage.setItem('portal_type', portal || 'designer');
 
-        // 存储公司标签
+        // 存储公司标签和用户ID
         if (result.data.user?.company) {
           localStorage.setItem('user_company', result.data.user.company);
+        }
+        if (result.data.user?.id) {
+          localStorage.setItem('user_id', result.data.user.id);
         }
 
         toast.success('登录成功', {

@@ -34,8 +34,8 @@ export default function MarketingChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const storedCompany = localStorage.getItem('marketing_company') || '';
-    const storedUserId = localStorage.getItem('marketing_userId') || '';
+    const storedCompany = localStorage.getItem('user_company') || '';
+    const storedUserId = localStorage.getItem('user_id') || '';
     if (!storedCompany || !storedUserId) {
       window.location.href = '/login';
       return;
