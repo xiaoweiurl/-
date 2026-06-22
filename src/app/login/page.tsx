@@ -165,7 +165,7 @@ export default function LoginPage() {
 
             <div className="max-w-lg">
               <h1 className="text-[3.2rem] xl:text-[3.8rem] font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
-                产品智能
+                企业数智
                 <br />
                 <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-amber-200 bg-clip-text text-transparent">中台系统</span>
               </h1>
