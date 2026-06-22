@@ -1390,12 +1390,6 @@ export default function Home() {
       return;
     }
 
-    // 如果点击记忆库，跳转到记忆库页面
-    if (item === 'memory') {
-      router.push('/memory');
-      return;
-    }
-
     // 如果点击AI对话，跳转到聊天页面
     if (item === 'chat') {
       router.push('/chat');

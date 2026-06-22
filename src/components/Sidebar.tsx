@@ -755,11 +755,6 @@ export default function Sidebar({
       icon: BookOpen,
     },
     {
-      id: 'memory',
-      label: '记忆库',
-      icon: Brain,
-    },
-    {
       id: 'chat',
       label: 'AI 对话',
       icon: MessageSquare,
