@@ -99,10 +99,9 @@ async function proxyRequest(
       signal: AbortSignal.timeout(sse ? 600000 : 30000),
     };
 
-    // 只在有 body 时设置 body 和 duplex
+    // 只在有 body 时设置 body（string 类型，无需 duplex）
     if (body) {
       fetchOptions.body = body;
-      fetchOptions.duplex = 'half';
     }
 
     const backendRes = await fetch(targetUrl, fetchOptions);
