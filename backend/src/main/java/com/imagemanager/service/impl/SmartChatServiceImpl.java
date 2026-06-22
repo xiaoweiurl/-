@@ -588,7 +588,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             sb.append("]");
             String queryEmbedding = sb.toString();
 
-            String sql = "SELECT e.content, e.chunk_index, e.source_doc_id, " +
+            String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
                     "1 - (e.embedding <#> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'POSITION_CARD' " +
@@ -599,7 +599,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
             for (Map<String, Object> row : rows) {
                 Map<String, Object> item = new HashMap<>();
-                item.put("content", row.get("content"));
+                item.put("content", row.get("chunk_text"));
                 item.put("sourceDocId", row.get("source_doc_id"));
                 item.put("similarity", row.get("similarity"));
                 item.put("source", "position_card");
