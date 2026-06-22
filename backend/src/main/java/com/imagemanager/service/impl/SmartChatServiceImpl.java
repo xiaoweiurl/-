@@ -17,10 +17,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 智能对话服务实现 - 双库检索(知识库+记忆库) + MiniMax流式对话
@@ -96,6 +100,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
+                // 2d. 供应链/工厂数据检索(当用户意图涉及报价、成本、原料、供应商等)
+                List<Map<String, Object>> supplyChainResults = Collections.emptyList();
+                if (isSupplyChainIntent(message)) {
+                    try {
+                        supplyChainResults = searchSupplyChain(message);
+                        log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
+                    } catch (Exception e) {
+                        log.warn("供应链数据检索异常: {}", e.getMessage());
+                    }
+                }
+
                 // 3. 发送来源信息
                 List<Map<String, Object>> sources = new ArrayList<>();
 
@@ -116,6 +131,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "source", "knowledge",
                             "content", r.getOrDefault("content", "").toString(),
                             "score", r.getOrDefault("score", 0)
+                    ));
+                }
+
+                // 供应链来源
+                for (Map<String, Object> r : supplyChainResults) {
+                    sources.add(Map.of(
+                            "source", "supply_chain",
+                            "type", r.getOrDefault("type", ""),
+                            "summary", r.getOrDefault("summary", "").toString()
                     ));
                 }
 
@@ -186,13 +210,38 @@ public class SmartChatServiceImpl implements SmartChatService {
                     knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些产品及其图片。\n");
                 }
 
+                // 供应链/工厂数据上下文
+                if (!supplyChainResults.isEmpty()) {
+                    knowledgeContext.append("## 供应链/工厂业务数据：\n");
+                    for (Map<String, Object> r : supplyChainResults) {
+                        String type = r.getOrDefault("type", "").toString();
+                        String summary = r.getOrDefault("summary", "").toString();
+                        knowledgeContext.append(String.format("### [%s] %s\n", type, summary));
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> data = (Map<String, Object>) r.get("data");
+                        if (data != null) {
+                            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                                Object val = entry.getValue();
+                                if (val != null) {
+                                    String valStr = val.toString();
+                                    if (valStr.length() > 200) valStr = valStr.substring(0, 200) + "...";
+                                    knowledgeContext.append(String.format("  %s: %s\n", entry.getKey(), valStr));
+                                }
+                            }
+                        }
+                        knowledgeContext.append("\n");
+                    }
+                    knowledgeContext.append("用户询问供应链/工厂相关问题，请基于以上业务数据回答，包括报价、成本、原料、供应商等具体数据。\n");
+                }
+
                 // 5. 构建messages(含历史上下文)
                 List<Map<String, Object>> messages = new ArrayList<>();
 
                 // System prompt: 定义AI角色和行为
                 messages.add(Map.of("role", "system", "content",
-                        "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）的访问权限。" +
-                        "回答问题时优先基于检索到的知识库内容，并标注引用来源。" +
+                        "你是盈云产品智能中台的AI助手。你拥有企业知识库（记忆库和知识库）和供应链业务数据的访问权限。" +
+                        "回答问题时优先基于检索到的知识库内容和业务数据，并标注引用来源。" +
+                        "当涉及产品报价、成本核算、原料采购、供应商对比、生产计划等问题时，务必基于检索到的供应链业务数据精确回答，包括具体数字。" +
                         "如果知识库中没有相关信息，你可以基于自身知识回答，但要说明信息来源。" +
                         "保持专业、简洁、有帮助的回答风格。"));
 
@@ -206,7 +255,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 String userContent = message;
                 if (!knowledgeContext.isEmpty()) {
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message +
-                            "\n\n请基于以上知识回答用户问题，并标注引用来源和出处(记忆库/知识库)。";
+                            "\n\n请基于以上知识和业务数据回答用户问题，并标注引用来源和出处(记忆库/知识库/供应链数据)。";
                 } else {
                     userContent = "用户问题: " + message +
                             "\n\n(知识库中未检索到相关内容，请基于自身知识回答。)";
@@ -477,6 +526,453 @@ public class SmartChatServiceImpl implements SmartChatService {
         }
     }
 
+    // ========== 供应链/工厂数据检索 ==========
+
+    /**
+     * 判断用户意图是否涉及供应链/工厂数据
+     */
+    private boolean isSupplyChainIntent(String message) {
+        String lower = message.toLowerCase();
+        // 强模式：直接涉及报价/成本/原料/供应商等
+        String[] patterns = {
+            "报价", "成本", "原料", "供应商", "采购", "单价", "利润",
+            "纱线", "克重", "织造", "缝头", "染色", "定型", "包装",
+            "入库", "出库", "生产计划", "辅料", "日产量", "正品率",
+            "费率", "机台", "产量", "交期", "工艺", "下机",
+            "袜", "内衣", "无缝", "针织",
+            "多少钱", "价格", "费用", "花多少", "最便宜", "最低价",
+            "对比", "比较价格", "供应商对比", "节省", "成本优化",
+            "报价单", "成本核算", "成本分析", "智能报价"
+        };
+        for (String kw : patterns) {
+            if (lower.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 供应链数据检索 - 根据用户意图查询相关业务数据
+     */
+    private List<Map<String, Object>> searchSupplyChain(String query) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            // 提取产品编码关键词
+            String productCode = extractProductCode(query);
+
+            // 1. 产品报价查询
+            if (productCode != null) {
+                searchQuotationByProductCode(productCode, results);
+            } else {
+                // 模糊搜索报价单
+                searchQuotationByKeyword(query, results);
+            }
+
+            // 2. 原料采购价格查询
+            searchRawMaterialPurchase(query, results);
+
+            // 3. 原料入库信息
+            searchRawMaterialWarehouse(query, results);
+
+            // 4. 生产计划查询
+            if (productCode != null) {
+                searchProductionPlan(productCode, results);
+            }
+
+            // 5. 辅料采购查询
+            searchAccessoryPurchase(query, results);
+
+            // 6. 如果用户问的是供应商对比，额外查询
+            if (query.contains("对比") || query.contains("比较") || query.contains("最便宜") || query.contains("最低价")) {
+                searchSupplierComparison(query, results);
+            }
+
+        } catch (Exception e) {
+            log.error("供应链数据检索失败", e);
+        }
+        return results;
+    }
+
+    /**
+     * 从用户消息中提取产品编码
+     */
+    private String extractProductCode(String query) {
+        // 匹配常见产品编码格式: HT01-S, HT01-M, HT01-L 等
+        Pattern pattern = Pattern.compile("\\b(HT\\d+[-][A-Z]+|[A-Z]{2}\\d+[A-Z]?)\\b");
+        Matcher matcher = pattern.matcher(query);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    /**
+     * 按产品编码查询报价单
+     */
+    private void searchQuotationByProductCode(String productCode, List<Map<String, Object>> results) {
+        try {
+            String sql = "SELECT id, product_code, production_code, document_no, period, customer, salesperson, " +
+                "product_category, approval_status, sales_type, " +
+                "raw_material_name1, material_usage1, material_unit_price1, " +
+                "raw_material_name2, material_usage2, material_unit_price2, " +
+                "raw_material_name3, material_usage3, material_unit_price3, " +
+                "raw_material_name4, material_usage4, material_unit_price4, " +
+                "raw_material_name5, material_usage5, material_unit_price5, " +
+                "raw_material_name6, material_usage6, material_unit_price6, " +
+                "accessory_name, accessory_price, " +
+                "weaving_seconds, daily_output, equipment_daily_cost, weaving_cost, " +
+                "yield_rate, sewing_weight, sewing_cost, " +
+                "dyeing_unit_price, dyeing_cost, setting_cost, packaging_cost, " +
+                "manufacturing_total, net_cost, sales_cost, " +
+                "machine_hourly_rate, single_machine_output_hourly " +
+                "FROM product_quotation WHERE product_code = ? LIMIT 5";
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql,
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("productCode", rs.getString("product_code"));
+                    row.put("productionCode", rs.getString("production_code"));
+                    row.put("customer", rs.getString("customer"));
+                    row.put("salesperson", rs.getString("salesperson"));
+                    row.put("productCategory", rs.getString("product_category"));
+                    row.put("approvalStatus", rs.getString("approval_status"));
+                    row.put("salesType", rs.getString("sales_type"));
+                    // 原料明细
+                    row.put("rawMaterial1", rs.getString("raw_material_name1") + " 用量:" + rs.getBigDecimal("material_usage1") + " 单价:" + rs.getBigDecimal("material_unit_price1"));
+                    row.put("rawMaterial2", rs.getString("raw_material_name2") + " 用量:" + rs.getBigDecimal("material_usage2") + " 单价:" + rs.getBigDecimal("material_unit_price2"));
+                    row.put("rawMaterial3", rs.getString("raw_material_name3") + " 用量:" + rs.getBigDecimal("material_usage3") + " 单价:" + rs.getBigDecimal("material_unit_price3"));
+                    row.put("rawMaterial4", rs.getString("raw_material_name4") + " 用量:" + rs.getBigDecimal("material_usage4") + " 单价:" + rs.getBigDecimal("material_unit_price4"));
+                    row.put("rawMaterial5", rs.getString("raw_material_name5") + " 用量:" + rs.getBigDecimal("material_usage5") + " 单价:" + rs.getBigDecimal("material_unit_price5"));
+                    row.put("rawMaterial6", rs.getString("raw_material_name6") + " 用量:" + rs.getBigDecimal("material_usage6") + " 单价:" + rs.getBigDecimal("material_unit_price6"));
+                    row.put("accessoryName", rs.getString("accessory_name"));
+                    row.put("accessoryPrice", rs.getBigDecimal("accessory_price"));
+                    // 制造成本
+                    row.put("weavingCost", rs.getBigDecimal("weaving_cost"));
+                    row.put("yieldRate", rs.getBigDecimal("yield_rate"));
+                    row.put("dyeingCost", rs.getBigDecimal("dyeing_cost"));
+                    row.put("manufacturingTotal", rs.getBigDecimal("manufacturing_total"));
+                    row.put("netCost", rs.getBigDecimal("net_cost"));
+                    row.put("salesCost", rs.getBigDecimal("sales_cost"));
+                    row.put("machineHourlyRate", rs.getBigDecimal("machine_hourly_rate"));
+                    row.put("singleMachineOutputHourly", rs.getBigDecimal("single_machine_output_hourly"));
+                    return row;
+                }, productCode);
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "产品报价");
+                result.put("summary", "产品编码: " + productCode + " | 客户: " + row.get("customer") +
+                    " | 净成本: " + row.get("netCost") + " | 销售成本: " + row.get("salesCost"));
+                result.put("data", row);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("查询产品报价失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 按关键词模糊搜索报价单
+     */
+    private void searchQuotationByKeyword(String query, List<Map<String, Object>> results) {
+        try {
+            // 提取关键词
+            String[] terms = query.split("[\\s,，。！？?]+");
+            List<String> keywords = new ArrayList<>();
+            for (String term : terms) {
+                String t = term.trim();
+                if (t.length() >= 2 && t.length() <= 10 && !isStopWord(t)) {
+                    keywords.add(t);
+                }
+            }
+            if (keywords.isEmpty()) return;
+
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT product_code, customer, salesperson, product_category, net_cost, sales_cost, " +
+                "manufacturing_total, yield_rate FROM product_quotation WHERE ");
+            List<Object> params = new ArrayList<>();
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) sql.append(" OR ");
+                sql.append("(COALESCE(product_code, '') ILIKE ? OR COALESCE(customer, '') ILIKE ? " +
+                    "OR COALESCE(salesperson, '') ILIKE ? OR COALESCE(product_category, '') ILIKE ? " +
+                    "OR COALESCE(raw_material_name1, '') ILIKE ? OR COALESCE(raw_material_name2, '') ILIKE ? " +
+                    "OR COALESCE(raw_material_name3, '') ILIKE ? OR COALESCE(raw_material_name4, '') ILIKE ? " +
+                    "OR COALESCE(raw_material_name5, '') ILIKE ? OR COALESCE(raw_material_name6, '') ILIKE ?)");
+                String pattern = "%" + keywords.get(i) + "%";
+                for (int j = 0; j < 10; j++) params.add(pattern);
+            }
+            sql.append(" LIMIT 10");
+
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("productCode", rs.getString("product_code"));
+                    row.put("customer", rs.getString("customer"));
+                    row.put("salesperson", rs.getString("salesperson"));
+                    row.put("productCategory", rs.getString("product_category"));
+                    row.put("netCost", rs.getBigDecimal("net_cost"));
+                    row.put("salesCost", rs.getBigDecimal("sales_cost"));
+                    row.put("manufacturingTotal", rs.getBigDecimal("manufacturing_total"));
+                    row.put("yieldRate", rs.getBigDecimal("yield_rate"));
+                    return row;
+                }, params.toArray());
+
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "产品报价");
+                result.put("summary", "产品: " + row.get("productCode") + " | 客户: " + row.get("customer") +
+                    " | 净成本: " + row.get("netCost"));
+                result.put("data", row);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("模糊搜索报价单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 查询原料采购价格
+     */
+    private void searchRawMaterialPurchase(String query, List<Map<String, Object>> results) {
+        try {
+            String[] terms = query.split("[\\s,，。！？?]+");
+            List<String> keywords = new ArrayList<>();
+            for (String term : terms) {
+                String t = term.trim();
+                if (t.length() >= 2 && t.length() <= 20 && !isStopWord(t)) {
+                    keywords.add(t);
+                }
+            }
+            if (keywords.isEmpty()) return;
+
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT material_code, unit, supplier, batch_no, unit_price FROM raw_material_purchase WHERE ");
+            List<Object> params = new ArrayList<>();
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) sql.append(" OR ");
+                sql.append("(COALESCE(material_code, '') ILIKE ? OR COALESCE(supplier, '') ILIKE ?)");
+                String pattern = "%" + keywords.get(i) + "%";
+                params.add(pattern);
+                params.add(pattern);
+            }
+            sql.append(" LIMIT 20");
+
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("materialCode", rs.getString("material_code"));
+                    row.put("unit", rs.getString("unit"));
+                    row.put("supplier", rs.getString("supplier"));
+                    row.put("batchNo", rs.getString("batch_no"));
+                    row.put("unitPrice", rs.getBigDecimal("unit_price"));
+                    return row;
+                }, params.toArray());
+
+            if (!rows.isEmpty()) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "原料采购");
+                result.put("summary", "找到 " + rows.size() + " 条原料采购记录");
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("count", rows.size());
+                data.put("items", rows);
+                result.put("data", data);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("查询原料采购失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 查询原料入库信息
+     */
+    private void searchRawMaterialWarehouse(String query, List<Map<String, Object>> results) {
+        try {
+            String[] terms = query.split("[\\s,，。！？?]+");
+            List<String> keywords = new ArrayList<>();
+            for (String term : terms) {
+                String t = term.trim();
+                if (t.length() >= 2 && t.length() <= 20 && !isStopWord(t)) {
+                    keywords.add(t);
+                }
+            }
+            if (keywords.isEmpty()) return;
+
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT product_code, color, batch_no, unit, unit_price FROM raw_material_warehouse WHERE ");
+            List<Object> params = new ArrayList<>();
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) sql.append(" OR ");
+                sql.append("(COALESCE(product_code, '') ILIKE ? OR COALESCE(batch_no, '') ILIKE ?)");
+                String pattern = "%" + keywords.get(i) + "%";
+                params.add(pattern);
+                params.add(pattern);
+            }
+            sql.append(" LIMIT 20");
+
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("productCode", rs.getString("product_code"));
+                    row.put("color", rs.getString("color"));
+                    row.put("batchNo", rs.getString("batch_no"));
+                    row.put("unit", rs.getString("unit"));
+                    row.put("unitPrice", rs.getBigDecimal("unit_price"));
+                    return row;
+                }, params.toArray());
+
+            if (!rows.isEmpty()) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "原料入库");
+                result.put("summary", "找到 " + rows.size() + " 条原料入库记录");
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("count", rows.size());
+                data.put("items", rows);
+                result.put("data", data);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("查询原料入库失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 查询生产计划
+     */
+    private void searchProductionPlan(String productCode, List<Map<String, Object>> results) {
+        try {
+            String sql = "SELECT semi_product_code, product_code, sewing_weight, machine_type, " +
+                "needle_count, seconds, machine_count, single_machine_output " +
+                "FROM production_plan WHERE product_code = ? LIMIT 5";
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql,
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("semiProductCode", rs.getString("semi_product_code"));
+                    row.put("productCode", rs.getString("product_code"));
+                    row.put("sewingWeight", rs.getBigDecimal("sewing_weight"));
+                    row.put("machineType", rs.getString("machine_type"));
+                    row.put("needleCount", rs.getString("needle_count"));
+                    row.put("seconds", rs.getBigDecimal("seconds"));
+                    row.put("machineCount", rs.getInt("machine_count"));
+                    row.put("singleMachineOutput", rs.getBigDecimal("single_machine_output"));
+                    return row;
+                }, productCode);
+            if (!rows.isEmpty()) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "生产计划");
+                result.put("summary", "产品 " + productCode + " 的生产计划");
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("items", rows);
+                result.put("data", data);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("查询生产计划失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 查询辅料采购
+     */
+    private void searchAccessoryPurchase(String query, List<Map<String, Object>> results) {
+        try {
+            String[] terms = query.split("[\\s,，。！？?]+");
+            List<String> keywords = new ArrayList<>();
+            for (String term : terms) {
+                String t = term.trim();
+                if (t.length() >= 2 && t.length() <= 20 && !isStopWord(t)) {
+                    keywords.add(t);
+                }
+            }
+            if (keywords.isEmpty()) return;
+
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT accessory_name, accessory_category, unit, supplier, accessory_unit_price " +
+                "FROM accessory_purchase WHERE ");
+            List<Object> params = new ArrayList<>();
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) sql.append(" OR ");
+                sql.append("(COALESCE(accessory_name, '') ILIKE ? OR COALESCE(accessory_category, '') ILIKE ? " +
+                    "OR COALESCE(supplier, '') ILIKE ?)");
+                String pattern = "%" + keywords.get(i) + "%";
+                params.add(pattern);
+                params.add(pattern);
+                params.add(pattern);
+            }
+            sql.append(" LIMIT 20");
+
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("accessoryName", rs.getString("accessory_name"));
+                    row.put("accessoryCategory", rs.getString("accessory_category"));
+                    row.put("unit", rs.getString("unit"));
+                    row.put("supplier", rs.getString("supplier"));
+                    row.put("unitPrice", rs.getBigDecimal("accessory_unit_price"));
+                    return row;
+                }, params.toArray());
+
+            if (!rows.isEmpty()) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "辅料采购");
+                result.put("summary", "找到 " + rows.size() + " 条辅料采购记录");
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("count", rows.size());
+                data.put("items", rows);
+                result.put("data", data);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("查询辅料采购失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 供应商对比 - 按原料编码汇总各供应商报价
+     */
+    private void searchSupplierComparison(String query, List<Map<String, Object>> results) {
+        try {
+            // 按原料编码汇总供应商报价，找最低价
+            String sql = "SELECT material_code, " +
+                "COUNT(*) as supplier_count, " +
+                "MIN(unit_price) as min_price, " +
+                "MAX(unit_price) as max_price, " +
+                "AVG(unit_price) as avg_price " +
+                "FROM raw_material_purchase " +
+                "WHERE material_code IS NOT NULL " +
+                "GROUP BY material_code " +
+                "ORDER BY material_code LIMIT 20";
+            List<Map<String, Object>> rows = jdbcTemplate.query(sql,
+                (rs, rowNum) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("materialCode", rs.getString("material_code"));
+                    row.put("supplierCount", rs.getInt("supplier_count"));
+                    row.put("minPrice", rs.getBigDecimal("min_price"));
+                    row.put("maxPrice", rs.getBigDecimal("max_price"));
+                    row.put("avgPrice", rs.getBigDecimal("avg_price"));
+                    // 计算节省比例
+                    BigDecimal maxP = rs.getBigDecimal("max_price");
+                    BigDecimal minP = rs.getBigDecimal("min_price");
+                    if (maxP != null && minP != null && maxP.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal saving = maxP.subtract(minP)
+                            .divide(maxP, 4, RoundingMode.HALF_UP)
+                            .multiply(new BigDecimal("100"));
+                        row.put("savingPercent", saving + "%");
+                    }
+                    return row;
+                });
+
+            if (!rows.isEmpty()) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("type", "供应商对比");
+                result.put("summary", "共 " + rows.size() + " 种原料有多个供应商报价");
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("items", rows);
+                result.put("data", data);
+                results.add(result);
+            }
+        } catch (Exception e) {
+            log.warn("供应商对比查询失败: {}", e.getMessage());
+        }
+    }
+
     /**
      * 加载对话历史
      */
@@ -517,9 +1013,10 @@ public class SmartChatServiceImpl implements SmartChatService {
             body.put("max_tokens", 8192);
             body.put("stream", true);
             body.put("temperature", 0.7);
-            body.put("system", "你是盈云产品智能中台的AI助手，专注于供应链、工厂管理和产品知识领域。" +
-                    "请基于提供的记忆库知识卡片和知识库文档片段回答用户问题。" +
-                    "回答时标注引用来源(记忆库/知识库)。" +
+            body.put("system", "你是盈云产品智能中台的AI助手，专注于供应链、工厂管理、产品知识、报价和成本核算领域。" +
+                    "请基于提供的记忆库知识卡片、知识库文档片段和供应链业务数据回答用户问题。" +
+                    "回答时标注引用来源(记忆库/知识库/供应链数据)。" +
+                    "当涉及报价、成本、原料、供应商等数据时，务必引用具体的数字和计算过程。" +
                     "如果参考资料中没有相关信息，请明确说明，不要编造。" +
                     "回答使用中文。保持对话连贯性，参考上下文历史。" +
                     "重要：请确保每句话都完整说完，不要在中途停止或截断。即使回答较长，也要把所有内容完整输出到自然结束。");
