@@ -1748,7 +1748,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50/50 overflow-hidden">
+    <div className="flex h-screen bg-[#f8f9fc] overflow-hidden">
       {/* Toast 提示 */}
       <Toaster position="top-center" richColors closeButton />
       

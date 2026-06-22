@@ -382,9 +382,9 @@ export default function ImageCard({
     <div
       ref={cardRef}
       className={cn(
-        'group relative bg-white rounded-2xl transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/80 hover:-translate-y-1',
+        'group relative bg-white rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/60 hover:-translate-y-0.5',
         viewMode === 'grid' ? 'aspect-square' : viewMode === 'list' ? 'flex items-center gap-4 p-3' : 'aspect-auto',
-        isSelected && 'ring-2 ring-violet-500 ring-offset-2',
+        isSelected && 'ring-2 ring-violet-500 ring-offset-1',
         // 菜单打开时移除 overflow-hidden，允许菜单完整显示
         !showMoreMenu && 'overflow-hidden'
       )}

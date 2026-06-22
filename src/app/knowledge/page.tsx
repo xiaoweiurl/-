@@ -404,15 +404,15 @@ export default function KnowledgePage() {
   const processingDocs = documents.filter((d) => d.embeddingStatus === 'PROCESSING' || d.embeddingStatus === 'PENDING').length;
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 via-indigo-50/20 to-blue-50/10">
+    <div className="h-screen flex flex-col bg-slate-50">
       {/* Header */}
-      <header className="h-14 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-            <BookOpen className="w-4 h-4 text-white" />
+      <header className="h-12 flex items-center justify-between px-5 bg-white border-b border-slate-200/50 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+            <BookOpen className="w-3.5 h-3.5 text-white" />
           </div>
-          <h1 className="text-lg font-bold text-slate-800">知识库</h1>
-          <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">文档管理</span>
+          <h1 className="text-sm font-semibold text-slate-700">知识库</h1>
+          <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded font-medium">文档管理</span>
         </div>
 
         <div className="flex items-center gap-3">

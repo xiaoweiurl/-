@@ -641,46 +641,46 @@ export default function SupplyChainPage() {
     const deleteType = activeTab === 'quotation' ? 'quotations' : activeTab === 'warehouse' ? 'warehouse' : activeTab === 'purchase' ? 'purchases' : activeTab === 'plan' ? 'plans' : 'accessories';
 
     return (
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
         {/* 工具栏 */}
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" placeholder="搜索..." value={searchKeyword}
                 onChange={e => setSearchKeyword(e.target.value)}
                 style={{color: '#1e293b'}}
-                className="pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg w-52 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none bg-white" />
+                className="pl-9 pr-3 py-1.5 text-[13px] border border-slate-200/60 rounded-lg w-52 focus:ring-2 focus:ring-amber-400/30 focus:border-amber-300 outline-none bg-slate-50/50 focus:bg-white transition-colors" />
             </div>
           </div>
           <div className="flex items-center gap-2">
             <input type="file" ref={fileInputRef} onChange={handleImport} accept=".xlsx,.xls" className="hidden" />
             <button onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm rounded-lg hover:shadow-lg transition-all">
-              <Upload className="w-4 h-4" />导入Excel
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[13px] font-medium rounded-lg hover:shadow-md transition-all">
+              <Upload className="w-3.5 h-3.5" />导入Excel
             </button>
           </div>
         </div>
         {/* 表格 */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-[13px]">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
+              <tr className="bg-slate-50/80 border-b border-slate-200/60">
                 {columns.map(col => (
-                  <th key={col.key} className={`py-3 px-3 text-slate-600 font-semibold ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
+                  <th key={col.key} className={`py-2.5 px-3 text-slate-500 font-semibold text-[12px] uppercase tracking-wider ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
                     {col.label}
                   </th>
                 ))}
-                <th className="py-3 px-3 text-slate-600 font-semibold text-right">操作</th>
+                <th className="py-2.5 px-3 text-slate-500 font-semibold text-[12px] uppercase tracking-wider text-right">操作</th>
               </tr>
             </thead>
             <tbody>
               {(data || []).length === 0 ? (
-                <tr><td colSpan={columns.length + 1} className="py-10 text-center text-slate-400">暂无数据</td></tr>
+                <tr><td colSpan={columns.length + 1} className="py-12 text-center text-slate-400 text-[13px]">暂无数据</td></tr>
               ) : (data || []).map((row: any, ri: number) => (
-                <tr key={row.id || ri} className="border-b border-slate-50 hover:bg-amber-50/30 transition-colors">
+                <tr key={row.id || ri} className="border-b border-slate-50 hover:bg-amber-50/20 transition-colors">
                   {columns.map((col: any) => (
-                    <td key={col.key} className={`py-2.5 px-3 ${col.align === 'right' ? 'text-right font-mono' : ''} text-slate-700`}>
+                    <td key={col.key} className={`py-2.5 px-3 text-slate-600 ${col.align === 'right' ? 'text-right font-mono text-[12px]' : ''}`}>
                       {col.format ? col.format(row[col.key]) : (row[col.key] ?? '-')}
                     </td>
                   ))}
@@ -695,7 +695,7 @@ export default function SupplyChainPage() {
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-3 border-t border-slate-100 text-sm text-slate-500">
+        <div className="px-4 py-2.5 border-t border-slate-100 text-[12px] text-slate-400">
           共 {data.length} 条记录
         </div>
       </div>
@@ -707,16 +707,18 @@ export default function SupplyChainPage() {
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-slate-50">
+    <div className="min-h-screen bg-[#f8f9fc]">
       {/* 顶部导航 */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-              <div className={cn("w-8 h-8 rounded-lg bg-gradient-to-r flex items-center justify-center text-white", brand.primaryFrom, brand.primaryTo)}>
+      <header className="bg-white/[0.97] backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-50">
+        <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+              <div className={cn("w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white shadow-sm", brand.primaryFrom, brand.primaryTo)}>
                 <BrandIcon className="w-4 h-4" />
               </div>
-              <h1 className="text-lg font-bold text-slate-800">{brand.name}产品智能中台</h1>
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">供应链 & 工厂</span>
+              <div>
+                <h1 className="text-[15px] font-bold text-slate-800 leading-tight">{brand.name}产品智能中台</h1>
+                <p className="text-[11px] text-slate-400">供应链 & 工厂管理</p>
+              </div>
             </div>
           <div className="flex items-center gap-2">
             <button onClick={handleLogout}
@@ -730,13 +732,13 @@ export default function SupplyChainPage() {
 
       <div className="max-w-[1600px] mx-auto px-4 py-4">
         {/* Tab导航 */}
-        <div className="flex gap-1 mb-4 bg-white/60 backdrop-blur rounded-xl p-1 border border-slate-200 overflow-x-auto">
+        <div className="flex gap-0.5 mb-4 bg-white rounded-xl p-1 border border-slate-200/60 shadow-sm overflow-x-auto">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all ${
                 activeTab === tab.key
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
               }`}>
               {tab.icon}{tab.label}
             </button>

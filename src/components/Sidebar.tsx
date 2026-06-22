@@ -131,6 +131,7 @@ function SubMenuItem({
   selectedIds = new Set<string>(),
   onToggleSelect,
   selectable = true,
+  brandAccent = 'violet',
 }: {
   item: MenuItem;
   activeItem: string;
@@ -141,6 +142,7 @@ function SubMenuItem({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   selectable?: boolean;
+  brandAccent?: string;
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const [isExpanded, setIsExpanded] = React.useState(level <= 1);
@@ -153,11 +155,11 @@ function SubMenuItem({
     <div>
       <div
         className={cn(
-          'group flex items-center gap-2 rounded-lg text-sm transition-all duration-200',
+          'group flex items-center gap-2 rounded-lg text-[13px] transition-all duration-150',
           level > 0 ? 'px-3 py-1.5' : 'px-3 py-2',
           isActive
-            ? 'bg-violet-50 text-violet-700 font-medium'
-            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+            ? 'bg-white/[0.08] text-white'
+            : 'text-white/50 hover:bg-white/[0.05] hover:text-white/80',
           batchSelectMode && isSelectable && 'cursor-pointer'
         )}
         style={{ paddingLeft: `${level > 0 ? level * 12 + 12 : 12}px` }}
@@ -174,8 +176,8 @@ function SubMenuItem({
             className={cn(
               'flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors',
               isSelected
-                ? 'bg-violet-600 border-violet-600'
-                : 'border-slate-300 hover:border-violet-400'
+                ? cn(brandAccent === 'rose' ? 'bg-rose-500 border-rose-500' : 'bg-violet-500 border-violet-500')
+                : 'border-white/20 hover:border-white/40'
             )}
           >
             {isSelected && (
@@ -190,7 +192,7 @@ function SubMenuItem({
         {hasChildren && !batchSelectMode && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex-shrink-0 w-4 h-4 flex items-center justify-center hover:bg-slate-200 rounded"
+            className="flex-shrink-0 w-4 h-4 flex items-center justify-center hover:bg-white/[0.06] rounded"
           >
             <ChevronRight
               className={cn(
@@ -200,7 +202,7 @@ function SubMenuItem({
             />
           </button>
         )}
-        {!hasChildren && !batchSelectMode && <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0" />}
+        {!hasChildren && !batchSelectMode && <div className="w-1 h-1 rounded-full bg-white/20 flex-shrink-0" />}
 
         <button
           onClick={() => onItemClick(item.id)}
@@ -208,7 +210,7 @@ function SubMenuItem({
         >
           <span className="flex-1 text-left truncate">{item.label}</span>
           {item.count !== undefined && item.count > 0 && (
-            <span className="text-xs text-slate-400">{item.count}</span>
+            <span className="text-[11px] text-white/30">{item.count}</span>
           )}
         </button>
 
@@ -219,7 +221,7 @@ function SubMenuItem({
               e.stopPropagation();
               onDelete(item, e);
             }}
-            className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
             title="删除相册"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -242,6 +244,7 @@ function SubMenuItem({
               selectedIds={selectedIds}
               onToggleSelect={onToggleSelect}
               selectable={selectable}
+              brandAccent={brandAccent}
             />
           ))}
         </div>
@@ -807,37 +810,42 @@ export default function Sidebar({
     ] : []),
   ];
 
+  // 品牌色辅助
+  const brandAccent = brand?.key === 'bonasi' ? 'rose' : 'violet';
+  const accentFrom = brand?.primaryFrom || 'from-violet-500';
+  const accentTo = brand?.primaryTo || 'to-purple-600';
+
   return (
     <aside
       className={cn(
-        'h-screen bg-gradient-to-b from-slate-50/95 to-slate-100/90 backdrop-blur-xl border-r border-slate-200/60 flex flex-col transition-all duration-300 ease-in-out',
-        collapsed ? 'w-20' : 'w-72'
+        'h-screen flex flex-col transition-all duration-300 ease-in-out',
+        'bg-[#0f1117] border-r border-white/[0.06]',
+        collapsed ? 'w-[68px]' : 'w-[260px]'
       )}
     >
       {/* Logo区域 */}
-      <div className="h-16 flex items-center justify-center border-b border-slate-200/60 px-4">
-        <div className="flex items-center gap-3">
+      <div className="h-[60px] flex items-center px-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3 min-w-0">
           <div className={cn(
-            'w-10 h-10 rounded-xl flex items-center justify-center shadow-lg',
-            'bg-gradient-to-br', brand?.primaryFrom || 'from-emerald-500', brand?.primaryTo || 'to-teal-600',
-            brand?.buttonShadow || 'shadow-emerald-500/25'
+            'w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0',
+            'bg-gradient-to-br', accentFrom, accentTo
           )}>
-            {brand?.key === 'bonasi' ? <Scissors className="w-5 h-5 text-white" /> : <BookOpen className="w-5 h-5 text-white" />}
+            {brand?.key === 'bonasi' ? <Scissors className="w-4.5 h-4.5 text-white" /> : <BookOpen className="w-4.5 h-4.5 text-white" />}
           </div>
           {!collapsed && (
-            <div className="flex flex-col">
-              <span className="text-lg font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                {brand?.name || '盈云'}产品智能中台
+            <div className="flex flex-col min-w-0">
+              <span className="text-[15px] font-semibold text-white truncate">
+                {brand?.name || '盈云'}
               </span>
-              <span className="text-xs text-slate-400">{brand?.slogan || 'Digital Knowledge Base'}</span>
+              <span className="text-[11px] text-white/40 truncate">产品智能中台</span>
             </div>
           )}
         </div>
       </div>
 
       {/* 主菜单区域 */}
-      <div className="flex-1 overflow-y-auto py-4 px-3">
-        <div className="space-y-1">
+      <div className="flex-1 overflow-y-auto py-3 px-2.5 scrollbar-thin">
+        <div className="space-y-0.5">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeItem === item.id;
@@ -849,14 +857,14 @@ export default function Sidebar({
                   // 对于有新增按钮的菜单项，使用 div 容器 + 两个按钮
                   <div
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative',
+                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group relative',
                       isActive
-                        ? 'bg-gradient-to-r from-violet-500/10 to-purple-500/10 text-violet-700 shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-white/60 hover:bg-white/[0.05] hover:text-white/90'
                     )}
                   >
                     {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-violet-500 to-purple-500 rounded-r-full" />
+                      <div className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-gradient-to-b rounded-r-full', accentFrom, accentTo)} />
                     )}
                     <button
                       onClick={() => {
@@ -873,20 +881,20 @@ export default function Sidebar({
                     >
                       <Icon
                         className={cn(
-                          'w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110',
-                          isActive ? 'text-violet-600' : 'text-slate-400'
+                          'w-[18px] h-[18px] flex-shrink-0',
+                          isActive ? cn('text-white', brandAccent === 'rose' ? 'text-rose-300' : 'text-violet-300') : 'text-white/30'
                         )}
                       />
                       {!collapsed && (
                         <>
-                          <span className="flex-1 text-sm font-medium text-left truncate">{item.label}</span>
+                          <span className="flex-1 text-[13px] font-medium text-left truncate">{item.label}</span>
                           {item.count !== undefined && item.count > 0 && (
                             <span
                               className={cn(
-                                'px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0',
+                                'px-1.5 py-0.5 text-[11px] rounded-md font-medium flex-shrink-0 tabular-nums',
                                 isActive
-                                  ? 'bg-violet-100 text-violet-600'
-                                  : 'bg-slate-100 text-slate-500'
+                                  ? cn(brandAccent === 'rose' ? 'bg-rose-500/20 text-rose-300' : 'bg-violet-500/20 text-violet-300')
+                                  : 'bg-white/[0.06] text-white/40'
                               )}
                             >
                               {item.count}
@@ -904,10 +912,10 @@ export default function Sidebar({
                             toggleBatchSelectMode();
                           }}
                           className={cn(
-                            'p-1 rounded-lg transition-colors flex-shrink-0',
+                            'p-1 rounded transition-colors flex-shrink-0',
                             batchSelectMode
-                              ? 'bg-violet-100 text-violet-600 hover:bg-violet-200'
-                              : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'
+                              ? cn(brandAccent === 'rose' ? 'bg-rose-500/20 text-rose-300' : 'bg-violet-500/20 text-violet-300')
+                              : 'hover:bg-white/[0.06] text-white/30 hover:text-white/60'
                           )}
                           aria-label="批量选择"
                           title="批量选择"
@@ -924,12 +932,14 @@ export default function Sidebar({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // 如果是智能相册菜单，调用外部回调
                               if (item.id === 'smart-albums' && onCreateSmartAlbum) {
                                 onCreateSmartAlbum();
                               }
                             }}
-                            className="p-1 hover:bg-violet-100 rounded-lg transition-colors text-violet-600 hover:text-violet-700"
+                            className={cn(
+                              'p-1 rounded transition-colors flex-shrink-0',
+                              brandAccent === 'rose' ? 'hover:bg-rose-500/20 text-rose-400/60 hover:text-rose-300' : 'hover:bg-violet-500/20 text-violet-400/60 hover:text-violet-300'
+                            )}
                             aria-label={item.id === 'smart-albums' ? '新建智能相册' : '新建分类'}
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -1044,7 +1054,10 @@ export default function Sidebar({
                             onClick={(e) => {
                               e.stopPropagation();
                             }}
-                            className="p-1 hover:bg-violet-100 rounded-lg transition-colors text-violet-600 hover:text-violet-700 flex-shrink-0"
+                            className={cn(
+                              'p-1 rounded transition-colors flex-shrink-0',
+                              brandAccent === 'rose' ? 'hover:bg-rose-500/20 text-rose-400/60 hover:text-rose-300' : 'hover:bg-violet-500/20 text-violet-400/60 hover:text-violet-300'
+                            )}
                             aria-label="批量重置匹配模式"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
@@ -1111,31 +1124,31 @@ export default function Sidebar({
                       }
                     }}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative',
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group relative',
                       isActive
-                        ? 'bg-gradient-to-r from-violet-500/10 to-purple-500/10 text-violet-700 shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-white/60 hover:bg-white/[0.05] hover:text-white/90'
                     )}
                   >
                     {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-violet-500 to-purple-500 rounded-r-full" />
+                      <div className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-gradient-to-b rounded-r-full', accentFrom, accentTo)} />
                     )}
                     <Icon
                       className={cn(
-                        'w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110',
-                        isActive ? 'text-violet-600' : 'text-slate-400'
+                        'w-[18px] h-[18px] flex-shrink-0',
+                        isActive ? cn(brandAccent === 'rose' ? 'text-rose-300' : 'text-violet-300') : 'text-white/30'
                       )}
                     />
                     {!collapsed && (
                       <>
-                        <span className="flex-1 text-sm font-medium text-left">{item.label}</span>
+                        <span className="flex-1 text-[13px] font-medium text-left">{item.label}</span>
                         {item.count !== undefined && item.count > 0 && (
                           <span
                             className={cn(
-                              'px-2 py-0.5 text-xs rounded-full font-medium',
+                              'px-1.5 py-0.5 text-[11px] rounded-md font-medium tabular-nums',
                               isActive
-                                ? 'bg-violet-100 text-violet-600'
-                                : 'bg-slate-100 text-slate-500'
+                                ? cn(brandAccent === 'rose' ? 'bg-rose-500/20 text-rose-300' : 'bg-violet-500/20 text-violet-300')
+                                : 'bg-white/[0.06] text-white/40'
                             )}
                           >
                             {item.count}
@@ -1161,6 +1174,7 @@ export default function Sidebar({
                         selectedIds={selectedAlbumIds}
                         onToggleSelect={toggleAlbumSelection}
                         selectable={!child.isSystem}
+                        brandAccent={brandAccent}
                       />
                     ))}
                   </div>
@@ -1173,14 +1187,17 @@ export default function Sidebar({
 
       {/* 批量删除工具栏 */}
       {batchSelectMode && (
-        <div className="border-t border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 py-3 px-3 space-y-2">
+        <div className="border-t border-white/[0.06] bg-white/[0.03] py-3 px-3 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-violet-700 font-medium">
+            <span className="text-[13px] text-white/70 font-medium">
               已选择 {selectedAlbumIds.size} 个相册
             </span>
             <button
               onClick={toggleSelectAll}
-              className="text-xs text-violet-600 hover:text-violet-700 underline"
+              className={cn(
+                'text-[12px] hover:underline',
+                brandAccent === 'rose' ? 'text-rose-400' : 'text-violet-400'
+              )}
             >
               {selectedAlbumIds.size === getAllSelectableAlbumIds().length ? '取消全选' : '全选'}
             </button>
@@ -1188,7 +1205,7 @@ export default function Sidebar({
           <div className="flex gap-2">
             <button
               onClick={() => setBatchSelectMode(false)}
-              className="flex-1 px-3 py-1.5 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              className="flex-1 px-3 py-1.5 text-[13px] text-white/60 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.08] transition-colors"
             >
               取消
             </button>
@@ -1196,10 +1213,10 @@ export default function Sidebar({
               onClick={() => setIsBatchDeleteDialogOpen(true)}
               disabled={selectedAlbumIds.size === 0}
               className={cn(
-                'flex-1 px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center justify-center gap-1.5',
+                'flex-1 px-3 py-1.5 text-[13px] rounded-lg transition-colors flex items-center justify-center gap-1.5',
                 selectedAlbumIds.size > 0
                   ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-white/[0.04] text-white/20 cursor-not-allowed'
               )}
             >
               <Trash className="w-4 h-4" />
@@ -1210,7 +1227,7 @@ export default function Sidebar({
       )}
 
       {/* 底部菜单区域 */}
-      <div className="border-t border-slate-200/60 py-4 px-3 space-y-1">
+      <div className="border-t border-white/[0.06] py-3 px-2.5 space-y-0.5">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeItem === item.id;
@@ -1226,32 +1243,32 @@ export default function Sidebar({
                 }
               }}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group',
+                'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group',
                 isActive
-                  ? 'bg-gradient-to-r from-violet-500/10 to-purple-500/10 text-violet-700 shadow-sm'
+                  ? 'bg-white/[0.08] text-white'
                   : item.id === 'upload'
-                  ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:shadow-lg hover:shadow-purple-500/25'
-                  : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                  ? cn('bg-gradient-to-r text-white hover:shadow-lg', accentFrom, accentTo, brand?.buttonShadow || 'shadow-purple-500/25')
+                  : 'text-white/60 hover:bg-white/[0.05] hover:text-white/90'
               )}
             >
               <Icon
                 className={cn(
-                  'w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110',
-                  isActive ? 'text-violet-600' : item.id === 'upload' ? 'text-white' : 'text-slate-400'
+                  'w-[18px] h-[18px] flex-shrink-0',
+                  isActive ? cn(brandAccent === 'rose' ? 'text-rose-300' : 'text-violet-300') : item.id === 'upload' ? 'text-white' : 'text-white/30'
                 )}
               />
               {!collapsed && (
                 <>
-                  <span className="flex-1 text-sm font-medium text-left">{item.label}</span>
+                  <span className="flex-1 text-[13px] font-medium text-left">{item.label}</span>
                   {item.count !== undefined && item.count > 0 && (
                     <span
                       className={cn(
-                        'px-2 py-0.5 text-xs rounded-full font-medium',
+                        'px-1.5 py-0.5 text-[11px] rounded-md font-medium tabular-nums',
                         isActive
-                          ? 'bg-violet-100 text-violet-600'
+                          ? cn(brandAccent === 'rose' ? 'bg-rose-500/20 text-rose-300' : 'bg-violet-500/20 text-violet-300')
                           : item.id === 'upload'
                           ? 'bg-white/20 text-white'
-                          : 'bg-slate-100 text-slate-500'
+                          : 'bg-white/[0.06] text-white/40'
                       )}
                     >
                       {item.count}
