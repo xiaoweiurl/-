@@ -28,10 +28,7 @@ import {
   ArrowRight,
   RefreshCw,
   Database,
-  CreditCard,
 } from 'lucide-react';
-import PositionCardForm from '@/components/PositionCardForm';
-import PositionCardDetail from '@/components/PositionCardDetail';
 
 // 文件类型图标
 const FILE_ICONS: Record<string, React.ReactNode> = {
@@ -160,53 +157,6 @@ export default function KnowledgePage() {
 
   // 视图模式
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [knowledgeTab, setKnowledgeTab] = useState<'docs' | 'cards'>('docs');
-  const [positionCards, setPositionCards] = useState<any[]>([]);
-  const [showCardForm, setShowCardForm] = useState(false);
-  const [editingCard, setEditingCard] = useState<any>(null);
-  const [viewingCard, setViewingCard] = useState<any>(null);
-
-  // 岗位知识卡片
-  const fetchPositionCards = useCallback(async () => {
-    try {
-      const res = await fetch('/api/knowledge/position-cards');
-      if (res.ok) {
-        const data = await res.json();
-        setPositionCards(data.data || data || []);
-      }
-    } catch (e) { console.error('获取岗位卡片失败', e); }
-  }, []);
-
-  const handleSaveCard = async (cardData: any) => {
-    try {
-      const isEdit = !!cardData.id;
-      const res = await fetch('/api/knowledge/position-cards', {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cardData),
-      });
-      if (res.ok) {
-        setShowCardForm(false);
-        setEditingCard(null);
-        fetchPositionCards();
-      } else {
-        const err = await res.json();
-        alert(err.error || '保存失败');
-      }
-    } catch (e) { alert('保存失败'); }
-  };
-
-  const handleDeleteCard = async (id: string) => {
-    if (!confirm('确定删除此知识卡片？')) return;
-    try {
-      const res = await fetch(`/api/knowledge/position-cards?id=${id}`, { method: 'DELETE' });
-      if (res.ok) { setViewingCard(null); fetchPositionCards(); }
-    } catch (e) { alert('删除失败'); }
-  };
-
-  useEffect(() => {
-    if (knowledgeTab === 'cards') fetchPositionCards();
-  }, [knowledgeTab, fetchPositionCards]);
 
   // 登录检查
   useEffect(() => {
@@ -462,21 +412,7 @@ export default function KnowledgePage() {
             <BookOpen className="w-3.5 h-3.5 text-white" />
           </div>
           <h1 className="text-sm font-semibold text-slate-700">知识库</h1>
-          {/* Tab 切换 */}
-          <div className="flex items-center gap-0.5 ml-2 bg-slate-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setKnowledgeTab('docs')}
-              className={`px-2.5 py-1 text-[11px] rounded-md transition-colors font-medium ${knowledgeTab === 'docs' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <span className="flex items-center gap-1"><FileText size={12} />文档管理</span>
-            </button>
-            <button
-              onClick={() => setKnowledgeTab('cards')}
-              className={`px-2.5 py-1 text-[11px] rounded-md transition-colors font-medium ${knowledgeTab === 'cards' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <span className="flex items-center gap-1"><CreditCard size={12} />岗位知识卡片</span>
-            </button>
-          </div>
+          <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded font-medium">文档管理</span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -649,8 +585,8 @@ export default function KnowledgePage() {
         </div>
 
         {/* Main Area */}
-          {knowledgeTab === 'docs' && (
-          <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Toolbar */}
           <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200/40 bg-white/30">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-slate-700">
@@ -840,54 +776,7 @@ export default function KnowledgePage() {
               </div>
             )}
           </div>
-          </div>
-        )}
-        {knowledgeTab === 'cards' && (
-          <div className="flex-1 flex flex-col p-6 overflow-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-slate-700">岗位知识卡片</h2>
-              <button
-                onClick={() => setShowCardForm(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors text-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                新建卡片
-              </button>
-            </div>
-            {positionCards.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <CreditCard className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm text-slate-500">暂无岗位知识卡片</p>
-                  <p className="text-xs text-slate-400 mt-1">点击「新建卡片」创建第一张岗位知识卡片</p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-auto">
-                {positionCards.map((card) => (
-                  <div
-                    key={card.id}
-                    onClick={() => setViewingCard(card)}
-                    className="bg-white rounded-xl border border-slate-200/60 p-4 hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{card.cardNumber}</span>
-                        <span className="text-[10px] text-slate-400">{card.submitDate}</span>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">{card.department}</span>
-                    </div>
-                    <h3 className="text-sm font-semibold text-slate-800 mb-1">{card.positionName}</h3>
-                    <p className="text-xs text-slate-500 mb-2">在岗人员: {card.currentHolder || '未指定'}</p>
-                    {card.coreDuties && (
-                      <p className="text-xs text-slate-400 line-clamp-2">{card.coreDuties.split('\n').slice(0, 2).join(' · ')}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Upload Modal */}
@@ -973,24 +862,6 @@ export default function KnowledgePage() {
         </div>
       )}
 
-      {/* 卡片表单弹窗 */}
-      {showCardForm && (
-        <PositionCardForm
-          initialData={editingCard}
-          onSave={handleSaveCard}
-          onCancel={() => { setShowCardForm(false); setEditingCard(null); }}
-        />
-      )}
-
-      {/* 卡片详情弹窗 */}
-      {viewingCard && (
-        <PositionCardDetail
-          card={viewingCard}
-          onEdit={() => { setEditingCard(viewingCard); setViewingCard(null); setShowCardForm(true); }}
-          onDelete={() => handleDeleteCard(viewingCard.id)}
-          onClose={() => setViewingCard(null)}
-        />
-      )}
       {/* Add Text Document Modal */}
       {showAddText && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => !isAddingText && setShowAddText(false)}>
@@ -1146,7 +1017,6 @@ export default function KnowledgePage() {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 }
