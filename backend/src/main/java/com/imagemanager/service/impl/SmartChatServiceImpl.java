@@ -67,14 +67,20 @@ public class SmartChatServiceImpl implements SmartChatService {
     private String minimaxModel;
 
     @Override
-    public SseEmitter smartChat(String message, String userId, String company) {
-        log.info("智能对话: message='{}', userId='{}', company='{}'", message, userId, company);
+    public SseEmitter smartChat(String message, String userId, String company, String conversationId) {
+        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}'", message, userId, company, conversationId);
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         new Thread(() -> {
             try {
-                // 1. 加载历史对话（按userId+company绑定）
-                List<Map<String, Object>> history = getChatHistory(userId, company);
+                // 0. 确定对话ID：如果未传则获取或创建
+                String convId = conversationId;
+                if (convId == null || convId.isEmpty()) {
+                    convId = getOrCreateDefaultConversation(userId, company);
+                }
+
+                // 1. 加载历史对话（按conversationId）
+                List<Map<String, Object>> history = getChatHistory(userId, company, convId);
 
                 // 2. 意图识别：判断是否涉及供应链/工厂数据
                 boolean supplyChainIntent = isSupplyChainIntent(message);
@@ -346,7 +352,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 messages.add(Map.of("role", "user", "content", userContent));
 
                 // 6. 保存用户消息
-                saveChatMessage(userId, userId, "user", message, company);
+                saveChatMessage(userId, convId, "user", message, company);
 
                 // 7. 流式调用MiniMax
                 StringBuilder fullResponse = new StringBuilder();
@@ -355,9 +361,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                 } finally {
                     // 8. 无论流是否成功，都保存已收集的AI回复
                     if (fullResponse.length() > 0) {
-                        saveChatMessage(userId, userId, "assistant", fullResponse.toString(), company);
+                        saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company);
                     }
                 }
+
+                // 9. 更新对话标题（如果是新对话的第一条消息）
+                updateConversationTitleFromMessage(convId, message);
 
                 emitter.complete();
             } catch (Exception e) {
@@ -375,33 +384,160 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     @Override
-    public List<Map<String, Object>> getChatHistory(String userId, String company) {
-        // 按userId+company查询最近10轮对话（20条消息：10个user + 10个assistant）
-        String sql = "SELECT role, content, created_at FROM smart_chat_history " +
-                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
-                "ORDER BY created_at DESC LIMIT 20";
-        List<Map<String, Object>> results = jdbcTemplate.query(sql,
-                (rs, rowNum) -> {
-                    Map<String, Object> msg = new LinkedHashMap<>();
-                    msg.put("role", rs.getString("role"));
-                    msg.put("content", rs.getString("content"));
-                    msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
-                    return msg;
-                },
-                userId, company
-        );
-        // 反转回时间正序
-        Collections.reverse(results);
+    public List<Map<String, Object>> getChatHistory(String userId, String company, String conversationId) {
+        List<Map<String, Object>> results;
+        if (conversationId != null && !conversationId.isEmpty()) {
+            // 按conversationId查询对话历史
+            String sql = "SELECT role, content, created_at FROM smart_chat_history " +
+                    "WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) " +
+                    "ORDER BY created_at ASC LIMIT 100";
+            results = jdbcTemplate.query(sql,
+                    (rs, rowNum) -> {
+                        Map<String, Object> msg = new LinkedHashMap<>();
+                        msg.put("role", rs.getString("role"));
+                        msg.put("content", rs.getString("content"));
+                        msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                        return msg;
+                    },
+                    conversationId, userId, company
+            );
+        } else {
+            // 兼容旧逻辑：按userId+company查询最近10轮对话
+            String sql = "SELECT role, content, created_at FROM smart_chat_history " +
+                    "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                    "ORDER BY created_at DESC LIMIT 20";
+            results = jdbcTemplate.query(sql,
+                    (rs, rowNum) -> {
+                        Map<String, Object> msg = new LinkedHashMap<>();
+                        msg.put("role", rs.getString("role"));
+                        msg.put("content", rs.getString("content"));
+                        msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                        return msg;
+                    },
+                    userId, company
+            );
+            Collections.reverse(results);
+        }
         return results;
     }
 
     @Override
     @Transactional
-    public void clearChatHistory(String userId, String company) {
+    public void clearChatHistory(String userId, String company, String conversationId) {
+        if (conversationId != null && !conversationId.isEmpty()) {
+            jdbcTemplate.update(
+                    "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                    conversationId, userId, company
+            );
+        } else {
+            jdbcTemplate.update(
+                    "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
+                    userId, company
+            );
+        }
+    }
+
+    // ========== 对话管理 ==========
+
+    @Override
+    public Map<String, Object> createConversation(String userId, String company, String title) {
+        String convId = UUID.randomUUID().toString();
+        String convTitle = (title != null && !title.isEmpty()) ? title : "新对话";
         jdbcTemplate.update(
-                "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
+                "INSERT INTO smart_chat_conversations (id, user_id, company, title, created_at, updated_at) " +
+                        "VALUES (?::uuid, ?, ?, ?, NOW(), NOW())",
+                convId, userId, company, convTitle
+        );
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", convId);
+        result.put("title", convTitle);
+        result.put("createdAt", java.time.LocalDateTime.now().toString());
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> getConversations(String userId, String company) {
+        String sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
+                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                "ORDER BY updated_at DESC";
+        return jdbcTemplate.query(sql,
+                (rs, rowNum) -> {
+                    Map<String, Object> conv = new LinkedHashMap<>();
+                    conv.put("id", rs.getString("id"));
+                    conv.put("title", rs.getString("title"));
+                    conv.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                    conv.put("updatedAt", rs.getTimestamp("updated_at").toLocalDateTime().toString());
+                    return conv;
+                },
                 userId, company
         );
+    }
+
+    @Override
+    @Transactional
+    public void updateConversationTitle(String conversationId, String title) {
+        jdbcTemplate.update(
+                "UPDATE smart_chat_conversations SET title = ?, updated_at = NOW() WHERE id = ?::uuid",
+                title, conversationId
+        );
+    }
+
+    @Override
+    @Transactional
+    public void deleteConversation(String conversationId, String userId, String company) {
+        // 先删除消息
+        jdbcTemplate.update(
+                "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                conversationId, userId, company
+        );
+        // 再删除对话
+        jdbcTemplate.update(
+                "DELETE FROM smart_chat_conversations WHERE id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                conversationId, userId, company
+        );
+    }
+
+    /**
+     * 获取或创建默认对话
+     */
+    private String getOrCreateDefaultConversation(String userId, String company) {
+        // 查找最近的对话
+        String sql = "SELECT id FROM smart_chat_conversations " +
+                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                "ORDER BY updated_at DESC LIMIT 1";
+        List<String> existing = jdbcTemplate.query(sql,
+                (rs, rowNum) -> rs.getString("id"),
+                userId, company
+        );
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
+        // 没有对话则创建
+        Map<String, Object> conv = createConversation(userId, company, "新对话");
+        return (String) conv.get("id");
+    }
+
+    /**
+     * 根据第一条消息自动更新对话标题
+     */
+    private void updateConversationTitleFromMessage(String conversationId, String message) {
+        try {
+            // 检查该对话是否只有0-1条消息（刚创建的对话）
+            String countSql = "SELECT COUNT(*) FROM smart_chat_history WHERE conversation_id = ?::uuid";
+            Integer count = jdbcTemplate.queryForObject(countSql, Integer.class, conversationId);
+            if (count != null && count <= 2) {
+                // 用消息前20个字符作为标题
+                String title = message.length() > 20 ? message.substring(0, 20) + "..." : message;
+                updateConversationTitle(conversationId, title);
+            }
+            // 更新对话的 updated_at
+            jdbcTemplate.update(
+                    "UPDATE smart_chat_conversations SET updated_at = NOW() WHERE id = ?::uuid",
+                    conversationId
+            );
+        } catch (Exception e) {
+            log.warn("更新对话标题失败: {}", e.getMessage());
+        }
     }
 
     // ========== 私有方法 ==========
@@ -1130,19 +1266,17 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 保存对话消息（按userId+company绑定，session_id存储为基于userId生成的确定性UUID）
      */
-    private void saveChatMessage(String userId, String _unused, String role, String content, String company) {
+    private void saveChatMessage(String userId, String conversationId, String role, String content, String company) {
         try {
             if (content == null || content.trim().isEmpty()) {
                 log.warn("保存对话消息跳过: content为空, userId={}, role={}", userId, role);
                 return;
             }
-            // 用 userId 生成确定性 UUID 作为 session_id（同一用户始终相同）
-            String sessionId = UUID.nameUUIDFromBytes(("chat-" + userId).getBytes()).toString();
-            log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, sessionId={}", userId, role, content.length(), company, sessionId);
+            log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, conversationId={}", userId, role, content.length(), company, conversationId);
             jdbcTemplate.update(
-                    "INSERT INTO smart_chat_history (id, session_id, role, content, user_id, company, created_at) " +
-                            "VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, ?, NOW())",
-                    sessionId, role, content, userId, company
+                    "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, user_id, company, created_at) " +
+                            "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, NOW())",
+                    conversationId, conversationId, role, content, userId, company
             );
             log.info("保存对话消息成功: userId={}, role={}", userId, role);
         } catch (Exception e) {

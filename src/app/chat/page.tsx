@@ -90,6 +90,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -132,28 +133,63 @@ export default function ChatPage() {
     checkAuth();
   }, [mounted]);
 
-  // 加载对话历史（按userId+company绑定，不需要sessionId）
+  // 加载对话列表
+  const loadConversations = useCallback(async () => {
+    const sid = getLoginSessionId();
+    try {
+      const res = await fetch('/api/chat/conversations', {
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.conversations) {
+        const convs: ChatSession[] = data.conversations.map((c: { id: string; title: string; updatedAt?: string; createdAt?: string }) => ({
+          id: c.id,
+          title: c.title || '新对话',
+          lastMessage: '',
+          timestamp: new Date(c.updatedAt || c.createdAt || Date.now()).getTime(),
+        }));
+        setSessions(convs);
+        return convs;
+      }
+    } catch { /* ignore */ }
+    return [];
+  }, []);
+
+  // 加载指定对话的消息历史
+  const loadChatHistory = useCallback(async (conversationId: string) => {
+    const sid = getLoginSessionId();
+    try {
+      const params = new URLSearchParams();
+      if (conversationId) params.set('conversationId', conversationId);
+      const res = await fetch(`/api/chat/history?${params.toString()}`, {
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.history?.length > 0) {
+        return data.history.map((m: { role: string; content: string }) => ({
+          role: m.role as ChatMessage['role'],
+          content: m.content,
+        }));
+      }
+    } catch { /* ignore */ }
+    return [];
+  }, []);
+
+  // 初始化：加载对话列表，自动选中最近的对话
   useEffect(() => {
     if (!authChecked) return;
-    const sid = getLoginSessionId();
-    fetch('/api/chat/history', {
-      credentials: 'include',
-      headers: sid ? { 'X-Session-Id': sid } : {},
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        if (data.success && data.history?.length > 0) {
-          setMessages(data.history.map((m: { role: string; content: string }) => ({
-            role: m.role as ChatMessage['role'],
-            content: m.content,
-          })));
-        }
-      })
-      .catch(() => {});
-  }, [authChecked]);
+    (async () => {
+      const convs = await loadConversations();
+      if (convs.length > 0) {
+        const latestConv = convs[0];
+        setActiveSessionId(latestConv.id);
+        const history = await loadChatHistory(latestConv.id);
+        setMessages(history);
+      }
+    })();
+  }, [authChecked, loadConversations, loadChatHistory]);
 
   // 自动滚动
   useEffect(() => {
@@ -179,6 +215,7 @@ export default function ChatPage() {
     try {
       const loginSid = getLoginSessionId();
       const params = new URLSearchParams({ message: input.trim() });
+      if (activeSessionId) params.set('conversationId', activeSessionId);
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (loginSid) headers['X-Session-Id'] = loginSid;
 
@@ -324,24 +361,78 @@ export default function ChatPage() {
     } finally {
       setIsChatting(false);
     }
-  }, [input, isChatting]);
+  }, [input, isChatting, activeSessionId]);
 
   // 新建对话
-  const handleNewChat = () => {
-    setMessages([]);
-    setSessions(prev => [{
-      id: generateId(),
-      title: '新对话',
-      lastMessage: '',
-      timestamp: Date.now(),
-    }, ...prev]);
-  };
-
-  // 清空对话
-  const handleClearChat = async () => {
+  const handleNewChat = async () => {
     const sid = getLoginSessionId();
     try {
-      await fetch('/api/chat/history', {
+      const res = await fetch('/api/chat/conversations', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sid ? { 'X-Session-Id': sid } : {}),
+        },
+        body: JSON.stringify({ title: '新对话' }),
+      });
+      const data = await res.json();
+      if (data.success && data.conversation) {
+        const conv = data.conversation;
+        const newSession: ChatSession = {
+          id: conv.id,
+          title: conv.title || '新对话',
+          lastMessage: '',
+          timestamp: Date.now(),
+        };
+        setActiveSessionId(conv.id);
+        setMessages([]);
+        setSessions(prev => [newSession, ...prev]);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // 切换对话
+  const handleSwitchChat = async (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    const history = await loadChatHistory(sessionId);
+    setMessages(history);
+  };
+
+  // 删除对话
+  const handleDeleteChat = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const sid = getLoginSessionId();
+    try {
+      await fetch(`/api/chat/conversations/${sessionId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : {},
+      });
+    } catch { /* ignore */ }
+
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSessionId === sessionId) {
+      const remaining = sessions.filter(s => s.id !== sessionId);
+      if (remaining.length > 0) {
+        setActiveSessionId(remaining[0].id);
+        const history = await loadChatHistory(remaining[0].id);
+        setMessages(history);
+      } else {
+        setActiveSessionId(null);
+        setMessages([]);
+      }
+    }
+  };
+
+  // 清空当前对话
+  const handleClearChat = async () => {
+    if (!activeSessionId) return;
+    const sid = getLoginSessionId();
+    try {
+      const params = new URLSearchParams();
+      params.set('conversationId', activeSessionId);
+      await fetch(`/api/chat/history?${params.toString()}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: sid ? { 'X-Session-Id': sid } : {},
@@ -400,13 +491,27 @@ export default function ChatPage() {
               </div>
             ) : (
               sessions.map(s => (
-                <button
-                  key={s.id}
-                  className="w-full text-left px-3 py-2 rounded-lg transition-all bg-violet-50/80 text-violet-700 border border-violet-100/60"
-                >
-                  <div className="text-xs font-medium truncate">{s.title}</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">{formatTime(s.timestamp)}</div>
-                </button>
+                <div key={s.id} className="group relative">
+                  <button
+                    onClick={() => handleSwitchChat(s.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-all border
+                      ${s.id === activeSessionId
+                        ? 'bg-violet-50/80 text-violet-700 border-violet-100/60'
+                        : 'text-slate-600 border-transparent hover:bg-slate-50 hover:text-slate-700'}`}
+                  >
+                    <div className="text-xs font-medium truncate pr-6">{s.title}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{formatTime(s.timestamp)}</div>
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteChat(s.id, e)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded
+                      text-slate-300 hover:text-red-500 hover:bg-red-50
+                      opacity-0 group-hover:opacity-100 transition-all"
+                    title="删除对话"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               ))
             )}
           </div>
