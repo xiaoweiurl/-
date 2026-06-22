@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * 智能对话控制器 - 双库检索(知识库+记忆库) + MiniMax流式对话
  * 前端 Next.js /chat 页面专用
- * 对话历史按 userId+company 绑定，不依赖 sessionId
+ * 支持多对话管理，对话历史按 conversationId 隔离
  */
 @RestController
 @RequestMapping("/chat")
@@ -52,21 +52,29 @@ public class ChatController {
         return user;
     }
 
+    private String resolveUserId(LoginResponse.UserInfo user) {
+        return user.getId() != null ? user.getId() : user.getUsername();
+    }
+
+    private String resolveCompany(LoginResponse.UserInfo user) {
+        return user.getCompany() != null ? user.getCompany() : "盈云";
+    }
+
     // ====== 智能对话 ======
 
     /**
      * 智能对话 (SSE流式, 双库检索)
-     * 同时检索知识库和记忆库, 合并结果后调MiniMax
      */
     @GetMapping(value = "/smart", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter smartChat(
             @RequestParam String message,
+            @RequestParam(required = false) String conversationId,
             HttpServletRequest request) {
         try {
             LoginResponse.UserInfo user = getCurrentUser(request);
-            String userId = user.getId() != null ? user.getId() : user.getUsername();
-            String company = user.getCompany() != null ? user.getCompany() : "盈云";
-            return smartChatService.smartChat(message, userId, company);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            return smartChatService.smartChat(message, userId, company, conversationId);
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {
@@ -77,27 +85,114 @@ public class ChatController {
         }
     }
 
+    // ====== 对话管理 ======
+
     /**
-     * 获取对话历史（按userId+company，最近10轮）
+     * 创建新对话
      */
-    @GetMapping("/history")
-    public ResponseEntity<?> getChatHistory(HttpServletRequest request) {
-        LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
-        String company = user.getCompany() != null ? user.getCompany() : "盈云";
-        List<Map<String, Object>> history = smartChatService.getChatHistory(userId, company);
-        return ResponseEntity.ok(Map.of("success", true, "history", history));
+    @PostMapping("/conversations")
+    public ResponseEntity<?> createConversation(
+            @RequestBody(required = false) Map<String, String> body,
+            HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            String title = (body != null) ? body.get("title") : null;
+            Map<String, Object> conv = smartChatService.createConversation(userId, company, title);
+            return ResponseEntity.ok(Map.of("success", true, "conversation", conv));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
     }
 
     /**
-     * 清空对话历史（按userId+company）
+     * 获取对话列表
+     */
+    @GetMapping("/conversations")
+    public ResponseEntity<?> getConversations(HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            List<Map<String, Object>> conversations = smartChatService.getConversations(userId, company);
+            return ResponseEntity.ok(Map.of("success", true, "conversations", conversations));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 更新对话标题
+     */
+    @PutMapping("/conversations/{id}")
+    public ResponseEntity<?> updateConversation(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String title = body.get("title");
+            smartChatService.updateConversationTitle(id, title);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 删除对话
+     */
+    @DeleteMapping("/conversations/{id}")
+    public ResponseEntity<?> deleteConversation(
+            @PathVariable String id,
+            HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            smartChatService.deleteConversation(id, userId, company);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    // ====== 对话历史 ======
+
+    /**
+     * 获取对话历史（按conversationId或userId+company）
+     */
+    @GetMapping("/history")
+    public ResponseEntity<?> getChatHistory(
+            @RequestParam(required = false) String conversationId,
+            HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            List<Map<String, Object>> history = smartChatService.getChatHistory(userId, company, conversationId);
+            return ResponseEntity.ok(Map.of("success", true, "history", history));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 清空对话历史（按conversationId或userId+company）
      */
     @DeleteMapping("/history")
-    public ResponseEntity<?> clearChatHistory(HttpServletRequest request) {
-        LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
-        String company = user.getCompany() != null ? user.getCompany() : "盈云";
-        smartChatService.clearChatHistory(userId, company);
-        return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
+    public ResponseEntity<?> clearChatHistory(
+            @RequestParam(required = false) String conversationId,
+            HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            smartChatService.clearChatHistory(userId, company, conversationId);
+            return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
     }
 }
