@@ -22,7 +22,7 @@ import java.util.*;
 @Service
 public class MarketingChatServiceImpl implements MarketingChatService {
 
-    @Value("${minimax.api.key:}")
+    @Value("${app.minimax.api-key:}")
     private String apiKey;
 
     private static final String MINIMAX_V2_URL = "https://api.minimax.chat/v1/text/chatcompletion_v2";
