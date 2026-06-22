@@ -273,9 +273,9 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                 String vectorStr = arrayToVectorString(embedding);
                 jdbcTemplate.update(
                     "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                    "VALUES (?, NULL, CAST(? AS vector), ?, ?, ?, 'POSITION_CARD', ?, ?, NOW())",
+                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
                     UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i,
-                    card.getId(), card.getCompany()
+                    "POSITION_CARD", card.getId(), card.getCompany()
                 );
             } catch (Exception e) {
                 log.warn("岗位卡片切片向量化失败: cardId={}, chunk={}, error={}", card.getId(), i, e.getMessage());
