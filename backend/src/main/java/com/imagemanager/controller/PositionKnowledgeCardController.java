@@ -7,6 +7,7 @@ import com.imagemanager.service.AuthService;
 import com.imagemanager.service.PositionKnowledgeCardService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,7 @@ import java.util.Map;
  * 岗位知识卡片控制器
  * 按岗位知识卡片模板V1.0设计，支持8大模块的完整CRUD
  */
+@Slf4j
 @RestController
 @RequestMapping("/knowledge/cards")
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
@@ -55,18 +57,31 @@ public class PositionKnowledgeCardController {
         return user;
     }
 
+    private String resolveUserId(LoginResponse.UserInfo user) {
+        return user.getId() != null ? user.getId() : user.getUsername();
+    }
+
+    private String resolveCompany(LoginResponse.UserInfo user) {
+        return user.getCompany() != null ? user.getCompany() : "盈云";
+    }
+
     /**
      * 创建岗位知识卡片
      */
     @PostMapping
     public ResponseEntity<?> createCard(@RequestBody PositionKnowledgeCard card, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String userId = resolveUserId(user);
+        String company = resolveCompany(user);
         try {
-            PositionKnowledgeCard created = cardService.createCard(card, userId, user.getCompany());
+            log.info("创建知识卡片: userId={}, company={}, positionName={}", userId, company, card.getPositionName());
+            PositionKnowledgeCard created = cardService.createCard(card, userId, company);
             return ResponseEntity.ok(Map.of("success", true, "card", created));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("创建知识卡片失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "创建失败: " + e.getMessage()));
         }
     }
 
@@ -76,12 +91,16 @@ public class PositionKnowledgeCardController {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateCard(@PathVariable String id, @RequestBody PositionKnowledgeCard card, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String userId = resolveUserId(user);
+        String company = resolveCompany(user);
         try {
-            PositionKnowledgeCard updated = cardService.updateCard(id, card, userId, user.getCompany());
+            PositionKnowledgeCard updated = cardService.updateCard(id, card, userId, company);
             return ResponseEntity.ok(Map.of("success", true, "card", updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("更新知识卡片失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "更新失败: " + e.getMessage()));
         }
     }
 
@@ -91,11 +110,15 @@ public class PositionKnowledgeCardController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getCardDetail(@PathVariable String id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
+        String company = resolveCompany(user);
         try {
-            PositionKnowledgeCard card = cardService.getCardDetail(id, user.getCompany());
+            PositionKnowledgeCard card = cardService.getCardDetail(id, company);
             return ResponseEntity.ok(Map.of("success", true, "card", card));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("获取知识卡片详情失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "查询失败: " + e.getMessage()));
         }
     }
 
@@ -110,16 +133,22 @@ public class PositionKnowledgeCardController {
             @RequestParam(required = false) String department,
             HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String userId = resolveUserId(user);
+        String company = resolveCompany(user);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<PositionKnowledgeCard> cards = cardService.getCards(user.getCompany(), userId, keyword, department, pageable);
-        return ResponseEntity.ok(Map.of(
-                "success", true,
-                "cards", cards.getContent(),
-                "total", cards.getTotalElements(),
-                "page", cards.getNumber(),
-                "size", cards.getSize()
-        ));
+        try {
+            Page<PositionKnowledgeCard> cards = cardService.getCards(company, userId, keyword, department, pageable);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "cards", cards.getContent(),
+                    "total", cards.getTotalElements(),
+                    "page", cards.getNumber(),
+                    "size", cards.getSize()
+            ));
+        } catch (Exception e) {
+            log.error("获取知识卡片列表失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "查询失败: " + e.getMessage()));
+        }
     }
 
     /**
@@ -128,12 +157,17 @@ public class PositionKnowledgeCardController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteCard(@PathVariable String id, HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String userId = resolveUserId(user);
+        String company = resolveCompany(user);
         try {
-            cardService.deleteCard(id, user.getCompany(), userId);
+            log.info("删除知识卡片: id={}, userId={}, company={}", id, userId, company);
+            cardService.deleteCard(id, company, userId);
             return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("删除知识卡片失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "删除失败: " + e.getMessage()));
         }
     }
 
@@ -143,8 +177,14 @@ public class PositionKnowledgeCardController {
     @GetMapping("/next-code")
     public ResponseEntity<?> getNextCode(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        String code = cardService.generateCardCode(user.getCompany());
-        return ResponseEntity.ok(Map.of("success", true, "code", code));
+        String company = resolveCompany(user);
+        try {
+            String code = cardService.generateCardCode(company);
+            return ResponseEntity.ok(Map.of("success", true, "code", code));
+        } catch (Exception e) {
+            log.error("生成卡片编号失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "生成编号失败: " + e.getMessage()));
+        }
     }
 
     /**
@@ -153,7 +193,13 @@ public class PositionKnowledgeCardController {
     @GetMapping("/stats")
     public ResponseEntity<?> getStats(HttpServletRequest request) {
         LoginResponse.UserInfo user = getCurrentUser(request);
-        long count = cardService.countCards(user.getCompany());
-        return ResponseEntity.ok(Map.of("success", true, "count", count));
+        String company = resolveCompany(user);
+        try {
+            long count = cardService.countCards(company);
+            return ResponseEntity.ok(Map.of("success", true, "count", count));
+        } catch (Exception e) {
+            log.error("获取知识卡片统计失败", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "error", "统计失败: " + e.getMessage()));
+        }
     }
 }
