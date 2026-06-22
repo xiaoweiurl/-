@@ -272,9 +272,12 @@ public class AuthServiceImpl implements AuthService {
         String sessionId = generateSecureSessionId();
         // 标准化角色：保持数据库原始值
         String normalizedRole = user.getRole();
-        // 登录时选择的公司优先（宝娜斯/盈云），否则使用用户数据库中的公司
-        String effectiveCompany = (request.getCompany() != null && !request.getCompany().isEmpty())
-                ? request.getCompany() : user.getCompany();
+        // 公司绑定逻辑：如果用户已绑定公司，始终使用数据库值（不可更改）
+        // 如果用户未绑定公司，允许请求中传入公司（首次绑定）
+        String effectiveCompany = user.getCompany();
+        if (effectiveCompany == null || effectiveCompany.trim().isEmpty()) {
+            effectiveCompany = request.getCompany();
+        }
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -659,5 +662,55 @@ public class AuthServiceImpl implements AuthService {
             }
             return false;
         });
+    }
+
+    @Override
+    @Transactional
+    public boolean bindCompany(String userId, String company) {
+        // 查询用户当前公司
+        String currentCompany = null;
+        try {
+            currentCompany = jdbcTemplate.queryForObject(
+                "SELECT company FROM users WHERE id = ?::uuid", String.class, userId);
+        } catch (Exception e) {
+            // id 可能不是 uuid 格式，尝试 varchar
+            try {
+                currentCompany = jdbcTemplate.queryForObject(
+                    "SELECT company FROM users WHERE id = ?", String.class, userId);
+            } catch (Exception ex) {
+                log.error("查询用户公司失败: userId={}", userId, ex);
+                return false;
+            }
+        }
+
+        if (currentCompany != null && !currentCompany.trim().isEmpty()) {
+            log.warn("用户已绑定公司，不可更改: userId={}, currentCompany={}", userId, currentCompany);
+            return false;
+        }
+
+        // 绑定公司
+        int updated;
+        try {
+            updated = jdbcTemplate.update(
+                "UPDATE users SET company = ? WHERE id = ?::uuid AND (company IS NULL OR company = '')",
+                company, userId);
+        } catch (Exception e) {
+            try {
+                updated = jdbcTemplate.update(
+                    "UPDATE users SET company = ? WHERE id = ? AND (company IS NULL OR company = '')",
+                    company, userId);
+            } catch (Exception ex) {
+                log.error("绑定公司失败: userId={}", userId, ex);
+                return false;
+            }
+        }
+
+        if (updated > 0) {
+            log.info("公司绑定成功: userId={}, company={}", userId, company);
+            return true;
+        } else {
+            log.warn("公司绑定失败（可能已被其他请求绑定）: userId={}", userId);
+            return false;
+        }
     }
 }

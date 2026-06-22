@@ -159,6 +159,33 @@ public class AuthController {
     }
     
     /**
+     * 绑定公司到用户（仅首次，已绑定不可更改）
+     */
+    @PostMapping("/bind-company")
+    @Operation(summary = "绑定公司", description = "首次选择公司绑定到用户账号，绑定后不可更改")
+    public ApiResponse<Void> bindCompany(@RequestBody java.util.Map<String, String> body) {
+        String userId = body.get("userId");
+        String company = body.get("company");
+        
+        if (userId == null || userId.isEmpty() || company == null || company.isEmpty()) {
+            return ApiResponse.error(400, "缺少必要参数");
+        }
+        
+        try {
+            boolean success = authService.bindCompany(userId, company);
+            if (success) {
+                log.info("公司绑定成功: userId={}, company={}", userId, company);
+                return ApiResponse.success("绑定成功", null);
+            } else {
+                return ApiResponse.error(400, "该账号已绑定公司，不可更改");
+            }
+        } catch (Exception e) {
+            log.error("公司绑定失败: ", e);
+            return ApiResponse.error(500, "绑定失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 从请求中提取 session_id
      */
     private String extractSessionId(HttpServletRequest request) {

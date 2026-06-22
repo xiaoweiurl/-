@@ -58,4 +58,10 @@ public interface AuthService {
      * 删除用户所有会话
      */
     void deleteAllUserSessions(String userId);
+
+    /**
+     * 绑定公司到用户（仅首次，已绑定不可更改）
+     * @return true=绑定成功, false=已绑定不可更改
+     */
+    boolean bindCompany(String userId, String company);
 }
