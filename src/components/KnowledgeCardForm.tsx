@@ -45,7 +45,7 @@ const TEAMS = ['品牌运营(携创云织)', '产品开发(盈云)', '供应链'
 const NATURES = ['全职', '兼职', '顾问', 'Agent辅助'];
 const DEPARTMENTS = ['品牌运营', '产品开发', '供应链', '财务', '投资委员会', '人力资源', '技术部'];
 
-const PH = '如果没有就填无';
+const PH = '';
 
 // 多行输入组件
 function MultiLineInput({ value, onChange, placeholder, rows = 2 }: {
@@ -402,7 +402,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
             <MultiLineInput
               value={card.additionalNotes || ''}
               onChange={(v) => update('additionalNotes', v)}
-              placeholder="任何卡片格式无法覆盖但需要说明的事项，如果没有就填无"
+              placeholder="任何卡片格式无法覆盖但需要说明的事项"
               rows={3}
             />
           </Section>
