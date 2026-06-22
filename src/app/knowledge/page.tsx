@@ -28,7 +28,10 @@ import {
   ArrowRight,
   RefreshCw,
   Database,
+  Briefcase,
 } from 'lucide-react';
+import KnowledgeCardForm from '@/components/KnowledgeCardForm';
+import KnowledgeCardList, { KnowledgeCardListHandle } from '@/components/KnowledgeCardList';
 
 // 文件类型图标
 const FILE_ICONS: Record<string, React.ReactNode> = {
@@ -145,6 +148,10 @@ export default function KnowledgePage() {
 
   // 搜索
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'docs' | 'cards'>('docs');
+  const [showCardForm, setShowCardForm] = useState(false);
+  const [editingCard, setEditingCard] = useState<any>(null);
+  const cardListRef = useRef<KnowledgeCardListHandle>(null);
 
   // 新建文本文档
   const [showAddText, setShowAddText] = useState(false);
@@ -412,7 +419,29 @@ export default function KnowledgePage() {
             <BookOpen className="w-3.5 h-3.5 text-white" />
           </div>
           <h1 className="text-sm font-semibold text-slate-700">知识库</h1>
-          <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded font-medium">文档管理</span>
+          {/* Tab Switch */}
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setActiveTab('docs')}
+              className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-all ${
+                activeTab === 'docs'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="flex items-center gap-1"><FileText className="w-3 h-3" />文档</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('cards')}
+              className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-all ${
+                activeTab === 'cards'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" />岗位卡片</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -482,6 +511,29 @@ export default function KnowledgePage() {
       </header>
 
       {/* Main Content */}
+      {activeTab === 'cards' ? (
+        /* Knowledge Cards Tab */
+        <div className="flex-1 flex flex-col min-h-0">
+          {showCardForm ? (
+            <KnowledgeCardForm
+              editCard={editingCard}
+              onSaved={async () => {
+                setShowCardForm(false);
+                setEditingCard(null);
+                if (cardListRef.current) cardListRef.current.reload();
+              }}
+              onClose={() => { setShowCardForm(false); setEditingCard(null); }}
+            />
+          ) : (
+            <KnowledgeCardList
+              ref={cardListRef}
+              onCreateNew={() => { setEditingCard(null); setShowCardForm(true); }}
+              onEdit={(card: any) => { setEditingCard(card); setShowCardForm(true); }}
+            />
+          )}
+        </div>
+      ) : (
+      <>
       <div className="flex flex-1 min-h-0">
         {/* Left Sidebar - Categories */}
         <div className="w-56 border-r border-slate-200/60 bg-white/50 flex flex-col shrink-0">
@@ -1016,6 +1068,8 @@ export default function KnowledgePage() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
