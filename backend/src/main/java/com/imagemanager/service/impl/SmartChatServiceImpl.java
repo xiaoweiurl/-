@@ -564,6 +564,40 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
+     * 岗位卡片检索 - 查询岗位知识卡片的向量(knowledge_embeddings, source_type='POSITION_CARD')
+     */
+    private List<Map<String, Object>> searchPositionCards(String query, String company) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            String queryEmbedding = minimaxService.getEmbedding(query);
+            if (queryEmbedding == null || queryEmbedding.isEmpty()) {
+                return results;
+            }
+            String sql = "SELECT e.content, e.chunk_index, e.source_doc_id, " +
+                    "1 - (e.embedding <#> ?::vector) AS similarity " +
+                    "FROM knowledge_embeddings e " +
+                    "WHERE e.source_type = 'POSITION_CARD' " +
+                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND 1 - (e.embedding <#> ?::vector) > 0.15 " +
+                    "ORDER BY e.embedding <#> ?::vector " +
+                    "LIMIT 5";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("content", row.get("content"));
+                item.put("sourceDocId", row.get("source_doc_id"));
+                item.put("similarity", row.get("similarity"));
+                item.put("source", "position_card");
+                results.add(item);
+            }
+            log.info("岗位卡片检索完成, 查询: '{}', 命中: {}条", query, results.size());
+        } catch (Exception e) {
+            log.warn("岗位卡片检索失败: {}", e.getMessage());
+        }
+        return results;
+    }
+
+    /**
      * 知识库检索 - 查询知识库独立的向量表(knowledge_embeddings, source_type='KNOWLEDGE_BASE')
      */
     private List<Map<String, Object>> searchKnowledgeBase(String query, String userId, String company) {
