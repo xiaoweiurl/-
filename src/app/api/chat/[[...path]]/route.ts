@@ -8,7 +8,6 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 
 function getBackendUrl(): string {
-  // 优先使用环境变量，直接返回不做探测
   if (process.env.BACKEND_API_URL) {
     return process.env.BACKEND_API_URL;
   }
@@ -75,7 +74,7 @@ function isSSERequest(request: NextRequest): boolean {
 async function proxyRequest(
   request: NextRequest,
   method: string,
-  body?: ReadableStream<Uint8Array> | null,
+  body?: string | null,
   contentType?: string | null
 ): Promise<NextResponse> {
   const backendUrl = getBackendUrl();
@@ -90,16 +89,23 @@ async function proxyRequest(
   const sse = isSSERequest(request);
 
   console.log('[Chat Proxy] target:', targetUrl);
+  console.log('[Chat Proxy] method:', method, 'hasBody:', !!body);
   console.log('[Chat Proxy] X-Session-Id:', headers.get('x-session-id') || 'MISSING');
 
   try {
-    const backendRes = await fetch(targetUrl, {
+    const fetchOptions: RequestInit = {
       method,
       headers,
-      body: body || undefined,
-      duplex: body ? 'half' : undefined,
       signal: AbortSignal.timeout(sse ? 600000 : 30000),
-    } as RequestInit);
+    };
+
+    // 只在有 body 时设置 body 和 duplex
+    if (body) {
+      fetchOptions.body = body;
+      fetchOptions.duplex = 'half';
+    }
+
+    const backendRes = await fetch(targetUrl, fetchOptions);
 
     // 构建响应头
     const responseHeaders = new Headers();
@@ -115,7 +121,6 @@ async function proxyRequest(
       responseHeaders.set('Content-Type', 'text/event-stream');
       responseHeaders.set('Cache-Control', 'no-cache, no-transform');
       responseHeaders.set('Connection', 'keep-alive');
-      // 禁止反向代理/CDN/Next.js压缩缓冲SSE数据
       responseHeaders.set('X-Accel-Buffering', 'no');
       responseHeaders.delete('content-encoding');
       responseHeaders.delete('content-length');
@@ -179,12 +184,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const contentType = request.headers.get('content-type');
-  return proxyRequest(request, 'POST', request.body, contentType);
+  const body = await request.text();
+  return proxyRequest(request, 'POST', body || null, contentType);
 }
 
 export async function PUT(request: NextRequest) {
   const contentType = request.headers.get('content-type');
-  return proxyRequest(request, 'PUT', request.body, contentType);
+  const body = await request.text();
+  return proxyRequest(request, 'PUT', body || null, contentType);
 }
 
 export async function DELETE(request: NextRequest) {
@@ -193,5 +200,6 @@ export async function DELETE(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const contentType = request.headers.get('content-type');
-  return proxyRequest(request, 'PATCH', request.body, contentType);
+  const body = await request.text();
+  return proxyRequest(request, 'PATCH', body || null, contentType);
 }

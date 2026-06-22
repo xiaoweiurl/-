@@ -49,7 +49,7 @@ function buildHeaders(request: NextRequest): Headers {
     headers.set('X-Session-Id', sessionId);
   }
 
-  // 显式传递 cookie（Next.js request.headers 中可能不包含 cookie）
+  // 显式传递 cookie
   const sessionCookie = request.cookies.get('session_id');
   if (sessionCookie) {
     headers.set('Cookie', `session_id=${sessionCookie.value}`);
@@ -117,24 +117,24 @@ export async function POST(request: NextRequest) {
     let res: Response;
 
     if (contentType.includes('multipart/form-data')) {
-      const formData = await request.formData();
+      // FormData: 读取为 ArrayBuffer 后转发
+      const body = await request.arrayBuffer();
       res = await fetch(backendUrl, {
         method: 'POST',
         headers,
-        body: formData,
-        duplex: 'half',
+        body,
         signal: AbortSignal.timeout(60000),
-      } as RequestInit);
+      });
     } else {
-      const body = await request.json();
+      // JSON: 读取为 text 后转发
+      const body = await request.text();
       headers.set('Content-Type', 'application/json');
       res = await fetch(backendUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify(body),
-        duplex: 'half',
+        body,
         signal: AbortSignal.timeout(15000),
-      } as RequestInit);
+      });
     }
 
     const text = await res.text();
@@ -155,17 +155,16 @@ export async function PUT(request: NextRequest) {
   const backendUrl = buildBackendUrl(url.pathname, '');
 
   try {
-    const body = await request.json();
+    const body = await request.text();
     const headers = buildHeaders(request);
     headers.set('Content-Type', 'application/json');
 
     const res = await fetch(backendUrl, {
       method: 'PUT',
       headers,
-      body: JSON.stringify(body),
-      duplex: 'half',
+      body,
       signal: AbortSignal.timeout(15000),
-    } as RequestInit);
+    });
 
     const text = await res.text();
 
