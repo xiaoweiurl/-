@@ -38,7 +38,7 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
       const res = await fetch('/api/knowledge/cards');
       const data = await res.json();
       if (data.success) {
-        setCards(data.data || []);
+        setCards(data.cards || data.data || []);
       }
     } catch (err) {
       console.error('Fetch cards error:', err);

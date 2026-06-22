@@ -56,8 +56,10 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     @Override
     @Transactional
     public PositionKnowledgeCard updateCard(String id, PositionKnowledgeCard card, String userId, String company) {
-        PositionKnowledgeCard existing = cardRepository.findByIdAndCompany(id, company)
-                .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
+        PositionKnowledgeCard existing = (company != null && !company.isEmpty())
+                ? cardRepository.findByIdAndCompany(id, company).orElse(null)
+                : cardRepository.findById(id).orElse(null);
+        if (existing == null) throw new IllegalArgumentException("卡片不存在或无权访问");
 
         // 校验必填字段
         if (card.getPositionName() != null && card.getPositionName().isBlank()) {
@@ -101,13 +103,22 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
 
     @Override
     public PositionKnowledgeCard getCardDetail(String id, String company) {
-        return cardRepository.findByIdAndCompany(id, company)
-                .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
+        if (company != null && !company.isBlank()) {
+            return cardRepository.findByIdAndCompany(id, company)
+                    .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
+        }
+        return cardRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
     }
 
     @Override
     public Page<PositionKnowledgeCard> getCards(String company, String userId, String keyword, String department, Pageable pageable) {
-        Page<PositionKnowledgeCard> page = cardRepository.findByCompanyAndUserId(company, userId, pageable);
+        Page<PositionKnowledgeCard> page;
+        if (company != null && !company.isBlank()) {
+            page = cardRepository.findByCompany(company, pageable);
+        } else {
+            page = cardRepository.findAll(pageable);
+        }
 
         // 如果有关键词过滤，在内存中过滤（数据量不大时可行）
         if ((keyword != null && !keyword.isBlank()) || (department != null && !department.isBlank())) {
@@ -136,15 +147,24 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     @Override
     @Transactional
     public void deleteCard(String id, String company, String userId) {
-        PositionKnowledgeCard card = cardRepository.findByIdAndCompany(id, company)
-                .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
+        PositionKnowledgeCard card;
+        if (company != null && !company.isBlank()) {
+            card = cardRepository.findByIdAndCompany(id, company)
+                    .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
+        } else {
+            card = cardRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
+        }
         cardRepository.delete(card);
         log.info("删除岗位知识卡片: id={}, position={}", id, card.getPositionName());
     }
 
     @Override
     public long countCards(String company) {
-        return cardRepository.countByCompany(company);
+        if (company != null && !company.isBlank()) {
+            return cardRepository.countByCompany(company);
+        }
+        return cardRepository.count();
     }
 
     @Override
