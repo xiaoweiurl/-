@@ -6,75 +6,14 @@ import { NextRequest, NextResponse } from 'next/server';
  * 职责：将前端 /api/proxy/* 请求转发到 Java 后端，透传请求头和响应。
  */
 
-// 后端地址探测结果缓存
-let cachedBackendUrl: string | null = null;
-let lastProbeTime = 0;
-const PROBE_CACHE_TTL = 60000; // 1分钟缓存
-
-function getBackendCandidates(): string[] {
-  const candidates: string[] = [];
-  if (process.env.BACKEND_API_URL) {
-    candidates.push(process.env.BACKEND_API_URL);
-  }
-  if (process.env.NEXT_PUBLIC_BACKEND_API_URL) {
-    candidates.push(process.env.NEXT_PUBLIC_BACKEND_API_URL);
-  }
-  candidates.push('http://localhost:8080/api');
-  return [...new Set(candidates)];
-}
-
-async function probeBackend(url: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    await fetch(`${url}/albums`, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
-    });
-    clearTimeout(timeoutId);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function getAvailableBackend(): Promise<string | null> {
-  const now = Date.now();
-  if (cachedBackendUrl && (now - lastProbeTime) < PROBE_CACHE_TTL) {
-    return cachedBackendUrl;
-  }
-
-  const candidates = getBackendCandidates();
-  for (const url of candidates) {
-    const available = await probeBackend(url);
-    if (available) {
-      cachedBackendUrl = url;
-      lastProbeTime = now;
-      console.log(`[Proxy] 后端可用: ${url}`);
-      return url;
-    }
-    console.log(`[Proxy] 后端不可用: ${url}`);
-  }
-
-  console.error('[Proxy] 所有后端地址均不可用');
-  return null;
+function getBackendUrl(): string {
+  if (process.env.BACKEND_API_URL) return process.env.BACKEND_API_URL;
+  if (process.env.NEXT_PUBLIC_BACKEND_API_URL) return process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  return 'http://localhost:8080/api';
 }
 
 async function proxyRequest(request: NextRequest, method: string) {
-  const backendUrl = await getAvailableBackend();
-
-  if (!backendUrl) {
-    const candidates = getBackendCandidates();
-    return NextResponse.json(
-      {
-        success: false,
-        error: `后端服务不可用，已尝试: ${candidates.join(', ')}`,
-        message: '后端服务不可用，请确认 Java 后端已启动',
-      },
-      { status: 502 }
-    );
-  }
+  const backendUrl = getBackendUrl();
 
   try {
     const path = request.nextUrl.pathname.replace('/api/proxy', '');
@@ -107,19 +46,16 @@ async function proxyRequest(request: NextRequest, method: string) {
       headers.set('X-Session-Id', sessionIdFromCookie);
     }
 
-    // 显式传递 cookie（Next.js request.headers 中可能不包含 cookie）
+    // 显式传递 cookie
     if (sessionIdFromCookie) {
       headers.set('Cookie', `session_id=${sessionIdFromCookie}`);
     }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const fetchOptions: RequestInit = {
       method,
       headers,
       redirect: 'manual',
-      signal: controller.signal,
+      signal: AbortSignal.timeout(30000),
     };
 
     if (method !== 'GET' && method !== 'HEAD') {
@@ -137,7 +73,6 @@ async function proxyRequest(request: NextRequest, method: string) {
     console.log(`[Proxy] ${method} → ${targetUrl}`);
 
     const backendResponse = await fetch(targetUrl, fetchOptions);
-    clearTimeout(timeoutId);
 
     console.log(`[Proxy] ← ${backendResponse.status} ${backendResponse.statusText}`);
 
@@ -177,9 +112,6 @@ async function proxyRequest(request: NextRequest, method: string) {
       headers: responseHeaders,
     });
   } catch (error) {
-    cachedBackendUrl = null;
-    lastProbeTime = 0;
-
     const errMsg = error instanceof Error ? error.message : '代理请求失败';
     console.error(`[Proxy] 请求转发失败:`, errMsg);
     return NextResponse.json(
