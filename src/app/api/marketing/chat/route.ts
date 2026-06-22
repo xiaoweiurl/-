@@ -9,7 +9,11 @@ async function proxyRequest(request: NextRequest, method: string) {
 
   const url = new URL(request.url);
   const sessionId = request.headers.get('x-session-id') || '';
-  const targetPath = url.pathname.replace('/api/marketing', '');
+
+  // /api/marketing/chat → /marketing/chat
+  // /api/marketing/chat/history → /marketing/chat/history
+  // /api/marketing/chat/smart → /marketing/chat/smart
+  let targetPath = url.pathname.replace('/api/marketing', '/marketing');
   const targetUrl = `${BACKEND_API_URL}${targetPath}${url.search}`;
 
   const headers: Record<string, string> = {
@@ -25,7 +29,7 @@ async function proxyRequest(request: NextRequest, method: string) {
     headers,
   };
 
-  if (method === 'POST' && request.body) {
+  if ((method === 'POST' || method === 'PUT' || method === 'PATCH') && request.body) {
     fetchOptions.body = await request.text();
   }
 
@@ -48,7 +52,36 @@ async function proxyRequest(request: NextRequest, method: string) {
 }
 
 export async function POST(request: NextRequest) {
-  return proxyRequest(request, 'POST');
+  if (!BACKEND_API_URL) {
+    return NextResponse.json({ error: '后端API未配置' }, { status: 500 });
+  }
+
+  const sessionId = request.headers.get('x-session-id') || '';
+  let body: Record<string, string> = {};
+  try {
+    body = await request.json();
+  } catch {}
+
+  const { message = '', userId = '', company = '' } = body;
+
+  // POST /api/marketing/chat → GET /marketing/chat/smart?message=xxx&userId=xxx&company=xxx
+  const params = new URLSearchParams({ message, userId, company });
+  const targetUrl = `${BACKEND_API_URL}/marketing/chat/smart?${params.toString()}`;
+
+  const headers: Record<string, string> = {
+    'Accept': 'text/event-stream',
+    'X-Session-Id': sessionId,
+  };
+
+  const response = await fetch(targetUrl, { method: 'GET', headers });
+
+  return new NextResponse(response.body, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }
 
 export async function GET(request: NextRequest) {

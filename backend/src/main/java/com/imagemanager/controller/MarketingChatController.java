@@ -52,11 +52,35 @@ public class MarketingChatController {
 
     /**
      * 市场营销AI对话 (SSE流式)
+     * 支持 GET 和 POST 两种方式
      */
     @GetMapping(value = "/smart", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter smartChat(
+    public SseEmitter smartChatGet(
             @RequestParam String message,
             HttpServletRequest request) {
+        LoginResponse.UserInfo user = getCurrentUser(request);
+        String userId = user.getId() != null ? user.getId() : user.getUsername();
+        String company = user.getCompany() != null ? user.getCompany() : "盈云";
+        return marketingChatService.chat(message, userId, company);
+    }
+
+    /**
+     * 市场营销AI对话 (SSE流式) - POST方式
+     * 前端通过 POST 发送 message
+     */
+    @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter smartChatPost(
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
+        String message = body.get("message");
+        if (message == null || message.isBlank()) {
+            SseEmitter emitter = new SseEmitter(60000L);
+            try {
+                emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
         LoginResponse.UserInfo user = getCurrentUser(request);
         String userId = user.getId() != null ? user.getId() : user.getUsername();
         String company = user.getCompany() != null ? user.getCompany() : "盈云";
