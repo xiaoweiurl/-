@@ -116,7 +116,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                     log.info("强供应链意图且已命中数据，跳过知识库检索避免干扰");
                 }
 
-                // 4c. 图片搜索(当用户意图涉及找图时)
+                // 4c. 岗位卡片向量检索
+                List<Map<String, Object>> positionCardResults = Collections.emptyList();
+                if (!skipVectorSearch) {
+                    try {
+                        positionCardResults = searchPositionCards(message, company);
+                        log.info("岗位卡片检索到 {} 条结果", positionCardResults.size());
+                    } catch (Exception e) {
+                        log.warn("岗位卡片检索异常: {}", e.getMessage());
+                    }
+                }
+
+                // 4d. 图片搜索(当用户意图涉及找图时)
                 List<Map<String, Object>> imageResults = Collections.emptyList();
                 if (isImageSearchIntent(message)) {
                     try {
@@ -156,6 +167,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "source", "supply_chain",
                             "type", r.getOrDefault("type", ""),
                             "summary", r.getOrDefault("summary", "").toString()
+                    ));
+                }
+
+                // 岗位卡片来源
+                for (Map<String, Object> r : positionCardResults) {
+                    sources.add(Map.of(
+                            "source", "position_card",
+                            "content", r.getOrDefault("content", "").toString(),
+                            "score", r.getOrDefault("score", 0)
                     ));
                 }
 
@@ -220,6 +240,19 @@ public class SmartChatServiceImpl implements SmartChatService {
                         knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%%)\n%s\n\n",
                                 i + 1, score * 100, content));
                     }
+                }
+
+                if (!positionCardResults.isEmpty()) {
+                    knowledgeContext.append("## 岗位知识卡片（员工实际工作经验）：\n");
+                    for (int i = 0; i < positionCardResults.size(); i++) {
+                        Map<String, Object> r = positionCardResults.get(i);
+                        double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
+                        String content = r.getOrDefault("content", "").toString();
+                        if (content.length() > 500) content = content.substring(0, 500) + "...";
+                        knowledgeContext.append(String.format("### 岗位卡片%d (相关度: %.1f%%)\n%s\n\n",
+                                i + 1, score * 100, content));
+                    }
+                    knowledgeContext.append("⚠️ 以上来自员工填写的岗位知识卡片，包含真实工作经验和职责描述，回答岗位相关问题时应优先参考。\n");
                 }
 
                 if (!imageResults.isEmpty()) {
