@@ -45,6 +45,8 @@ const TEAMS = ['品牌运营(携创云织)', '产品开发(盈云)', '供应链'
 const NATURES = ['全职', '兼职', '顾问', 'Agent辅助'];
 const DEPARTMENTS = ['品牌运营', '产品开发', '供应链', '财务', '投资委员会', '人力资源', '技术部'];
 
+const PH = '如果没有就填无';
+
 // 多行输入组件
 function MultiLineInput({ value, onChange, placeholder, rows = 2 }: {
   value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
@@ -53,7 +55,7 @@ function MultiLineInput({ value, onChange, placeholder, rows = 2 }: {
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
+      placeholder={placeholder || PH}
       rows={rows}
       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white resize-none"
     />
@@ -82,7 +84,7 @@ function NumberedListInput({ value, onChange, placeholder, maxItems = 5 }: {
           <input
             value={item}
             onChange={(e) => handleChange(i, e.target.value)}
-            placeholder={i === 0 ? placeholder : ''}
+            placeholder={i === 0 ? (placeholder || PH) : PH}
             className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white"
           />
         </div>
@@ -91,9 +93,14 @@ function NumberedListInput({ value, onChange, placeholder, maxItems = 5 }: {
   );
 }
 
-// 折叠区块
-function Section({ title, icon, required, children, defaultOpen = true }: {
-  title: string; icon: React.ReactNode; required?: boolean; children: React.ReactNode; defaultOpen?: boolean;
+// 必填标记
+function Required() {
+  return <span className="text-red-400 ml-0.5">*</span>;
+}
+
+// 折叠区块 — 全部必填
+function Section({ title, icon, children, defaultOpen = true }: {
+  title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -105,7 +112,7 @@ function Section({ title, icon, required, children, defaultOpen = true }: {
       >
         <span className="text-indigo-500">{icon}</span>
         <span className="text-sm font-semibold text-slate-700">{title}</span>
-        {required && <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-500 rounded font-medium">必填</span>}
+        <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-500 rounded font-medium">必填</span>
         <span className="ml-auto">{open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}</span>
       </button>
       {open && <div className="px-4 py-3 space-y-3">{children}</div>}
@@ -126,8 +133,27 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
   };
 
   const validate = (): string | null => {
-    if (!card.positionName.trim()) return '岗位名称不能为空';
-    if (!card.coreDuties.trim()) return '核心职责不能为空';
+    if (!card.positionName?.trim()) return '岗位名称不能为空';
+    if (!card.onDutyPerson?.trim()) return '在岗人员不能为空';
+    if (!card.reportTo?.trim()) return '汇报上级不能为空';
+    if (!card.department?.trim()) return '所属部门不能为空';
+    if (!card.team?.trim()) return '所属团队不能为空';
+    if (!card.positionNature?.trim()) return '岗位性质不能为空';
+    if (!card.coreDuties?.trim()) return '核心职责不能为空';
+    if (!card.auxiliaryDuties?.trim()) return '辅助职责不能为空';
+    if (!card.keyOutputs?.trim()) return '关键产出物不能为空';
+    if (!card.hardSkills?.trim()) return '硬技能不能为空';
+    if (!card.softSkills?.trim()) return '软技能不能为空';
+    if (!card.upstreamInputs?.trim()) return '上游输入不能为空';
+    if (!card.downstreamOutputs?.trim()) return '下游输出不能为空';
+    if (!card.completedWork?.trim()) return '已完成工作不能为空';
+    if (!card.inProgress?.trim()) return '当前进行中不能为空';
+    if (!card.bottlenecks?.trim()) return '卡点和瓶颈不能为空';
+    if (!card.supportNeeded?.trim()) return '需要的支持不能为空';
+    if (!card.improvementDirection?.trim()) return '本人提升方向不能为空';
+    if (!card.processOptimization?.trim()) return '流程优化建议不能为空';
+    if (!card.toolResourceNeeds?.trim()) return '工具/资源需求不能为空';
+    if (!card.additionalNotes?.trim()) return '补充说明不能为空';
     return null;
   };
 
@@ -172,7 +198,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-800">{editCard ? '编辑岗位知识卡片' : '新建岗位知识卡片'}</h2>
-              <p className="text-xs text-slate-400">按岗位知识卡片模板V1.0填写</p>
+              <p className="text-xs text-slate-400">所有字段均为必填，没有可填"无"</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
@@ -183,10 +209,10 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
         {/* Form */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {/* 一、岗位基本信息 */}
-          <Section title="一、岗位基本信息" icon={<Briefcase className="w-4 h-4" />} required defaultOpen>
+          <Section title="一、岗位基本信息" icon={<Briefcase className="w-4 h-4" />} defaultOpen>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">岗位名称 <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">岗位名称<Required /></label>
                 <input
                   value={card.positionName}
                   onChange={(e) => update('positionName', e.target.value)}
@@ -195,20 +221,20 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">在岗人员</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">在岗人员<Required /></label>
                 <input
                   value={card.onDutyPerson || ''}
                   onChange={(e) => update('onDutyPerson', e.target.value)}
-                  placeholder="姓名"
+                  placeholder={PH}
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">汇报上级</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">汇报上级<Required /></label>
                 <input
                   value={card.reportTo || ''}
                   onChange={(e) => update('reportTo', e.target.value)}
-                  placeholder="上级姓名/职位"
+                  placeholder={PH}
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
                 />
               </div>
@@ -216,7 +242,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">所属部门</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">所属部门<Required /></label>
                 <select
                   value={card.department || ''}
                   onChange={(e) => update('department', e.target.value)}
@@ -227,7 +253,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">所属团队</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">所属团队<Required /></label>
                 <select
                   value={card.team || ''}
                   onChange={(e) => update('team', e.target.value)}
@@ -240,7 +266,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">岗位性质</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">岗位性质<Required /></label>
               <div className="flex gap-3">
                 {NATURES.map(n => (
                   <label key={n} className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
@@ -260,9 +286,9 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           </Section>
 
           {/* 二、岗位职责 */}
-          <Section title="二、岗位职责" icon={<Target className="w-4 h-4" />} required>
+          <Section title="二、岗位职责" icon={<Target className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">核心职责（不超过5条） <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">核心职责（不超过5条）<Required /></label>
               <NumberedListInput
                 value={card.coreDuties || ''}
                 onChange={(v) => update('coreDuties', v)}
@@ -271,7 +297,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">辅助职责</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">辅助职责<Required /></label>
               <NumberedListInput
                 value={card.auxiliaryDuties || ''}
                 onChange={(v) => update('auxiliaryDuties', v)}
@@ -294,7 +320,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 四、能力要求 */}
           <Section title="四、能力要求" icon={<Users className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">硬技能（工具/技术/资质）</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">硬技能（工具/技术/资质）<Required /></label>
               <NumberedListInput
                 value={card.hardSkills || ''}
                 onChange={(v) => update('hardSkills', v)}
@@ -303,7 +329,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">软技能（沟通/判断/协作）</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">软技能（沟通/判断/协作）<Required /></label>
               <NumberedListInput
                 value={card.softSkills || ''}
                 onChange={(v) => update('softSkills', v)}
@@ -316,7 +342,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 五、协作关系 */}
           <Section title="五、协作关系" icon={<GitBranch className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">上游输入（我需要谁给我什么）</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">上游输入（我需要谁给我什么）<Required /></label>
               <MultiLineInput
                 value={card.upstreamInputs || ''}
                 onChange={(v) => update('upstreamInputs', v)}
@@ -325,7 +351,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">下游输出（我给谁提供什么）</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">下游输出（我给谁提供什么）<Required /></label>
               <MultiLineInput
                 value={card.downstreamOutputs || ''}
                 onChange={(v) => update('downstreamOutputs', v)}
@@ -338,19 +364,19 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 六、当前状态 */}
           <Section title="六、当前状态" icon={<AlertTriangle className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">已完成的主要工作（本季度）</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">已完成的主要工作（本季度）<Required /></label>
               <MultiLineInput value={card.completedWork || ''} onChange={(v) => update('completedWork', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">当前进行中</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">当前进行中<Required /></label>
               <MultiLineInput value={card.inProgress || ''} onChange={(v) => update('inProgress', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">卡点和瓶颈</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">卡点和瓶颈<Required /></label>
               <MultiLineInput value={card.bottlenecks || ''} onChange={(v) => update('bottlenecks', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">需要的支持</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">需要的支持<Required /></label>
               <MultiLineInput value={card.supportNeeded || ''} onChange={(v) => update('supportNeeded', v)} rows={2} />
             </div>
           </Section>
@@ -358,15 +384,15 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 七、改进计划 */}
           <Section title="七、改进计划" icon={<TrendingUp className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">本人提升方向</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">本人提升方向<Required /></label>
               <MultiLineInput value={card.improvementDirection || ''} onChange={(v) => update('improvementDirection', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">流程优化建议</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">流程优化建议<Required /></label>
               <MultiLineInput value={card.processOptimization || ''} onChange={(v) => update('processOptimization', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">工具/资源需求</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">工具/资源需求<Required /></label>
               <MultiLineInput value={card.toolResourceNeeds || ''} onChange={(v) => update('toolResourceNeeds', v)} rows={2} />
             </div>
           </Section>
@@ -376,7 +402,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
             <MultiLineInput
               value={card.additionalNotes || ''}
               onChange={(v) => update('additionalNotes', v)}
-              placeholder="任何卡片格式无法覆盖但需要说明的事项"
+              placeholder="任何卡片格式无法覆盖但需要说明的事项，如果没有就填无"
               rows={3}
             />
           </Section>
@@ -384,7 +410,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 shrink-0 bg-slate-50/50">
-          <p className="text-[10px] text-slate-400">每岗位一卡，季度更新。提交至企业智能中台归档。</p>
+          <p className="text-[10px] text-slate-400">每岗位一卡，季度更新。提交至企业智能中台归档。所有字段必填。</p>
           <div className="flex gap-3">
             <button
               onClick={onClose}

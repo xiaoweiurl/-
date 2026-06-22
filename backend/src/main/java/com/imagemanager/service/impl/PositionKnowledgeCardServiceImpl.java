@@ -25,13 +25,8 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     @Override
     @Transactional
     public PositionKnowledgeCard createCard(PositionKnowledgeCard card, String userId, String company) {
-        // 校验必填字段
-        if (card.getPositionName() == null || card.getPositionName().isBlank()) {
-            throw new IllegalArgumentException("岗位名称不能为空");
-        }
-        if (card.getCoreDuties() == null || card.getCoreDuties().isBlank()) {
-            throw new IllegalArgumentException("核心职责不能为空");
-        }
+        // 校验所有字段必填
+        validateAllFields(card);
 
         // 自动生成卡片编号
         if (card.getCardCode() == null || card.getCardCode().isBlank()) {
@@ -42,6 +37,9 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         if (card.getSubmitDate() == null || card.getSubmitDate().isBlank()) {
             card.setSubmitDate(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")));
         }
+
+        // 校验所有字段必填
+        validateAllFields(card);
 
         card.setUserId(userId);
         card.setCompany(company);
@@ -61,13 +59,8 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                 : cardRepository.findById(id).orElse(null);
         if (existing == null) throw new IllegalArgumentException("卡片不存在或无权访问");
 
-        // 校验必填字段
-        if (card.getPositionName() != null && card.getPositionName().isBlank()) {
-            throw new IllegalArgumentException("岗位名称不能为空");
-        }
-        if (card.getCoreDuties() != null && card.getCoreDuties().isBlank()) {
-            throw new IllegalArgumentException("核心职责不能为空");
-        }
+        // 校验所有字段必填
+        validateAllFields(card);
 
         // 更新所有字段
         if (card.getCardCode() != null) existing.setCardCode(card.getCardCode());
@@ -171,5 +164,35 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     public String generateCardCode(String company) {
         long count = cardRepository.countByCompany(company);
         return String.format("KC-%06d", count + 1);
+    }
+
+    private void validateAllFields(PositionKnowledgeCard card) {
+        String[] requiredFields = {
+            card.getPositionName(), "岗位名称",
+            card.getDepartment(), "所属部门",
+            card.getTeam(), "所属团队",
+            card.getCoreDuties(), "核心职责",
+            card.getAuxiliaryDuties(), "辅助职责",
+            card.getKeyDeliverables(), "关键产出物",
+            card.getHardSkills(), "硬技能",
+            card.getSoftSkills(), "软技能",
+            card.getUpstreamCollaboration(), "上游输入",
+            card.getDownstreamCollaboration(), "下游输出",
+            card.getCompletedWork(), "已完成的主要工作",
+            card.getOngoingWork(), "当前进行中",
+            card.getBlockers(), "卡点和瓶颈",
+            card.getNeededSupport(), "需要的支持",
+            card.getImprovementDirection(), "本人提升方向",
+            card.getProcessOptimization(), "流程优化建议",
+            card.getToolResourceNeeds(), "工具/资源需求",
+            card.getAdditionalNotes(), "补充说明"
+        };
+        for (int i = 0; i < requiredFields.length; i += 2) {
+            String value = requiredFields[i];
+            String name = requiredFields[i + 1];
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException(name + "不能为空，如果没有请填\"无\"");
+            }
+        }
     }
 }
