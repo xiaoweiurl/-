@@ -330,41 +330,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* 快速登录 */}
-            <div className="mt-8 pt-6 border-t border-slate-100">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-px bg-slate-100" />
-                <span className="text-xs text-slate-400 font-medium">快速体验</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => quickLogin('admin')}
-                  className={cn(
-                    'py-2.5 px-4 rounded-xl text-sm font-medium',
-                    'border border-slate-200 bg-white text-slate-600',
-                    'hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700',
-                    'transition-all duration-200'
-                  )}
-                >
-                  管理员登录
-                </button>
-                <button
-                  type="button"
-                  onClick={() => quickLogin('user')}
-                  className={cn(
-                    'py-2.5 px-4 rounded-xl text-sm font-medium',
-                    'border border-slate-200 bg-white text-slate-600',
-                    'hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700',
-                    'transition-all duration-200'
-                  )}
-                >
-                  普通用户登录
-                </button>
-              </div>
-            </div>
-
             <div className="mt-4 text-center">
               <button
                 type="button"
