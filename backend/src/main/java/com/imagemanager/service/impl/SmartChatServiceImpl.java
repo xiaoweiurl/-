@@ -57,6 +57,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.minimax.base-url:https://api.minimaxi.com/anthropic/v1/messages}")
     private String minimaxBaseUrl;
 
+    @Value("${app.minimax.embedding-url:https://api.minimaxi.com/v1/embeddings}")
+    private String minimaxEmbeddingUrl;
+
+    @Value("${app.minimax.embedding-model:embo-01}")
+    private String minimaxEmbeddingModel;
+
     @Value("${app.minimax.model:MiniMax-M3}")
     private String minimaxModel;
 
@@ -569,10 +575,19 @@ public class SmartChatServiceImpl implements SmartChatService {
     private List<Map<String, Object>> searchPositionCards(String query, String company) {
         List<Map<String, Object>> results = new ArrayList<>();
         try {
-            String queryEmbedding = minimaxService.getEmbedding(query);
-            if (queryEmbedding == null || queryEmbedding.isEmpty()) {
+            float[] embeddingArray = getEmbedding(query);
+            if (embeddingArray == null || embeddingArray.length == 0) {
                 return results;
             }
+            // 将float[]转为PostgreSQL vector格式的字符串
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < embeddingArray.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(embeddingArray[i]);
+            }
+            sb.append("]");
+            String queryEmbedding = sb.toString();
+
             String sql = "SELECT e.content, e.chunk_index, e.source_doc_id, " +
                     "1 - (e.embedding <#> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
@@ -1237,6 +1252,67 @@ public class SmartChatServiceImpl implements SmartChatService {
         } catch (Exception e) {
             log.error("MiniMax流式对话失败: {}", e.getMessage());
             throw new RuntimeException("流式对话失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 调用MiniMax Embedding API获取文本向量
+     */
+    private float[] getEmbedding(String text) {
+        try {
+            String url = minimaxEmbeddingUrl;
+            if (url == null || url.isEmpty()) {
+                url = "https://api.minimax.chat/v1/embeddings";
+            }
+            String model = minimaxEmbeddingModel;
+            if (model == null || model.isEmpty()) {
+                model = "embo-01";
+            }
+
+            java.net.URL apiUrl = new java.net.URL(url);
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) apiUrl.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + minimaxApiKey);
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(30000);
+
+            String requestBody = objectMapper.writeValueAsString(Map.of(
+                    "model", model,
+                    "input", List.of(text),
+                    "type", "db"
+            ));
+
+            try (java.io.OutputStream os = conn.getOutputStream()) {
+                os.write(requestBody.getBytes("UTF-8"));
+            }
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                String errorBody = new String(conn.getErrorStream().readAllBytes(), "UTF-8");
+                log.error("Embedding API调用失败, status={}, body={}", responseCode, errorBody);
+                return null;
+            }
+
+            String responseBody = new String(conn.getInputStream().readAllBytes(), "UTF-8");
+            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(responseBody);
+            com.fasterxml.jackson.databind.JsonNode dataNode = root.get("data");
+            if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
+                com.fasterxml.jackson.databind.JsonNode embeddingNode = dataNode.get(0).get("embedding");
+                if (embeddingNode != null && embeddingNode.isArray()) {
+                    float[] embedding = new float[embeddingNode.size()];
+                    for (int i = 0; i < embeddingNode.size(); i++) {
+                        embedding[i] = (float) embeddingNode.get(i).asDouble();
+                    }
+                    return embedding;
+                }
+            }
+            log.error("Embedding API返回数据格式异常: {}", responseBody.substring(0, Math.min(responseBody.length(), 200)));
+            return null;
+        } catch (Exception e) {
+            log.error("获取Embedding失败: {}", e.getMessage());
+            return null;
         }
     }
 }
