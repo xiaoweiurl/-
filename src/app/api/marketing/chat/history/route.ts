@@ -9,13 +9,6 @@ export async function GET(request: NextRequest) {
 
   const sessionId = request.headers.get('x-session-id') || '';
   const url = new URL(request.url);
-  const { userId, company } = Object.fromEntries(url.searchParams);
-
-  const params = new URLSearchParams();
-  if (userId) params.set('userId', userId);
-  if (company) params.set('company', company);
-
-  const targetUrl = `${BACKEND_API_URL}/marketing/chat/history?${params.toString()}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -23,6 +16,8 @@ export async function GET(request: NextRequest) {
   };
   const cookie = request.headers.get('cookie');
   if (cookie) headers['cookie'] = cookie;
+
+  const targetUrl = `${BACKEND_API_URL}/marketing/chat/history${url.search}`;
 
   const response = await fetch(targetUrl, { method: 'GET', headers });
   const data = await response.json();
@@ -36,13 +31,6 @@ export async function DELETE(request: NextRequest) {
 
   const sessionId = request.headers.get('x-session-id') || '';
   const url = new URL(request.url);
-  const { userId, company } = Object.fromEntries(url.searchParams);
-
-  const params = new URLSearchParams();
-  if (userId) params.set('userId', userId);
-  if (company) params.set('company', company);
-
-  const targetUrl = `${BACKEND_API_URL}/marketing/chat/history?${params.toString()}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -50,6 +38,8 @@ export async function DELETE(request: NextRequest) {
   };
   const cookie = request.headers.get('cookie');
   if (cookie) headers['cookie'] = cookie;
+
+  const targetUrl = `${BACKEND_API_URL}/marketing/chat/history${url.search}`;
 
   const response = await fetch(targetUrl, { method: 'DELETE', headers });
   const data = await response.json();

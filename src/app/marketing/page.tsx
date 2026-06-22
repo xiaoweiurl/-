@@ -115,22 +115,30 @@ export default function MarketingChatPage() {
 
       const decoder = new TextDecoder();
       let fullContent = '';
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last incomplete line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (data === '[DONE]') continue;
+          const trimmed = line.trim();
+          // Skip event type lines and empty lines
+          if (trimmed.startsWith('event:') || trimmed === '') continue;
+
+          if (trimmed.startsWith('data:')) {
+            const data = trimmed.substring(5).trim();
+            if (!data || data === '[DONE]') continue;
             try {
               const parsed = JSON.parse(data);
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                fullContent += parsed.delta.text;
+              if (parsed.type === 'content' && parsed.content) {
+                // Backend wrapped format: {"type":"content","content":"xxx"}
+                fullContent += parsed.content;
                 setMessages(prev => {
                   const updated = [...prev];
                   updated[updated.length - 1] = {
@@ -139,7 +147,20 @@ export default function MarketingChatPage() {
                   };
                   return updated;
                 });
+              } else if (parsed.type === 'error') {
+                fullContent += parsed.content || '对话出错';
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    content: fullContent
+                  };
+                  return updated;
+                });
+              } else if (parsed.type === 'done') {
+                // Stream completed
               } else if (parsed.choices?.[0]?.delta?.content) {
+                // Fallback: raw MiniMax v2 format
                 fullContent += parsed.choices[0].delta.content;
                 setMessages(prev => {
                   const updated = [...prev];
@@ -202,8 +223,10 @@ export default function MarketingChatPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('marketing_company');
-    localStorage.removeItem('marketing_userId');
+    localStorage.removeItem('user_company');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('session_id');
+    localStorage.removeItem('portal_type');
     window.location.href = '/login';
   };
 

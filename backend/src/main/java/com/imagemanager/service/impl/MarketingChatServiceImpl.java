@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.BufferedReader;
@@ -94,7 +93,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
                 emitter.complete();
             } catch (Exception e) {
-                log.error("市场营销对话失败: {}", e.getMessage());
+                log.error("市场营销对话失败: {}", e.getMessage(), e);
                 try {
                     emitter.send(SseEmitter.event().name("message").data(
                         objectMapper.writeValueAsString(Map.of("type", "error", "content", "对话失败: " + e.getMessage()))
@@ -180,7 +179,6 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                                 }
                             }
                         } catch (Exception parseEx) {
-                            if (parseEx instanceof RuntimeException) throw parseEx;
                             log.debug("解析V2 SSE行失败: {}", data.substring(0, Math.min(data.length(), 200)));
                         }
                     }
@@ -194,12 +192,9 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
     @Override
     public List<Map<String, Object>> getChatHistory(String userId, String company) {
-        String sql = "SELECT role, content, created_at FROM smart_chat_history " +
-            "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
-            "AND session_id = ? " +
+        String sql = "SELECT role, content, created_at FROM marketing_chat_history " +
+            "WHERE user_id = ? AND (company = ? OR company IS NULL OR ? IS NULL) " +
             "ORDER BY created_at DESC LIMIT 20";
-        // 使用固定的session_id标识营销对话（与智能对话区分）
-        String marketingSessionId = UUID.nameUUIDFromBytes(("marketing_" + userId + "_" + company).getBytes()).toString();
         List<Map<String, Object>> results = jdbcTemplate.query(sql,
             (rs, rowNum) -> {
                 Map<String, Object> msg = new LinkedHashMap<>();
@@ -208,7 +203,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
                 return msg;
             },
-            userId, company, marketingSessionId
+            userId, company, company
         );
         Collections.reverse(results);
         return results;
@@ -216,19 +211,17 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
     @Override
     public void clearChatHistory(String userId, String company) {
-        String marketingSessionId = UUID.nameUUIDFromBytes(("marketing_" + userId + "_" + company).getBytes()).toString();
         jdbcTemplate.update(
-            "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL) AND session_id = ?",
-            userId, company, marketingSessionId
+            "DELETE FROM marketing_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL OR ? IS NULL)",
+            userId, company, company
         );
     }
 
     private void saveChatMessage(String userId, String role, String content, String company) {
-        String marketingSessionId = UUID.nameUUIDFromBytes(("marketing_" + userId + "_" + company).getBytes()).toString();
         jdbcTemplate.update(
-            "INSERT INTO smart_chat_history (id, user_id, session_id, role, content, company, created_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, NOW())",
-            UUID.randomUUID().toString(), userId, marketingSessionId, role, content, company
+            "INSERT INTO marketing_chat_history (id, user_id, company, role, content, created_at) " +
+                "VALUES (?, ?, ?, ?, ?, NOW())",
+            UUID.randomUUID().toString(), userId, company, role, content
         );
     }
 }
