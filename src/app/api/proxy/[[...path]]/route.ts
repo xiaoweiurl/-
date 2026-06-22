@@ -58,24 +58,22 @@ async function proxyRequest(request: NextRequest, method: string) {
       signal: AbortSignal.timeout(30000),
     };
 
+    // 读取 body 为 string/ArrayBuffer（不是 ReadableStream），无需 duplex
     if (method !== 'GET' && method !== 'HEAD') {
       const contentType = request.headers.get('content-type') || '';
       if (contentType.includes('multipart/form-data')) {
         fetchOptions.body = await request.arrayBuffer();
-        fetchOptions.duplex = 'half';
         headers.delete('content-type');
       } else if (contentType.includes('application/json') || contentType.includes('text/')) {
         fetchOptions.body = await request.text();
-        fetchOptions.duplex = 'half';
       } else {
         fetchOptions.body = await request.arrayBuffer();
-        fetchOptions.duplex = 'half';
       }
     }
 
     console.log(`[Proxy] ${method} → ${targetUrl}`);
 
-    const backendResponse = await fetch(targetUrl, fetchOptions as RequestInit);
+    const backendResponse = await fetch(targetUrl, fetchOptions);
 
     console.log(`[Proxy] ← ${backendResponse.status} ${backendResponse.statusText}`);
 

@@ -65,22 +65,20 @@ async function proxy(request: NextRequest, method: string) {
   if (method !== 'GET' && method !== 'HEAD') {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
+      // multipart/form-data: 读取为 ArrayBuffer，保留原始 boundary
       fetchOptions.body = await request.arrayBuffer();
-      fetchOptions.duplex = 'half';
       headers.delete('content-type');
     } else if (contentType.includes('application/json')) {
       fetchOptions.body = await request.text();
-      fetchOptions.duplex = 'half';
       headers.set('content-type', 'application/json');
     } else {
       fetchOptions.body = await request.arrayBuffer();
-      fetchOptions.duplex = 'half';
       if (contentType) headers.set('content-type', contentType);
     }
   }
 
   try {
-    const res = await fetch(targetUrl, fetchOptions as RequestInit);
+    const res = await fetch(targetUrl, fetchOptions);
 
     const responseHeaders = new Headers();
     res.headers.forEach((value, key) => {
