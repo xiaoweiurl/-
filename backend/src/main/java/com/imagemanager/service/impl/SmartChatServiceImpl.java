@@ -18,7 +18,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -952,7 +952,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     BigDecimal minP = rs.getBigDecimal("min_price");
                     if (maxP != null && minP != null && maxP.compareTo(BigDecimal.ZERO) > 0) {
                         BigDecimal saving = maxP.subtract(minP)
-                            .divide(maxP, 4, RoundingMode.HALF_UP)
+                            .divide(maxP, 4, BigDecimal.ROUND_HALF_UP)
                             .multiply(new BigDecimal("100"));
                         row.put("savingPercent", saving + "%");
                     }
