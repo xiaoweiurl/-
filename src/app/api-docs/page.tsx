@@ -111,7 +111,7 @@ export default function SwaggerPage() {
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-800">盈云产品智能中台 API 文档</h1>
+          <h1 className="text-3xl font-bold text-slate-800">企业数智中台系统 API 文档</h1>
           <p className="text-slate-600 mt-2">
             基于 OpenAPI 3.0 规范的 RESTful API 文档
           </p>

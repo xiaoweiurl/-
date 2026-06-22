@@ -24,7 +24,7 @@ let fallbackNotifications: any[] = [
   {
     id: 'notif-welcome',
     type: 'info',
-    title: '欢迎使用盈云产品智能中台',
+    title: '欢迎使用企业数智中台系统',
     content: '系统已就绪，您可以开始上传和管理您的知识内容。',
     read: false,
     createdAt: new Date(Date.now() - 3600000).toISOString(),

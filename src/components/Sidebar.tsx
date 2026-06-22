@@ -837,7 +837,7 @@ export default function Sidebar({
               <span className="text-[15px] font-semibold text-slate-800 truncate">
                 {brand?.name || '盈云'}
               </span>
-              <span className="text-[11px] text-slate-400 truncate">产品智能中台</span>
+              <span className="text-[11px] text-slate-400 truncate">企业数智中台系统</span>
             </div>
           )}
         </div>

@@ -210,7 +210,7 @@ export default function LoginPage() {
             </div>
 
             <div className="text-white/20 text-xs">
-              © 2024 盈云产品智能中台 · v2.0
+              © 2024 企业数智中台系统 · v2.0
             </div>
           </div>
         </div>
@@ -531,7 +531,7 @@ export default function LoginPage() {
             <h2 className="text-[2.8rem] font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
               {companyName}
               <br />
-              <span className="text-white/70">产品智能中台</span>
+              <span className="text-white/70">企业数智中台系统</span>
             </h2>
             <p className="text-white/40 text-base leading-relaxed mb-8">{brand.slogan}</p>
 
@@ -550,7 +550,7 @@ export default function LoginPage() {
             <div className={cn('w-12 h-12 mx-auto rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4', brandGradientFrom, brandGradientTo)}>
               <Icon className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-slate-800">{companyName}产品智能中台</h1>
+            <h1 className="text-xl font-bold text-slate-800">{companyName}企业数智中台系统</h1>
             <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-lg">
               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
               <span className="text-[11px] text-emerald-700 font-medium">已绑定：{companyName}</span>

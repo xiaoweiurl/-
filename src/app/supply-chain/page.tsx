@@ -716,7 +716,7 @@ export default function SupplyChainPage() {
                 <BrandIcon className="w-4 h-4" />
               </div>
               <div>
-                <h1 className="text-[15px] font-bold text-slate-800 leading-tight">{brand.name}产品智能中台</h1>
+                <h1 className="text-[15px] font-bold text-slate-800 leading-tight">{brand.name}企业数智中台系统</h1>
                 <p className="text-[11px] text-slate-400">供应链 & 工厂管理</p>
               </div>
             </div>
