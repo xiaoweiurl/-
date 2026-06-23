@@ -171,7 +171,14 @@ public class AiImageController {
             // gpt-image 系列模型
             ObjectNode gptImage = response.putObject("gptImage");
             gptImage.putArray("models")
-                    .add("gpt-image-2");
+                    .add("gpt-image-2")
+                    .add("gpt-image-2-vip");
+            // gpt-image-2 支持比例格式和像素格式
+            gptImage.put("standardSupportsRatio", true);
+            gptImage.put("standardSupportsPixel", true);
+            // gpt-image-2-vip 只支持像素格式
+            gptImage.put("vipSupportsRatio", false);
+            gptImage.put("vipSupportsPixel", true);
 
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
