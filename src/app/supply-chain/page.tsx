@@ -7,7 +7,8 @@ import {
   Search, Upload, Download, Plus, Edit3, Trash2, ChevronLeft,
   ChevronRight, RefreshCw, Calculator, Target, Zap,
   ChevronDown, Check, AlertCircle, Info, Warehouse,
-  ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud
+  ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud,
+  ArrowLeft
 } from 'lucide-react';
 import { getCurrentBrand } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -712,6 +713,14 @@ export default function SupplyChainPage() {
       <header className="bg-white/[0.97] backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push('/')}
+                className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>返回</span>
+              </button>
+              <span className="text-slate-300">|</span>
               <div className={cn("w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white shadow-sm", brand.primaryFrom, brand.primaryTo)}>
                 <BrandIcon className="w-4 h-4" />
               </div>

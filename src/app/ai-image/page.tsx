@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
   Upload,
+  ArrowLeft,
 } from 'lucide-react';
 
 // ========== 模型和分辨率配置 ==========
@@ -357,6 +358,13 @@ export default function AiImagePage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* 顶部栏 */}
         <div className="h-14 bg-white border-b border-slate-200/60 flex items-center px-6 shrink-0">
+          <button
+            onClick={() => router.push('/')}
+            className={`flex items-center gap-1.5 text-sm text-slate-500 hover:${accentText} transition-colors mr-4 shrink-0`}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>返回</span>
+          </button>
           <div className="flex items-center gap-3">
             <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentBg} flex items-center justify-center`}>
               <Wand2 className="w-4 h-4 text-white" />
