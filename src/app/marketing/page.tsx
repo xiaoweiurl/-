@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Send, Trash2, Bot, User, Sparkles, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
 import { getCurrentBrand } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ const SYSTEM_PROMPT = `你是一位深耕无缝针织行业的市场营销专家
 请用专业、务实、有洞察力的方式回答用户的问题，优先给出可落地的行动建议。`;
 
 export default function MarketingChatPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -243,11 +245,12 @@ export default function MarketingChatPage() {
         <div className="max-w-4xl mx-auto px-5 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={handleLogout}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-              title="返回登录"
+              onClick={() => router.push('/')}
+              className="flex items-center gap-1 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              title="返回主页"
             >
               <ArrowLeft className="w-4 h-4" />
+              <span className="text-xs">返回</span>
             </button>
             <div className="flex items-center gap-2.5">
               <div className={cn(

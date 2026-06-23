@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   BookOpen,
   Upload,
@@ -26,6 +27,7 @@ import {
   Eye,
   Tag,
   ArrowRight,
+  ArrowLeft,
   RefreshCw,
   Database,
   Briefcase,
@@ -126,6 +128,7 @@ function getFileExtension(fileName: string): string {
 }
 
 export default function KnowledgePage() {
+  const router = useRouter();
   // 文档列表
   const [documents, setDocuments] = useState<DocEntry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -415,6 +418,14 @@ export default function KnowledgePage() {
       {/* Header */}
       <header className="h-12 flex items-center justify-between px-5 bg-white border-b border-slate-200/50 shrink-0">
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600 transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>返回</span>
+          </button>
+          <span className="text-slate-300">|</span>
           <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
             <BookOpen className="w-3.5 h-3.5 text-white" />
           </div>
