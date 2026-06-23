@@ -54,6 +54,33 @@ public class SessionUtil {
     }
 
     /**
+     * 获取当前用户所属公司
+     */
+    public static String getCurrentCompany() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest request = attrs.getRequest();
+                Object userInfo = request.getAttribute(USER_INFO_ATTRIBUTE);
+                if (userInfo != null) {
+                    if (userInfo instanceof Map) {
+                        Object company = ((Map<?, ?>) userInfo).get("company");
+                        if (company != null && !company.toString().isEmpty()) return company.toString();
+                    } else {
+                        try {
+                            Object company = userInfo.getClass().getMethod("getCompany").invoke(userInfo);
+                            if (company != null && !company.toString().isEmpty()) return company.toString();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "盈云"; // 默认值
+    }
+
+    /**
      * 获取当前登录用户名
      */
     public static String getCurrentUsername() {

@@ -240,7 +240,11 @@ public class ImageServiceImpl implements ImageService {
         if (currentUsername == null) {
             currentUsername = currentUserId;
         }
-        log.info("数据隔离检查：currentUserId={}, currentUsername={}, onlyMine={}", currentUserId, currentUsername, request.getOnlyMine());
+        // 设置公司过滤
+        if (request.getCompany() == null || request.getCompany().isEmpty()) {
+            request.setCompany(SessionUtil.getCurrentCompany());
+        }
+        log.info("数据隔离检查：currentUserId={}, currentUsername={}, company={}, onlyMine={}", currentUserId, currentUsername, request.getCompany(), request.getOnlyMine());
 
         // 动态表查询模式
         if (currentUserId != null) {
@@ -675,6 +679,7 @@ public class ImageServiceImpl implements ImageService {
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
+                    .company(SessionUtil.getCurrentCompany())  // 按公司隔离
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -1543,6 +1548,7 @@ public class ImageServiceImpl implements ImageService {
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
+                    .company(company)  // 按公司隔离
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -2396,6 +2402,7 @@ public class ImageServiceImpl implements ImageService {
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
+                    .company(company)  // 按公司隔离
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)

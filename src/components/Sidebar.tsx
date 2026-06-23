@@ -715,7 +715,7 @@ export default function Sidebar({
       icon: BookOpen,
       count: allImagesCount,
     },
-    // 管理员显示「二创中心」，普通用户显示「我的知识库」
+    // 管理员显示「二创中心」，普通用户显示「我的二创」
     ...(isAdmin ? [{
       id: 'creative-center',
       label: '二创中心',
@@ -723,7 +723,7 @@ export default function Sidebar({
       count: myImagesCount,
     }] : [{
       id: 'my-images',
-      label: '我的知识库',
+      label: '我的二创',
       icon: Library,
       count: myImagesCount,
     }]),

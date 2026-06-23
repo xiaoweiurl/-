@@ -106,4 +106,9 @@ public class ImageQueryRequest {
      * 二创中心 - 排除该用户ID的图片（查询其他用户上传的）
      */
     private String otherUsersUserId;
+
+    /**
+     * 公司标识（用于按公司隔离数据）
+     */
+    private String company;
 }
