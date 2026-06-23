@@ -118,9 +118,9 @@ public class ImageDynamicRepository {
             String insertSQL = String.format(
                 "INSERT INTO %s (id, url, title, original_name, size, width, height, file_type, " +
                 "album_id, product_id, is_main_image, favorite, view_count, download_count, " +
-                "tags, deleted, deleted_at, created_at, updated_at, user_id, company) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?) " +
-                "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, original_name = EXCLUDED.original_name, updated_at = EXCLUDED.updated_at, company = EXCLUDED.company",
+                "tags, deleted, deleted_at, created_at, updated_at, user_id, company, source) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, original_name = EXCLUDED.original_name, updated_at = EXCLUDED.updated_at, company = EXCLUDED.company, source = EXCLUDED.source",
                 tableName);
 
             org.hibernate.Session hibernateSession = entityManager.unwrap(org.hibernate.Session.class);
@@ -850,6 +850,12 @@ public class ImageDynamicRepository {
                 params.put(paramIndex++, request.getCompany());
             }
 
+            // source 条件（区分知识图片和二创图片）
+            if (request.getSource() != null && !request.getSource().isEmpty()) {
+                whereClause.append(" AND source = ?");
+                params.put(paramIndex++, request.getSource());
+            }
+
             // 关键词模糊搜索 - 匹配 title、description、original_name
             if (request.getKeyword() != null && !request.getKeyword().trim().isEmpty()) {
                 String kw = request.getKeyword().trim();
@@ -926,6 +932,11 @@ public class ImageDynamicRepository {
                 whereClause.append(" AND company = '").append(request.getCompany().replace("'", "''")).append("'");
             }
 
+            // source 条件（区分知识图片和二创图片）
+            if (request.getSource() != null && !request.getSource().isEmpty()) {
+                whereClause.append(" AND source = '").append(request.getSource().replace("'", "''")).append("'");
+            }
+
             // 排序
             String orderBy = "created_at DESC";
             if (request.getSortBy() != null) {
@@ -996,6 +1007,7 @@ public class ImageDynamicRepository {
         pstmt.setTimestamp(19, Timestamp.valueOf(image.getUpdatedAt()));
         pstmt.setString(20, image.getUserId());
         pstmt.setString(21, image.getCompany());
+        pstmt.setString(22, image.getSource() != null ? image.getSource() : "knowledge");
     }
 
     /**
@@ -1068,6 +1080,10 @@ public class ImageDynamicRepository {
         // company (V31新增，动态表末尾列)
         if (row.length > 20) {
             image.setCompany((String) row[20]);
+        }
+        // source (V32新增，区分knowledge/creative)
+        if (row.length > 21) {
+            image.setSource((String) row[21]);
         }
         // sourceTable
         if (tableName != null) {

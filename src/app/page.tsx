@@ -606,14 +606,16 @@ export default function Home() {
         params.append('favorite', 'true');
         apiUrl = `/images?${params}`;
       } else if (activeMenuItem === 'my-images') {
-        // 我的知识库 - 只显示当前用户上传的图片（动态表）
+        // 我的二创 - 只显示当前用户的二创图片（动态表）
         params.append('onlyMine', 'true');
         params.append('includeDeleted', 'false');
+        params.append('source', 'creative');
         apiUrl = `/images?${params}`;
       } else if (activeMenuItem === 'creative-center') {
-        // 二创中心 - 管理员查看其他用户上传的图片
+        // 二创中心 - 查看同公司所有用户的二创图片
         params.append('otherUsers', 'true');
         params.append('includeDeleted', 'false');
+        params.append('source', 'creative');
         apiUrl = `/images?${params}`;
       } else {
         // 全部知识 - 查询主表（共享数据，所有分类）

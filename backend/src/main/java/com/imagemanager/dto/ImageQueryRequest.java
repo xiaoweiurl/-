@@ -111,4 +111,10 @@ public class ImageQueryRequest {
      * 公司标识（用于按公司隔离数据）
      */
     private String company;
+
+    /**
+     * 图片来源（knowledge=知识图片, creative=二创图片）
+     * 为空时默认只显示知识图片（排除creative）
+     */
+    private String source;
 }

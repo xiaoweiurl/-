@@ -179,7 +179,13 @@ public class Image {
      */
     @Column(length = 20)
     private String company;
-    
+
+    /**
+     * 图片来源：knowledge=知识图片，creative=二创AI图片
+     */
+    @Column(length = 20)
+    private String source;
+
     /**
      * 是否已删除（回收站标记）
      */
