@@ -1548,7 +1548,7 @@ public class ImageServiceImpl implements ImageService {
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
-                    .company(company)  // 按公司隔离
+                    .company(SessionUtil.getCurrentCompany())  // 按公司隔离
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -2402,7 +2402,7 @@ public class ImageServiceImpl implements ImageService {
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
-                    .company(company)  // 按公司隔离
+                    .company(SessionUtil.getCurrentCompany())  // 按公司隔离
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
