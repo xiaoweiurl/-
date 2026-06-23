@@ -9,7 +9,8 @@ BEGIN
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name LIKE 'images_%' 
+        AND table_name LIKE 'images_%'
+        AND table_name != 'images'
         AND table_type = 'BASE TABLE'
     LOOP
         -- 检查 company 字段是否已存在
@@ -36,7 +37,8 @@ BEGIN
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name LIKE 'images_%' 
+        AND table_name LIKE 'images_%'
+        AND table_name != 'images'
         AND table_type = 'BASE TABLE'
     LOOP
         -- 更新动态表中的 company 值（从主表同步）
