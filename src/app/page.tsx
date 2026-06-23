@@ -1834,7 +1834,7 @@ export default function Home() {
                     {activeMenuItem === 'all'
                       ? '全部图片'
                       : activeMenuItem === 'my-images'
-                      ? '我的知识库'
+                      ? '我的二创'
                       : activeMenuItem === 'creative-center'
                       ? '二创中心'
                       : activeMenuItem === 'favorites'

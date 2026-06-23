@@ -118,9 +118,9 @@ public class ImageDynamicRepository {
             String insertSQL = String.format(
                 "INSERT INTO %s (id, url, title, original_name, size, width, height, file_type, " +
                 "album_id, product_id, is_main_image, favorite, view_count, download_count, " +
-                "tags, deleted, deleted_at, created_at, updated_at, user_id) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?) " +
-                "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, original_name = EXCLUDED.original_name, updated_at = EXCLUDED.updated_at",
+                "tags, deleted, deleted_at, created_at, updated_at, user_id, company) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, original_name = EXCLUDED.original_name, updated_at = EXCLUDED.updated_at, company = EXCLUDED.company",
                 tableName);
 
             org.hibernate.Session hibernateSession = entityManager.unwrap(org.hibernate.Session.class);
@@ -844,6 +844,12 @@ public class ImageDynamicRepository {
                 whereClause.append(" AND is_main_image = true");
             }
 
+            // company 条件（公司隔离）
+            if (request.getCompany() != null && !request.getCompany().isEmpty()) {
+                whereClause.append(" AND company = ?");
+                params.put(paramIndex++, request.getCompany());
+            }
+
             // 关键词模糊搜索 - 匹配 title、description、original_name
             if (request.getKeyword() != null && !request.getKeyword().trim().isEmpty()) {
                 String kw = request.getKeyword().trim();
@@ -915,6 +921,11 @@ public class ImageDynamicRepository {
                 whereClause.append(" AND is_main_image = true");
             }
 
+            // company 条件（公司隔离）
+            if (request.getCompany() != null && !request.getCompany().isEmpty()) {
+                whereClause.append(" AND company = '").append(request.getCompany().replace("'", "''")).append("'");
+            }
+
             // 排序
             String orderBy = "created_at DESC";
             if (request.getSortBy() != null) {
@@ -984,6 +995,7 @@ public class ImageDynamicRepository {
         pstmt.setTimestamp(18, Timestamp.valueOf(image.getCreatedAt()));
         pstmt.setTimestamp(19, Timestamp.valueOf(image.getUpdatedAt()));
         pstmt.setString(20, image.getUserId());
+        pstmt.setString(21, image.getCompany());
     }
 
     /**
@@ -1053,6 +1065,10 @@ public class ImageDynamicRepository {
         }
         // user_id
         image.setUserId((String) row[19]);
+        // company (V31新增，动态表末尾列)
+        if (row.length > 20) {
+            image.setCompany((String) row[20]);
+        }
         // sourceTable
         if (tableName != null) {
             image.setSourceTable(tableName);

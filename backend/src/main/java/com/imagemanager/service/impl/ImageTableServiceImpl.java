@@ -64,7 +64,8 @@ public class ImageTableServiceImpl implements ImageTableService {
                     deleted_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    user_id VARCHAR(36)
+                    user_id VARCHAR(36),
+                    company VARCHAR(50)
                 )
                 """, tableName);
             
@@ -77,6 +78,7 @@ public class ImageTableServiceImpl implements ImageTableService {
             String createIndexSQL4 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_is_main_image ON %s(is_main_image)", tableName.replace("_", "_"), tableName);
             String createIndexSQL5 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_favorite ON %s(favorite)", tableName.replace("_", "_"), tableName);
             String createIndexSQL6 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_created_at ON %s(created_at)", tableName.replace("_", "_"), tableName);
+            String createIndexSQL7 = String.format("CREATE INDEX IF NOT EXISTS idx_%s_company ON %s(company)", tableName.replace("_", "_"), tableName);
             
             entityManager.createNativeQuery(createIndexSQL1).executeUpdate();
             entityManager.createNativeQuery(createIndexSQL2).executeUpdate();
@@ -84,6 +86,7 @@ public class ImageTableServiceImpl implements ImageTableService {
             entityManager.createNativeQuery(createIndexSQL4).executeUpdate();
             entityManager.createNativeQuery(createIndexSQL5).executeUpdate();
             entityManager.createNativeQuery(createIndexSQL6).executeUpdate();
+            entityManager.createNativeQuery(createIndexSQL7).executeUpdate();
             
             log.info("用户图片表创建成功: {}", tableName);
             return true;
