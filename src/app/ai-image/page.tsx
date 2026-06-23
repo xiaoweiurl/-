@@ -286,6 +286,7 @@ export default function AiImagePage() {
       const res = await fetch('/api/ai-image/save-to-gallery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           imageUrl: img.url,
           prompt: img.prompt,
