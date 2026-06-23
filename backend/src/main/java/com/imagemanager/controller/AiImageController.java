@@ -5,8 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 
+import com.imagemanager.entity.Image;
+import com.imagemanager.repository.ImageRepository;
+
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -33,6 +38,12 @@ public class AiImageController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    private final ImageRepository imageRepository;
+
+    public AiImageController(ImageRepository imageRepository) {
+        this.imageRepository = imageRepository;
+    }
 
     /**
      * 生成 AI 图像
@@ -187,6 +198,108 @@ public class AiImageController {
             log.error("获取模型列表异常", e);
             return ResponseEntity.status(500)
                     .body("{\"error\":\"获取模型列表失败\"}");
+        }
+    }
+
+    /**
+     * 保存AI生成图片到二创中心（图片库）
+     * POST /ai-image/save-to-gallery
+     *
+     * 请求体:
+     * {
+     *   "imageUrl": "https://...",
+     *   "prompt": "描述文本",
+     *   "model": "nano-banana-2",
+     *   "aspectRatio": "1:1",
+     *   "imageSize": "1K"
+     * }
+     */
+    @PostMapping("/save-to-gallery")
+    public ResponseEntity<?> saveToGallery(@RequestBody String requestBody,
+                                           HttpServletRequest servletRequest) {
+        try {
+            // 从session获取用户信息
+            String sessionId = servletRequest.getHeader("X-Session-Id");
+            if (sessionId == null) {
+                sessionId = servletRequest.getHeader("x-session-id");
+            }
+            if (sessionId == null && servletRequest.getCookies() != null) {
+                for (var cookie : servletRequest.getCookies()) {
+                    if ("session_id".equals(cookie.getName())) {
+                        sessionId = cookie.getValue();
+                        break;
+                    }
+                }
+            }
+
+            // 从session属性获取用户信息
+            String userId = null;
+            String company = null;
+            if (sessionId != null) {
+                var session = servletRequest.getServletContext().getAttribute("session_" + sessionId);
+                if (session instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    var sessionMap = (java.util.Map<String, Object>) session;
+                    userId = sessionMap.get("userId") != null ? sessionMap.get("userId").toString() : null;
+                    company = sessionMap.get("company") != null ? sessionMap.get("company").toString() : "盈云";
+                }
+            }
+
+            if (userId == null) {
+                return ResponseEntity.status(401)
+                        .body("{\"error\":\"请先登录\"}");
+            }
+
+            JsonNode requestJson = objectMapper.readTree(requestBody);
+            String imageUrl = requestJson.has("imageUrl") ? requestJson.get("imageUrl").asText() : "";
+            String prompt = requestJson.has("prompt") ? requestJson.get("prompt").asText() : "";
+            String model = requestJson.has("model") ? requestJson.get("model").asText() : "unknown";
+            String aspectRatio = requestJson.has("aspectRatio") ? requestJson.get("aspectRatio").asText() : "";
+            String imageSize = requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "";
+
+            if (imageUrl.isEmpty()) {
+                return ResponseEntity.badRequest().body("{\"error\":\"图片地址不能为空\"}");
+            }
+
+            // 创建图片记录
+            Image image = new Image();
+            image.setId(UUID.randomUUID().toString());
+            image.setUrl(imageUrl);
+            image.setOriginalUrl(imageUrl);
+            image.setThumbnailUrl(imageUrl);
+            image.setTitle(prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt);
+            image.setOriginalName("ai-generated-" + System.currentTimeMillis() + ".png");
+            image.setAlbumName("二创中心");
+            image.setUserId(userId);
+            image.setCompany(company != null ? company : "盈云");
+            image.setFavorite(false);
+            image.setDeleted(false);
+            image.setCreatedAt(LocalDateTime.now());
+            image.setUpdatedAt(LocalDateTime.now());
+            image.setViewCount(0);
+            image.setDownloadCount(0);
+            image.setDisplayOrder(0);
+            image.setIsMainImage(false);
+
+            // 标记为AI生成
+            image.setClassifyMethod("ai-generate");
+            if (!model.isEmpty()) {
+                image.setAiTags(Collections.singletonList("AI:" + model));
+            }
+
+            imageRepository.save(image);
+            log.info("AI生成图片已保存到二创中心: imageId={}, userId={}, company={}", image.getId(), userId, company);
+
+            ObjectNode result = objectMapper.createObjectNode();
+            result.put("success", true);
+            result.put("imageId", image.getId());
+            result.put("message", "已保存到二创中心");
+            return ResponseEntity.ok(objectMapper.writeValueAsString(result));
+
+        } catch (Exception e) {
+            log.error("保存AI图片到二创中心异常", e);
+            return ResponseEntity.status(500)
+                    .body("{\"error\":\"保存失败: " + e.getMessage() + "\"}");
         }
     }
 }

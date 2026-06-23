@@ -17,6 +17,7 @@ import {
   Trash2,
   Copy,
   Check,
+  Upload,
 } from 'lucide-react';
 
 // ========== 模型和分辨率配置 ==========
@@ -93,6 +94,13 @@ function ratioToPreview(ratio: string): string {
 
 export default function AiImagePage() {
   const brand = getCurrentBrand();
+  const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string; username?: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/login').then(r => r.json()).then(res => {
+      if (res.code === 200 && res.data) setCurrentUser(res.data);
+    }).catch(() => {});
+  }, []);
   const [activeModel, setActiveModel] = useState('nano-banana-2');
   const [modelType, setModelType] = useState<ModelType>('nano');
 
@@ -266,6 +274,38 @@ export default function AiImagePage() {
   const handleDeleteImage = useCallback((timestamp: number) => {
     setGeneratedImages((prev) => prev.filter((img) => img.timestamp !== timestamp));
   }, []);
+
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [uploadedIdxs, setUploadedIdxs] = useState<Set<number>>(new Set());
+
+  const galleryName = currentUser?.role === 'admin' ? '二创中心' : '我的二创';
+
+  const handleUploadToGallery = useCallback(async (img: { url: string; prompt: string; timestamp: number }, index: number) => {
+    setUploadingIdx(index);
+    try {
+      const res = await fetch('/api/ai-image/save-to-gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: img.url,
+          prompt: img.prompt,
+          model: activeModel,
+          aspectRatio: modelType === 'nano' ? nanoAspectRatio : gptAspectRatio,
+          imageSize: modelType === 'nano' ? nanoImageSize : gptImageSize,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUploadedIdxs((prev) => new Set(prev).add(index));
+      } else {
+        alert(data.error || '上传失败');
+      }
+    } catch {
+      alert('上传失败，请重试');
+    } finally {
+      setUploadingIdx(null);
+    }
+  }, [activeModel, modelType, nanoAspectRatio, gptAspectRatio, nanoImageSize, gptImageSize]);
 
   const currentModelName = modelType === 'nano'
     ? NANO_MODELS.find((m) => m.id === activeModel)?.name || activeModel
@@ -749,12 +789,34 @@ export default function AiImagePage() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); setPreviewImage(img.url); }}
                                 className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/60 transition-colors"
+                                title="预览"
                               >
                                 <Maximize2 className="w-4 h-4" />
                               </button>
                               <button
+                                onClick={(e) => { e.stopPropagation(); handleUploadToGallery(img, index); }}
+                                disabled={uploadingIdx === index || uploadedIdxs.has(index)}
+                                className={`w-8 h-8 rounded-lg backdrop-blur-sm flex items-center justify-center transition-colors ${
+                                  uploadedIdxs.has(index)
+                                    ? 'bg-green-500/80 text-white cursor-default'
+                                    : uploadingIdx === index
+                                      ? 'bg-violet-500/60 text-white cursor-wait'
+                                      : 'bg-black/40 text-white/90 hover:bg-violet-500/80'
+                                }`}
+                                title={uploadedIdxs.has(index) ? '已上传' : `上传到${galleryName}`}
+                              >
+                                {uploadedIdxs.has(index) ? (
+                                  <Check className="w-4 h-4" />
+                                ) : uploadingIdx === index ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Upload className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
                                 onClick={(e) => { e.stopPropagation(); handleDownload(img.url, index); }}
                                 className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/60 transition-colors"
+                                title="下载"
                               >
                                 <Download className="w-4 h-4" />
                               </button>
