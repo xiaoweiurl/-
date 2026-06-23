@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { getCurrentBrand } from '@/lib/brand';
 import {
@@ -8,43 +8,43 @@ import {
   Download,
   Loader2,
   Image as ImageIcon,
-  Settings2,
   ChevronDown,
   X,
   ZoomIn,
+  Wand2,
+  Ratio,
+  Maximize2,
+  Trash2,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 // ========== 模型和分辨率配置 ==========
 
-// Nano Banana 系列的宽高比选项
 const NANO_ASPECT_RATIOS = [
   'auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3',
   '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1',
 ];
 
-// Nano Banana 系列的尺寸选项
 const NANO_IMAGE_SIZES = ['1K', '2K', '4K'];
 
-// Nano Banana 系列模型
 const NANO_MODELS = [
-  { id: 'nano-banana-2', name: 'Nano Banana 2', desc: '推荐，均衡质量与速度' },
-  { id: 'nano-banana-2-cl', name: 'Nano Banana 2 CL', desc: '2K增强版，更精细' },
-  { id: 'nano-banana-2-4k-cl', name: 'Nano Banana 2 4K CL', desc: '4K超清版' },
-  { id: 'nano-banana-pro', name: 'Nano Banana Pro', desc: '专业版，更高质量' },
-  { id: 'nano-banana-pro-cl', name: 'Nano Banana Pro CL', desc: '专业增强版' },
-  { id: 'nano-banana-pro-vip', name: 'Nano Banana Pro VIP', desc: '旗舰版，最佳质量' },
-  { id: 'nano-banana-pro-4k-vip', name: 'Nano Banana Pro 4K VIP', desc: '4K旗舰版' },
-  { id: 'nano-banana', name: 'Nano Banana', desc: '基础版' },
-  { id: 'nano-banana-fast', name: 'Nano Banana Fast', desc: '极速版，最快出图' },
+  { id: 'nano-banana-2', name: 'Nano Banana 2', desc: '推荐', badge: '推荐' },
+  { id: 'nano-banana-2-cl', name: 'Nano Banana 2 CL', desc: '2K增强', badge: '' },
+  { id: 'nano-banana-2-4k-cl', name: 'Nano Banana 2 4K CL', desc: '4K超清', badge: '4K' },
+  { id: 'nano-banana-pro', name: 'Nano Banana Pro', desc: '专业版', badge: '' },
+  { id: 'nano-banana-pro-cl', name: 'Nano Banana Pro CL', desc: '专业增强', badge: '' },
+  { id: 'nano-banana-pro-vip', name: 'Nano Banana Pro VIP', desc: '旗舰', badge: 'VIP' },
+  { id: 'nano-banana-pro-4k-vip', name: 'Nano Banana Pro 4K VIP', desc: '4K旗舰', badge: '4K' },
+  { id: 'nano-banana', name: 'Nano Banana', desc: '基础版', badge: '' },
+  { id: 'nano-banana-fast', name: 'Nano Banana Fast', desc: '极速', badge: '极速' },
 ];
 
-// GPT Image 2 模型
 const GPT_MODELS = [
-  { id: 'gpt-image-2', name: 'GPT Image 2', desc: '标准版，支持比例和像素格式' },
-  { id: 'gpt-image-2-vip', name: 'GPT Image 2 VIP', desc: 'VIP版，支持1K-4K超高分辨率' },
+  { id: 'gpt-image-2', name: 'GPT Image 2', desc: '标准版', badge: '' },
+  { id: 'gpt-image-2-vip', name: 'GPT Image 2 VIP', desc: 'VIP高清', badge: 'VIP' },
 ];
 
-// GPT Image 2 普通版分辨率（固定像素）
 const GPT_RES_STANDARD: Record<string, string> = {
   '1:1': '1024x1024', '16:9': '1672x941', '9:16': '941x1672',
   '4:3': '1443x1090', '3:4': '1090x1443', '3:2': '1536x1024',
@@ -52,7 +52,6 @@ const GPT_RES_STANDARD: Record<string, string> = {
   '21:9': '1920x832', '9:21': '832x1920', '2:1': '1792x896', '1:2': '896x1792',
 };
 
-// GPT Image 2 VIP版分辨率（1K/2K/4K）
 const GPT_RES_VIP: Record<string, Record<string, string>> = {
   '1K': {
     '1:1': '1024x1024', '16:9': '1280x720', '9:16': '720x1280',
@@ -83,19 +82,26 @@ function getModelType(modelId: string): ModelType {
   return modelId.startsWith('gpt-image') ? 'gpt' : 'nano';
 }
 
+// 比例对应的预览宽高比（用于可视化按钮）
+function ratioToPreview(ratio: string): string {
+  if (ratio === 'auto') return '1/1';
+  const parts = ratio.split(':').map(Number);
+  if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return '1/1';
+}
+
 export default function AiImagePage() {
   const brand = getCurrentBrand();
   const [activeModel, setActiveModel] = useState('nano-banana-2');
   const [modelType, setModelType] = useState<ModelType>('nano');
 
-  // Nano Banana 参数
   const [nanoAspectRatio, setNanoAspectRatio] = useState('1:1');
   const [nanoImageSize, setNanoImageSize] = useState('1K');
 
-  // GPT Image 参数
   const [gptAspectRatio, setGptAspectRatio] = useState('1:1');
   const [gptImageSize, setGptImageSize] = useState<string>('1K');
-  // gpt-image-2 普通版有两种模式：比例格式 / 像素格式
   const [gptStandardMode, setGptStandardMode] = useState<'ratio' | 'pixel'>('pixel');
 
   const [prompt, setPrompt] = useState('');
@@ -106,15 +112,28 @@ export default function AiImagePage() {
   const [error, setError] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isGptVip = activeModel === 'gpt-image-2-vip';
 
-  // 获取 GPT 当前可选的分辨率列表
   const gptAvailableRatios = isGptVip
     ? Object.keys(GPT_RES_VIP[gptImageSize] || {})
     : gptStandardMode === 'pixel'
       ? Object.keys(GPT_RES_STANDARD)
-      : NANO_ASPECT_RATIOS.filter(r => r !== 'auto'); // 比例格式复用通用列表
+      : NANO_ASPECT_RATIOS.filter(r => r !== 'auto');
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleModelTypeChange = useCallback((type: ModelType) => {
     setModelType(type);
@@ -142,7 +161,6 @@ export default function AiImagePage() {
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim() || isGenerating) return;
-
     setIsGenerating(true);
     setError('');
 
@@ -159,15 +177,12 @@ export default function AiImagePage() {
           replyType: 'json',
         };
       } else {
-        // GPT Image
         let aspectRatio: string;
         if (isGptVip) {
-          // VIP版：只能用像素值
           aspectRatio = GPT_RES_VIP[gptImageSize]?.[gptAspectRatio] || '1024x1024';
         } else {
-          // 普通版：比例格式 或 像素格式
           if (gptStandardMode === 'ratio') {
-            aspectRatio = gptAspectRatio; // 直接传 "16:9" 等
+            aspectRatio = gptAspectRatio;
           } else {
             aspectRatio = GPT_RES_STANDARD[gptAspectRatio] || '1024x1024';
           }
@@ -193,33 +208,20 @@ export default function AiImagePage() {
         throw new Error(data.error || data.message || '生成失败');
       }
 
-      // 解析返回的图片URL
       let imageUrl = '';
-      if (data.data?.url) {
-        imageUrl = data.data.url;
-      } else if (data.data?.image_url) {
-        imageUrl = data.data.image_url;
-      } else if (data.url) {
-        imageUrl = data.url;
-      } else if (data.image_url) {
-        imageUrl = data.image_url;
-      } else if (data.data?.b64_json) {
-        imageUrl = `data:image/png;base64,${data.data.b64_json}`;
-      } else if (data.b64_json) {
-        imageUrl = `data:image/png;base64,${data.b64_json}`;
-      } else if (Array.isArray(data.data) && data.data[0]?.url) {
-        imageUrl = data.data[0].url;
-      } else if (Array.isArray(data.images) && data.images[0]?.url) {
-        imageUrl = data.images[0].url;
-      } else {
+      if (data.data?.url) imageUrl = data.data.url;
+      else if (data.data?.image_url) imageUrl = data.data.image_url;
+      else if (data.url) imageUrl = data.url;
+      else if (data.image_url) imageUrl = data.image_url;
+      else if (data.data?.b64_json) imageUrl = `data:image/png;base64,${data.data.b64_json}`;
+      else if (data.b64_json) imageUrl = `data:image/png;base64,${data.b64_json}`;
+      else if (Array.isArray(data.data) && data.data[0]?.url) imageUrl = data.data[0].url;
+      else if (Array.isArray(data.images) && data.images[0]?.url) imageUrl = data.images[0].url;
+      else {
         const jsonStr = JSON.stringify(data);
         const urlMatch = jsonStr.match(/https?:\/\/[^\s"']+?\.(png|jpg|jpeg|webp)/i);
-        if (urlMatch) {
-          imageUrl = urlMatch[0];
-        } else {
-          console.error('无法解析API响应:', JSON.stringify(data).substring(0, 500));
-          throw new Error('无法解析生成结果，请查看控制台');
-        }
+        if (urlMatch) imageUrl = urlMatch[0];
+        else throw new Error('无法解析生成结果');
       }
 
       const detail = modelType === 'nano'
@@ -257,16 +259,28 @@ export default function AiImagePage() {
     }
   }, []);
 
-  // 获取当前模型的显示名
+  const handleCopyPrompt = useCallback((text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 1500);
+  }, []);
+
+  const handleDeleteImage = useCallback((timestamp: number) => {
+    setGeneratedImages((prev) => prev.filter((img) => img.timestamp !== timestamp));
+  }, []);
+
   const currentModelName = modelType === 'nano'
     ? NANO_MODELS.find((m) => m.id === activeModel)?.name || activeModel
     : GPT_MODELS.find((m) => m.id === activeModel)?.name || activeModel;
 
   const isBaonasi = brand.name === '宝娜斯';
+  const accent = isBaonasi ? 'rose' : 'violet';
   const accentBg = isBaonasi ? 'from-rose-500 to-pink-600' : 'from-violet-500 to-purple-600';
   const accentText = isBaonasi ? 'text-rose-600' : 'text-violet-600';
   const accentBgLight = isBaonasi ? 'bg-rose-50' : 'bg-violet-50';
-  const accentBorder = isBaonasi ? 'border-rose-500' : 'border-violet-500';
+  const accentBgLighter = isBaonasi ? 'bg-rose-50/50' : 'bg-violet-50/50';
+  const accentBorder = isBaonasi ? 'border-rose-400' : 'border-violet-400';
+  const accentBorderLight = isBaonasi ? 'border-rose-200' : 'border-violet-200';
   const accentBgBtn = isBaonasi ? 'bg-rose-600' : 'bg-violet-600';
   const accentRing = isBaonasi ? 'focus:ring-rose-500/20 focus:border-rose-400' : 'focus:ring-violet-500/20 focus:border-violet-400';
 
@@ -275,404 +289,496 @@ export default function AiImagePage() {
       <Sidebar activeItem="ai-image" onItemClick={(id: string) => {
         if (id === 'ai-image') return;
       }} />
+
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* 顶部栏 */}
-        <div className="h-14 bg-white border-b border-slate-200/60 flex items-center px-6 shrink-0">
-          <div className="flex items-center gap-2">
-            <Sparkles className={`w-4 h-4 ${accentText}`} />
-            <span className="text-sm font-medium text-slate-700">{brand.name} AI 智能生图</span>
+        <div className="h-13 bg-white border-b border-slate-200/60 flex items-center px-6 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${accentBg} flex items-center justify-center`}>
+              <Wand2 className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-sm font-semibold text-slate-800">{brand.name} AI 智能生图</span>
+            <span className="text-xs text-slate-400 font-normal ml-1">AI Image Generation</span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-6xl mx-auto space-y-6">
-            {/* 设置区域 */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-              {/* 标题 */}
-              <div className="flex items-center gap-3 mb-5">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${accentBg} flex items-center justify-center`}>
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-800">{brand.name} AI 智能生图</h2>
-                  <p className="text-sm text-slate-500">选择模型和参数，输入描述生成图片</p>
-                </div>
-              </div>
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-              {/* 模型大类切换 */}
-              <div className="mb-5">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">模型系列</label>
-                <div className="flex gap-3">
-                  {(['nano', 'gpt'] as ModelType[]).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => handleModelTypeChange(type)}
-                      className={`flex-1 px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left ${
-                        modelType === type
-                          ? `${accentBorder} ${accentBgLight} shadow-sm`
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <ImageIcon className={`w-4 h-4 ${modelType === type ? accentText : 'text-slate-400'}`} />
-                        <span className={`font-medium text-sm ${modelType === type ? accentText : 'text-slate-700'}`}>
-                          {type === 'nano' ? 'Nano Banana' : 'GPT Image 2'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {type === 'nano' ? '多种模型可选，支持比例+尺寸' : '高质量生图，标准版+VIP版'}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* ====== 左侧：设置面板 ====== */}
+              <div className="lg:col-span-5 xl:col-span-4 space-y-5">
 
-              {/* 子模型选择 */}
-              {modelType === 'nano' ? (
-                <div className="mb-5">
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">选择模型</label>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowModelDropdown(!showModelDropdown)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm text-slate-700 font-medium">{currentModelName}</span>
-                        <span className="text-xs text-slate-400">
-                          {NANO_MODELS.find((m) => m.id === activeModel)?.desc}
-                        </span>
-                      </div>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`} />
-                    </button>
-                    {showModelDropdown && (
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                        {NANO_MODELS.map((m) => (
-                          <button
-                            key={m.id}
-                            onClick={() => {
-                              setActiveModel(m.id);
-                              setShowModelDropdown(false);
-                            }}
-                            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-violet-50 transition-colors ${
-                              activeModel === m.id ? `${accentBgLight} ${accentText} font-medium` : 'text-slate-700'
-                            }`}
-                          >
-                            <div>
-                              <span>{m.name}</span>
-                              <span className="text-xs text-slate-400 ml-2">{m.desc}</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                {/* 模型系列选择 */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles className={`w-4 h-4 ${accentText}`} />
+                    <span className="text-sm font-semibold text-slate-800">模型选择</span>
                   </div>
-                </div>
-              ) : (
-                <div className="mb-5">
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">选择模型</label>
-                  <div className="flex gap-3">
-                    {GPT_MODELS.map((m) => (
+
+                  {/* 两大系列 Tab */}
+                  <div className={`flex p-1 rounded-xl ${accentBgLighter} mb-4`}>
+                    {([
+                      { type: 'nano' as ModelType, label: 'Nano Banana', icon: '🍌' },
+                      { type: 'gpt' as ModelType, label: 'GPT Image 2', icon: '🎨' },
+                    ]).map((item) => (
                       <button
-                        key={m.id}
-                        onClick={() => handleGptModelChange(m.id)}
-                        className={`flex-1 px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left ${
-                          activeModel === m.id
-                            ? `${accentBorder} ${accentBgLight} shadow-sm`
-                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        key={item.type}
+                        onClick={() => handleModelTypeChange(item.type)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          modelType === item.type
+                            ? `bg-white shadow-sm ${accentText} border ${accentBorderLight}`
+                            : 'text-slate-500 hover:text-slate-700'
                         }`}
                       >
-                        <div className="font-medium text-sm">{m.name}</div>
-                        <p className="text-xs text-slate-500 mt-0.5">{m.desc}</p>
+                        <span className="text-sm">{item.icon}</span>
+                        {item.label}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
 
-              {/* 参数配置区 */}
-              {modelType === 'nano' ? (
-                <>
-                  {/* Nano Banana: 比例 + 尺寸 */}
-                  <div className="mb-5">
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">图片比例</label>
-                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
-                      {NANO_ASPECT_RATIOS.map((ratio) => (
-                        <button
-                          key={ratio}
-                          onClick={() => setNanoAspectRatio(ratio)}
-                          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                            nanoAspectRatio === ratio
-                              ? `${accentBgBtn} text-white shadow-sm`
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          {ratio}
-                        </button>
-                      ))}
+                  {/* 子模型选择 */}
+                  {modelType === 'nano' ? (
+                    <div ref={dropdownRef} className="relative">
+                      <button
+                        onClick={() => setShowModelDropdown(!showModelDropdown)}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-200 ${
+                          showModelDropdown ? accentBorderLight : 'border-slate-200'
+                        } bg-white hover:shadow-sm`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg">🍌</span>
+                          <div className="text-left">
+                            <div className="text-sm font-medium text-slate-800">{currentModelName}</div>
+                            <div className="text-xs text-slate-400">{NANO_MODELS.find((m) => m.id === activeModel)?.desc}</div>
+                          </div>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+                      {showModelDropdown && (
+                        <div className="absolute z-20 w-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                          <div className="max-h-72 overflow-y-auto p-1.5">
+                            {NANO_MODELS.map((m) => (
+                              <button
+                                key={m.id}
+                                onClick={() => {
+                                  setActiveModel(m.id);
+                                  setShowModelDropdown(false);
+                                }}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
+                                  activeModel === m.id
+                                    ? `${accentBgLight} ${accentText}`
+                                    : 'hover:bg-slate-50'
+                                }`}
+                              >
+                                <span className="text-sm">🍌</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium">{m.name}</div>
+                                  <div className="text-xs text-slate-400">{m.desc}</div>
+                                </div>
+                                {m.badge && (
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                                    m.badge === '推荐' ? 'bg-emerald-100 text-emerald-700' :
+                                    m.badge === 'VIP' ? 'bg-amber-100 text-amber-700' :
+                                    m.badge === '4K' ? 'bg-blue-100 text-blue-700' :
+                                    m.badge === '极速' ? 'bg-orange-100 text-orange-700' :
+                                    'bg-slate-100 text-slate-600'
+                                  }`}>{m.badge}</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="mb-5">
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">图片尺寸</label>
-                    <div className="flex gap-2">
-                      {NANO_IMAGE_SIZES.map((size) => (
+                  ) : (
+                    <div className="space-y-2">
+                      {GPT_MODELS.map((m) => (
                         <button
-                          key={size}
-                          onClick={() => setNanoImageSize(size)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                            nanoImageSize === size
-                              ? `${accentBgBtn} text-white shadow-sm`
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          {size}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : isGptVip ? (
-                <>
-                  {/* GPT Image 2 VIP: 只能用像素值，1K/2K/4K 档位 */}
-                  <div className="mb-5">
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">分辨率档位</label>
-                    <div className="flex gap-2">
-                      {['1K', '2K', '4K'].map((tier) => (
-                        <button
-                          key={tier}
-                          onClick={() => {
-                            setGptImageSize(tier);
-                            const availableRatios = Object.keys(GPT_RES_VIP[tier] || {});
-                            if (!availableRatios.includes(gptAspectRatio)) {
-                              setGptAspectRatio(availableRatios[0] || '1:1');
-                            }
-                          }}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                            gptImageSize === tier
-                              ? `${accentBgBtn} text-white shadow-sm`
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          {tier}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mb-5">
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">图片比例</label>
-                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
-                      {Object.keys(GPT_RES_VIP[gptImageSize] || {}).map((ratio) => {
-                        const pixelValue = GPT_RES_VIP[gptImageSize]?.[ratio];
-                        return (
-                          <button
-                            key={ratio}
-                            onClick={() => setGptAspectRatio(ratio)}
-                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                              gptAspectRatio === ratio
-                                ? `${accentBgBtn} text-white shadow-sm`
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
-                            title={pixelValue}
-                          >
-                            <span>{ratio}</span>
-                            <span className="block text-[10px] opacity-60">{pixelValue}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* GPT Image 2 普通版：支持比例格式和像素格式 */}
-                  <div className="mb-5">
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">aspectRatio 格式</label>
-                    <div className="flex gap-2">
-                      {[
-                        { mode: 'pixel' as const, label: '像素格式', desc: '如 1024x1024' },
-                        { mode: 'ratio' as const, label: '比例格式', desc: '如 16:9' },
-                      ].map((opt) => (
-                        <button
-                          key={opt.mode}
-                          onClick={() => {
-                            setGptStandardMode(opt.mode);
-                            if (opt.mode === 'pixel') {
-                              setGptAspectRatio('1:1');
-                            } else {
-                              setGptAspectRatio('16:9');
-                            }
-                          }}
-                          className={`flex-1 px-4 py-2.5 rounded-xl border-2 transition-all duration-200 text-left ${
-                            gptStandardMode === opt.mode
+                          key={m.id}
+                          onClick={() => handleGptModelChange(m.id)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left ${
+                            activeModel === m.id
                               ? `${accentBorder} ${accentBgLight} shadow-sm`
                               : 'border-slate-200 bg-white hover:border-slate-300'
                           }`}
                         >
-                          <div className="text-sm font-medium">{opt.label}</div>
-                          <div className="text-xs text-slate-400">{opt.desc}</div>
+                          <span className="text-lg">🎨</span>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">{m.name}</div>
+                            <div className="text-xs text-slate-400">{m.desc}</div>
+                          </div>
+                          {m.badge && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-amber-100 text-amber-700">{m.badge}</span>
+                          )}
                         </button>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                {/* 参数配置 */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Ratio className={`w-4 h-4 ${accentText}`} />
+                    <span className="text-sm font-semibold text-slate-800">参数配置</span>
                   </div>
-                  {gptStandardMode === 'pixel' ? (
-                    <div className="mb-5">
-                      <label className="text-sm font-medium text-slate-700 mb-2 block">图片比例</label>
-                      <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
-                        {Object.keys(GPT_RES_STANDARD).map((ratio) => {
-                          const pixelValue = GPT_RES_STANDARD[ratio];
-                          return (
+
+                  {modelType === 'nano' ? (
+                    <>
+                      {/* Nano Banana: 尺寸 */}
+                      <div className="mb-4">
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">图片尺寸</label>
+                        <div className="flex gap-2">
+                          {NANO_IMAGE_SIZES.map((size) => (
                             <button
-                              key={ratio}
-                              onClick={() => setGptAspectRatio(ratio)}
-                              className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                gptAspectRatio === ratio
-                                  ? `${accentBgBtn} text-white shadow-sm`
+                              key={size}
+                              onClick={() => setNanoImageSize(size)}
+                              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                                nanoImageSize === size
+                                  ? `${accentBgBtn} text-white shadow-md shadow-${accent}-500/25`
                                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                               }`}
-                              title={pixelValue}
                             >
-                              <span>{ratio}</span>
-                              <span className="block text-[10px] opacity-60">{pixelValue}</span>
+                              {size}
                             </button>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="mb-5">
-                      <label className="text-sm font-medium text-slate-700 mb-2 block">图片比例</label>
-                      <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
-                        {NANO_ASPECT_RATIOS.filter(r => r !== 'auto').map((ratio) => (
-                          <button
-                            key={ratio}
-                            onClick={() => setGptAspectRatio(ratio)}
-                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                              gptAspectRatio === ratio
-                                ? `${accentBgBtn} text-white shadow-sm`
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
-                          >
-                            {ratio}
-                          </button>
-                        ))}
+                      {/* Nano Banana: 比例 */}
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">图片比例</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {NANO_ASPECT_RATIOS.map((ratio) => (
+                            <button
+                              key={ratio}
+                              onClick={() => setNanoAspectRatio(ratio)}
+                              className={`group flex flex-col items-center gap-1 py-2 px-1 rounded-lg transition-all duration-200 ${
+                                nanoAspectRatio === ratio
+                                  ? `${accentBgBtn} text-white shadow-md shadow-${accent}-500/25`
+                                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                              }`}
+                            >
+                              {/* 比例预览方块 */}
+                              <div
+                                className={`rounded-sm transition-all duration-200 ${
+                                  ratio === 'auto'
+                                    ? 'w-3.5 h-3.5'
+                                    : ratio === '1:1'
+                                      ? 'w-3.5 h-3.5'
+                                      : Number(ratio.split(':')[0]) > Number(ratio.split(':')[1])
+                                        ? 'w-4 h-2.5'
+                                        : 'w-2.5 h-4'
+                                } ${nanoAspectRatio === ratio ? 'bg-white/80' : `bg-${accent}-300 group-hover:bg-${accent}-200`}`}
+                                style={ratio !== 'auto' ? { aspectRatio: ratioToPreview(ratio), maxWidth: 16, maxHeight: 16 } : undefined}
+                              />
+                              <span className="text-[10px] font-medium leading-none">{ratio}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* 提示词输入 */}
-              <div className="mb-4">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">提示词</label>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="描述你想要生成的图片，越详细效果越好..."
-                  className={`w-full h-28 px-4 py-3 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 ${accentRing} resize-none text-sm text-slate-700 placeholder:text-slate-400`}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      handleGenerate();
-                    }
-                  }}
-                />
-              </div>
-
-              {/* 生成按钮 */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || !prompt.trim()}
-                  className={`px-6 py-2.5 rounded-xl font-medium text-sm text-white transition-all duration-200 flex items-center gap-2 ${
-                    isGenerating || !prompt.trim()
-                      ? 'bg-slate-300 cursor-not-allowed'
-                      : `bg-gradient-to-r ${accentBg} hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0`
-                  }`}
-                >
-                  {isGenerating ? (
+                    </>
+                  ) : isGptVip ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      生成中...
+                      {/* GPT VIP: 档位 */}
+                      <div className="mb-4">
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">分辨率档位</label>
+                        <div className="flex gap-2">
+                          {['1K', '2K', '4K'].map((tier) => (
+                            <button
+                              key={tier}
+                              onClick={() => {
+                                setGptImageSize(tier);
+                                const availableRatios = Object.keys(GPT_RES_VIP[tier] || {});
+                                if (!availableRatios.includes(gptAspectRatio)) {
+                                  setGptAspectRatio(availableRatios[0] || '1:1');
+                                }
+                              }}
+                              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                                gptImageSize === tier
+                                  ? `${accentBgBtn} text-white shadow-md shadow-${accent}-500/25`
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {tier}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* GPT VIP: 比例 */}
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">图片比例</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {Object.keys(GPT_RES_VIP[gptImageSize] || {}).map((ratio) => {
+                            const pixelValue = GPT_RES_VIP[gptImageSize]?.[ratio];
+                            return (
+                              <button
+                                key={ratio}
+                                onClick={() => setGptAspectRatio(ratio)}
+                                className={`group flex flex-col items-center gap-1 py-2 px-1 rounded-lg transition-all duration-200 ${
+                                  gptAspectRatio === ratio
+                                    ? `${accentBgBtn} text-white shadow-md shadow-${accent}-500/25`
+                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                                }`}
+                              >
+                                <div
+                                  className={`rounded-sm transition-all ${
+                                    gptAspectRatio === ratio ? 'bg-white/80' : 'bg-slate-300 group-hover:bg-slate-200'
+                                  }`}
+                                  style={{ aspectRatio: ratioToPreview(ratio), maxWidth: 16, maxHeight: 16, width: 16, height: 'auto' }}
+                                />
+                                <span className="text-[10px] font-medium leading-none">{ratio}</span>
+                                <span className={`text-[8px] leading-none ${gptAspectRatio === ratio ? 'text-white/70' : 'text-slate-400'}`}>
+                                  {pixelValue?.replace('x', '×')}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4" />
-                      生成图片
+                      {/* GPT 标准版 */}
+                      <div className="mb-4">
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">格式</label>
+                        <div className={`flex p-1 rounded-xl ${accentBgLighter}`}>
+                          {[
+                            { mode: 'pixel' as const, label: '像素格式' },
+                            { mode: 'ratio' as const, label: '比例格式' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.mode}
+                              onClick={() => {
+                                setGptStandardMode(opt.mode);
+                                setGptAspectRatio(opt.mode === 'pixel' ? '1:1' : '16:9');
+                              }}
+                              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                                gptStandardMode === opt.mode
+                                  ? `bg-white shadow-sm ${accentText} border ${accentBorderLight}`
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">图片比例</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {gptAvailableRatios.map((ratio) => {
+                            const pixelValue = gptStandardMode === 'pixel' ? GPT_RES_STANDARD[ratio] : undefined;
+                            return (
+                              <button
+                                key={ratio}
+                                onClick={() => setGptAspectRatio(ratio)}
+                                className={`group flex flex-col items-center gap-1 py-2 px-1 rounded-lg transition-all duration-200 ${
+                                  gptAspectRatio === ratio
+                                    ? `${accentBgBtn} text-white shadow-md shadow-${accent}-500/25`
+                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                                }`}
+                              >
+                                <div
+                                  className={`rounded-sm transition-all ${
+                                    gptAspectRatio === ratio ? 'bg-white/80' : 'bg-slate-300 group-hover:bg-slate-200'
+                                  }`}
+                                  style={{ aspectRatio: ratioToPreview(ratio), maxWidth: 16, maxHeight: 16, width: 16, height: 'auto' }}
+                                />
+                                <span className="text-[10px] font-medium leading-none">{ratio}</span>
+                                {pixelValue && (
+                                  <span className={`text-[8px] leading-none ${gptAspectRatio === ratio ? 'text-white/70' : 'text-slate-400'}`}>
+                                    {pixelValue.replace('x', '×')}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </>
                   )}
-                </button>
-                <span className="text-xs text-slate-400">
-                  {currentModelName} · {
-                    modelType === 'nano'
-                      ? `${nanoAspectRatio} / ${nanoImageSize}`
-                      : isGptVip
-                        ? `${gptAspectRatio} / ${gptImageSize}`
-                        : gptStandardMode === 'ratio'
-                          ? `${gptAspectRatio}（比例格式）`
-                          : `${gptAspectRatio} / ${GPT_RES_STANDARD[gptAspectRatio] || ''}`
-                  }
-                </span>
-                {prompt.trim() && (
-                  <span className="text-xs text-slate-400 ml-auto">Ctrl+Enter 快捷生成</span>
+                </div>
+
+                {/* 提示词输入 + 生成 */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Wand2 className={`w-4 h-4 ${accentText}`} />
+                      <span className="text-sm font-semibold text-slate-800">提示词</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium">Ctrl + Enter 快捷生成</span>
+                  </div>
+                  <div className="relative">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="描述你想要生成的图片，越详细效果越好..."
+                      className={`w-full h-32 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:bg-white ${accentRing} resize-none text-sm text-slate-700 placeholder:text-slate-400 leading-relaxed transition-all duration-200`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleGenerate();
+                        }
+                      }}
+                    />
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-300">{prompt.length} 字</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !prompt.trim()}
+                    className={`w-full mt-3 py-3 rounded-xl font-semibold text-sm text-white transition-all duration-300 flex items-center justify-center gap-2 ${
+                      isGenerating || !prompt.trim()
+                        ? 'bg-slate-300 cursor-not-allowed'
+                        : `bg-gradient-to-r ${accentBg} hover:shadow-lg hover:shadow-${accent}-500/25 hover:-translate-y-0.5 active:translate-y-0`
+                    }`}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        AI 正在创作中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        开始生成
+                      </>
+                    )}
+                  </button>
+
+                  {/* 参数摘要 */}
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] px-2 py-1 rounded-md ${accentBgLight} ${accentText} font-medium`}>
+                      {currentModelName}
+                    </span>
+                    <span className="text-[10px] px-2 py-1 rounded-md bg-slate-100 text-slate-500 font-medium">
+                      {modelType === 'nano'
+                        ? `${nanoAspectRatio} · ${nanoImageSize}`
+                        : isGptVip
+                          ? `${gptAspectRatio} · ${gptImageSize}`
+                          : gptStandardMode === 'ratio'
+                            ? `${gptAspectRatio}（比例格式）`
+                            : `${gptAspectRatio} · ${GPT_RES_STANDARD[gptAspectRatio]?.replace('x', '×')}`
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                {/* 错误提示 */}
+                {error && (
+                  <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
+                    <span className="text-sm text-red-600">{error}</span>
+                    <button onClick={() => setError('')} className="text-red-400 hover:text-red-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {/* 错误提示 */}
-              {error && (
-                <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                  <span className="text-sm text-red-600">{error}</span>
-                  <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* 生成结果 */}
-            {generatedImages.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-semibold text-slate-800">生成结果 ({generatedImages.length})</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {generatedImages.map((img, index) => (
-                    <div
-                      key={img.timestamp}
-                      className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:shadow-lg transition-all duration-300"
-                    >
-                      <div className="aspect-square relative cursor-pointer" onClick={() => setPreviewImage(img.url)}>
-                        <img
-                          src={img.url}
-                          alt={img.prompt}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                          <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                        </div>
-                      </div>
-                      <div className="p-3">
-                        <p className="text-xs text-slate-600 line-clamp-2 mb-2">{img.prompt}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${accentBgLight} ${accentText} font-medium`}>
-                              {NANO_MODELS.find((m) => m.id === img.model)?.name
-                                || GPT_MODELS.find((m) => m.id === img.model)?.name
-                                || img.model}
-                            </span>
-                            <span className="text-xs text-slate-400">{img.detail}</span>
-                          </div>
-                          <button
-                            onClick={() => handleDownload(img.url, index)}
-                            className={`p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 ${`hover:${accentText}`} transition-colors`}
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
+              {/* ====== 右侧：生成结果 ====== */}
+              <div className="lg:col-span-7 xl:col-span-8">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5 min-h-[calc(100vh-7.5rem)]">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className={`w-4 h-4 ${accentText}`} />
+                      <span className="text-sm font-semibold text-slate-800">生成结果</span>
+                      {generatedImages.length > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${accentBgLight} ${accentText} font-bold`}>
+                          {generatedImages.length}
+                        </span>
+                      )}
                     </div>
-                  ))}
+                    {generatedImages.length > 0 && (
+                      <button
+                        onClick={() => setGeneratedImages([])}
+                        className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        清空全部
+                      </button>
+                    )}
+                  </div>
+
+                  {generatedImages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-32 text-slate-300">
+                      <div className={`w-20 h-20 rounded-2xl ${accentBgLighter} flex items-center justify-center mb-4`}>
+                        <ImageIcon className={`w-8 h-8 text-${accent}-300`} />
+                      </div>
+                      <p className="text-sm font-medium text-slate-400 mb-1">还没有生成图片</p>
+                      <p className="text-xs text-slate-300">输入提示词，选择模型和参数，开始创作</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {generatedImages.map((img, index) => (
+                        <div
+                          key={img.timestamp}
+                          className="group relative rounded-xl overflow-hidden border border-slate-200/80 bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 hover:-translate-y-0.5"
+                        >
+                          <div
+                            className="aspect-square relative cursor-pointer overflow-hidden"
+                            onClick={() => setPreviewImage(img.url)}
+                          >
+                            <img
+                              src={img.url}
+                              alt={img.prompt}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
+                            <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                              <p className="text-xs text-white/90 line-clamp-2">{img.prompt}</p>
+                            </div>
+                            {/* 操作浮层 */}
+                            <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPreviewImage(img.url); }}
+                                className="w-7 h-7 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/60 transition-colors"
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDownload(img.url, index); }}
+                                className="w-7 h-7 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/60 transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          {/* 底部信息 */}
+                          <div className="px-3 py-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${accentBgLight} ${accentText} font-medium shrink-0`}>
+                                {NANO_MODELS.find((m) => m.id === img.model)?.name
+                                  || GPT_MODELS.find((m) => m.id === img.model)?.name
+                                  || img.model}
+                              </span>
+                              <span className="text-[10px] text-slate-400 truncate">{img.detail}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleCopyPrompt(img.prompt, index)}
+                                className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                title="复制提示词"
+                              >
+                                {copiedIdx === index ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteImage(img.timestamp)}
+                                className="p-1 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                                title="删除"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -680,20 +786,20 @@ export default function AiImagePage() {
       {/* 图片预览弹窗 */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-8"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8"
           onClick={() => setPreviewImage(null)}
         >
-          <div className="relative max-w-[90vw] max-h-[90vh]">
+          <div className="relative max-w-[90vw] max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
             <img
               src={previewImage}
               alt="Preview"
-              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
             />
             <button
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-600 hover:text-red-500 transition-colors"
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all duration-200"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
