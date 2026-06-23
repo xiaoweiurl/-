@@ -760,6 +760,11 @@ export default function Sidebar({
       icon: MessageSquare,
     },
     {
+      id: 'ai-image',
+      label: 'AI 生图',
+      icon: Sparkles,
+    },
+    {
       id: 'recent',
       label: '最近添加',
       icon: Clock,

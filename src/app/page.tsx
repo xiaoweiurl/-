@@ -1396,6 +1396,12 @@ export default function Home() {
       return;
     }
 
+    // 如果点击AI生图，跳转到生图页面
+    if (item === 'ai-image') {
+      router.push('/ai-image');
+      return;
+    }
+
     // 如果点击数据仪表盘，跳转到仪表盘页面
     if (item === 'dashboard') {
       router.push('/dashboard');
