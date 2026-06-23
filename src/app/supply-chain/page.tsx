@@ -704,8 +704,12 @@ export default function SupplyChainPage() {
   };
 
   // ============ 主渲染 ============
-  const brand = getCurrentBrand();
+  const [brand, setBrand] = useState(getCurrentBrand());
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
+
+  useEffect(() => {
+    setBrand(getCurrentBrand());
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f8f9fc]">

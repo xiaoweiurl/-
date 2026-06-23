@@ -95,8 +95,14 @@ function ratioToPreview(ratio: string): string {
 }
 
 export default function AiImagePage() {
-  const brand = getCurrentBrand();
+  const [brand, setBrand] = useState(getCurrentBrand());
+  const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string; username?: string } | null>(null);
+
+  useEffect(() => {
+    setBrand(getCurrentBrand());
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     fetch('/api/auth/login').then(r => r.json()).then(res => {
@@ -360,7 +366,7 @@ export default function AiImagePage() {
         <div className="h-14 bg-white border-b border-slate-200/60 flex items-center px-6 shrink-0">
           <button
             onClick={() => router.push('/')}
-            className={`flex items-center gap-1.5 text-sm text-slate-500 hover:${accentText} transition-colors mr-4 shrink-0`}
+            className={`flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mr-4 shrink-0`}
           >
             <ArrowLeft className="w-4 h-4" />
             <span>返回</span>

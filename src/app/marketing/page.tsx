@@ -235,8 +235,12 @@ export default function MarketingChatPage() {
     window.location.href = '/login';
   };
 
-  const brand = getCurrentBrand();
+  const [brand, setBrand] = useState(getCurrentBrand());
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
+
+  useEffect(() => {
+    setBrand(getCurrentBrand());
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-[#f8f9fc]">

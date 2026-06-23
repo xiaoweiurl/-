@@ -217,6 +217,7 @@ export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
   const { addNotification } = useNotifications();
+  const [brand, setBrand] = React.useState(getCurrentBrand());
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
@@ -266,6 +267,10 @@ export default function Home() {
   }, []);
 
   // 初始加载智能相册
+  React.useEffect(() => {
+    setBrand(getCurrentBrand());
+  }, []);
+
   React.useEffect(() => {
     fetchSmartAlbums();
   }, [fetchSmartAlbums]);
@@ -1768,7 +1773,7 @@ export default function Home() {
         trashCount={trashCount}
         isAdmin={isAdmin}
         documentStats={documentStats}
-        brand={getCurrentBrand()}
+        brand={brand}
         onAlbumCreated={fetchAlbums}
         onCreateSmartAlbum={() => {
           setEditingSmartAlbum(null);
@@ -1813,7 +1818,7 @@ export default function Home() {
           onBatchReplaceMainImage={handleBatchReplaceMainImage}
           hasAlbums={albums.length > 0}
           showSearch={activeMenuItem === 'all' || activeMenuItem.startsWith('album-') || albums.some(a => a.id === activeMenuItem)}
-          brand={getCurrentBrand()}
+          brand={brand}
         />
 
         {/* 主内容 */}
