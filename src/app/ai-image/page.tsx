@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { getCurrentBrand } from '@/lib/brand';
 import {
@@ -331,10 +332,26 @@ export default function AiImagePage() {
     return null;
   };
 
+  const router = useRouter();
+
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar activeItem="ai-image" onItemClick={(id: string) => {
         if (id === 'ai-image') return;
+        // 导航到对应页面
+        const routeMap: Record<string, string> = {
+          'knowledge': '/knowledge',
+          'chat': '/chat',
+          'dashboard': '/dashboard',
+          'settings': '/settings',
+          'user-settings': '/user-settings',
+        };
+        if (routeMap[id]) {
+          router.push(routeMap[id]);
+          return;
+        }
+        // 其他菜单项（all/my-images/favorites/recent/trash/upload/albumId）回到主页
+        router.push('/');
       }} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
