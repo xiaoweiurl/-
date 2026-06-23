@@ -7,11 +7,12 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  // 不使用 next-themes，避免 Hydration 不匹配
+  // 主题由 SettingsContext 统一管理，Toaster 固定使用 system 主题
+  const theme = "system"
 
   return (
     <Sonner
