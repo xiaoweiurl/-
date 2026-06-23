@@ -244,7 +244,11 @@ public class ImageServiceImpl implements ImageService {
         if (request.getCompany() == null || request.getCompany().isEmpty()) {
             request.setCompany(SessionUtil.getCurrentCompany());
         }
-        log.info("数据隔离检查：currentUserId={}, currentUsername={}, company={}, onlyMine={}", currentUserId, currentUsername, request.getCompany(), request.getOnlyMine());
+        // 设置来源过滤：默认排除二创图片，二创页面需要显式传 source=creative
+        if (request.getSource() == null || request.getSource().isEmpty()) {
+            request.setSource("knowledge");
+        }
+        log.info("数据隔离检查：currentUserId={}, currentUsername={}, company={}, source={}, onlyMine={}", currentUserId, currentUsername, request.getCompany(), request.getSource(), request.getOnlyMine());
 
         // 动态表查询模式
         if (currentUserId != null) {
@@ -436,7 +440,7 @@ public class ImageServiceImpl implements ImageService {
                 predicates.add(cb.equal(root.get("deleted"), false));
                 predicates.add(cb.equal(root.get("isMainImage"), true));
                 
-                // 数据隔离：按用户ID过滤（我的知识库 / 收藏夹 / 回收站）
+                // 数据隔离：按用户ID过滤（我的二创 / 收藏夹 / 回收站）
                 if (request.getUserId() != null && !request.getUserId().isEmpty()) {
                     predicates.add(cb.equal(root.get("userId"), request.getUserId()));
                 }
@@ -444,6 +448,18 @@ public class ImageServiceImpl implements ImageService {
                 // 二创中心：排除当前用户，查询其他用户上传的图片
                 if (request.getOtherUsersUserId() != null && !request.getOtherUsersUserId().isEmpty()) {
                     predicates.add(cb.notEqual(root.get("userId"), request.getOtherUsersUserId()));
+                }
+                
+                // 全部知识/相册：只显示知识图片，排除二创图片(source=creative)
+                // 我的二创/二创中心：只显示二创图片(source=creative)
+                if (request.getSource() != null && !request.getSource().isEmpty()) {
+                    predicates.add(cb.equal(root.get("source"), request.getSource()));
+                } else {
+                    // 默认排除二创图片，只显示知识图片
+                    predicates.add(cb.or(
+                        cb.isNull(root.get("source")),
+                        cb.notEqual(root.get("source"), "creative")
+                    ));
                 }
                 
                 // 关键词筛选
@@ -680,6 +696,7 @@ public class ImageServiceImpl implements ImageService {
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
                     .company(SessionUtil.getCurrentCompany())  // 按公司隔离
+                    .source("knowledge")  // 知识图片
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -1549,6 +1566,7 @@ public class ImageServiceImpl implements ImageService {
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
                     .company(SessionUtil.getCurrentCompany())  // 按公司隔离
+                    .source("knowledge")  // 知识图片
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)
@@ -2403,6 +2421,7 @@ public class ImageServiceImpl implements ImageService {
                     .updatedAt(LocalDateTime.now(BEIJING_ZONE))
                     .userId(currentUserId)  // 使用当前用户ID
                     .company(SessionUtil.getCurrentCompany())  // 按公司隔离
+                    .source("knowledge")  // 知识图片
                     .deleted(false)
                     .viewCount(0)
                     .downloadCount(0)

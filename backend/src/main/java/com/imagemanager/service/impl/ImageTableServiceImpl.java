@@ -65,7 +65,8 @@ public class ImageTableServiceImpl implements ImageTableService {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     user_id VARCHAR(36),
-                    company VARCHAR(50)
+                    company VARCHAR(50),
+                    source VARCHAR(20) DEFAULT 'creative'
                 )
                 """, tableName);
             
