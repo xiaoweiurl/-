@@ -14,90 +14,106 @@ import {
   ZoomIn,
 } from 'lucide-react';
 
-// 模型配置
-interface ModelConfig {
-  id: string;
-  name: string;
-  description: string;
-  resolutions: Record<string, string[]>;
-}
+// ========== 模型和分辨率配置 ==========
 
-const MODELS: ModelConfig[] = [
-  {
-    id: 'nano-banana-2',
-    name: 'Nano Banana 2',
-    description: '快速生图，适合一般需求',
-    resolutions: {
-      '1K': ['1024x1024', '1280x720', '720x1280'],
-      '2K': ['2048x2048', '2560x1440', '1440x2560'],
-    },
-  },
-  {
-    id: 'gpt-image-2',
-    name: 'GPT Image 2',
-    description: '高质量生图，支持更多分辨率',
-    resolutions: {
-      '1K': [
-        '1024x1024', '1280x720', '720x1280',
-        '1152x864', '864x1152', '1536x1024',
-        '1024x1536', '1120x896', '896x1120',
-        '1672x941', '941x1672', '1443x1090',
-        '1090x1443', '1408x1120', '1120x1408',
-      ],
-      '2K': [
-        '2048x2048', '2048x1152', '1152x2048',
-        '2304x1728', '1728x2304', '2048x1360',
-        '1360x2048', '2240x1792', '1792x2240',
-        '2912x1248', '1248x2912', '1920x832',
-        '832x1920', '1792x896', '896x1792',
-      ],
-      '4K': [
-        '2880x2880', '3840x2160', '2160x3840',
-        '3264x2448', '2448x3264', '3504x2336',
-        '2336x3504', '3200x2560', '2560x3200',
-        '3840x1648', '1648x3840', '3840x1280',
-        '1280x3840', '3072x1536', '1536x3072',
-      ],
-    },
-  },
+// Nano Banana 系列的宽高比选项
+const NANO_ASPECT_RATIOS = [
+  'auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3',
+  '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1',
 ];
 
-type ModelId = string;
-type ResolutionTier = string;
+// Nano Banana 系列的尺寸选项
+const NANO_IMAGE_SIZES = ['1K', '2K', '4K'];
 
-// 宽高比标签
-function getAspectRatioLabel(resolution: string): string {
-  const [w, h] = resolution.split('x').map(Number);
-  if (w === h) return '1:1';
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-  const g = gcd(w, h);
-  return `${w / g}:${h / g}`;
+// Nano Banana 系列模型
+const NANO_MODELS = [
+  { id: 'nano-banana-2', name: 'Nano Banana 2', desc: '推荐，均衡质量与速度' },
+  { id: 'nano-banana-2-cl', name: 'Nano Banana 2 CL', desc: '2K增强版，更精细' },
+  { id: 'nano-banana-2-4k-cl', name: 'Nano Banana 2 4K CL', desc: '4K超清版' },
+  { id: 'nano-banana-pro', name: 'Nano Banana Pro', desc: '专业版，更高质量' },
+  { id: 'nano-banana-pro-vip', name: 'Nano Banana Pro VIP', desc: '旗舰版，最佳质量' },
+  { id: 'nano-banana-pro-4k-vip', name: 'Nano Banana Pro 4K VIP', desc: '4K旗舰版' },
+  { id: 'nano-banana', name: 'Nano Banana', desc: '基础版' },
+  { id: 'nano-banana-fast', name: 'Nano Banana Fast', desc: '极速版，最快出图' },
+];
+
+// GPT Image 2 普通版分辨率
+const GPT_RES_STANDARD: Record<string, string> = {
+  '1:1': '1024x1024', '16:9': '1672x941', '9:16': '941x1672',
+  '4:3': '1443x1090', '3:4': '1090x1443', '3:2': '1536x1024',
+  '2:3': '1024x1536', '5:4': '1408x1120', '4:5': '1120x1408',
+  '21:9': '1920x832', '9:21': '832x1920', '2:1': '1792x896', '1:2': '896x1792',
+};
+
+// GPT Image 2 VIP版分辨率（1K/2K/4K）
+const GPT_RES_VIP: Record<string, Record<string, string>> = {
+  '1K': {
+    '1:1': '1024x1024', '16:9': '1280x720', '9:16': '720x1280',
+    '4:3': '1152x864', '3:4': '864x1152', '3:2': '1536x1024',
+    '2:3': '1024x1536', '5:4': '1120x896', '4:5': '896x1120',
+    '21:9': '1456x624', '9:21': '624x1456', '3:1': '2048x688',
+    '1:3': '688x2048', '2:1': '1536x768', '1:2': '768x1536',
+  },
+  '2K': {
+    '1:1': '2048x2048', '16:9': '2048x1152', '9:16': '1152x2048',
+    '4:3': '2304x1728', '3:4': '1728x2304', '3:2': '2048x1360',
+    '2:3': '1360x2048', '5:4': '2240x1792', '4:5': '1792x2240',
+    '21:9': '2912x1248', '9:21': '1248x2912', '3:1': '3840x1280',
+    '1:3': '1280x3840', '2:1': '3072x1536', '1:2': '1536x3072',
+  },
+  '4K': {
+    '1:1': '2880x2880', '16:9': '3840x2160', '9:16': '2160x3840',
+    '4:3': '3264x2448', '3:4': '2448x3264', '3:2': '3504x2336',
+    '2:3': '2336x3504', '5:4': '3200x2560', '4:5': '2560x3200',
+    '21:9': '3840x1648', '9:21': '1648x3840', '3:1': '3840x1280',
+    '1:3': '1280x3840', '2:1': '3840x1920', '1:2': '1920x3840',
+  },
+};
+
+type ModelType = 'nano' | 'gpt';
+
+function getModelType(modelId: string): ModelType {
+  return modelId.startsWith('gpt-image') ? 'gpt' : 'nano';
 }
 
 export default function AiImagePage() {
   const brand = getCurrentBrand();
-  const [activeModel, setActiveModel] = useState<ModelId>('nano-banana-2');
-  const [resolutionTier, setResolutionTier] = useState<ResolutionTier>('1K');
-  const [selectedResolution, setSelectedResolution] = useState('1024x1024');
+  const [activeModel, setActiveModel] = useState('nano-banana-2');
+  const [modelType, setModelType] = useState<ModelType>('nano');
+
+  // Nano Banana 参数
+  const [nanoAspectRatio, setNanoAspectRatio] = useState('1:1');
+  const [nanoImageSize, setNanoImageSize] = useState('1K');
+
+  // GPT Image 参数
+  const [gptAspectRatio, setGptAspectRatio] = useState('1:1');
+  const [gptImageSize, setGptImageSize] = useState('1K');
+
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<
-    { url: string; prompt: string; model: string; resolution: string; timestamp: number }[]
+    { url: string; prompt: string; model: string; detail: string; timestamp: number }[]
   >([]);
   const [error, setError] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showResDropdown, setShowResDropdown] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
 
-  const currentModel = MODELS.find((m) => m.id === activeModel) || MODELS[0];
-  const availableResolutions: string[] = currentModel.resolutions[resolutionTier] || [];
+  // 获取 GPT 当前可选的分辨率列表
+  const gptAvailableRatios = gptImageSize === 'standard'
+    ? Object.keys(GPT_RES_STANDARD)
+    : Object.keys(GPT_RES_VIP[gptImageSize] || {});
 
-  const handleModelChange = useCallback((modelId: string) => {
-    setActiveModel(modelId);
-    const model = MODELS.find((m) => m.id === modelId) || MODELS[0];
-    // 重置分辨率为该模型1K的默认值
-    const firstRes = model.resolutions['1K']?.[0] || '1024x1024';
-    setResolutionTier('1K');
-    setSelectedResolution(firstRes);
+  const handleModelTypeChange = useCallback((type: ModelType) => {
+    setModelType(type);
+    setShowModelDropdown(false);
+    if (type === 'nano') {
+      setActiveModel('nano-banana-2');
+    } else {
+      setActiveModel('gpt-image-2');
+      setGptImageSize('1K');
+      setGptAspectRatio('1:1');
+    }
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -107,15 +123,34 @@ export default function AiImagePage() {
     setError('');
 
     try {
+      // 构建请求参数
+      let requestBody: Record<string, unknown>;
+
+      if (modelType === 'nano') {
+        requestBody = {
+          model: activeModel,
+          prompt: prompt.trim(),
+          aspectRatio: nanoAspectRatio,
+          imageSize: nanoImageSize,
+          images: [],
+        };
+      } else {
+        // GPT Image: aspectRatio 直接用像素值
+        const aspectRatio = gptImageSize === 'standard'
+          ? GPT_RES_STANDARD[gptAspectRatio] || '1024x1024'
+          : GPT_RES_VIP[gptImageSize]?.[gptAspectRatio] || '1024x1024';
+        requestBody = {
+          model: activeModel,
+          prompt: prompt.trim(),
+          aspectRatio,
+          images: [],
+        };
+      }
+
       const response = await fetch('/api/ai-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: activeModel,
-          prompt: prompt.trim(),
-          aspectRatio: selectedResolution,
-          images: [],
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -143,7 +178,6 @@ export default function AiImagePage() {
       } else if (Array.isArray(data.images) && data.images[0]?.url) {
         imageUrl = data.images[0].url;
       } else {
-        // 尝试直接从响应中查找URL
         const jsonStr = JSON.stringify(data);
         const urlMatch = jsonStr.match(/https?:\/\/[^\s"']+?\.(png|jpg|jpeg|webp)/i);
         if (urlMatch) {
@@ -154,14 +188,12 @@ export default function AiImagePage() {
         }
       }
 
+      const detail = modelType === 'nano'
+        ? `${nanoAspectRatio} / ${nanoImageSize}`
+        : `${gptAspectRatio} / ${gptImageSize}`;
+
       setGeneratedImages((prev) => [
-        {
-          url: imageUrl,
-          prompt: prompt.trim(),
-          model: activeModel,
-          resolution: selectedResolution,
-          timestamp: Date.now(),
-        },
+        { url: imageUrl, prompt: prompt.trim(), model: activeModel, detail, timestamp: Date.now() },
         ...prev,
       ]);
     } catch (err: unknown) {
@@ -170,7 +202,7 @@ export default function AiImagePage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, activeModel, selectedResolution, isGenerating]);
+  }, [prompt, activeModel, modelType, nanoAspectRatio, nanoImageSize, gptAspectRatio, gptImageSize, isGenerating]);
 
   const handleDownload = useCallback(async (url: string, index: number) => {
     try {
@@ -183,134 +215,212 @@ export default function AiImagePage() {
       link.click();
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      // 降级：直接打开链接
       window.open(url, '_blank');
     }
   }, []);
+
+  // 获取当前模型的显示名
+  const currentModelName = modelType === 'nano'
+    ? NANO_MODELS.find((m) => m.id === activeModel)?.name || activeModel
+    : 'GPT Image 2';
 
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar activeItem="ai-image" onItemClick={(id: string) => {
         if (id === 'ai-image') return;
-        // 其他导航由主页处理
       }} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 自定义顶部栏 */}
+        {/* 顶部栏 */}
         <div className="h-14 bg-white border-b border-slate-200/60 flex items-center px-6 shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-violet-500" />
-            <span className="text-sm font-medium text-slate-700">AI 生图</span>
+            <span className="text-sm font-medium text-slate-700">AI 智能生图</span>
           </div>
         </div>
 
         <div className="flex-1 overflow-auto p-6">
           <div className="max-w-6xl mx-auto space-y-6">
-            {/* 顶部模型选择 + 设置区 */}
+            {/* 设置区域 */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center`}>
-                    <Sparkles className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-800">AI 智能生图</h2>
-                    <p className="text-sm text-slate-500">选择模型和分辨率，输入描述生成图片</p>
-                  </div>
+              {/* 标题 */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center`}>
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">AI 智能生图</h2>
+                  <p className="text-sm text-slate-500">选择模型和参数，输入描述生成图片</p>
                 </div>
               </div>
 
-              {/* 模型切换 */}
+              {/* 模型大类切换 */}
               <div className="mb-5">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">选择模型</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">模型系列</label>
                 <div className="flex gap-3">
-                  {MODELS.map((model) => (
+                  {(['nano', 'gpt'] as ModelType[]).map((type) => (
                     <button
-                      key={model.id}
-                      onClick={() => handleModelChange(model.id)}
+                      key={type}
+                      onClick={() => handleModelTypeChange(type)}
                       className={`flex-1 px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left ${
-                        activeModel === model.id
-                          ? `border-violet-500 bg-violet-50 shadow-sm`
+                        modelType === type
+                          ? 'border-violet-500 bg-violet-50 shadow-sm'
                           : 'border-slate-200 bg-white hover:border-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <ImageIcon className={`w-4 h-4 ${activeModel === model.id ? 'text-violet-600' : 'text-slate-400'}`} />
-                        <span className={`font-medium text-sm ${activeModel === model.id ? 'text-violet-700' : 'text-slate-700'}`}>
-                          {model.name}
+                        <ImageIcon className={`w-4 h-4 ${modelType === type ? 'text-violet-600' : 'text-slate-400'}`} />
+                        <span className={`font-medium text-sm ${modelType === type ? 'text-violet-700' : 'text-slate-700'}`}>
+                          {type === 'nano' ? 'Nano Banana' : 'GPT Image 2'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">{model.description}</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {type === 'nano' ? '多种模型可选，支持比例+尺寸' : '高质量生图，支持多分辨率'}
+                      </p>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 分辨率选择 */}
-              <div className="mb-5">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">分辨率</label>
-                <div className="flex gap-2 mb-3">
-                  {(['1K', '2K', '4K'] as string[]).map((tier) => {
-                    const hasRes = currentModel.resolutions[tier] && currentModel.resolutions[tier].length > 0;
-                    return (
-                      <button
-                        key={tier}
-                        onClick={() => {
-                          if (hasRes) {
-                            setResolutionTier(tier);
-                            const firstRes = currentModel.resolutions[tier]?.[0] || selectedResolution;
-                            setSelectedResolution(firstRes);
-                          }
-                        }}
-                        disabled={!hasRes}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          resolutionTier === tier
-                            ? 'bg-violet-600 text-white shadow-sm'
-                            : hasRes
-                              ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                              : 'bg-slate-50 text-slate-300 cursor-not-allowed'
-                        }`}
-                      >
-                        {tier}
-                      </button>
-                    );
-                  })}
+              {/* 子模型选择（Nano Banana 系列） */}
+              {modelType === 'nano' && (
+                <div className="mb-5">
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">选择模型</label>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowModelDropdown(!showModelDropdown)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Settings2 className="w-4 h-4 text-slate-400" />
+                        <span className="text-sm text-slate-700 font-medium">{currentModelName}</span>
+                        <span className="text-xs text-slate-400">
+                          {NANO_MODELS.find((m) => m.id === activeModel)?.desc}
+                        </span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showModelDropdown && (
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                        {NANO_MODELS.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => {
+                              setActiveModel(m.id);
+                              setShowModelDropdown(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-violet-50 transition-colors ${
+                              activeModel === m.id ? 'bg-violet-50 text-violet-700 font-medium' : 'text-slate-700'
+                            }`}
+                          >
+                            <div>
+                              <span>{m.name}</span>
+                              <span className="text-xs text-slate-400 ml-2">{m.desc}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                {/* 具体分辨率选择 */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowResDropdown(!showResDropdown)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Settings2 className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm text-slate-700">{selectedResolution}</span>
-                      <span className="text-xs text-slate-400">({getAspectRatioLabel(selectedResolution)})</span>
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showResDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {showResDropdown && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                      {availableResolutions.map((res) => (
+              {/* 参数配置区：根据模型类型不同 */}
+              {modelType === 'nano' ? (
+                <>
+                  {/* Nano Banana: 比例 + 尺寸 */}
+                  <div className="mb-5">
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">图片比例</label>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
+                      {NANO_ASPECT_RATIOS.map((ratio) => (
                         <button
-                          key={res}
-                          onClick={() => {
-                            setSelectedResolution(res);
-                            setShowResDropdown(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-violet-50 transition-colors ${
-                            selectedResolution === res ? 'bg-violet-50 text-violet-700 font-medium' : 'text-slate-700'
+                          key={ratio}
+                          onClick={() => setNanoAspectRatio(ratio)}
+                          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                            nanoAspectRatio === ratio
+                              ? 'bg-violet-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
-                          <span>{res}</span>
-                          <span className="text-xs text-slate-400">{getAspectRatioLabel(res)}</span>
+                          {ratio}
                         </button>
                       ))}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                  <div className="mb-5">
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">图片尺寸</label>
+                    <div className="flex gap-2">
+                      {NANO_IMAGE_SIZES.map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => setNanoImageSize(size)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            nanoImageSize === size
+                              ? 'bg-violet-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* GPT Image 2: 尺寸档位 + 比例 */}
+                  <div className="mb-5">
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">分辨率档位</label>
+                    <div className="flex gap-2">
+                      {['standard', '1K', '2K', '4K'].map((tier) => (
+                        <button
+                          key={tier}
+                          onClick={() => {
+                            setGptImageSize(tier);
+                            const availableRatios = tier === 'standard'
+                              ? Object.keys(GPT_RES_STANDARD)
+                              : Object.keys(GPT_RES_VIP[tier] || {});
+                            if (!availableRatios.includes(gptAspectRatio)) {
+                              setGptAspectRatio(availableRatios[0] || '1:1');
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            gptImageSize === tier
+                              ? 'bg-violet-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {tier === 'standard' ? '标准' : tier}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mb-5">
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">图片比例</label>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
+                      {gptAvailableRatios.map((ratio) => {
+                        const pixelValue = gptImageSize === 'standard'
+                          ? GPT_RES_STANDARD[ratio]
+                          : GPT_RES_VIP[gptImageSize]?.[ratio];
+                        return (
+                          <button
+                            key={ratio}
+                            onClick={() => setGptAspectRatio(ratio)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                              gptAspectRatio === ratio
+                                ? 'bg-violet-600 text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                            title={pixelValue}
+                          >
+                            <span>{ratio}</span>
+                            <span className="block text-[10px] opacity-60">{pixelValue}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* 提示词输入 */}
               <div className="mb-4">
@@ -351,8 +461,11 @@ export default function AiImagePage() {
                     </>
                   )}
                 </button>
+                <span className="text-xs text-slate-400">
+                  {currentModelName} · {modelType === 'nano' ? `${nanoAspectRatio} / ${nanoImageSize}` : `${gptAspectRatio} / ${gptImageSize === 'standard' ? '标准' : gptImageSize}`}
+                </span>
                 {prompt.trim() && (
-                  <span className="text-xs text-slate-400">Ctrl+Enter 快捷生成</span>
+                  <span className="text-xs text-slate-400 ml-auto">Ctrl+Enter 快捷生成</span>
                 )}
               </div>
 
@@ -394,9 +507,9 @@ export default function AiImagePage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 font-medium">
-                              {MODELS.find((m) => m.id === img.model)?.name || img.model}
+                              {NANO_MODELS.find((m) => m.id === img.model)?.name || img.model === 'gpt-image-2' ? 'GPT Image 2' : img.model}
                             </span>
-                            <span className="text-xs text-slate-400">{img.resolution}</span>
+                            <span className="text-xs text-slate-400">{img.detail}</span>
                           </div>
                           <button
                             onClick={() => handleDownload(img.url, index)}
