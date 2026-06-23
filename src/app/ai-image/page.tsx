@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
-import { getCurrentBrand } from '@/lib/brand';
+import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import {
   Sparkles,
   Download,
@@ -95,13 +95,11 @@ function ratioToPreview(ratio: string): string {
 }
 
 export default function AiImagePage() {
-  const [brand, setBrand] = useState(getCurrentBrand());
-  const [mounted, setMounted] = useState(false);
+  const [brand, setBrand] = useState(BRANDS.yingyun);
   const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string; username?: string } | null>(null);
 
   useEffect(() => {
     setBrand(getCurrentBrand());
-    setMounted(true);
   }, []);
 
   useEffect(() => {

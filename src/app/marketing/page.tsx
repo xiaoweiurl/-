@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Trash2, Bot, User, Sparkles, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
-import { getCurrentBrand } from '@/lib/brand';
+import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
@@ -235,7 +235,7 @@ export default function MarketingChatPage() {
     window.location.href = '/login';
   };
 
-  const [brand, setBrand] = useState(getCurrentBrand());
+  const [brand, setBrand] = useState(BRANDS.yingyun);
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
 
   useEffect(() => {

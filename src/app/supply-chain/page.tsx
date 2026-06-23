@@ -10,7 +10,7 @@ import {
   ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud,
   ArrowLeft
 } from 'lucide-react';
-import { getCurrentBrand } from '@/lib/brand';
+import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 // ============ 类型定义 ============
@@ -704,7 +704,7 @@ export default function SupplyChainPage() {
   };
 
   // ============ 主渲染 ============
-  const [brand, setBrand] = useState(getCurrentBrand());
+  const [brand, setBrand] = useState(BRANDS.yingyun);
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
 
   useEffect(() => {

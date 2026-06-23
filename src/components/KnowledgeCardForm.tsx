@@ -139,10 +139,10 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
   });
 
   // 根据当前公司动态获取团队和部门
-  const companyName = useMemo(() => {
-    if (typeof window === 'undefined') return '盈云';
+  const [companyName, setCompanyName] = useState('盈云');
+  useEffect(() => {
     const stored = localStorage.getItem('user_company');
-    return stored || '盈云';
+    if (stored) setCompanyName(stored);
   }, []);
   const teams = TEAM_BY_COMPANY[companyName] || DEFAULT_TEAMS;
   const departments = DEPT_BY_COMPANY[companyName] || DEFAULT_DEPARTMENTS;

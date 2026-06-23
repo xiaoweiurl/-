@@ -22,7 +22,7 @@ import { BatchReplaceMainImageDialog } from '@/components/BatchReplaceMainImageD
 import type { SmartAlbumInfo } from '@/components/Sidebar';
 import { PRESET_SMART_ALBUMS, type MatchingConfig } from '@/lib/api/types';
 import { filterImagesBySmartAlbum, getSmartAlbumImageCount } from '@/lib/smart-album-engine';
-import { getCurrentBrand } from '@/lib/brand';
+import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Loader2, Search as SearchIcon, Filter } from 'lucide-react';
@@ -217,7 +217,7 @@ export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
   const { addNotification } = useNotifications();
-  const [brand, setBrand] = React.useState(getCurrentBrand());
+  const [brand, setBrand] = React.useState(BRANDS.yingyun);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
