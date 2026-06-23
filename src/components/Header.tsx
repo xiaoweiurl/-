@@ -253,11 +253,9 @@ export default function Header({
         {/* 分隔线 */}
         <div className="w-px h-5 bg-slate-200/60 mx-0.5" />
 
-        {/* AI入口 */}
-        <a
-          href={brand?.key === 'bonasi' ? 'https://www.bonasi.com' : 'https://www.yingyunai.com/login?redirect=/generate/text-to-image/new'}
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* AI生图入口 */}
+        <button
+          onClick={() => window.location.href = '/ai-image'}
           className={cn(
             "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium",
             "bg-gradient-to-r text-white",
@@ -268,7 +266,7 @@ export default function Header({
         >
           <Zap className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">{brand?.name || '盈云'}AI</span>
-        </a>
+        </button>
 
         {/* 通知 */}
         <div className="relative">
