@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.imagemanager.entity.Image;
 import com.imagemanager.repository.ImageRepository;
+import com.imagemanager.repository.ImageDynamicRepository;
+import com.imagemanager.service.ImageTableService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
@@ -40,9 +42,15 @@ public class AiImageController {
     private final RestTemplate restTemplate = new RestTemplate();
 
     private final ImageRepository imageRepository;
+    private final ImageDynamicRepository imageDynamicRepository;
+    private final ImageTableService imageTableService;
 
-    public AiImageController(ImageRepository imageRepository) {
+    public AiImageController(ImageRepository imageRepository,
+                             ImageDynamicRepository imageDynamicRepository,
+                             ImageTableService imageTableService) {
         this.imageRepository = imageRepository;
+        this.imageDynamicRepository = imageDynamicRepository;
+        this.imageTableService = imageTableService;
     }
 
     /**
@@ -219,31 +227,9 @@ public class AiImageController {
                                            HttpServletRequest servletRequest) {
         try {
             // 从session获取用户信息
-            String sessionId = servletRequest.getHeader("X-Session-Id");
-            if (sessionId == null) {
-                sessionId = servletRequest.getHeader("x-session-id");
-            }
-            if (sessionId == null && servletRequest.getCookies() != null) {
-                for (var cookie : servletRequest.getCookies()) {
-                    if ("session_id".equals(cookie.getName())) {
-                        sessionId = cookie.getValue();
-                        break;
-                    }
-                }
-            }
-
-            // 从session属性获取用户信息
-            String userId = null;
-            String company = null;
-            if (sessionId != null) {
-                var session = servletRequest.getServletContext().getAttribute("session_" + sessionId);
-                if (session instanceof java.util.Map) {
-                    @SuppressWarnings("unchecked")
-                    var sessionMap = (java.util.Map<String, Object>) session;
-                    userId = sessionMap.get("userId") != null ? sessionMap.get("userId").toString() : null;
-                    company = sessionMap.get("company") != null ? sessionMap.get("company").toString() : "盈云";
-                }
-            }
+            String userId = SessionUtil.getCurrentUserId();
+            String company = SessionUtil.getCurrentCompany();
+            String username = SessionUtil.getCurrentUsername();
 
             if (userId == null) {
                 return ResponseEntity.status(401)
@@ -288,6 +274,18 @@ public class AiImageController {
             }
 
             imageRepository.save(image);
+
+            // 同步到用户的动态表（二创中心/我的二创）
+            try {
+                if (username != null) {
+                    imageTableService.ensureUserImageTable(username);
+                    imageDynamicRepository.save(image, username);
+                    log.info("AI生成图片已同步到用户动态表: username={}", username);
+                }
+            } catch (Exception e) {
+                log.warn("同步到用户动态表失败（不影响主表保存）: {}", e.getMessage());
+            }
+
             log.info("AI生成图片已保存到二创中心: imageId={}, userId={}, company={}", image.getId(), userId, company);
 
             ObjectNode result = objectMapper.createObjectNode();
