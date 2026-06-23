@@ -2,19 +2,16 @@ package com.imagemanager.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
+import java.util.Collections;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * AI 图像生成控制器
@@ -33,11 +30,20 @@ public class AiImageController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final OkHttpClient httpClient = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private RestTemplate createRestTemplate() {
+        RestTemplate rt = new RestTemplate();
+        // 设置超时
+        javax.net.ssl.SSLContext sslContext = null;
+        try {
+            sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+            sslContext.init(null, null, null);
+        } catch (Exception e) {
+            log.warn("SSL初始化失败", e);
+        }
+        return rt;
+    }
 
     /**
      * 生成 AI 图像
@@ -82,41 +88,33 @@ public class AiImageController {
             String apiRequestBodyStr = objectMapper.writeValueAsString(apiRequestBody);
             log.info("AI生图请求: model={}, aspectRatio={}, prompt长度={}", model, aspectRatio, prompt.length());
 
+            // 设置请求头
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", apiKey);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
+
             // 发送请求到外部API
-            MediaType mediaType = MediaType.parse("application/json");
-            RequestBody body = RequestBody.create(mediaType, apiRequestBodyStr);
+            ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, entity, String.class);
 
-            Request request = new Request.Builder()
-                    .url(apiUrl)
-                    .method("POST", body)
-                    .addHeader("Authorization", apiKey)
-                    .addHeader("Content-Type", "application/json")
-                    .build();
-
-            try (Response response = httpClient.newCall(request).execute()) {
-                String responseBody = response.body() != null ? response.body().string() : "";
-
-                if (!response.isSuccessful()) {
-                    log.error("AI生图API调用失败: status={}, body={}", response.code(), responseBody);
-                    return ResponseEntity.status(response.code())
-                            .body("{\"error\":\"AI生图服务调用失败: " + response.code() + "\"}");
-                }
-
-                log.info("AI生图成功: model={}", model);
-                // 直接返回API响应
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(responseBody);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                log.error("AI生图API调用失败: status={}, body={}", response.getStatusCode(), response.getBody());
+                return ResponseEntity.status(response.getStatusCode())
+                        .body("{\"error\":\"AI生图服务调用失败: " + response.getStatusCode() + "\"}");
             }
 
-        } catch (IOException e) {
+            log.info("AI生图成功: model={}", model);
+            // 直接返回API响应
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(response.getBody());
+
+        } catch (Exception e) {
             log.error("AI生图请求异常", e);
             return ResponseEntity.status(500)
                     .body("{\"error\":\"AI生图服务异常: " + e.getMessage() + "\"}");
-        } catch (Exception e) {
-            log.error("AI生图参数解析异常", e);
-            return ResponseEntity.badRequest()
-                    .body("{\"error\":\"请求参数异常: " + e.getMessage() + "\"}");
         }
     }
 }
