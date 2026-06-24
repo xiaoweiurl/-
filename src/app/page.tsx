@@ -214,6 +214,13 @@ const mockImages: ImageItem[] = [
 ];
 
 export default function Home() {
+  // 调试：追踪重渲染原因
+  const renderCount = React.useRef(0);
+  renderCount.current++;
+  if (renderCount.current > 50) {
+    console.error('[Home] 渲染次数异常:', renderCount.current);
+  }
+
   const router = useRouter();
   const { settings } = useSettings();
   const { addNotification } = useNotifications();
@@ -318,6 +325,7 @@ export default function Home() {
 
   // 更新智能相册的统计数量
   React.useEffect(() => {
+    console.log('[Home][Effect] smartAlbums count update, allImages.length:', allImages.length, 'smartAlbums.length:', smartAlbums.length);
     if (allImages.length === 0 || smartAlbums.length === 0) return;
 
     setSmartAlbums(prev => prev.map(album => {
@@ -478,6 +486,7 @@ export default function Home() {
   
   // 当设置变化时更新状态
   React.useEffect(() => {
+    console.log('[Home][Effect] settings变化, pageSize:', settings?.pageSize, 'defaultView:', settings?.defaultView);
     if (settings) {
       setPageSize(settings.pageSize);
       setViewMode(settings.defaultView);
@@ -805,6 +814,7 @@ export default function Home() {
 
   // 监听筛选条件变化，自动重新加载数据
   React.useEffect(() => {
+    console.log('[Home][Effect] 筛选条件变化, activeMenuItem:', activeMenuItem, 'filterState:', filterState);
     if (activeMenuItem !== 'trash' && activeMenuItem !== 'recent' && activeMenuItem !== 'favorites') {
       console.log('[Home] 筛选条件变化，重新加载数据:', filterState);
       fetchImages(1, false);
@@ -950,6 +960,7 @@ export default function Home() {
 
   // 监听菜单项变化，重新获取数据
   React.useEffect(() => {
+    console.log('[Home][Effect] 菜单项变化, activeMenuItem:', activeMenuItem, 'currentUser:', !!currentUser, 'authChecked:', authCheckedRef.current);
     // 排除初始化时（auth check 会自动获取）
     if (currentUser && authCheckedRef.current) {
       console.log('[Home] 菜单项变化:', activeMenuItem, '重新获取数据...');
