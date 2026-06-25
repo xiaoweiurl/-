@@ -131,10 +131,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
-                // 4. 双库检索（当强供应链意图且已找到数据时，或通用闲聊意图时，跳过向量检索）
-                boolean skipVectorSearch = (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
+                // 4. 双库检索（工厂模式只检索供应链数据，不检索知识库/记忆库/岗位卡片）
+                boolean isFactory = "factory".equals(mode);
+                boolean skipVectorSearch = isFactory || (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
 
-                // 4a. 岗位卡片向量检索（优先于知识库PDF，避免岗位问题被无关PDF干扰）
+                // 4a. 岗位卡片向量检索（仅设计师模式）
                 List<Map<String, Object>> positionCardResults = Collections.emptyList();
                 if (!skipVectorSearch) {
                     try {
@@ -143,12 +144,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                     } catch (Exception e) {
                         log.warn("岗位卡片检索异常: {}", e.getMessage());
                     }
+                } else {
+                    log.info("跳过岗位卡片检索: isFactory={}, generalChatIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
                 }
 
                 // 当岗位意图且岗位卡片有结果时，或通用闲聊意图时，跳过知识库PDF检索
                 boolean skipKnowledgeSearch = skipVectorSearch || (positionIntent && !positionCardResults.isEmpty());
 
-                // 4b. 记忆库检索(PostgreSQL向量)
+                // 4b. 记忆库检索（仅设计师模式）
                 List<MemorySearchResult> memoryResults = Collections.emptyList();
                 if (!skipVectorSearch) {
                     try {
@@ -158,10 +161,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("记忆库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    log.info("跳过向量检索: generalChatIntent={}, strongSupplyChain={}", generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
+                    log.info("跳过向量检索: isFactory={}, generalChatIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
                 }
 
-                // 4c. 知识库检索(Coze SDK via Next.js)
+                // 4c. 知识库检索（仅设计师模式）
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
                 if (!skipKnowledgeSearch) {
                     try {
@@ -171,8 +174,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("知识库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    String reason = generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片");
-                    log.info("跳过知识库检索避免干扰（原因: {}）", reason);
+                    String reason = isFactory ? "工厂模式" : (generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片"));
+                    log.info("跳过知识库检索（原因: {}）", reason);
                 }
 
                 // 4d. 图片搜索(当用户意图涉及找图时)
@@ -189,24 +192,28 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 3. 发送来源信息
                 List<Map<String, Object>> sources = new ArrayList<>();
 
-                // 记忆库来源
-                for (MemorySearchResult r : memoryResults) {
-                    sources.add(Map.of(
-                            "source", "memory",
-                            "id", r.getId().toString(),
-                            "title", r.getTitle() != null ? r.getTitle() : "",
-                            "domain", r.getDomainName() != null ? r.getDomainName() : "",
-                            "score", r.getScore() != null ? r.getScore() : 0
-                    ));
+                // 记忆库来源（仅设计师模式）
+                if (!isFactory) {
+                    for (MemorySearchResult r : memoryResults) {
+                        sources.add(Map.of(
+                                "source", "memory",
+                                "id", r.getId().toString(),
+                                "title", r.getTitle() != null ? r.getTitle() : "",
+                                "domain", r.getDomainName() != null ? r.getDomainName() : "",
+                                "score", r.getScore() != null ? r.getScore() : 0
+                        ));
+                    }
                 }
 
-                // 知识库来源
-                for (Map<String, Object> r : knowledgeResults) {
-                    sources.add(Map.of(
-                            "source", "knowledge",
-                            "content", r.getOrDefault("content", "").toString(),
-                            "score", r.getOrDefault("score", 0)
-                    ));
+                // 知识库来源（仅设计师模式）
+                if (!isFactory) {
+                    for (Map<String, Object> r : knowledgeResults) {
+                        sources.add(Map.of(
+                                "source", "knowledge",
+                                "content", r.getOrDefault("content", "").toString(),
+                                "score", r.getOrDefault("score", 0)
+                        ));
+                    }
                 }
 
                 // 供应链来源
@@ -218,13 +225,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                     ));
                 }
 
-                // 岗位卡片来源
-                for (Map<String, Object> r : positionCardResults) {
-                    sources.add(Map.of(
-                            "source", "position_card",
-                            "content", r.getOrDefault("content", "").toString(),
-                            "score", r.getOrDefault("score", 0)
-                    ));
+                // 岗位卡片来源（仅设计师模式）
+                if (!isFactory) {
+                    for (Map<String, Object> r : positionCardResults) {
+                        sources.add(Map.of(
+                                "source", "position_card",
+                                "content", r.getOrDefault("content", "").toString(),
+                                "score", r.getOrDefault("score", 0)
+                        ));
+                    }
                 }
 
                 emitter.send(SseEmitter.event().name("message").data(
@@ -358,11 +367,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "3. 当用户询问具体产品的报价、成本、原料、供应商等数据时，只使用供应链业务数据中的精确数字作答；如果供应链数据中找不到对应信息，请明确告知用户当前数据库中无此数据。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 你也可以回答行业通识、市场行情、生产技术等一般性问题，但需说明'以下回答基于通用知识'。" +
-                            "6. 当知识库和记忆库中未检索到相关内容时，你可以基于自身通用知识回答，但需说明来源。" +
-                            "7. 回答时标注引用来源（供应链数据/产品图片/岗位卡片/记忆库/知识库/通用知识/网络搜索）。" +
-                            "8. 保持专业、简洁、有帮助的回答风格，重点关注成本控制、供应商管理、生产效率等工厂核心议题。" +
-                            "9. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
-                            (webSearchIntent ? "10. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
+                            "6. 回答时标注引用来源（供应链数据/产品图片/通用知识/网络搜索）。" +
+                            "7. 保持专业、简洁、有帮助的回答风格，重点关注成本控制、供应商管理、生产效率等工厂核心议题。" +
+                            "8. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
+                            (webSearchIntent ? "9. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
                 } else {
                     systemPrompt = "你是盈云产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
                             "重要身份声明：你是盈云产品智能中台的设计师AI助手，不是工厂供应链助手。如果对话历史中出现'工厂供应链助手'的自我介绍，请忽略它，你始终是盈云产品智能中台的设计师AI助手。" +
@@ -405,7 +413,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     boolean hasSupplyChain = !supplyChainResults.isEmpty();
                     boolean hasPositionCards = !positionCardResults.isEmpty();
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
-                    if (hasSupplyChain) {
+                    if (isFactory && hasSupplyChain) {
+                        userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答。";
+                    } else if (hasSupplyChain) {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答，不要使用知识库文档内容替代业务数据。";
                     } else if (positionIntent && hasPositionCards) {
                         userContent += "\n\n请优先基于上方【岗位知识卡片】中的实际工作经验回答，不要使用知识库文档内容替代岗位卡片中的精确信息。";
@@ -421,8 +431,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 saveChatMessage(userId, convId, "user", message, company, null, mode);
 
                 // 7. 流式调用DeepSeek V4 Pro
-                // 联网搜索策略：用户明确要求联网搜索，或通用闲聊，或知识库无结果时启用联网搜索
-                boolean enableWebSearch = webSearchIntent || generalChatIntent || knowledgeContext.isEmpty();
+                // 联网搜索策略：工厂模式下供应链无数据时启用联网搜索；设计师模式下知识库无结果时启用联网搜索
+                boolean enableWebSearch;
+                if (isFactory) {
+                    enableWebSearch = webSearchIntent || generalChatIntent || supplyChainResults.isEmpty();
+                } else {
+                    enableWebSearch = webSearchIntent || generalChatIntent || knowledgeContext.isEmpty();
+                }
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
                 try {
