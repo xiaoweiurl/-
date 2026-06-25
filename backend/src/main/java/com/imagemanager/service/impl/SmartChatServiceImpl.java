@@ -97,7 +97,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 0. 确定对话ID：如果未传则获取或创建
                 String convId = conversationId;
                 if (convId == null || convId.isEmpty()) {
-                    convId = getOrCreateDefaultConversation(userId, company);
+                    convId = getOrCreateDefaultConversation(userId, company, mode);
                 }
 
                 // 1. 加载历史对话（按conversationId）
