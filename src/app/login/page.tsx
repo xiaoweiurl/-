@@ -33,8 +33,23 @@ type PortalType = 'designer' | 'factory' | 'marketing' | null;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = React.useState<Step>('login');
-  const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>('yingyun');
+  const [step, setStep] = React.useState<Step>(() => {
+    // 如果URL参数指定 step=portal，且用户已登录，直接进入角色选择
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('step') === 'portal' && localStorage.getItem('session_id')) {
+        return 'portal';
+      }
+    }
+    return 'login';
+  });
+  const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('selected_brand');
+      if (saved === 'bonasi' || saved === 'yingyun') return saved;
+    }
+    return 'yingyun';
+  });
   const [portal, setPortal] = React.useState<PortalType>(null);
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -45,6 +60,27 @@ export default function LoginPage() {
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
 
   const brand = BRANDS[selectedBrand];
+
+  // 当从子页面返回(step=portal)时，恢复用户信息
+  React.useEffect(() => {
+    if (step === 'portal' && !loggedInUser) {
+      const username = localStorage.getItem('user_id') || '';
+      const company = localStorage.getItem('user_company') || '';
+      // 构造最小用户信息以支持 portal 页面显示
+      setLoggedInUser({
+        success: true,
+        data: {
+          sessionId: localStorage.getItem('session_id') || '',
+          user: {
+            id: username,
+            username: localStorage.getItem('username') || '用户',
+            role: 'user' as const,
+            company,
+          },
+        },
+      } as LoginResponse);
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +108,9 @@ export default function LoginPage() {
         }
         if (result.data.user?.id) {
           localStorage.setItem('user_id', result.data.user.id);
+        }
+        if (result.data.user?.username) {
+          localStorage.setItem('username', result.data.user.username);
         }
         setLoggedInUser(result.data);
         const userCompany = result.data.user?.company;
