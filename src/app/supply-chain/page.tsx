@@ -191,8 +191,8 @@ export default function SupplyChainPage() {
     })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data && Array.isArray(data) && data.length > 0) {
-          const history = data.map((msg: { role: string; content: string; reasoning_content?: string }) => ({
+        if (data && data.success && Array.isArray(data.history) && data.history.length > 0) {
+          const history = data.history.map((msg: { role: string; content: string; reasoning_content?: string }) => ({
             role: msg.role as 'user' | 'assistant',
             content: msg.content,
             reasoning: msg.reasoning_content || undefined,
