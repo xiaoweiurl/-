@@ -1843,7 +1843,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 objectMapper.writeValueAsString(Map.of("type", "done"))
         ));
     }
-    }
 
     /**
      * 调用MiniMax Embedding API获取文本向量
