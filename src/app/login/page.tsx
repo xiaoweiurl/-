@@ -34,10 +34,11 @@ type PortalType = 'designer' | 'factory' | 'marketing' | null;
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>(() => {
-    // 如果URL参数指定 step=portal，且用户已登录，直接进入角色选择
+    // 如果标记了返回角色选择页面，且用户有session，直接进入portal
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('step') === 'portal' && localStorage.getItem('session_id')) {
+      const backToPortal = localStorage.getItem('back_to_portal');
+      if (backToPortal === 'true' && localStorage.getItem('session_id')) {
+        localStorage.removeItem('back_to_portal');
         return 'portal';
       }
     }

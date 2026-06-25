@@ -725,7 +725,7 @@ export default function SupplyChainPage() {
         <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
               <button
-                onClick={() => router.push('/login?step=portal')}
+                onClick={() => { localStorage.setItem('back_to_portal', 'true'); router.push('/login'); }}
                 className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors shrink-0"
               >
                 <ArrowLeft className="w-4 h-4" />
