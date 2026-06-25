@@ -120,11 +120,29 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrollingRef = useRef(false);
 
   // 客户端挂载标记
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // 监听用户滚动行为：判断用户是否主动上滑
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // 距离底部不超过120px时认为用户在底部，可以自动滚动
+      const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+      isUserScrollingRef.current = !nearBottom;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [mounted]);
 
   // 检查登录状态
   useEffect(() => {
@@ -244,14 +262,23 @@ export default function ChatPage() {
     })();
   }, [authChecked, loadConversations, loadChatHistory]);
 
-  // 自动滚动
+  // 智能自动滚动：仅在用户未主动上滑时自动滚到底部
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (!isUserScrollingRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior });
+    }
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    scrollToBottom(messages.length > 0 && messages[messages.length - 1]?.isStreaming ? 'auto' : 'smooth');
+  }, [messages, scrollToBottom]);
 
   // 发送消息
   const handleSend = useCallback(async () => {
     if (!input.trim() || isChatting) return;
+
+    // 用户发送新消息时，重置滚动状态，确保自动滚到底部
+    isUserScrollingRef.current = false;
 
     const userMsg: ChatMessage = { role: 'user', content: input.trim() };
     setMessages(prev => [...prev, userMsg]);
@@ -683,7 +710,7 @@ export default function ChatPage() {
         </div>
 
         {/* 消息列表 */}
-        <div className="flex-1 overflow-y-auto scroll-smooth">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
             {messages.length === 0 ? (
               /* 空状态 - 精美引导页 */
