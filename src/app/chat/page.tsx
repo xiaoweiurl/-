@@ -202,7 +202,7 @@ export default function ChatPage() {
   const loadConversations = useCallback(async () => {
     const sid = getLoginSessionId();
     try {
-      const res = await fetch('/api/chat/conversations', {
+      const res = await fetch('/api/chat/conversations?mode=designer', {
         credentials: 'include',
         headers: sid ? { 'X-Session-Id': sid } : {},
       });
@@ -226,6 +226,7 @@ export default function ChatPage() {
     const sid = getLoginSessionId();
     try {
       const params = new URLSearchParams();
+      params.set('mode', 'designer');
       if (conversationId) params.set('conversationId', conversationId);
       const res = await fetch(`/api/chat/history?${params.toString()}`, {
         credentials: 'include',
@@ -296,7 +297,7 @@ export default function ChatPage() {
 
     try {
       const loginSid = getLoginSessionId();
-      const params = new URLSearchParams({ message: input.trim() });
+      const params = new URLSearchParams({ message: input.trim(), mode: 'designer' });
       if (activeSessionId) params.set('conversationId', activeSessionId);
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (loginSid) headers['X-Session-Id'] = loginSid;
@@ -493,7 +494,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
           ...(sid ? { 'X-Session-Id': sid } : {}),
         },
-        body: JSON.stringify({ title: '新对话' }),
+        body: JSON.stringify({ title: '新对话', mode: 'designer' }),
       });
       const data = await res.json();
       if (data.success && data.conversation) {
@@ -550,6 +551,7 @@ export default function ChatPage() {
     const sid = getLoginSessionId();
     try {
       const params = new URLSearchParams();
+      params.set('mode', 'designer');
       params.set('conversationId', activeSessionId);
       await fetch(`/api/chat/history?${params.toString()}`, {
         method: 'DELETE',

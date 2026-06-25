@@ -499,30 +499,40 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     @Transactional
-    public void clearChatHistory(String userId, String company, String conversationId) {
+    public void clearChatHistory(String userId, String company, String conversationId, String mode) {
         if (conversationId != null && !conversationId.isEmpty()) {
             jdbcTemplate.update(
                     "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
                     conversationId, userId, company
             );
         } else {
-            jdbcTemplate.update(
-                    "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
-                    userId, company
-            );
+            // 按mode筛选删除：只删除对应模式的对话历史
+            String modeCondition = (mode != null && !mode.isEmpty()) ? " AND conversation_id IN (SELECT id FROM smart_chat_conversations WHERE mode = ?)" : "";
+            if (mode != null && !mode.isEmpty()) {
+                jdbcTemplate.update(
+                        "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)" + modeCondition,
+                        userId, company, mode
+                );
+            } else {
+                jdbcTemplate.update(
+                        "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
+                        userId, company
+                );
+            }
         }
     }
 
     // ========== 对话管理 ==========
 
     @Override
-    public Map<String, Object> createConversation(String userId, String company, String title) {
+    public Map<String, Object> createConversation(String userId, String company, String title, String mode) {
         String convId = UUID.randomUUID().toString();
         String convTitle = (title != null && !title.isEmpty()) ? title : "新对话";
+        String modeValue = (mode != null && !mode.isEmpty()) ? mode : null;
         jdbcTemplate.update(
-                "INSERT INTO smart_chat_conversations (id, user_id, company, title, created_at, updated_at) " +
-                        "VALUES (?::uuid, ?, ?, ?, NOW(), NOW())",
-                convId, userId, company, convTitle
+                "INSERT INTO smart_chat_conversations (id, user_id, company, title, mode, created_at, updated_at) " +
+                        "VALUES (?::uuid, ?, ?, ?, ?::varchar, NOW(), NOW())",
+                convId, userId, company, convTitle, modeValue
         );
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", convId);
@@ -532,10 +542,21 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     @Override
-    public List<Map<String, Object>> getConversations(String userId, String company) {
-        String sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
-                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
-                "ORDER BY updated_at DESC";
+    public List<Map<String, Object>> getConversations(String userId, String company, String mode) {
+        String modeValue = (mode != null && !mode.isEmpty()) ? mode : null;
+        String sql;
+        Object[] params;
+        if (modeValue != null) {
+            sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
+                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND mode = ? " +
+                    "ORDER BY updated_at DESC";
+            params = new Object[]{userId, company, modeValue};
+        } else {
+            sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
+                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND mode IS NULL " +
+                    "ORDER BY updated_at DESC";
+            params = new Object[]{userId, company};
+        }
         return jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> conv = new LinkedHashMap<>();
@@ -545,7 +566,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     conv.put("updatedAt", rs.getTimestamp("updated_at").toLocalDateTime().toString());
                     return conv;
                 },
-                userId, company
+                params
         );
     }
 
@@ -576,20 +597,29 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 获取或创建默认对话
      */
-    private String getOrCreateDefaultConversation(String userId, String company) {
-        // 查找最近的对话
+    private String getOrCreateDefaultConversation(String userId, String company, String mode) {
+        // 查找最近的对话（按mode筛选）
+        String modeCondition = (mode != null && !mode.isEmpty()) ? "AND mode = ?" : "AND (mode IS NULL OR mode = '')";
         String sql = "SELECT id FROM smart_chat_conversations " +
-                "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                "WHERE user_id = ? AND (company = ? OR company IS NULL) " + modeCondition + " " +
                 "ORDER BY updated_at DESC LIMIT 1";
-        List<String> existing = jdbcTemplate.query(sql,
-                (rs, rowNum) -> rs.getString("id"),
-                userId, company
-        );
+        List<String> existing;
+        if (mode != null && !mode.isEmpty()) {
+            existing = jdbcTemplate.query(sql,
+                    (rs, rowNum) -> rs.getString("id"),
+                    userId, company, mode
+            );
+        } else {
+            existing = jdbcTemplate.query(sql,
+                    (rs, rowNum) -> rs.getString("id"),
+                    userId, company
+            );
+        }
         if (!existing.isEmpty()) {
             return existing.get(0);
         }
         // 没有对话则创建
-        Map<String, Object> conv = createConversation(userId, company, "新对话");
+        Map<String, Object> conv = createConversation(userId, company, "新对话", mode);
         return (String) conv.get("id");
     }
 

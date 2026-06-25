@@ -181,6 +181,28 @@ export default function SupplyChainPage() {
     }
   }, []);
 
+  // 加载工厂AI对话历史
+  useEffect(() => {
+    const sessionId = localStorage.getItem('session_id');
+    if (!sessionId) return;
+    
+    fetch(`/api/chat/history?mode=factory`, {
+      headers: { 'Authorization': `Bearer ${sessionId}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          const history = data.map((msg: { role: string; content: string; reasoning_content?: string }) => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+            reasoning: msg.reasoning_content || undefined,
+          }));
+          setChatMessages(history);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // 统一走 Next.js 代理，避免外网 CORS 问题
   const getApiBase = useCallback(() => {
     return '/api/proxy';

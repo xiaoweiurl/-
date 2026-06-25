@@ -6,18 +6,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 智能对话服务 - 双库检索(知识库+记忆库) + MiniMax流式对话
+ * 智能对话服务 - 双库检索(知识库+记忆库) + DeepSeek流式对话
  */
 public interface SmartChatService {
 
     /**
      * 智能对话 (SSE流式)
-     * 同时检索知识库和记忆库, 合并上下文后调MiniMax
+     * 同时检索知识库和记忆库, 合并上下文后调DeepSeek
      *
      * @param message        用户消息
      * @param userId         用户ID
      * @param company        用户所属公司
      * @param conversationId 对话ID（可选，为null时自动使用当前活跃对话）
+     * @param mode           对话模式（designer/factory，为null时默认designer）
      * @return SSE流式发射器
      */
     SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode);
@@ -37,27 +38,27 @@ public interface SmartChatService {
     }
 
     /**
-     * 获取对话历史（按conversationId）
+     * 获取对话历史（按conversationId和mode）
      */
-    List<Map<String, Object>> getChatHistory(String userId, String company, String conversationId);
+    List<Map<String, Object>> getChatHistory(String userId, String company, String conversationId, String mode);
 
     /**
-     * 获取对话历史（兼容旧接口，使用默认对话）
+     * 获取对话历史（兼容旧接口，默认designer模式）
      */
-    default List<Map<String, Object>> getChatHistory(String userId, String company) {
-        return getChatHistory(userId, company, null);
+    default List<Map<String, Object>> getChatHistory(String userId, String company, String conversationId) {
+        return getChatHistory(userId, company, conversationId, null);
     }
 
     /**
-     * 清空对话历史（按conversationId）
+     * 清空对话历史（按conversationId和mode）
      */
-    void clearChatHistory(String userId, String company, String conversationId);
+    void clearChatHistory(String userId, String company, String conversationId, String mode);
 
     /**
-     * 清空对话历史（兼容旧接口，清空所有）
+     * 清空对话历史（兼容旧接口，默认designer模式）
      */
-    default void clearChatHistory(String userId, String company) {
-        clearChatHistory(userId, company, null);
+    default void clearChatHistory(String userId, String company, String conversationId) {
+        clearChatHistory(userId, company, conversationId, null);
     }
 
     // ====== 对话管理 ======
@@ -65,12 +66,26 @@ public interface SmartChatService {
     /**
      * 创建新对话
      */
-    Map<String, Object> createConversation(String userId, String company, String title);
+    Map<String, Object> createConversation(String userId, String company, String title, String mode);
 
     /**
-     * 获取对话列表
+     * 创建新对话（兼容旧接口，默认designer模式）
      */
-    List<Map<String, Object>> getConversations(String userId, String company);
+    default Map<String, Object> createConversation(String userId, String company, String title) {
+        return createConversation(userId, company, title, null);
+    }
+
+    /**
+     * 获取对话列表（按mode筛选）
+     */
+    List<Map<String, Object>> getConversations(String userId, String company, String mode);
+
+    /**
+     * 获取对话列表（兼容旧接口，默认designer模式）
+     */
+    default List<Map<String, Object>> getConversations(String userId, String company) {
+        return getConversations(userId, company, null);
+    }
 
     /**
      * 更新对话标题
