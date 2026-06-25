@@ -416,7 +416,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 messages.add(Map.of("role", "user", "content", userContent));
 
                 // 6. 保存用户消息
-                saveChatMessage(userId, convId, "user", message, company, null);
+                saveChatMessage(userId, convId, "user", message, company, null, mode);
 
                 // 7. 流式调用DeepSeek V4 Pro
                 // 联网搜索策略：用户明确要求联网搜索，或通用闲聊，或知识库无结果时启用联网搜索
@@ -429,7 +429,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     // 8. 无论流是否成功，都保存已收集的AI回复（含思维链）
                     if (fullResponse.length() > 0) {
                         String reasoning = fullReasoning.length() > 0 ? fullReasoning.toString() : null;
-                        saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning);
+                        saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode);
                     }
                 }
 
@@ -457,7 +457,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         String modeCondition = "";
         Object[] params;
         if (mode != null && !mode.isEmpty()) {
-            modeCondition = " AND (mode = ? OR mode IS NULL) ";
+            modeCondition = " AND mode = ? ";
         }
 
         List<Map<String, Object>> results;
@@ -593,7 +593,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     public Map<String, Object> createConversation(String userId, String company, String title, String mode) {
         String convId = UUID.randomUUID().toString();
         String convTitle = (title != null && !title.isEmpty()) ? title : "新对话";
-        String modeValue = (mode != null && !mode.isEmpty()) ? mode : null;
+        String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
         jdbcTemplate.update(
                 "INSERT INTO smart_chat_conversations (id, user_id, company, title, mode, created_at, updated_at) " +
                         "VALUES (?::uuid, ?, ?, ?, ?::varchar, NOW(), NOW())",
@@ -617,8 +617,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "ORDER BY updated_at DESC";
             params = new Object[]{userId, company, modeValue};
         } else {
+            // 兼容旧数据：mode IS NULL 视为 designer
             sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND mode IS NULL " +
+                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND (mode = 'designer' OR mode IS NULL) " +
                     "ORDER BY updated_at DESC";
             params = new Object[]{userId, company};
         }
@@ -664,7 +665,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private String getOrCreateDefaultConversation(String userId, String company, String mode) {
         // 查找最近的对话（按mode筛选）
-        String modeCondition = (mode != null && !mode.isEmpty()) ? "AND mode = ?" : "AND (mode IS NULL OR mode = '')";
+        String modeCondition = (mode != null && !mode.isEmpty()) ? "AND mode = ?" : "AND mode = 'designer'";
         String sql = "SELECT id FROM smart_chat_conversations " +
                 "WHERE user_id = ? AND (company = ? OR company IS NULL) " + modeCondition + " " +
                 "ORDER BY updated_at DESC LIMIT 1";
@@ -1660,20 +1661,21 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 保存对话消息（按userId+company绑定，session_id存储为基于userId生成的确定性UUID）
      */
-    private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent) {
+    private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode) {
         try {
             if (content == null || content.trim().isEmpty()) {
                 log.warn("保存对话消息跳过: content为空, userId={}, role={}", userId, role);
                 return;
             }
-            log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, conversationId={}, hasReasoning={}", 
-                    userId, role, content.length(), company, conversationId, reasoningContent != null && !reasoningContent.isEmpty());
+            String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
+            log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, conversationId={}, hasReasoning={}, mode={}", 
+                    userId, role, content.length(), company, conversationId, reasoningContent != null && !reasoningContent.isEmpty(), modeValue);
             jdbcTemplate.update(
-                    "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, created_at) " +
-                            "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, NOW())",
-                    conversationId, conversationId, role, content, reasoningContent, userId, company
+                    "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, mode, created_at) " +
+                            "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, NOW())",
+                    conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue
             );
-            log.info("保存对话消息成功: userId={}, role={}", userId, role);
+            log.info("保存对话消息成功: userId={}, role={}, mode={}", userId, role, modeValue);
         } catch (Exception e) {
             log.error("保存对话消息失败: userId={}, role={}, error={}", userId, role, e.getMessage(), e);
         }
