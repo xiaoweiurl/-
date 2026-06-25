@@ -694,7 +694,7 @@ export default function ChatPage() {
                     flex items-center justify-center shadow-lg shadow-slate-200/50">
                     <Bot className="w-8 h-8 text-white" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-orange-500
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-slate-500 to-slate-600
                     flex items-center justify-center shadow-sm">
                     <Sparkles className="w-2.5 h-2.5 text-white" />
                   </div>
@@ -777,21 +777,21 @@ export default function ChatPage() {
                     {/* 思维链（DeepSeek思考模式） */}
                     {msg.role === 'assistant' && msg.reasoning && (
                       <details className="mb-2.5 group">
-                        <summary className="flex items-center gap-2 text-[11px] text-amber-500/80 cursor-pointer hover:text-amber-600 transition-colors select-none py-1">
+                        <summary className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer hover:text-slate-700 transition-colors select-none py-1">
                           <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                           <Lightbulb className="w-3 h-3 shrink-0" />
                           {msg.isThinking ? (
                             <span className="flex items-center gap-1.5">
-                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" />
                               正在深度思考...
                             </span>
                           ) : (
                             <span>思考过程</span>
                           )}
                         </summary>
-                        <div className="mt-1.5 p-3 bg-gradient-to-br from-amber-50/50 to-orange-50/30 border border-amber-100/50 rounded-xl text-[11.5px] text-amber-700/60 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
+                        <div className="mt-1.5 p-3 bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl text-[11.5px] text-slate-500 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
                           {msg.reasoning}
                         </div>
                       </details>
@@ -826,7 +826,7 @@ export default function ChatPage() {
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
-                          ${msg.isThinking ? 'bg-amber-400' : 'bg-slate-500'}`} />
+                          ${msg.isThinking ? 'bg-slate-400' : 'bg-slate-500'}`} />
                       )}
 
                       {/* 复制按钮 - 仅assistant消息完成时显示 */}
