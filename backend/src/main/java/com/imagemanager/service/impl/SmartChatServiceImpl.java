@@ -339,6 +339,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                         }
                     }
                     knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些产品及其图片。\n");
+                } else if (isImageSearchIntent(message)) {
+                    knowledgeContext.append("## 图片库搜索结果：未找到匹配的图片\n");
+                    knowledgeContext.append("用户请求在图片库中查找图片，但根据关键词搜索未找到任何匹配的产品图片。请如实告知用户图片库中没有找到相关图片，并建议用户尝试其他关键词或上传相关图片。\n");
                 }
 
                 // 5. 构建messages(含历史上下文)
@@ -633,17 +636,13 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private List<Map<String, Object>> searchImages(String query, String userId) {
         try {
-            // 提取查询关键词(简单分词，取2-6字的关键词)
-            String[] terms = query.split("[\\s,，。！？?]+");
-            List<String> keywords = new ArrayList<>();
-            for (String term : terms) {
-                String t = term.trim();
-                if (t.length() >= 2 && t.length() <= 10 && !isStopWord(t)) {
-                    keywords.add(t);
-                }
-            }
+            // 智能提取中文关键词
+            List<String> keywords = extractChineseKeywords(query);
+            log.info("图片搜索关键词提取: query={}, keywords={}", query, keywords);
+
             if (keywords.isEmpty()) {
-                keywords.add(query.trim());
+                log.info("未提取到有效关键词，跳过图片搜索");
+                return Collections.emptyList();
             }
 
             // 第一步: 先搜索匹配的图片(最多50张，确保每个产品都有图)
@@ -695,14 +694,41 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             log.info("图片搜索关键词匹配到 {} 条原始记录", rawImages.size());
 
-            // 如果关键词搜索不到，兜底返回用户最新的20张图片
-            if (rawImages.isEmpty()) {
-                log.info("关键词未匹配到图片，兜底返回用户最新图片");
-                String fallbackSql = "SELECT id, title, url, thumbnail_url, is_main_image, file_type, " +
-                        "width, height, product_id, album_name, created_at " +
-                        "FROM images WHERE deleted = false AND user_id = ? " +
-                        "ORDER BY created_at DESC LIMIT 20";
-                rawImages = jdbcTemplate.query(fallbackSql,
+            // 如果关键词搜索不到，尝试用更短的关键词（取每个关键词的前2字）再搜一次
+            if (rawImages.isEmpty() && keywords.stream().anyMatch(kw -> kw.length() > 2)) {
+                List<String> shortKeywords = new ArrayList<>();
+                for (String kw : keywords) {
+                    if (kw.length() > 2) {
+                        shortKeywords.add(kw.substring(0, 2));
+                    } else {
+                        shortKeywords.add(kw);
+                    }
+                }
+                log.info("尝试短关键词搜索: {}", shortKeywords);
+
+                StringBuilder fallbackSql = new StringBuilder();
+                fallbackSql.append("SELECT id, title, url, thumbnail_url, is_main_image, file_type, ");
+                fallbackSql.append("width, height, product_id, album_name, created_at ");
+                fallbackSql.append("FROM images WHERE deleted = false AND user_id = ? ");
+                fallbackSql.append("AND (");
+                for (int i = 0; i < shortKeywords.size(); i++) {
+                    if (i > 0) fallbackSql.append(" OR ");
+                    fallbackSql.append("(COALESCE(title, '') ILIKE ? OR COALESCE(description, '') ILIKE ? OR COALESCE(album_name, '') ILIKE ?)");
+                }
+                fallbackSql.append(") ");
+                fallbackSql.append("ORDER BY is_main_image DESC, created_at DESC ");
+                fallbackSql.append("LIMIT 50");
+
+                List<Object> fallbackParams = new ArrayList<>();
+                fallbackParams.add(userId);
+                for (String kw : shortKeywords) {
+                    String pattern = "%" + kw + "%";
+                    fallbackParams.add(pattern);
+                    fallbackParams.add(pattern);
+                    fallbackParams.add(pattern);
+                }
+
+                rawImages = jdbcTemplate.query(fallbackSql.toString(),
                         (rs, rowNum) -> {
                             Map<String, Object> img = new LinkedHashMap<>();
                             img.put("id", rs.getString("id"));
@@ -719,9 +745,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     ? rs.getTimestamp("created_at").toLocalDateTime().toString() : null);
                             return img;
                         },
-                        userId
+                        fallbackParams.toArray()
                 );
-                log.info("兜底查询返回 {} 条图片", rawImages.size());
+                log.info("短关键词搜索返回 {} 条记录", rawImages.size());
+            }
+
+            // 如果仍然搜索不到，返回空列表让AI告知用户（不再兜底返回无关图片）
+            if (rawImages.isEmpty()) {
+                log.info("关键词未匹配到图片，返回空结果");
+                return Collections.emptyList();
             }
 
             // 第二步: 按 product_id 分组，每个产品保留主图+详情图
@@ -775,11 +807,108 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     private boolean isStopWord(String word) {
-        String[] stops = {"一下", "一下", "什么", "怎么", "这个", "那个", "可以", "帮我", "请问"};
+        String[] stops = {"一下", "什么", "怎么", "这个", "那个", "可以", "帮我", "请问"};
         for (String s : stops) {
             if (word.equals(s)) return true;
         }
         return false;
+    }
+
+    /**
+     * 智能中文关键词提取
+     * 1. 先按标点和功能词分割
+     * 2. 去除停用词/功能词
+     * 3. 用滑动窗口提取2-4字子串，优先保留短词
+     * 4. 去重并保持顺序
+     */
+    private List<String> extractChineseKeywords(String query) {
+        // 第一步：按标点、空格和常见功能词分割
+        String cleaned = query.replaceAll("[\\s,，。！？?、；：\u201c\u201d\u2018\u2019（）()\\[\\]【】{}]+", " ");
+
+        // 去除常见的功能词/停用短语（按长度从长到短替换，避免部分匹配）
+        String[] functionalPhrases = {
+            "帮我去", "帮我找", "帮我看", "帮我搜", "帮我查",
+            "帮我推荐", "帮我搜索", "帮我查找", "帮我展示", "帮我显示",
+            "请帮我", "能不能", "可不可以",
+            "图片库中", "图片库里面", "图片库里",
+            "给我推荐", "给我找", "给我看", "给我搜",
+            "去图片库", "从图片库",
+            "推荐几款", "推荐几个", "推荐一些",
+            "有没有", "有多少", "是什么样的",
+            "是什么", "怎么样", "长什么样"
+        };
+        for (String phrase : functionalPhrases) {
+            cleaned = cleaned.replace(phrase, " ");
+        }
+
+        // 去除图片库相关词（搜索图片时这些不是有效关键词）
+        String[] imageStopWords = {"图片", "照片", "图片库", "图片列表", "相册", "主图", "详情图", "效果图",
+            "产品图", "商品图", "图片搜索", "图片查询"};
+        for (String sw : imageStopWords) {
+            cleaned = cleaned.replace(sw, " ");
+        }
+
+        // 第二步：按空格分割并收集候选词
+        String[] segments = cleaned.split("\\s+");
+        List<String> candidates = new ArrayList<>();
+        for (String seg : segments) {
+            String s = seg.trim();
+            if (s.length() >= 2 && s.length() <= 10) {
+                candidates.add(s);
+            }
+        }
+
+        // 第三步：如果候选词太少，用滑动窗口从原始查询中提取2-4字子串
+        if (candidates.size() < 2) {
+            String raw = query.replaceAll("[\\s,，。！？?、；：\u201c\u201d\u2018\u2019（）()\\[\\]【】{}]+", "");
+            Set<String> added = new HashSet<>();
+            for (String c : candidates) added.add(c);
+
+            // 先尝试4字窗口，再3字，再2字
+            for (int windowSize = 4; windowSize >= 2; windowSize--) {
+                for (int i = 0; i <= raw.length() - windowSize; i++) {
+                    String sub = raw.substring(i, i + windowSize);
+                    if (!isStopWord(sub) && !isSubStringOfExisting(sub, candidates) && !added.contains(sub)) {
+                        if (!isMostlyFunctional(sub)) {
+                            candidates.add(sub);
+                            added.add(sub);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 去重并保持顺序，限制最多8个关键词
+        List<String> keywords = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String kw : candidates) {
+            if (!seen.contains(kw) && kw.length() >= 2) {
+                seen.add(kw);
+                keywords.add(kw);
+                if (keywords.size() >= 8) break;
+            }
+        }
+
+        return keywords;
+    }
+
+    /** 检查子串是否已是某个候选词的子串（避免冗余） */
+    private boolean isSubStringOfExisting(String sub, List<String> candidates) {
+        for (String c : candidates) {
+            if (c.contains(sub) && !c.equals(sub)) return true;
+        }
+        return false;
+    }
+
+    /** 检查一个短子串是否主要由功能词组成 */
+    private boolean isMostlyFunctional(String sub) {
+        String[] functional = {"帮", "我", "去", "给", "的", "了", "吗", "呢", "几", "款", "些",
+            "一", "个", "张", "找", "看", "搜", "查", "要", "想", "能", "会", "有", "在"};
+        int funcCount = 0;
+        for (String f : functional) {
+            if (sub.contains(f)) funcCount++;
+        }
+        return funcCount > sub.length() / 2;
     }
 
     /**
