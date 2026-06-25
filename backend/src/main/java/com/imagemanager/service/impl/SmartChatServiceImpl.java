@@ -117,8 +117,12 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 联网搜索意图识别：当用户明确要求联网/全网搜索时，强制启用联网搜索
                 boolean webSearchIntent = isWebSearchIntent(message);
-                log.info("意图识别: mode={}, generalChatIntent={}, webSearchIntent={}, supplyChainIntent={}, positionIntent={}",
-                        mode, generalChatIntent, webSearchIntent, supplyChainIntent, positionIntent);
+
+                // 外部知识意图识别：当问题需要外部/通用知识时，跳过知识库检索直接联网搜索
+                boolean externalKnowledgeIntent = !isFactory && isExternalKnowledgeIntent(message);
+
+                log.info("意图识别: mode={}, generalChatIntent={}, webSearchIntent={}, externalKnowledgeIntent={}, supplyChainIntent={}, positionIntent={}",
+                        mode, generalChatIntent, webSearchIntent, externalKnowledgeIntent, supplyChainIntent, positionIntent);
 
                 // 3. 供应链/工厂数据检索(优先检索，命中后降低知识库检索权重)
                 List<Map<String, Object>> supplyChainResults = Collections.emptyList();
@@ -132,8 +136,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 4. 双库检索（工厂模式只检索供应链数据，不检索知识库/记忆库/岗位卡片）
+                // 外部知识意图时也跳过向量检索，因为这类问题需要联网搜索而非查PDF
                 boolean isFactory = "factory".equals(mode);
-                boolean skipVectorSearch = isFactory || (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
+                boolean skipVectorSearch = isFactory || (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent || externalKnowledgeIntent;
 
                 // 4a. 岗位卡片向量检索（仅设计师模式）
                 List<Map<String, Object>> positionCardResults = Collections.emptyList();
@@ -145,7 +150,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("岗位卡片检索异常: {}", e.getMessage());
                     }
                 } else {
-                    log.info("跳过岗位卡片检索: isFactory={}, generalChatIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
+                    log.info("跳过岗位卡片检索: isFactory={}, generalChatIntent={}, externalKnowledgeIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, externalKnowledgeIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
                 }
 
                 // 当岗位意图且岗位卡片有结果时，或通用闲聊意图时，跳过知识库PDF检索
@@ -161,7 +166,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("记忆库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    log.info("跳过向量检索: isFactory={}, generalChatIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
+                    log.info("跳过向量检索: isFactory={}, generalChatIntent={}, externalKnowledgeIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, externalKnowledgeIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
                 }
 
                 // 4c. 知识库检索（仅设计师模式）
@@ -174,7 +179,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("知识库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    String reason = isFactory ? "工厂模式" : (generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片"));
+                    String reason = isFactory ? "工厂模式" : (generalChatIntent ? "通用闲聊意图" : (externalKnowledgeIntent ? "外部知识意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片")));
                     log.info("跳过知识库检索（原因: {}）", reason);
                 }
 
@@ -377,13 +382,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "核心职责：" +
                             "1. 回答知识库管理、图片上传、AI识别、文档中心等设计师工作相关问题。" +
                             "2. 当用户询问岗位职责、工作内容、任职要求、入职指导等问题时，必须优先基于【岗位知识卡片】中的实际工作经验回答，不要用知识库文档中的泛泛内容替代。" +
-                            "3. 知识库文档（PDF/Word等）中的内容属于参考资料，仅在没有岗位卡片时作为补充。" +
-                            "4. 当知识库和记忆库中未检索到相关内容时，你可以基于自身通用知识回答用户问题，但需说明'以下回答基于通用知识，非企业内部资料'。" +
-                            "5. 回答时标注引用来源（岗位卡片/记忆库/知识库/通用知识/网络搜索）。" +
-                            "6. 保持专业、简洁、有帮助的回答风格。" +
-                            "7. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
+                            "3. 当用户询问设计趋势、行业动态、最佳实践、方法论等外部通用知识时，请基于网络搜索结果回答，而非知识库文档。" +
+                            "4. 回答时标注引用来源（岗位卡片/记忆库/知识库/网络搜索/通用知识）。" +
+                            "5. 保持专业、简洁、有帮助的回答风格。" +
+                            "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
-                            (webSearchIntent ? "8. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
+                            (webSearchIntent ? "7. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
                 }
                 messages.add(Map.of("role", "system", "content", systemPrompt));
 
@@ -419,6 +423,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答，不要使用知识库文档内容替代业务数据。";
                     } else if (positionIntent && hasPositionCards) {
                         userContent += "\n\n请优先基于上方【岗位知识卡片】中的实际工作经验回答，不要使用知识库文档内容替代岗位卡片中的精确信息。";
+                    } else if (externalKnowledgeIntent) {
+                        userContent += "\n\n用户的问题涉及外部通用知识/行业趋势/方法论等，知识库文档中可能没有相关内容，请基于网络搜索结果回答，如果网络搜索无结果则基于自身通用知识回答。";
                     } else {
                         userContent += "\n\n请优先基于以上知识内容回答，如资料不足以完整回答，可补充自身通用知识，并标注来源。";
                     }
@@ -431,12 +437,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 saveChatMessage(userId, convId, "user", message, company, null, mode);
 
                 // 7. 流式调用DeepSeek V4 Pro
-                // 联网搜索策略：工厂模式下供应链无数据时启用联网搜索；设计师模式下知识库无结果时启用联网搜索
+                // 联网搜索策略：
+                // - 工厂模式：供应链无数据时启用联网搜索
+                // - 设计师模式：外部知识意图/联网搜索意图/通用闲聊时直接联网搜索；知识库无结果时也联网搜索
                 boolean enableWebSearch;
                 if (isFactory) {
                     enableWebSearch = webSearchIntent || generalChatIntent || supplyChainResults.isEmpty();
                 } else {
-                    enableWebSearch = webSearchIntent || generalChatIntent || knowledgeContext.isEmpty();
+                    enableWebSearch = webSearchIntent || generalChatIntent || externalKnowledgeIntent || knowledgeContext.isEmpty();
                 }
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
@@ -938,6 +946,49 @@ public class SmartChatServiceImpl implements SmartChatService {
         for (String s : stops) {
             if (word.equals(s)) return true;
         }
+        return false;
+    }
+
+    /**
+     * 检测用户问题是否需要外部/通用知识（而非企业内部知识库）。
+     * 典型场景：设计趋势、最佳实践、如何做某事、行业通用方法等，
+     * 这些问题知识库中通常没有相关内容，应该直接联网搜索而非检索PDF文档。
+     */
+    private boolean isExternalKnowledgeIntent(String message) {
+        String lower = message.toLowerCase().trim();
+
+        // 先排除：明确涉及企业内部数据管理的问题，不应联网搜索
+        String[] internalPatterns = {
+            "知识库中的", "知识库里的", "记忆库中的", "记忆库里的",
+            "我的文档", "我上传的", "文档分类", "图片库中的", "图片库里的",
+            "岗位卡片", "我的知识", "内部资料"
+        };
+        for (String kw : internalPatterns) {
+            if (lower.contains(kw)) return false;
+        }
+
+        // 明确需要外部知识的模式
+        String[] externalPatterns = {
+            // 趋势/动态类（需要最新外部信息）
+            "趋势", "动态", "潮流", "风向", "流行",
+            // 方法论/最佳实践类（通用知识，非企业内部）
+            "如何", "怎么", "怎样", "最佳实践", "技巧", "方法论",
+            "方法", "策略", "方案", "建议", "推荐",
+            // 学习/资料搜索类
+            "搜索", "查找资料", "找资料", "学习", "了解",
+            "总结", "归纳", "梳理",
+            // 通用概念/原理类
+            "什么是", "什么叫", "原理", "概念", "定义",
+            // 对比/选择类
+            "对比", "区别", "选择", "哪个好", "优劣",
+            // 行业通用（非企业内部数据）
+            "行业", "市场", "竞品", "设计风格", "设计规范"
+        };
+
+        for (String kw : externalPatterns) {
+            if (lower.contains(kw)) return true;
+        }
+
         return false;
     }
 
