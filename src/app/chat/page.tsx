@@ -672,22 +672,22 @@ export default function ChatPage() {
               </div>
               <div>
                 <h1 className="text-sm font-semibold text-slate-700">AI 智能对话</h1>
-                <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1">
-                    <Brain className="w-2.5 h-2.5 text-blue-400" />
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[10px] font-medium border border-blue-200/40">
+                    <Brain className="w-2.5 h-2.5" />
                     记忆库
                   </span>
-                  <span className="text-slate-200">+</span>
-                  <span className="inline-flex items-center gap-1">
-                    <BookOpen className="w-2.5 h-2.5 text-emerald-400" />
+                  <span className="text-slate-200 text-[10px]">+</span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-medium border border-emerald-200/40">
+                    <BookOpen className="w-2.5 h-2.5" />
                     知识库
                   </span>
-                  <span className="text-slate-200">+</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Globe className="w-2.5 h-2.5 text-blue-400" />
+                  <span className="text-slate-200 text-[10px]">+</span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-medium border border-sky-200/40">
+                    <Globe className="w-2.5 h-2.5" />
                     联网搜索
                   </span>
-                </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1001,27 +1001,27 @@ export default function ChatPage() {
                 {isChatting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-[10px] text-slate-300 mt-2 text-center flex items-center justify-center gap-2">
-              <span className="flex items-center gap-1">
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[10px] font-medium border border-blue-200/40">
                 <Brain className="w-2.5 h-2.5" />
                 记忆库
               </span>
-              <span>+</span>
-              <span className="flex items-center gap-1">
+              <span className="text-slate-300 text-[10px]">+</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-medium border border-emerald-200/40">
                 <BookOpen className="w-2.5 h-2.5" />
                 知识库
               </span>
-              <span>+</span>
-              <span className="flex items-center gap-1">
+              <span className="text-slate-300 text-[10px]">+</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-medium border border-sky-200/40">
                 <Globe className="w-2.5 h-2.5" />
                 联网搜索
               </span>
-              <span className="text-slate-300">|</span>
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700/60 text-white text-[10px] font-medium tracking-wide">
+              <span className="text-slate-300 text-[10px]">|</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700/60 text-white text-[10px] font-medium tracking-wide">
                 <Zap className="w-2.5 h-2.5 text-yellow-400" />
                 DeepSeek V4 Pro
               </span>
-            </p>
+            </div>
           </div>
         </div>
       </div>
