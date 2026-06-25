@@ -81,6 +81,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.deepseek.reasoning-effort:high}")
     private String deepseekReasoningEffort;
 
+    @Value("${app.deepseek.web-search-enabled:true}")
+    private boolean deepseekWebSearchEnabled;
+
+    @Value("${app.deepseek.web-search-context-size:medium}")
+    private String deepseekWebSearchContextSize;
+
     @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId) {
         log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}'", message, userId, company, conversationId);
@@ -389,10 +395,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                 saveChatMessage(userId, convId, "user", message, company, null);
 
                 // 7. 流式调用DeepSeek V4 Pro
+                // 联网搜索策略：通用闲聊或知识库无结果时启用联网搜索
+                boolean enableWebSearch = generalChatIntent || knowledgeContext.isEmpty();
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
                 try {
-                    streamChat(emitter, messages, fullResponse, fullReasoning);
+                    streamChat(emitter, messages, fullResponse, fullReasoning, enableWebSearch);
                 } finally {
                     // 8. 无论流是否成功，都保存已收集的AI回复（含思维链）
                     if (fullResponse.length() > 0) {
@@ -1404,7 +1412,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      *              data: {"choices":[{"delta":{"content":"..."}}]}              (最终回答)
      */
     private void streamChat(SseEmitter emitter, List<Map<String, Object>> messages,
-                            StringBuilder fullResponse, StringBuilder reasoningContent) {
+                            StringBuilder fullResponse, StringBuilder reasoningContent, boolean enableWebSearch) {
         try {
             String apiKey = deepseekApiKey;
             if (apiKey == null || apiKey.isEmpty()) {
@@ -1433,6 +1441,15 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
 
             body.put("messages", messages);
+
+            // 联网搜索配置（DeepSeek会自动判断是否需要联网搜索）
+            if (deepseekWebSearchEnabled && enableWebSearch) {
+                Map<String, Object> webSearchOptions = new HashMap<>();
+                webSearchOptions.put("enable", true);
+                webSearchOptions.put("search_context_size", deepseekWebSearchContextSize);
+                body.put("web_search_options", webSearchOptions);
+                log.info("已开启DeepSeek联网搜索, search_context_size={}", deepseekWebSearchContextSize);
+            }
 
             // 请求DeepSeek API
             String endpointUrl = deepseekBaseUrl;

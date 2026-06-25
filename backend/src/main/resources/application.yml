@@ -111,6 +111,10 @@ app:
     thinking-enabled: ${DEEPSEEK_THINKING_ENABLED:true}
     # 推理强度：high 或 max
     reasoning-effort: ${DEEPSEEK_REASONING_EFFORT:high}
+    # 联网搜索：true=开启（DeepSeek会自动判断是否需要联网），false=关闭
+    web-search-enabled: ${DEEPSEEK_WEB_SEARCH_ENABLED:true}
+    # 联网搜索上下文大小：low/medium/high（影响搜索结果数量和token消耗）
+    web-search-context-size: ${DEEPSEEK_WEB_SEARCH_CONTEXT_SIZE:medium}
   
   # 去水印配置
   watermark:
