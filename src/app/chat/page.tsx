@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
 import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
-  Bot, User, BookOpen, Brain, Loader2, Sparkles
+  Bot, User, BookOpen, Brain, Loader2, Sparkles,
+  Globe, ChevronRight, Lightbulb, Copy, Check
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
@@ -26,8 +27,8 @@ interface ChatImage {
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
-  reasoning?: string; // DeepSeek思考模式思维链
-  searchResults?: string; // 联网搜索结果摘要
+  reasoning?: string;
+  searchResults?: string;
   sources?: Array<{
     source: 'memory' | 'knowledge';
     title?: string;
@@ -37,7 +38,7 @@ interface ChatMessage {
   }>;
   images?: ChatImage[];
   isStreaming?: boolean;
-  isThinking?: boolean; // 正在思考中
+  isThinking?: boolean;
 }
 
 interface ChatSession {
@@ -71,7 +72,6 @@ function formatTime(ts: number): string {
   }
 }
 
-// 生成UUID（兼容不支持crypto.randomUUID的环境）
 function generateId(): string {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -83,6 +83,27 @@ function generateId(): string {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+}
+
+// ===== 复制按钮组件 =====
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="p-1 rounded-md text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all"
+      title="复制内容"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
 }
 
 // ===== 主组件 =====
@@ -100,7 +121,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // 客户端挂载标记 - 防止hydration不匹配
+  // 客户端挂载标记
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -115,7 +136,6 @@ export default function ChatPage() {
         const expires = localStorage.getItem('session_expires');
 
         if (!sid) {
-          // 先检测后端是否可用，不可用则降级
           try {
             const probeRes = await backendFetch('/albums?pageSize=1');
             if (probeRes.status === 502) {
@@ -133,7 +153,6 @@ export default function ChatPage() {
         }
 
         if (expires && Date.now() > parseInt(expires, 10)) {
-          // 过期时也先检查后端
           try {
             const probeRes = await backendFetch('/albums?pageSize=1');
             if (probeRes.status === 502) {
@@ -154,7 +173,6 @@ export default function ChatPage() {
 
         setAuthChecked(true);
       } catch {
-        // localStorage不可用时仍然允许访问
         setAuthChecked(true);
       }
     };
@@ -212,7 +230,7 @@ export default function ChatPage() {
     return [];
   }, []);
 
-  // 初始化：加载对话列表，自动选中最近的对话
+  // 初始化：加载对话列表
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
@@ -272,16 +290,15 @@ export default function ChatPage() {
       let sources: ChatMessage['sources'] = [];
       let images: ChatImage[] = [];
       const decoder = new TextDecoder();
-      let sseBuffer = ''; // SSE 行缓冲区，防止跨 chunk 断行
+      let sseBuffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         sseBuffer += decoder.decode(value, { stream: true });
-        // 按双换行分割SSE事件，保留不完整的末尾
         const parts = sseBuffer.split('\n');
-        sseBuffer = parts.pop() || ''; // 最后一个元素可能不完整，留到下次
+        sseBuffer = parts.pop() || '';
 
         for (const line of parts) {
           if (!line.startsWith('data:')) continue;
@@ -312,7 +329,6 @@ export default function ChatPage() {
                 return updated;
               });
             } else if (event.type === 'reasoning_delta') {
-              // DeepSeek思考模式：思维链增量片段
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
@@ -326,7 +342,6 @@ export default function ChatPage() {
                 return updated;
               });
             } else if (event.type === 'reasoning') {
-              // 思考完成，标记思考结束
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
@@ -390,7 +405,7 @@ export default function ChatPage() {
         }
       }
 
-      // 处理缓冲区中可能残留的最后一条数据
+      // 处理缓冲区
       if (sseBuffer.startsWith('data:')) {
         const data = sseBuffer.substring(5).trim();
         if (data) {
@@ -526,7 +541,6 @@ export default function ChatPage() {
     '织造环节的成本占比是多少？',
   ];
 
-  // 未挂载或未认证时显示加载状态（避免hydration问题）
   if (!mounted || !authChecked) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
@@ -542,46 +556,51 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-violet-50/20">
       {/* 左侧边栏 */}
       {showSidebar && (
-        <div className="w-64 border-r border-slate-200/50 bg-white flex flex-col">
+        <div className="w-72 border-r border-slate-200/50 bg-white/80 backdrop-blur-sm flex flex-col shadow-sm">
           {/* 侧边栏头部 */}
-          <div className="p-3 border-b border-slate-100">
+          <div className="p-4 border-b border-slate-100/80">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
                 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-medium
-                hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm"
+                hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md
+                active:scale-[0.98]"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               新建对话
             </button>
           </div>
 
           {/* 对话列表 */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {sessions.length === 0 ? (
-              <div className="text-center py-8 text-slate-300 text-xs">
-                <MessageSquare className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                暂无对话记录
+              <div className="text-center py-12 text-slate-300 text-xs">
+                <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                <p>暂无对话记录</p>
+                <p className="text-[10px] mt-1 text-slate-300/60">点击上方按钮开始新对话</p>
               </div>
             ) : (
               sessions.map(s => (
                 <div key={s.id} className="group relative">
                   <button
                     onClick={() => handleSwitchChat(s.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-all border
+                    className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border
                       ${s.id === activeSessionId
-                        ? 'bg-violet-50/80 text-violet-700 border-violet-100/60'
-                        : 'text-slate-600 border-transparent hover:bg-slate-50 hover:text-slate-700'}`}
+                        ? 'bg-gradient-to-r from-violet-50 to-purple-50/50 text-violet-700 border-violet-100/80 shadow-sm'
+                        : 'text-slate-500 border-transparent hover:bg-slate-50/80 hover:text-slate-700'}`}
                   >
-                    <div className="text-xs font-medium truncate pr-6">{s.title}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{formatTime(s.timestamp)}</div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${s.id === activeSessionId ? 'bg-violet-500' : 'bg-slate-300'}`} />
+                      <div className="text-xs font-medium truncate pr-6 flex-1">{s.title}</div>
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 ml-4">{formatTime(s.timestamp)}</div>
                   </button>
                   <button
                     onClick={(e) => handleDeleteChat(s.id, e)}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg
                       text-slate-300 hover:text-red-500 hover:bg-red-50
                       opacity-0 group-hover:opacity-100 transition-all"
                     title="删除对话"
@@ -594,11 +613,11 @@ export default function ChatPage() {
           </div>
 
           {/* 底部操作 */}
-          <div className="p-2 border-t border-slate-100">
+          <div className="p-3 border-t border-slate-100/80">
             <button
               onClick={() => router.push('/')}
-              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-slate-400
-                hover:bg-slate-50 hover:text-slate-600 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-400
+                hover:bg-slate-50 hover:text-slate-600 transition-all"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               返回主页
@@ -610,83 +629,114 @@ export default function ChatPage() {
       {/* 主聊天区域 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部栏 */}
-        <div className="h-12 border-b border-slate-200/50 bg-white
-          flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-2.5">
+        <div className="h-14 border-b border-slate-200/50 bg-white/80 backdrop-blur-sm
+          flex items-center justify-between px-5 shrink-0">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSidebar(!showSidebar)}
               className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors lg:hidden"
             >
               <MessageSquare className="w-4 h-4 text-slate-400" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600
                 flex items-center justify-center shadow-sm">
-                <Sparkles className="w-3.5 h-3.5 text-white" />
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-xs font-semibold text-slate-700">AI 智能对话</h1>
-                <p className="text-[10px] text-slate-400">记忆库 + 知识库 双库检索</p>
+                <h1 className="text-sm font-semibold text-slate-700">AI 智能对话</h1>
+                <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1">
+                    <Brain className="w-2.5 h-2.5 text-blue-400" />
+                    记忆库
+                  </span>
+                  <span className="text-slate-200">+</span>
+                  <span className="inline-flex items-center gap-1">
+                    <BookOpen className="w-2.5 h-2.5 text-emerald-400" />
+                    知识库
+                  </span>
+                  <span className="text-slate-200">+</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Globe className="w-2.5 h-2.5 text-blue-400" />
+                    联网搜索
+                  </span>
+                </p>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={handleClearChat}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+              className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
               title="清空对话"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-1.5 rounded-lg text-slate-300 hover:bg-slate-100 transition-colors hidden lg:block"
+              className="p-2 rounded-lg text-slate-300 hover:bg-slate-100 transition-colors hidden lg:block"
               title="切换侧边栏"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
+              <MessageSquare className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* 消息列表 */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto scroll-smooth">
+          <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
             {messages.length === 0 ? (
-              /* 空状态 */
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600
-                  flex items-center justify-center mb-4 shadow-md">
-                  <Bot className="w-6 h-6 text-white" />
+              /* 空状态 - 精美引导页 */
+              <div className="flex flex-col items-center justify-center py-16">
+                {/* Logo */}
+                <div className="relative mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600
+                    flex items-center justify-center shadow-lg shadow-violet-200/50">
+                    <Bot className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-orange-500
+                    flex items-center justify-center shadow-sm">
+                    <Sparkles className="w-2.5 h-2.5 text-white" />
+                  </div>
                 </div>
-                <h2 className="text-base font-semibold text-slate-700 mb-1">AI 智能对话</h2>
-                <p className="text-xs text-slate-400 mb-6 text-center max-w-sm">
-                  基于记忆库知识卡片和知识库文档的智能检索，为您提供精准的专业问答
+
+                <h2 className="text-lg font-bold text-slate-800 mb-1.5">AI 智能对话</h2>
+                <p className="text-sm text-slate-400 mb-8 text-center max-w-sm leading-relaxed">
+                  融合记忆库、知识库与全网搜索，为您提供精准、专业的智能问答
                 </p>
 
-                {/* 双库标识 */}
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 text-[10px] font-medium">
-                    <Brain className="w-3 h-3" />
+                {/* 三大能力标签 */}
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium border border-blue-100/60">
+                    <Brain className="w-3.5 h-3.5" />
                     记忆库检索
                   </div>
-                  <span className="text-slate-200 text-xs">+</span>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-600 text-[10px] font-medium">
-                    <BookOpen className="w-3 h-3" />
+                  <div className="w-px h-4 bg-slate-200" />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-medium border border-emerald-100/60">
+                    <BookOpen className="w-3.5 h-3.5" />
                     知识库检索
+                  </div>
+                  <div className="w-px h-4 bg-slate-200" />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-600 text-xs font-medium border border-sky-100/60">
+                    <Globe className="w-3.5 h-3.5" />
+                    联网搜索
                   </div>
                 </div>
 
                 {/* 快捷问题 */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg">
                   {quickQuestions.map((q, i) => (
                     <button
                       key={i}
                       onClick={() => setInput(q)}
-                      className="text-left px-3 py-2 rounded-lg border border-slate-200/60
-                        text-xs text-slate-500 hover:border-violet-200 hover:bg-violet-50/30
-                        hover:text-violet-600 transition-all"
+                      className="group text-left px-4 py-3 rounded-xl border border-slate-200/60 bg-white
+                        text-sm text-slate-500 hover:border-violet-200 hover:bg-gradient-to-r hover:from-violet-50/50 hover:to-purple-50/30
+                        hover:text-violet-600 hover:shadow-sm transition-all active:scale-[0.98]"
                     >
-                      {q}
+                      <div className="flex items-center gap-2.5">
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-violet-400 shrink-0 transition-colors" />
+                        <span className="text-[13px] leading-snug">{q}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -694,41 +744,46 @@ export default function ChatPage() {
             ) : (
               /* 消息列表 */
               messages.map((msg, i) => (
-                <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  key={i}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} chat-msg-enter`}
+                >
                   {msg.role === 'assistant' && (
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600
                       flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                      <Bot className="w-3.5 h-3.5 text-white" />
+                      <Bot className="w-4 h-4 text-white" />
                     </div>
                   )}
-                  <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-first' : ''}`}>
+                  <div className={`max-w-[80%] min-w-0 ${msg.role === 'user' ? '' : ''}`}>
                     {/* 来源标签 */}
                     {msg.sources && msg.sources.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1.5">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
                         {msg.sources.map((s, j) => (
                           <span
                             key={j}
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border
                               ${s.source === 'memory'
-                                ? 'bg-blue-50 text-blue-500'
-                                : 'bg-emerald-50 text-emerald-500'}`}
+                                ? 'bg-blue-50/80 text-blue-500 border-blue-100/50'
+                                : 'bg-emerald-50/80 text-emerald-500 border-emerald-100/50'}`}
                           >
                             {s.source === 'memory' ? <Brain className="w-2.5 h-2.5" /> : <BookOpen className="w-2.5 h-2.5" />}
                             {s.source === 'memory' ? s.title || s.domain || '记忆库' : '知识库'}
-                            <span className="opacity-60">{(s.score * 100).toFixed(0)}%</span>
+                            <span className="opacity-50 ml-0.5">{(s.score * 100).toFixed(0)}%</span>
                           </span>
                         ))}
                       </div>
                     )}
+
                     {/* 思维链（DeepSeek思考模式） */}
                     {msg.role === 'assistant' && msg.reasoning && (
-                      <details className="mb-2 group">
-                        <summary className="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer hover:text-slate-500 transition-colors select-none">
-                          <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <details className="mb-2.5 group">
+                        <summary className="flex items-center gap-2 text-[11px] text-amber-500/80 cursor-pointer hover:text-amber-600 transition-colors select-none py-1">
+                          <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
+                          <Lightbulb className="w-3 h-3 shrink-0" />
                           {msg.isThinking ? (
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1.5">
                               <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                               正在深度思考...
                             </span>
@@ -736,48 +791,56 @@ export default function ChatPage() {
                             <span>思考过程</span>
                           )}
                         </summary>
-                        <div className="mt-1.5 p-2.5 bg-slate-50/80 border border-slate-100 rounded-lg text-[11px] text-slate-400 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                        <div className="mt-1.5 p-3 bg-gradient-to-br from-amber-50/50 to-orange-50/30 border border-amber-100/50 rounded-xl text-[11.5px] text-amber-700/60 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
                           {msg.reasoning}
                         </div>
                       </details>
                     )}
+
+                    {/* 联网搜索结果 */}
                     {msg.role === 'assistant' && msg.searchResults && (
-                      <details className="mb-2 group" open>
-                        <summary className="flex items-center gap-1.5 text-[11px] text-blue-400 cursor-pointer hover:text-blue-500 transition-colors select-none">
-                          <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <details className="mb-2.5 group" open>
+                        <summary className="flex items-center gap-2 text-[11px] text-sky-500 cursor-pointer hover:text-sky-600 transition-colors select-none py-1">
+                          <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" /></svg>
-                            联网搜索结果
-                          </span>
+                          <Globe className="w-3 h-3 shrink-0" />
+                          <span>联网搜索结果</span>
                         </summary>
-                        <div className="mt-1 text-[11px] text-blue-500/80 bg-blue-50/50 rounded-lg p-2 whitespace-pre-wrap border border-blue-100/50">
+                        <div className="mt-1.5 text-[11.5px] text-sky-600/70 bg-gradient-to-br from-sky-50/50 to-blue-50/30 rounded-xl p-3 whitespace-pre-wrap border border-sky-100/50 shadow-sm leading-relaxed">
                           {msg.searchResults}
                         </div>
                       </details>
                     )}
+
                     {/* 消息内容 */}
-                    <div className={`px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed
+                    <div className={`relative group/msg
                       ${msg.role === 'user'
-                        ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-tr-sm'
-                        : 'bg-white border border-slate-200/60 text-slate-600 shadow-sm rounded-tl-sm'}`}
+                        ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/30'
+                        : 'px-4 py-3 rounded-2xl rounded-tl-md bg-white border border-slate-200/60 text-slate-600 shadow-sm'}`}
                     >
                       {msg.role === 'user' ? (
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                       ) : (
                         <MarkdownRenderer content={msg.content || ''} />
                       )}
                       {msg.isStreaming && (
-                        <span className={`inline-block w-1.5 h-3.5 ml-0.5 align-middle animate-pulse
+                        <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
                           ${msg.isThinking ? 'bg-amber-400' : 'bg-violet-500'}`} />
+                      )}
+
+                      {/* 复制按钮 - 仅assistant消息完成时显示 */}
+                      {msg.role === 'assistant' && !msg.isStreaming && msg.content && (
+                        <div className="absolute -right-1 -top-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                          <CopyButton text={msg.content} />
+                        </div>
                       )}
                     </div>
 
-                    {/* 图片结果 - 按产品分组展示(主图+详情图) */}
+                    {/* 图片结果 */}
                     {msg.images && msg.images.length > 0 && (
                       <div className="mt-3 space-y-3">
-                        <div className="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                        <div className="text-xs text-slate-400 mb-2 flex items-center gap-1.5">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                               d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -786,7 +849,6 @@ export default function ChatPage() {
                         </div>
                         {msg.images.map((product: ChatImage & { mainImage?: ChatImage; detailImages?: ChatImage[]; productName?: string; albumName?: string }, pIdx: number) => (
                           <div key={pIdx} className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-                            {/* 产品标题 */}
                             {(product.productName || product.albumName) && (
                               <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/50">
                                 <p className="text-xs font-medium text-slate-700 truncate">
@@ -797,7 +859,6 @@ export default function ChatPage() {
                                 )}
                               </div>
                             )}
-                            {/* 主图 */}
                             {product.mainImage && (
                               <div className="p-2">
                                 <a
@@ -829,7 +890,6 @@ export default function ChatPage() {
                                 </a>
                               </div>
                             )}
-                            {/* 详情图 */}
                             {product.detailImages && product.detailImages.length > 0 && (
                               <div className="px-2 pb-2">
                                 <p className="text-[10px] text-slate-400 mb-1.5">详情图 ({product.detailImages.length}张)</p>
@@ -867,7 +927,7 @@ export default function ChatPage() {
                   </div>
                   {msg.role === 'user' && (
                     <div className="w-8 h-8 rounded-xl bg-slate-100
-                      flex items-center justify-center shrink-0 mt-1">
+                      flex items-center justify-center shrink-0 mt-0.5">
                       <User className="w-4 h-4 text-slate-500" />
                     </div>
                   )}
@@ -878,10 +938,10 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* 输入框 */}
-        <div className="border-t border-slate-200/50 bg-white p-3 shrink-0">
+        {/* 输入框区域 */}
+        <div className="border-t border-slate-200/50 bg-white/80 backdrop-blur-sm p-4 shrink-0">
           <div className="max-w-3xl mx-auto">
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-3">
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}
@@ -893,29 +953,44 @@ export default function ChatPage() {
                       handleSend();
                     }
                   }}
-                  placeholder="输入您的问题，AI将基于记忆库和知识库检索回答..."
+                  placeholder="输入您的问题，AI 将智能检索并回答..."
                   rows={1}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200/60
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200/60
                     bg-slate-50/50 text-slate-700 text-[13px] resize-none
                     focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-300 focus:bg-white
-                    placeholder:text-slate-400 transition-all"
-                  style={{ maxHeight: '120px', minHeight: '38px', color: '#334155' }}
+                    placeholder:text-slate-400 transition-all shadow-sm"
+                  style={{ maxHeight: '120px', minHeight: '44px', color: '#334155' }}
                   disabled={isChatting}
                 />
               </div>
               <button
                 onClick={handleSend}
                 disabled={isChatting || !input.trim()}
-                className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all
+                className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all
                   ${isChatting || !input.trim()
                     ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:shadow-md'}`}
+                    : 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/40 hover:shadow-lg hover:shadow-violet-300/40 active:scale-95'}`}
               >
-                {isChatting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                {isChatting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-[10px] text-slate-300 mt-1.5 text-center">
-              记忆库 + 知识库 双库检索 · MiniMax AI 驱动
+            <p className="text-[10px] text-slate-300 mt-2 text-center flex items-center justify-center gap-2">
+              <span className="flex items-center gap-1">
+                <Brain className="w-2.5 h-2.5" />
+                记忆库
+              </span>
+              <span>+</span>
+              <span className="flex items-center gap-1">
+                <BookOpen className="w-2.5 h-2.5" />
+                知识库
+              </span>
+              <span>+</span>
+              <span className="flex items-center gap-1">
+                <Globe className="w-2.5 h-2.5" />
+                联网搜索
+              </span>
+              <span className="text-slate-200">|</span>
+              <span>DeepSeek V4 Pro 驱动</span>
             </p>
           </div>
         </div>
