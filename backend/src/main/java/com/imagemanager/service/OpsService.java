@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import javax.sql.DataSource;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -20,6 +21,7 @@ import java.util.*;
 public class OpsService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
 
     /**
      * 获取API调用指标（返回格式匹配前端 MonitorTab）
@@ -180,7 +182,7 @@ public class OpsService {
             try {
                 String reqCountSql = "SELECT COUNT(*) as cnt FROM api_metrics WHERE created_at >= ?" +
                         (company != null ? " AND company = ?" : "");
-                long reqCount = toLong(jdbcTemplate.queryForMap(reqCountSql, params).get("cnt"));
+                long reqCount = toLong(jdbcTemplate.queryForMap(reqCountSql, statsParams).get("cnt"));
                 network.put("totalRequests", reqCount);
             } catch (Exception ex) {
                 network.put("totalRequests", 0);
@@ -337,7 +339,7 @@ public class OpsService {
             long gcPauseMs = 0;
             try {
                 for (var gcBean : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
-                    gcPauseMs += gcBean.getGcInfo() != null ? gcBean.getGcInfo().getDuration() : 0;
+                    gcPauseMs += gcBean.getCollectionTime();
                 }
             } catch (Exception ignored) {}
 
@@ -355,48 +357,31 @@ public class OpsService {
             jvm.put("peakThreadCount", peakThreadCount);
             runtime.put("jvm", jvm);
 
-            // 数据库连接池指标（HikariCP）
+            // 数据库连接池指标（通过注入的 DataSource 获取 HikariCP 指标）
             Map<String, Object> database = new HashMap<>();
+            int activeConns = 0, idleConns = 0, maxConns = 0, waitingConns = 0;
             try {
-                var hikariDataSources = com.zaxxer.hikari.HikariConfig.class; // 确保类存在
-                // 通过 JNDI 或 Spring 查找 HikariDataSource
-                int activeConns = 0, idleConns = 0, maxConns = 0, waitingConns = 0;
-                try {
-                    // 尝试从 Spring ApplicationContext 获取 HikariDataSource
-                    var ctx = org.springframework.web.context.support.WebApplicationContextUtils
-                            .getWebApplicationContext(((org.springframework.web.context.request.ServletRequestAttributes)
-                                    org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()).getServletContext());
-                    if (ctx != null) {
-                        var dsBeans = ctx.getBeansOfType(com.zaxxer.hikari.HikariDataSource.class);
-                        for (var entry : dsBeans.entrySet()) {
-                            var pool = entry.getValue().getHikariPoolMXBean();
-                            if (pool != null) {
-                                activeConns += pool.getActiveConnections();
-                                idleConns += pool.getIdleConnections();
-                                maxConns += entry.getValue().getMaximumPoolSize();
-                                waitingConns += pool.getThreadsAwaitingConnection();
-                            }
-                        }
+                if (dataSource instanceof com.zaxxer.hikari.HikariDataSource hikariDs) {
+                    var pool = hikariDs.getHikariPoolMXBean();
+                    if (pool != null) {
+                        activeConns = pool.getActiveConnections();
+                        idleConns = pool.getIdleConnections();
+                        maxConns = hikariDs.getMaximumPoolSize();
+                        waitingConns = pool.getThreadsAwaitingConnection();
                     }
-                } catch (Exception ignored) {}
-                database.put("activeConnections", activeConns);
-                database.put("maxConnections", maxConns > 0 ? maxConns : 100);
-                database.put("waitingConnections", waitingConns);
-                database.put("avgQueryMs", 0);
-                // 慢查询数从 api_metrics 表中统计
-                try {
-                    String slowCountSql = "SELECT COUNT(*) FROM api_metrics WHERE response_time_ms > 1000 AND created_at >= ?" +
-                            (company != null ? " AND company = ?" : "");
-                    long slowCount = toLong(jdbcTemplate.queryForMap(slowCountSql, params).get("count"));
-                    database.put("slowQueryCount", slowCount);
-                } catch (Exception ex) {
-                    database.put("slowQueryCount", 0);
                 }
-            } catch (NoClassDefFoundError e) {
-                database.put("activeConnections", 0);
-                database.put("maxConnections", 100);
-                database.put("waitingConnections", 0);
-                database.put("avgQueryMs", 0);
+            } catch (NoClassDefFoundError | Exception ignored) {}
+            database.put("activeConnections", activeConns);
+            database.put("maxConnections", maxConns > 0 ? maxConns : 100);
+            database.put("waitingConnections", waitingConns);
+            database.put("avgQueryMs", 0);
+            // 慢查询数从 api_metrics 表中统计
+            try {
+                String slowCountSql = "SELECT COUNT(*) as cnt FROM api_metrics WHERE response_time_ms > 1000 AND created_at >= ?" +
+                        (company != null ? " AND company = ?" : "");
+                long slowCount = toLong(jdbcTemplate.queryForMap(slowCountSql, params).get("cnt"));
+                database.put("slowQueryCount", slowCount);
+            } catch (Exception ex) {
                 database.put("slowQueryCount", 0);
             }
             runtime.put("database", database);
