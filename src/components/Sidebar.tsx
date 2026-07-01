@@ -710,6 +710,11 @@ export default function Sidebar({
       icon: LayoutDashboard,
     },
     {
+      id: 'ai-center',
+      label: 'AI 能力中心',
+      icon: Brain,
+    },
+    {
       id: 'all',
       label: '全部知识',
       icon: BookOpen,

@@ -1449,6 +1449,12 @@ export default function Home() {
       return;
     }
 
+    // 如果点击AI能力中心，跳转到AI能力中心页面
+    if (item === 'ai-center') {
+      router.push('/ai-center');
+      return;
+    }
+
     // 如果点击系统设置，跳转到设置页面
     if (item === 'settings') {
       router.push('/settings');
