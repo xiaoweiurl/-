@@ -97,7 +97,7 @@ export default function AuditLogs() {
         params.append('action', actionFilter);
       }
 
-      const response = await fetch(`/api/audit/logs?${params.toString()}`);
+      const response = await fetch(`/api/audit?${params.toString()}`);
       const data: AuditLogsResponse = await response.json();
 
       if (data.logs) {

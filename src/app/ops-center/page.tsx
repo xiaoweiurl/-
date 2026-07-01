@@ -110,7 +110,7 @@ export default function OpsCenterPage() {
         fetch('/api/ops/metrics'),
         fetch('/api/ops/errors'),
         fetch('/api/ops/performance'),
-        fetch('/api/audit/logs?pageSize=30'),
+        fetch('/api/audit?pageSize=30'),
         fetch('/api/backup?pageSize=10'),
       ]);
 
