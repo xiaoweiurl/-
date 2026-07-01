@@ -99,8 +99,11 @@ export default function OpsCenterPage() {
   const [loading, setLoading] = useState(true);
   const [expandedError, setExpandedError] = useState<string | null>(null);
 
+  const [apiError, setApiError] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setApiError(null);
     try {
       const [mRes, eRes, pRes, aRes, bRes] = await Promise.all([
         fetch('/api/ops/metrics'),
@@ -109,16 +112,32 @@ export default function OpsCenterPage() {
         fetch('/api/audit/logs?pageSize=30'),
         fetch('/api/backup?pageSize=10'),
       ]);
+
+      // 逐个安全解析，HTTP错误时跳过
+      const safeJson = async (res: Response) => {
+        if (!res.ok) return null;
+        try { return await res.json(); } catch { return null; }
+      };
+
       const [mData, eData, pData, aData, bData] = await Promise.all([
-        mRes.json(), eRes.json(), pRes.json(), aRes.json(), bRes.json(),
+        safeJson(mRes), safeJson(eRes), safeJson(pRes), safeJson(aRes), safeJson(bRes),
       ]);
-      if (mData.success) setMetrics(mData.data);
-      if (eData.success) setErrors(eData.data.errors);
-      if (pData.success) setPerf(pData.data);
-      if (aData.success) setAuditLogs(aData.logs || aData.data?.logs || []);
-      if (bData.success) setBackups(bData.backups || bData.data?.backups || []);
+
+      const failedApis: string[] = [];
+      if (mData?.success) setMetrics(mData.data); else failedApis.push('API监控');
+      if (eData?.success) setErrors(eData.data.errors); else failedApis.push('错误追踪');
+      if (pData?.success) setPerf(pData.data); else failedApis.push('性能指标');
+      if (aData?.success) setAuditLogs(aData.logs || aData.data?.logs || []); else failedApis.push('操作审计');
+      if (bData?.success) setBackups(bData.backups || bData.data?.backups || []); else failedApis.push('备份管理');
+
+      if (failedApis.length === 5) {
+        setApiError('后端服务未启动，请确保Java后端正在运行');
+      } else if (failedApis.length > 0) {
+        setApiError(`${failedApis.join('、')}数据加载失败`);
+      }
     } catch (e) {
       console.error('Failed to fetch ops data:', e);
+      setApiError('网络请求失败，请检查服务连接');
     } finally {
       setLoading(false);
     }
@@ -176,6 +195,15 @@ export default function OpsCenterPage() {
         ))}
       </div>
 
+      {/* 服务连接错误提示 */}
+      {apiError && (
+        <div className="px-6 py-3 bg-orange-500/10 border-b border-orange-500/20 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" />
+          <span className="text-sm text-orange-300">{apiError}</span>
+          <button onClick={fetchData} className="ml-auto text-xs text-orange-400 hover:text-orange-300 underline">重试</button>
+        </div>
+      )}
+
       {/* 内容区 */}
       <div className="flex-1 overflow-y-auto p-6">
         {loading && !metrics ? (
@@ -199,7 +227,12 @@ export default function OpsCenterPage() {
 
 // ============ API 监控 Tab ============
 function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
-  if (!metrics) return null;
+  if (!metrics) return (
+    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+      <Server className="w-10 h-10 mb-3 text-slate-600" />
+      <p className="text-sm">后端服务未连接，API监控数据暂不可用</p>
+    </div>
+  );
   const { summary, hourlyRequests, endpoints, systemResources: sys } = metrics;
 
   const maxRequests = Math.max(...hourlyRequests.map(h => h.total));
@@ -454,7 +487,12 @@ function ErrorsTab({ errors, expandedError, setExpandedError }: { errors: ErrorI
 
 // ============ 性能指标 Tab ============
 function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
-  if (!perf) return null;
+  if (!perf) return (
+    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+      <Zap className="w-10 h-10 mb-3 text-slate-600" />
+      <p className="text-sm">后端服务未连接，性能指标数据暂不可用</p>
+    </div>
+  );
   const { services, slowQueries, runtime } = perf;
 
   return (
