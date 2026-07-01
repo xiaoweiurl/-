@@ -1458,6 +1458,10 @@ export default function Home() {
       router.push('/data-assets');
       return;
     }
+    if (item === 'ops-center') {
+      router.push('/ops-center');
+      return;
+    }
 
     // 如果点击系统设置，跳转到设置页面
     if (item === 'settings') {

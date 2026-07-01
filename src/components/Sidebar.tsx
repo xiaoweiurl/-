@@ -39,6 +39,7 @@ import {
   Scissors,
   Cloud,
   Database,
+  Server,
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';
 import {
@@ -719,6 +720,11 @@ export default function Sidebar({
       id: 'data-assets',
       label: '数据资产',
       icon: Database,
+    },
+    {
+      id: 'ops-center',
+      label: '运维中心',
+      icon: Server,
     },
     {
       id: 'all',
