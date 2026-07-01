@@ -213,10 +213,10 @@ export default function OpsCenterPage() {
         ) : (
           <>
             {activeTab === 'monitor' && <MonitorTab metrics={metrics} />}
-            {activeTab === 'errors' && <ErrorsTab errors={errors} expandedError={expandedError} setExpandedError={setExpandedError} />}
+            {activeTab === 'errors' && <ErrorsTab errors={errors || []} expandedError={expandedError} setExpandedError={setExpandedError} />}
             {activeTab === 'performance' && <PerformanceTab perf={perf} />}
-            {activeTab === 'audit' && <AuditTab logs={auditLogs} />}
-            {activeTab === 'backup' && <BackupTab backups={backups} onRefresh={fetchData} />}
+            {activeTab === 'audit' && <AuditTab logs={auditLogs || []} />}
+            {activeTab === 'backup' && <BackupTab backups={backups || []} onRefresh={fetchData} />}
             {activeTab === 'users' && <UsersTab />}
           </>
         )}
@@ -233,9 +233,8 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
       <p className="text-sm">后端服务未连接，API监控数据暂不可用</p>
     </div>
   );
-  const { summary, hourlyRequests, endpoints, systemResources: sys } = metrics;
-
-  const maxRequests = Math.max(...hourlyRequests.map(h => h.total));
+  const { summary = {} as any, hourlyRequests = [], endpoints = [], systemResources: sys = {} as any } = metrics;
+  const maxRequests = hourlyRequests.length > 0 ? Math.max(...hourlyRequests.map((h: any) => h.total)) : 1;
 
   return (
     <div className="space-y-6">
@@ -493,7 +492,7 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
       <p className="text-sm">后端服务未连接，性能指标数据暂不可用</p>
     </div>
   );
-  const { services, slowQueries, runtime } = perf;
+  const { services = [], slowQueries = [], runtime = {} as any } = perf;
 
   return (
     <div className="space-y-6">
