@@ -118,6 +118,17 @@ public class BackupController {
     }
 
     /**
+     * 获取备份列表（根路径，同 /list）
+     */
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> getBackupListRoot(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            HttpServletRequest request) {
+        return getBackupList(page, pageSize, request);
+    }
+
+    /**
      * 获取备份列表
      */
     @GetMapping("/list")

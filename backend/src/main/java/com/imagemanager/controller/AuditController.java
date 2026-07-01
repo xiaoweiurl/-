@@ -27,6 +27,17 @@ public class AuditController {
     private final AuditService auditService;
 
     /**
+     * 获取审计日志列表（根路径，管理员可看全部，普通用户看自己的）
+     */
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> getLogsRoot(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            HttpServletRequest request) {
+        return getMyLogs(page, pageSize, request);
+    }
+
+    /**
      * 获取当前用户的操作日志
      */
     @GetMapping("/my")
