@@ -128,8 +128,8 @@ export default function OpsCenterPage() {
       if (mData?.success) setMetrics(mData.data); else failedApis.push('API监控');
       if (eData?.success) setErrors(eData.data.errors); else failedApis.push('错误追踪');
       if (pData?.success) setPerf(pData.data); else failedApis.push('性能指标');
-      if (aData?.success) setAuditLogs(aData.logs || aData.data?.logs || []); else failedApis.push('操作审计');
-      if (bData?.success) setBackups(bData.backups || bData.data?.backups || []); else failedApis.push('备份管理');
+      if (aData?.success) setAuditLogs(Array.isArray(aData.data) ? aData.data : (aData.logs || [])); else failedApis.push('操作审计');
+      if (bData?.success) setBackups(Array.isArray(bData.data) ? bData.data : (bData.backups || bData.data?.backups || [])); else failedApis.push('备份管理');
 
       if (failedApis.length === 5) {
         setApiError('无法连接后端服务（默认 http://localhost:8080/api），请检查Java后端是否启动及端口配置');

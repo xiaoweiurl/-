@@ -19,8 +19,19 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Autowired
     private AuthInterceptor authInterceptor;
     
+    @Autowired
+    private ApiMetricsInterceptor apiMetricsInterceptor;
+    
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // API 监控拦截器（在 auth 之前，记录所有请求）
+        registry.addInterceptor(apiMetricsInterceptor)
+            .addPathPatterns("/**")
+            .excludePathPatterns(
+                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/**",
+                "/favicon.ico", "/error", "/static/**", "/webjars/**"
+            );
+        
         registry.addInterceptor(authInterceptor)
             .addPathPatterns("/**")
             .excludePathPatterns(
