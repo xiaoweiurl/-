@@ -302,37 +302,37 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-400 flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> CPU</span>
-                <span className="text-slate-300 font-mono">{sys.cpu.current}% <span className="text-slate-500">/ 峰值 {sys.cpu.peak}%</span></span>
+                <span className="text-slate-300 font-mono">{(sys.cpu?.current ?? 0)}% <span className="text-slate-500">/ 峰值 {(sys.cpu?.peak ?? 0)}%</span></span>
               </div>
               <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${sys.cpu.current > 70 ? 'bg-red-500' : sys.cpu.current > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`} style={{ width: `${sys.cpu.current}%` }} />
+                <div className={`h-full rounded-full transition-all ${(sys.cpu?.current ?? 0) > 70 ? 'bg-red-500' : (sys.cpu?.current ?? 0) > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`} style={{ width: `${(sys.cpu?.current ?? 0)}%` }} />
               </div>
             </div>
             {/* Memory */}
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-400 flex items-center gap-1.5"><MemoryStick className="w-3.5 h-3.5" /> 内存</span>
-                <span className="text-slate-300 font-mono">{sys.memory.usedMb}MB / {sys.memory.totalMb}MB</span>
+                <span className="text-slate-300 font-mono">{(sys.memory?.usedMb ?? 0)}MB / {(sys.memory?.totalMb ?? 1)}MB</span>
               </div>
               <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${(sys.memory.usedMb/sys.memory.totalMb*100) > 70 ? 'bg-red-500' : (sys.memory.usedMb/sys.memory.totalMb*100) > 50 ? 'bg-yellow-500' : 'bg-cyan-500'}`} style={{ width: `${Math.round(sys.memory.usedMb/sys.memory.totalMb*100)}%` }} />
+                <div className={`h-full rounded-full transition-all ${((sys.memory?.usedMb ?? 0)/(sys.memory?.totalMb ?? 1)*100) > 70 ? 'bg-red-500' : ((sys.memory?.usedMb ?? 0)/(sys.memory?.totalMb ?? 1)*100) > 50 ? 'bg-yellow-500' : 'bg-cyan-500'}`} style={{ width: `${Math.round((sys.memory?.usedMb ?? 0)/(sys.memory?.totalMb ?? 1)*100)}%` }} />
               </div>
             </div>
             {/* Disk */}
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-400 flex items-center gap-1.5"><HardDrive className="w-3.5 h-3.5" /> 磁盘</span>
-                <span className="text-slate-300 font-mono">{sys.disk.usedGb}GB / {sys.disk.totalGb}GB</span>
+                <span className="text-slate-300 font-mono">{(sys.disk?.usedGb ?? 0)}GB / {(sys.disk?.totalGb ?? 1)}GB</span>
               </div>
               <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${sys.disk.percentage > 80 ? 'bg-red-500' : sys.disk.percentage > 60 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${sys.disk.percentage}%` }} />
+                <div className={`h-full rounded-full transition-all ${(sys.disk?.percentage ?? 0) > 80 ? 'bg-red-500' : (sys.disk?.percentage ?? 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${(sys.disk?.percentage ?? 0)}%` }} />
               </div>
             </div>
             {/* Network */}
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-400 flex items-center gap-1.5"><Network className="w-3.5 h-3.5" /> 网络</span>
-                <span className="text-slate-300 font-mono">↑{sys.network.outboundKbps}K ↓{sys.network.inboundKbps}K</span>
+                <span className="text-slate-300 font-mono">↑{(sys.network?.outboundKbps ?? 0)}K ↓{(sys.network?.inboundKbps ?? 0)}K</span>
               </div>
             </div>
           </div>
@@ -408,7 +408,7 @@ function ErrorsTab({ errors, expandedError, setExpandedError }: { errors: ErrorI
         </div>
         <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
           <div className="text-sm text-slate-400 mb-1">总发生次数</div>
-          <div className="text-2xl font-bold text-slate-100 font-mono">{fmt(errors.reduce((s, e) => s + e.occurrences, 0))}</div>
+          <div className="text-2xl font-bold text-slate-100 font-mono">{fmt(errors.reduce((s, e) => s + (e.occurrences ?? 1), 0))}</div>
         </div>
       </div>
 
@@ -425,7 +425,7 @@ function ErrorsTab({ errors, expandedError, setExpandedError }: { errors: ErrorI
                 className="w-full px-5 py-3.5 flex items-start gap-3 hover:bg-slate-700/20 transition-colors text-left"
               >
                 <div className={`mt-0.5 px-2 py-0.5 rounded text-[10px] font-semibold border ${severityColor(err.severity)}`}>
-                  {err.severity.toUpperCase()}
+                  {(err.severity || 'low').toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -450,12 +450,12 @@ function ErrorsTab({ errors, expandedError, setExpandedError }: { errors: ErrorI
                 <div className="px-5 pb-4 ml-9 space-y-3">
                   <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700/30">
                     <div className="text-xs text-slate-400 mb-1">堆栈追踪</div>
-                    <pre className="text-xs text-red-300/80 font-mono whitespace-pre-wrap">{err.stack}</pre>
+                    <pre className="text-xs text-red-300/80 font-mono whitespace-pre-wrap">{err.stack || '暂无堆栈信息'}</pre>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs">
                     <div className="bg-slate-900/50 rounded-lg p-2.5">
                       <div className="text-slate-500 mb-0.5">HTTP 状态码</div>
-                      <div className="text-slate-200 font-mono">{err.statusCode}</div>
+                      <div className="text-slate-200 font-mono">{err.statusCode ?? '-'}</div>
                     </div>
                     <div className="bg-slate-900/50 rounded-lg p-2.5">
                       <div className="text-slate-500 mb-0.5">首次出现</div>
@@ -514,20 +514,20 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
                   <span className="text-sm font-medium text-slate-200">{svc.name}</span>
                 </div>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded border
-                  ${svc.status === 'healthy' ? 'text-green-400 bg-green-500/10 border-green-500/20' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'}`}>
-                  {svc.status.toUpperCase()}
+                  ${(svc.status ?? 'warning') === 'healthy' ? 'text-green-400 bg-green-500/10 border-green-500/20' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'}`}>
+                  {(svc.status ?? 'unknown').toUpperCase()}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><span className="text-slate-500">P50</span> <span className="text-slate-300 font-mono ml-1">{fmtMs(svc.responseTime?.p50 ?? 0)}</span></div>
                 <div><span className="text-slate-500">P99</span> <span className="text-slate-300 font-mono ml-1">{fmtMs(svc.responseTime?.p99 ?? 0)}</span></div>
                 <div><span className="text-slate-500">吞吐</span> <span className="text-slate-300 font-mono ml-1">{svc.throughput ?? 0}/s</span></div>
-                <div><span className="text-slate-500">错误率</span> <span className={`font-mono ml-1 ${svc.errorRate ?? 0 > 2 ? 'text-red-400' : svc.errorRate ?? 0 > 1 ? 'text-yellow-400' : 'text-green-400'}`}>{svc.errorRate ?? 0}%</span></div>
+                <div><span className="text-slate-500">错误率</span> <span className={`font-mono ml-1 ${(svc.errorRate ?? 0) > 2 ? 'text-red-400' : (svc.errorRate ?? 0) > 1 ? 'text-yellow-400' : 'text-green-400'}`}>{svc.errorRate ?? 0}%</span></div>
                 <div className="col-span-2">
                   <span className="text-slate-500">连接</span>
-                  <span className="text-slate-300 font-mono ml-1">{svc.connections}/{svc.maxConnections}</span>
+                  <span className="text-slate-300 font-mono ml-1">{svc.connections ?? 0}/{svc.maxConnections ?? 0}</span>
                   <div className="h-1 bg-slate-700/50 rounded-full mt-1 overflow-hidden">
-                    <div className={`h-full rounded-full ${(svc.connections / svc.maxConnections) > 0.8 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${(svc.connections / svc.maxConnections) * 100}%` }} />
+                    <div className={`h-full rounded-full ${((svc.connections ?? 0) / Math.max((svc.maxConnections ?? 1), 1)) > 0.8 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(((svc.connections ?? 0) / Math.max((svc.maxConnections ?? 1), 1)) * 100, 100)}%` }} />
                   </div>
                 </div>
               </div>
@@ -564,18 +564,18 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">堆内存</div>
-                  <div className="text-slate-200 font-mono">{runtime.jvm.heapUsedMb}MB / {runtime.jvm.heapMaxMb}MB</div>
+                  <div className="text-slate-200 font-mono">{(runtime.jvm?.heapUsedMb ?? 0)}MB / {(runtime.jvm?.heapMaxMb ?? 0)}MB</div>
                   <div className="h-1.5 bg-slate-700/50 rounded-full mt-1.5 overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(runtime.jvm.heapUsedMb / runtime.jvm.heapMaxMb) * 100}%` }} />
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${((runtime.jvm?.heapUsedMb ?? 0) / Math.max((runtime.jvm?.heapMaxMb ?? 1), 1)) * 100}%` }} />
                   </div>
                 </div>
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">GC 暂停</div>
-                  <div className="text-slate-200 font-mono">{runtime.jvm.gcPauseMs}ms</div>
+                  <div className="text-slate-200 font-mono">{(runtime.jvm?.gcPauseMs ?? 0)}ms</div>
                 </div>
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">线程数</div>
-                  <div className="text-slate-200 font-mono">{runtime.jvm.threadCount} <span className="text-slate-500">/ 峰值 {runtime.jvm.peakThreadCount}</span></div>
+                  <div className="text-slate-200 font-mono">{(runtime.jvm?.threadCount ?? 0)} <span className="text-slate-500">/ 峰值 {(runtime.jvm?.peakThreadCount ?? 0)}</span></div>
                 </div>
               </div>
             </div>
@@ -585,11 +585,11 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">RSS</div>
-                  <div className="text-slate-200 font-mono">{runtime.node.rssMb}MB</div>
+                  <div className="text-slate-200 font-mono">{(runtime.node?.rssMb ?? 0)}MB</div>
                 </div>
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">堆内存</div>
-                  <div className="text-slate-200 font-mono">{runtime.node.heapUsedMb}MB / {runtime.node.heapTotalMb}MB</div>
+                  <div className="text-slate-200 font-mono">{(runtime.node?.heapUsedMb ?? 0)}MB / {(runtime.node?.heapTotalMb ?? 0)}MB</div>
                 </div>
               </div>
             </div>
@@ -599,15 +599,15 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">活跃连接</div>
-                  <div className="text-slate-200 font-mono">{runtime.database.activeConnections}/{runtime.database.maxConnections}</div>
+                  <div className="text-slate-200 font-mono">{(runtime.database?.activeConnections ?? 0)}/{(runtime.database?.maxConnections ?? 0)}</div>
                 </div>
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">平均查询</div>
-                  <div className="text-slate-200 font-mono">{runtime.database.avgQueryMs}ms</div>
+                  <div className="text-slate-200 font-mono">{(runtime.database?.avgQueryMs ?? 0)}ms</div>
                 </div>
                 <div className="bg-slate-900/50 rounded-lg p-2.5">
                   <div className="text-slate-500">慢查询</div>
-                  <div className={`font-mono ${runtime.database.slowQueryCount > 0 ? 'text-yellow-400' : 'text-slate-200'}`}>{runtime.database.slowQueryCount}</div>
+                  <div className={`font-mono ${(runtime.database?.slowQueryCount ?? 0) > 0 ? 'text-yellow-400' : 'text-slate-200'}`}>{(runtime.database?.slowQueryCount ?? 0)}</div>
                 </div>
               </div>
             </div>
@@ -661,16 +661,16 @@ function AuditTab({ logs }: { logs: AuditLog[] }) {
               {logs.map((log, i) => (
                 <tr key={i} className="border-b border-slate-700/10 hover:bg-slate-700/20 transition-colors">
                   <td className="py-2.5 px-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs ${actionColor[log.action] || 'text-slate-400 bg-slate-500/10'}`}>
-                      {actionIcons[log.action] || <Activity className="w-3.5 h-3.5" />}
-                      {log.action}
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs ${actionColor[log.action || ''] || 'text-slate-400 bg-slate-500/10'}`}>
+                      {actionIcons[log.action || ''] || <Activity className="w-3.5 h-3.5" />}
+                      {log.action || '-'}
                     </span>
                   </td>
-                  <td className="py-2.5 px-4 text-slate-300 text-xs">{log.username}</td>
-                  <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[300px] truncate">{log.details}</td>
-                  <td className="py-2.5 px-4 text-slate-400 text-xs font-mono">{log.resourceType}#{log.resourceId}</td>
-                  <td className="py-2.5 px-4 text-slate-500 text-xs font-mono">{log.ipAddress}</td>
-                  <td className="py-2.5 px-4 text-slate-500 text-xs">{timeAgo(log.createdAt)}</td>
+                  <td className="py-2.5 px-4 text-slate-300 text-xs">{log.username || '-'}</td>
+                  <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[300px] truncate">{log.details || '-'}</td>
+                  <td className="py-2.5 px-4 text-slate-400 text-xs font-mono">{(log.resourceType || '')}#{(log.resourceId || '')}</td>
+                  <td className="py-2.5 px-4 text-slate-500 text-xs font-mono">{log.ipAddress || '-'}</td>
+                  <td className="py-2.5 px-4 text-slate-500 text-xs">{timeAgo(log.createdAt || '')}</td>
                 </tr>
               ))}
             </tbody>
@@ -729,10 +729,10 @@ function BackupTab({ backups, onRefresh }: { backups: BackupItem[]; onRefresh: (
           </thead>
           <tbody>
             {backups.map((bk, i) => {
-              const tl = typeLabel[bk.type] || { label: bk.type, color: 'text-slate-400 bg-slate-500/10' };
+              const tl = typeLabel[bk.type || ''] || { label: bk.type || 'unknown', color: 'text-slate-400 bg-slate-500/10' };
               return (
                 <tr key={i} className="border-b border-slate-700/10 hover:bg-slate-700/20 transition-colors">
-                  <td className="py-2.5 px-5 text-slate-200">{bk.name}</td>
+                  <td className="py-2.5 px-5 text-slate-200">{bk.name || '未命名'}</td>
                   <td className="py-2.5 px-5">
                     <span className={`px-2 py-0.5 rounded text-xs ${tl.color}`}>{tl.label}</span>
                   </td>
