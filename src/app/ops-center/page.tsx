@@ -780,8 +780,10 @@ function UsersTab() {
     fetch('/api/users')
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.users) {
-          setUsers(data.users);
+        if (data.success) {
+          // handleBackendResponse 返回 { success, data } ，data 即用户数组
+          const userList = Array.isArray(data.data) ? data.data : (data.users || []);
+          setUsers(userList);
         }
       })
       .catch(err => console.error('Failed to load users:', err));
