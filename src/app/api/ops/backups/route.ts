@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    console.error('[API] /api/backup GET proxy error:', error);
-    return NextResponse.json({ success: false, error: '无法连接备份服务' }, { status: 502 });
+    console.error('[API] /api/ops/backups GET proxy error:', error);
+    return NextResponse.json({ success: false, error: '无法连接运维服务' }, { status: 502 });
   }
 }
 
@@ -51,34 +51,7 @@ export async function POST(request: NextRequest) {
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    console.error('[API] /api/backup POST proxy error:', error);
-    return NextResponse.json({ success: false, error: '无法连接备份服务' }, { status: 502 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  const sessionId = extractSessionId(request);
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  if (!backendUrl) {
-    return NextResponse.json({ success: false, error: '后端 API 未配置' }, { status: 500 });
-  }
-
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ success: false, error: '缺少备份ID' }, { status: 400 });
-    }
-
-    const url = `${backendUrl}/api/backup/${id}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (sessionId) headers['x-session-id'] = sessionId;
-
-    const res = await fetch(url, { method: 'DELETE', headers });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
-  } catch (error) {
-    console.error('[API] /api/backup DELETE proxy error:', error);
-    return NextResponse.json({ success: false, error: '无法连接备份服务' }, { status: 502 });
+    console.error('[API] /api/ops/backups POST proxy error:', error);
+    return NextResponse.json({ success: false, error: '无法连接运维服务' }, { status: 502 });
   }
 }

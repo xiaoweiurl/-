@@ -657,8 +657,9 @@ function BackupTab({ backups, onRefresh }: { backups: BackupItem[]; onRefresh: (
         <button
           onClick={async () => {
             setCreating(true);
-            // 模拟创建备份
-            await new Promise(r => setTimeout(r, 1500));
+            // 创建备份
+            const res = await fetch('/api/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'full' }) });
+            if (!res.ok) console.error('Backup creation failed');
             setCreating(false);
             onRefresh();
           }}
@@ -732,14 +733,15 @@ function UsersTab() {
   }>>([]);
 
   useEffect(() => {
-    // 加载模拟用户数据
-    setUsers([
-      { id: '1', username: 'admin', role: 'admin', email: 'admin@yingyun.com', status: 'active', lastLogin: new Date(Date.now() - 3600000).toISOString(), createdAt: '2025-01-01T00:00:00Z' },
-      { id: '2', username: 'user1', role: 'user', email: 'user1@yingyun.com', status: 'active', lastLogin: new Date(Date.now() - 86400000).toISOString(), createdAt: '2025-02-15T00:00:00Z' },
-      { id: '3', username: 'designer', role: 'user', email: 'designer@yingyun.com', status: 'active', lastLogin: new Date(Date.now() - 172800000).toISOString(), createdAt: '2025-03-10T00:00:00Z' },
-      { id: '4', username: 'factory_op', role: 'user', email: 'factory@yingyun.com', status: 'active', lastLogin: new Date(Date.now() - 7200000).toISOString(), createdAt: '2025-04-01T00:00:00Z' },
-      { id: '5', username: 'guest', role: 'user', email: 'guest@yingyun.com', status: 'inactive', lastLogin: new Date(Date.now() - 30 * 86400000).toISOString(), createdAt: '2025-05-01T00:00:00Z' },
-    ]);
+    // 加载真实用户数据
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.users) {
+          setUsers(data.users);
+        }
+      })
+      .catch(err => console.error('Failed to load users:', err));
   }, []);
 
   return (
