@@ -851,7 +851,7 @@ export default function ChatPage() {
                       {msg.role === 'user' ? (
                         <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                       ) : (
-                        <MarkdownRenderer content={msg.content || ''} />
+                        <MarkdownRenderer content={msg.content || ''} darkMode />
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full

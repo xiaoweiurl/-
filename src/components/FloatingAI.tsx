@@ -411,7 +411,7 @@ export default function FloatingAI() {
                   }`}>
                     {msg.role === 'assistant' ? (
                       <div className="text-[13px] leading-relaxed">
-                        <MarkdownRenderer content={msg.content || (msg.isStreaming ? '' : '...')} />
+                        <MarkdownRenderer content={msg.content || (msg.isStreaming ? '' : '...')} darkMode />
                         {msg.isStreaming && msg.content && (
                           <span className="inline-block w-1.5 h-4 bg-blue-400 ml-0.5 animate-pulse rounded-sm" />
                         )}
