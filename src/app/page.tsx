@@ -1774,7 +1774,7 @@ export default function Home() {
   // 加载中状态
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f172a] to-[#0a1628] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 text-violet-500 animate-spin" />
           <p className="text-slate-500">加载中...</p>

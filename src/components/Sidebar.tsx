@@ -131,7 +131,7 @@ function SubMenuItem({
   selectedIds = new Set<string>(),
   onToggleSelect,
   selectable = true,
-  brandAccent = 'violet',
+  brandAccent = 'blue',
 }: {
   item: MenuItem;
   activeItem: string;
@@ -158,8 +158,8 @@ function SubMenuItem({
           'group flex items-center gap-2 rounded-lg text-[13px] transition-all duration-150',
           level > 0 ? 'px-3 py-1.5' : 'px-3 py-2',
           isActive
-            ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-violet-50 text-violet-700')
-            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700',
+            ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-blue-500/20 text-blue-400')
+            : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200',
           batchSelectMode && isSelectable && 'cursor-pointer'
         )}
         style={{ paddingLeft: `${level > 0 ? level * 12 + 12 : 12}px` }}
@@ -176,7 +176,7 @@ function SubMenuItem({
             className={cn(
               'flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors',
               isSelected
-                ? cn(brandAccent === 'rose' ? 'bg-rose-500 border-rose-500' : 'bg-violet-500 border-violet-500')
+                ? cn(brandAccent === 'rose' ? 'bg-rose-500 border-rose-500' : 'bg-blue-500 border-blue-500')
                 : 'border-slate-300 hover:border-slate-400'
             )}
           >
@@ -192,7 +192,7 @@ function SubMenuItem({
         {hasChildren && !batchSelectMode && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex-shrink-0 w-4 h-4 flex items-center justify-center hover:bg-slate-100 rounded"
+            className="flex-shrink-0 w-4 h-4 flex items-center justify-center hover:bg-slate-700/50 rounded"
           >
             <ChevronRight
               className={cn(
@@ -706,7 +706,7 @@ export default function Sidebar({
   const menuItems: MenuItem[] = [
     {
       id: 'dashboard',
-      label: '数据仪表盘',
+      label: '数据驾驶舱',
       icon: LayoutDashboard,
     },
     {
@@ -811,30 +811,31 @@ export default function Sidebar({
   ];
 
   // 品牌色辅助
-  const brandAccent = brand?.key === 'bonasi' ? 'rose' : 'violet';
-  const accentFrom = brand?.primaryFrom || 'from-violet-500';
+  const brandAccent = brand?.key === 'bonasi' ? 'rose' : 'blue';
+  const accentFrom = brand?.primaryFrom || 'from-blue-500';
   const accentTo = brand?.primaryTo || 'to-purple-600';
 
   return (
     <aside
       className={cn(
         'h-screen flex flex-col transition-all duration-300 ease-in-out',
-        'bg-white border-r border-slate-200/80',
+        'bg-[#0f172a] border-r border-blue-500/15',
         collapsed ? 'w-[68px]' : 'w-[260px]'
       )}
     >
       {/* Logo区域 */}
-      <div className="h-[60px] flex items-center px-4 border-b border-slate-100">
+      <div className="h-[60px] flex items-center px-4 border-b border-blue-500/20">
         <div className="flex items-center gap-3 min-w-0">
           <div className={cn(
             'w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0',
-            'bg-gradient-to-br', accentFrom, accentTo
+            'bg-gradient-to-br', accentFrom, accentTo,
+            'shadow-[0_0_12px_rgba(59,130,246,0.3)]'
           )}>
             {brand?.key === 'bonasi' ? <Scissors className="w-4.5 h-4.5 text-white" /> : <BookOpen className="w-4.5 h-4.5 text-white" />}
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-[15px] font-semibold text-slate-800 truncate">
+              <span className="text-[15px] font-semibold text-slate-100 truncate">
                 {brand?.name || '盈云'}
               </span>
               <span className="text-[11px] text-slate-400 truncate">企业数智中台系统</span>
@@ -844,7 +845,7 @@ export default function Sidebar({
       </div>
 
       {/* 主菜单区域 */}
-      <div className="flex-1 overflow-y-auto py-3 px-2.5 scrollbar-thin scrollbar-thumb-slate-200">
+      <div className="flex-1 overflow-y-auto py-3 px-2.5 scrollbar-thin scrollbar-thumb-slate-700">
         <div className="space-y-0.5">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -859,8 +860,8 @@ export default function Sidebar({
                     className={cn(
                       'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group relative',
                       isActive
-                        ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-violet-50 text-violet-700')
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                        ? cn(brandAccent === 'rose' ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400')
+                        : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
                     )}
                   >
                     {isActive && (
@@ -881,7 +882,7 @@ export default function Sidebar({
                       <Icon
                         className={cn(
                           'w-[18px] h-[18px] flex-shrink-0',
-                          isActive ? cn(brandAccent === 'rose' ? 'text-rose-500' : 'text-violet-500') : 'text-slate-400'
+                          isActive ? cn(brandAccent === 'rose' ? 'text-rose-500' : 'text-blue-400') : 'text-slate-400'
                         )}
                       />
                       {!collapsed && (
@@ -892,8 +893,8 @@ export default function Sidebar({
                               className={cn(
                                 'px-1.5 py-0.5 text-[11px] rounded-md font-medium flex-shrink-0 tabular-nums',
                                 isActive
-                                  ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-violet-100 text-violet-600')
-                                  : 'bg-slate-100 text-slate-500'
+                                  ? cn(brandAccent === 'rose' ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400')
+                                  : 'bg-slate-700/50 text-slate-400'
                               )}
                             >
                               {item.count}
@@ -913,8 +914,8 @@ export default function Sidebar({
                           className={cn(
                             'p-1 rounded transition-colors flex-shrink-0',
                             batchSelectMode
-                              ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-violet-100 text-violet-600')
-                              : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'
+                              ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-blue-500/20 text-blue-400')
+                              : 'hover:bg-slate-700/50 text-slate-400 hover:text-slate-200'
                           )}
                           aria-label="批量选择"
                           title="批量选择"
@@ -937,7 +938,7 @@ export default function Sidebar({
                             }}
                             className={cn(
                               'p-1 rounded transition-colors flex-shrink-0',
-                              brandAccent === 'rose' ? 'hover:bg-rose-50 text-rose-400 hover:text-rose-500' : 'hover:bg-violet-50 text-violet-400 hover:text-violet-500'
+                              brandAccent === 'rose' ? 'hover:bg-rose-50 text-rose-400 hover:text-rose-500' : 'hover:bg-blue-500/15 text-blue-400 hover:text-blue-300'
                             )}
                             aria-label={item.id === 'smart-albums' ? '新建智能相册' : '新建分类'}
                           >
@@ -1055,7 +1056,7 @@ export default function Sidebar({
                             }}
                             className={cn(
                               'p-1 rounded transition-colors flex-shrink-0',
-                              brandAccent === 'rose' ? 'hover:bg-rose-50 text-rose-400 hover:text-rose-500' : 'hover:bg-violet-50 text-violet-400 hover:text-violet-500'
+                              brandAccent === 'rose' ? 'hover:bg-rose-50 text-rose-400 hover:text-rose-500' : 'hover:bg-blue-500/15 text-blue-400 hover:text-blue-300'
                             )}
                             aria-label="批量重置匹配模式"
                           >
@@ -1125,8 +1126,8 @@ export default function Sidebar({
                     className={cn(
                       'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group relative',
                       isActive
-                        ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-violet-50 text-violet-700')
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                        ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-blue-500/20 text-blue-400')
+                        : 'text-slate-300 hover:bg-slate-700/50 hover:text-slate-100'
                     )}
                   >
                     {isActive && (
@@ -1135,7 +1136,7 @@ export default function Sidebar({
                     <Icon
                       className={cn(
                         'w-[18px] h-[18px] flex-shrink-0',
-                        isActive ? cn(brandAccent === 'rose' ? 'text-rose-500' : 'text-violet-500') : 'text-slate-400'
+                        isActive ? cn(brandAccent === 'rose' ? 'text-rose-500' : 'text-blue-400') : 'text-slate-400'
                       )}
                     />
                     {!collapsed && (
@@ -1146,8 +1147,8 @@ export default function Sidebar({
                             className={cn(
                               'px-1.5 py-0.5 text-[11px] rounded-md font-medium tabular-nums',
                               isActive
-                                ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-violet-100 text-violet-600')
-                                : 'bg-slate-100 text-slate-500'
+                                ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-blue-500/20 text-blue-400')
+                                : 'bg-slate-700/50 text-slate-400'
                             )}
                           >
                             {item.count}
@@ -1186,7 +1187,7 @@ export default function Sidebar({
 
       {/* 批量删除工具栏 */}
       {batchSelectMode && (
-        <div className="border-t border-slate-100 bg-slate-50/50 py-3 px-3 space-y-2">
+        <div className="border-t border-slate-700/50 bg-slate-800/50 py-3 px-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-slate-700 font-medium">
               已选择 {selectedAlbumIds.size} 个相册
@@ -1195,7 +1196,7 @@ export default function Sidebar({
               onClick={toggleSelectAll}
               className={cn(
                 'text-[12px] hover:underline',
-                brandAccent === 'rose' ? 'text-rose-400' : 'text-violet-400'
+                brandAccent === 'rose' ? 'text-rose-400' : 'text-blue-400'
               )}
             >
               {selectedAlbumIds.size === getAllSelectableAlbumIds().length ? '取消全选' : '全选'}
@@ -1204,7 +1205,7 @@ export default function Sidebar({
           <div className="flex gap-2">
             <button
               onClick={() => setBatchSelectMode(false)}
-              className="flex-1 px-3 py-1.5 text-[13px] text-slate-600 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
+              className="flex-1 px-3 py-1.5 text-[13px] text-slate-300 bg-slate-700/50 border border-slate-600/50 rounded-lg hover:bg-slate-600/50 transition-colors"
             >
               取消
             </button>
@@ -1215,7 +1216,7 @@ export default function Sidebar({
                 'flex-1 px-3 py-1.5 text-[13px] rounded-lg transition-colors flex items-center justify-center gap-1.5',
                 selectedAlbumIds.size > 0
                   ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                  : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
               )}
             >
               <Trash className="w-4 h-4" />
@@ -1244,7 +1245,7 @@ export default function Sidebar({
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group',
                 isActive
-                  ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-violet-50 text-violet-700')
+                  ? cn(brandAccent === 'rose' ? 'bg-rose-50 text-rose-700' : 'bg-blue-500/20 text-blue-400')
                   : item.id === 'upload'
                   ? cn('bg-gradient-to-r text-white hover:shadow-lg', accentFrom, accentTo, brand?.buttonShadow || 'shadow-purple-500/25')
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
@@ -1253,7 +1254,7 @@ export default function Sidebar({
               <Icon
                 className={cn(
                   'w-[18px] h-[18px] flex-shrink-0',
-                  isActive ? cn(brandAccent === 'rose' ? 'text-rose-500' : 'text-violet-500') : item.id === 'upload' ? 'text-white' : 'text-slate-400'
+                  isActive ? cn(brandAccent === 'rose' ? 'text-rose-500' : 'text-blue-400') : item.id === 'upload' ? 'text-white' : 'text-slate-400'
                 )}
               />
               {!collapsed && (
@@ -1264,7 +1265,7 @@ export default function Sidebar({
                       className={cn(
                         'px-1.5 py-0.5 text-[11px] rounded-md font-medium tabular-nums',
                         isActive
-                          ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-violet-100 text-violet-600')
+                          ? cn(brandAccent === 'rose' ? 'bg-rose-100 text-rose-600' : 'bg-blue-500/20 text-blue-400')
                           : item.id === 'upload'
                           ? 'bg-white/30 text-white'
                           : 'bg-slate-100 text-slate-500'
@@ -1293,7 +1294,7 @@ export default function Sidebar({
                 </span>
               )}
               {albumToDelete && albumToDelete.count === 0 && (
-                <span className="block mt-2 text-slate-500">
+                <span className="block mt-2 text-slate-400">
                   此操作不可恢复。
                 </span>
               )}
@@ -1327,7 +1328,7 @@ export default function Sidebar({
             <DialogTitle>批量删除相册</DialogTitle>
             <DialogDescription className="text-left">
               你确定要删除选中的相册以及下面的子相册和图片吗？
-              <span className="block mt-2 text-slate-500">
+              <span className="block mt-2 text-slate-400">
                 此操作将删除所有选中的相册、其子相册以及相册中的图片，且不可恢复。
               </span>
             </DialogDescription>

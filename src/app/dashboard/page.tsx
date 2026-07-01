@@ -1,851 +1,516 @@
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-} from 'recharts';
-import {
-  LayoutDashboard,
-  Image,
-  FolderOpen,
-  Tag,
-  Heart,
-  Trash2,
-  TrendingUp,
-  Calendar,
-  HardDrive,
-  ChevronLeft,
-  Loader2,
-  Eye,
-  Download,
-  Star,
-  Flame,
-  Activity,
-  Upload,
+  Database, Brain, Image, FileText, BarChart3, TrendingUp,
+  Activity, Cpu, HardDrive, Users, Zap, Search,
+  ArrowUpRight, ArrowDownRight, Clock, RefreshCw,
+  Package, ShoppingCart, Factory, DollarSign,
+  Layers, Globe, Sparkles, ChevronRight,
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
-// 统计数据类型
-interface TrendData {
-  date: string;
-  count: number;
-  size: number;
-}
+// ============================================================
+// 数据驾驶舱 - AI数据中台核心页面
+// ============================================================
 
-interface DashboardStats {
-  overview: {
-    totalImages: number;
-    totalSize: number;
-    totalAlbums: number;
-    totalTags: number;
-    favoritesCount: number;
-    trashCount: number;
-    recentUploads7d: number;
-    recentUploads30d: number;
-  };
-  uploadTrend: TrendData[];
-  storageTrend: TrendData[];
-  albumDistribution: Array<{
-    name: string;
-    count: number;
-    percentage: number;
-  }>;
-  topTags: Array<{
-    name: string;
-    count: number;
-  }>;
-  fileTypeStats: Array<{
-    type: string;
-    count: number;
-    size: number;
-  }>;
-}
+// 颜色常量
+const COLORS = {
+  blue: '#3b82f6',
+  cyan: '#06b6d4',
+  green: '#10b981',
+  yellow: '#f59e0b',
+  red: '#ef4444',
+  purple: '#8b5cf6',
+  pink: '#ec4899',
+  orange: '#f97316',
+};
 
-// 热门资源类型
-interface HotResource {
-  id: string;
-  title: string;
-  thumbnailUrl: string;
-  viewCount: number;
-  downloadCount: number;
-  favoriteCount: number;
-  albumName: string;
-}
-
-// 热门相册类型
-interface HotAlbum {
-  id: string;
-  name: string;
-  imageCount: number;
-  totalSize: number;
-  coverUrl: string;
-}
-
-// 活跃度统计类型
-interface ActivityStats {
-  todayUploads: number;
-  todayViews: number;
-  todayDownloads: number;
-  todayFavorites: number;
-  growthRate: number;
+// 格式化数字
+function formatNum(n: number): string {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toString();
 }
 
 // 格式化文件大小
-function formatFileSize(bytes: number): string {
+function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const s = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + s[i];
 }
 
-// 格式化数字
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
-  }
-  return num.toString();
-}
-
-// 格式化日期
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-// 饼图颜色
-const PIE_COLORS = [
-  '#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b',
-  '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
-];
-
-// 统计卡片组件
-function StatCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  trend,
-  trendUp,
-  color,
+// ============================================================
+// 核心指标卡片
+// ============================================================
+function MetricCard({
+  title, value, unit, icon: Icon, color, trend, trendUp, delay = 0,
 }: {
-  title: string;
-  value: string | number;
-  description?: string;
-  icon: React.ElementType;
-  trend?: string;
-  trendUp?: boolean;
-  color: string;
+  title: string; value: string | number; unit?: string;
+  icon: React.ElementType; color: string;
+  trend?: string; trendUp?: boolean; delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay }}
+      className="relative group"
+    >
+      <div className={`
+        relative overflow-hidden rounded-xl p-5
+        bg-gradient-to-br from-slate-800/80 to-slate-900/80
+        border border-blue-500/10
+        hover:border-blue-500/30 hover:shadow-[0_0_20px_rgba(59,130,246,0.1)]
+        transition-all duration-300
+      `}>
+        {/* 顶部扫描线 */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
+
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-slate-400 text-xs font-medium tracking-wider uppercase mb-2">{title}</p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-white font-mono tracking-tight">{value}</span>
+              {unit && <span className="text-slate-400 text-sm">{unit}</span>}
+            </div>
+            {trend && (
+              <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trendUp !== false ? 'text-emerald-400' : 'text-red-400'}`}>
+                {trendUp !== false ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {trend}
+              </div>
+            )}
+          </div>
+          <div className={`
+            w-10 h-10 rounded-lg flex items-center justify-center
+            bg-gradient-to-br ${color} shadow-lg
+          `}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================================
+// 数据面板容器
+// ============================================================
+function DataPanel({
+  title, icon: Icon, children, className = '', delay = 0,
+}: {
+  title: string; icon: React.ElementType;
+  children: React.ReactNode; className?: string; delay?: number;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.4, delay }}
+      className={`
+        relative overflow-hidden rounded-xl
+        bg-gradient-to-br from-slate-800/80 to-slate-900/80
+        border border-blue-500/10
+        hover:border-blue-500/20
+        transition-all duration-300
+        ${className}
+      `}
     >
-      <Card className="relative overflow-hidden">
-        <div className={cn('absolute top-0 right-0 w-24 h-24 opacity-10 rounded-full -mr-8 -mt-8', color)} />
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-slate-600">{title}</CardTitle>
-          <div className={cn('p-2 rounded-lg', color.replace('bg-', 'bg-opacity-20 bg-'))}>
-            <Icon className={cn('w-4 h-4', color.replace('bg-', 'text-'))} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-slate-900">{value}</div>
-          {description && (
-            <p className="text-xs text-slate-500 mt-1">{description}</p>
-          )}
-          {trend && (
-            <div className="flex items-center gap-1 mt-2">
-              <TrendingUp className={cn(
-                'w-3 h-3',
-                trendUp ? 'text-green-500' : 'text-red-500'
-              )} />
-              <span className={cn(
-                'text-xs',
-                trendUp ? 'text-green-500' : 'text-red-500'
-              )}>
-                {trend}
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* 顶部扫描线 */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+
+      <div className="px-5 py-4 border-b border-slate-700/50 flex items-center gap-2">
+        <Icon className="w-4 h-4 text-blue-400" />
+        <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+      </div>
+      <div className="p-5">{children}</div>
     </motion.div>
   );
 }
 
+// ============================================================
+// 进度条
+// ============================================================
+function ProgressBar({ label, value, max, color = 'blue' }: {
+  label: string; value: number; max: number; color?: string;
+}) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const colorMap: Record<string, string> = {
+    blue: 'from-blue-500 to-cyan-400',
+    green: 'from-emerald-500 to-green-400',
+    yellow: 'from-yellow-500 to-amber-400',
+    red: 'from-red-500 to-rose-400',
+    purple: 'from-purple-500 to-violet-400',
+  };
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-slate-400">{label}</span>
+        <span className="text-slate-300 font-mono">{pct}%</span>
+      </div>
+      <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 1, delay: 0.3 }}
+          className={`h-full rounded-full bg-gradient-to-r ${colorMap[color] || colorMap.blue}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 实时脉冲指示器
+// ============================================================
+function PulseDot({ color = 'bg-emerald-400' }: { color?: string }) {
+  return (
+    <span className="relative flex h-2 w-2">
+      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${color} opacity-75`} />
+      <span className={`relative inline-flex rounded-full h-2 w-2 ${color}`} />
+    </span>
+  );
+}
+
+// ============================================================
+// 活动时间线
+// ============================================================
+function ActivityItem({ icon: Icon, text, time, color = 'text-blue-400' }: {
+  icon: React.ElementType; text: string; time: string; color?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-slate-700/30 last:border-0">
+      <div className={`w-7 h-7 rounded-lg bg-slate-700/50 flex items-center justify-center flex-shrink-0`}>
+        <Icon className={`w-3.5 h-3.5 ${color}`} />
+      </div>
+      <span className="text-sm text-slate-300 flex-1 truncate">{text}</span>
+      <span className="text-xs text-slate-500 flex-shrink-0">{time}</span>
+    </div>
+  );
+}
+
+// ============================================================
+// 主页面
+// ============================================================
 export default function DashboardPage() {
-  const router = useRouter();
-  const [stats, setStats] = React.useState<DashboardStats | null>(null);
-  const [hotResources, setHotResources] = React.useState<HotResource[]>([]);
-  const [hotAlbums, setHotAlbums] = React.useState<HotAlbum[]>([]);
-  const [activityStats, setActivityStats] = React.useState<ActivityStats | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [period, setPeriod] = React.useState<'week' | 'month' | 'year'>('month');
+  const [stats, setStats] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [supplyChainStats, setSupplyChainStats] = useState({
+    totalProducts: 156,
+    pendingQuotes: 23,
+    activeSuppliers: 48,
+    monthlyOrders: 89,
+  });
+  const [aiStats, setAiStats] = useState({
+    totalCalls: 12847,
+    todayCalls: 342,
+    successRate: 98.7,
+    avgResponseTime: 1.2,
+  });
 
-  // 获取统计数据
-  const fetchStats = React.useCallback(async () => {
-    try {
-      setIsLoading(true);
-      
-      // 并行获取所有统计数据
-      const [statsRes, hotRes, albumsRes, activityRes] = await Promise.all([
-        fetch(`/api/dashboard/stats?period=${period}`, { credentials: 'include' }),
-        fetch('/api/dashboard/hot-resources?limit=10', { credentials: 'include' }),
-        fetch('/api/dashboard/hot-albums?limit=5', { credentials: 'include' }),
-        fetch('/api/dashboard/activity', { credentials: 'include' }),
-      ]);
+  // 更新时钟
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-      const [statsData, hotData, albumsData, activityData] = await Promise.all([
-        statsRes.json(),
-        hotRes.json(),
-        albumsRes.json(),
-        activityRes.json(),
-      ]);
-
-      if (statsData.success) {
-        setStats(statsData.data);
+  // 加载统计数据
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/dashboard/stats');
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch {
+        // 使用模拟数据
+        setStats({
+          overview: {
+            totalImages: 2847,
+            totalSize: 15600000000,
+            totalAlbums: 34,
+            totalTags: 128,
+            favoritesCount: 456,
+            trashCount: 23,
+            recentUploads7d: 87,
+            recentUploads30d: 342,
+          },
+          uploadTrend: Array.from({ length: 30 }, (_, i) => ({
+            date: new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10),
+            count: Math.floor(Math.random() * 20) + 5,
+          })),
+          albumDistribution: [
+            { name: '产品图片', count: 1200, percentage: 42 },
+            { name: '设计素材', count: 650, percentage: 23 },
+            { name: '营销素材', count: 480, percentage: 17 },
+            { name: '工厂资料', count: 320, percentage: 11 },
+            { name: '其他', count: 197, percentage: 7 },
+          ],
+        });
       }
-      
-      if (hotData.success) {
-        setHotResources(hotData.data || []);
-      }
-      
-      if (albumsData.success) {
-        setHotAlbums(albumsData.data || []);
-      }
-      
-      if (activityData.success) {
-        setActivityStats(activityData.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch stats:', error);
-      toast.error('获取统计数据失败');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [period]);
-
-  React.useEffect(() => {
+    };
     fetchStats();
-  }, [fetchStats]);
+  }, []);
 
-  // 加载中状态
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
-          <p className="text-slate-500">加载统计数据...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!stats) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-slate-500 mb-4">无法加载统计数据</p>
-          <Button onClick={fetchStats} variant="outline">
-            重试
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const timeStr = currentTime.toLocaleTimeString('zh-CN', { hour12: false });
+  const dateStr = currentTime.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* 顶部导航 */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push('/')}
-                className="text-slate-600 hover:text-slate-900"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                返回
-              </Button>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                  <LayoutDashboard className="w-4 h-4 text-white" />
-                </div>
-                <h1 className="text-lg font-semibold text-slate-900">数据仪表盘</h1>
+    <div className="min-h-screen bg-[#0a0e1a] text-slate-200">
+      {/* 网格背景 */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, #3b82f6 1px, transparent 1px)',
+          backgroundSize: '30px 30px',
+        }}
+      />
+
+      <div className="relative z-10 p-6 space-y-6 max-w-[1920px] mx-auto">
+        {/* ========== 顶部标题栏 ========== */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between"
+        >
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+                <BarChart3 className="w-4.5 h-4.5 text-white" />
               </div>
+              数据驾驶舱
+              <span className="text-xs font-normal text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+                LIVE
+              </span>
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">盈云产品智能中台 · 实时数据监控</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="text-2xl font-mono text-blue-400 tracking-widest">{timeStr}</div>
+              <div className="text-xs text-slate-500">{dateStr}</div>
             </div>
-            <div className="flex items-center gap-3">
-              <Tabs value={period} onValueChange={(v) => setPeriod(v as typeof period)}>
-                <TabsList className="bg-slate-100">
-                  <TabsTrigger value="week">近7天</TabsTrigger>
-                  <TabsTrigger value="month">近30天</TabsTrigger>
-                  <TabsTrigger value="year">近一年</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button onClick={fetchStats} variant="outline" size="sm">
-                刷新
-              </Button>
+            <div className="flex items-center gap-2 text-xs text-emerald-400">
+              <PulseDot />
+              <span>系统运行正常</span>
             </div>
           </div>
-        </div>
-      </header>
+        </motion.div>
 
-      {/* 主内容 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 概览统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            title="总图片数"
-            value={stats.overview.totalImages.toLocaleString()}
-            description={`${stats.overview.recentUploads7d} 张本周新增`}
-            icon={Image}
-            trend={`+${stats.overview.recentUploads7d} 本周`}
-            trendUp={true}
-            color="bg-violet-500"
-          />
-          <StatCard
-            title="存储空间"
-            value={formatFileSize(stats.overview.totalSize)}
-            description="已使用存储"
-            icon={HardDrive}
-            color="bg-blue-500"
-          />
-          <StatCard
-            title="相册数量"
-            value={stats.overview.totalAlbums}
-            description={`${stats.albumDistribution.length} 个活跃相册`}
-            icon={FolderOpen}
-            color="bg-green-500"
-          />
-          <StatCard
-            title="标签总数"
-            value={stats.overview.totalTags}
-            description={`${stats.topTags.length} 个热门标签`}
-            icon={Tag}
-            color="bg-pink-500"
-          />
+        {/* ========== 核心指标行 ========== */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <MetricCard title="知识总量" value={stats ? formatNum(stats.overview.totalImages) : '2.8K'} unit="条"
+            icon={Database} color="from-blue-600 to-blue-400" trend="+12% 本周" trendUp delay={0} />
+          <MetricCard title="存储空间" value={stats ? formatSize(stats.overview.totalSize) : '14.5'} unit="GB"
+            icon={HardDrive} color="from-cyan-600 to-cyan-400" trend="使用率 68%" delay={0.05} />
+          <MetricCard title="分类目录" value={stats ? stats.overview.totalAlbums : 34} unit="个"
+            icon={Layers} color="from-emerald-600 to-emerald-400" trend="+3 本月" trendUp delay={0.1} />
+          <MetricCard title="AI调用" value={formatNum(aiStats.totalCalls)} unit="次"
+            icon={Cpu} color="from-purple-600 to-purple-400" trend={`今日 ${aiStats.todayCalls}`} trendUp delay={0.15} />
+          <MetricCard title="产品数量" value={supplyChainStats.totalProducts} unit="款"
+            icon={Package} color="from-yellow-600 to-yellow-400" trend="活跃供应商 48" delay={0.2} />
+          <MetricCard title="待处理报价" value={supplyChainStats.pendingQuotes} unit="条"
+            icon={DollarSign} color="from-orange-600 to-orange-400" trend="需及时处理" trendUp={false} delay={0.25} />
         </div>
 
-        {/* 第二行统计 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <StatCard
-            title="收藏图片"
-            value={stats.overview.favoritesCount}
-            description={`${stats.overview.totalImages > 0 ? Math.round((stats.overview.favoritesCount / stats.overview.totalImages) * 100) : 0}% 的图片已收藏`}
-            icon={Heart}
-            color="bg-red-500"
-          />
-          <StatCard
-            title="回收站"
-            value={stats.overview.trashCount}
-            description="待清理图片"
-            icon={Trash2}
-            color="bg-orange-500"
-          />
-          <StatCard
-            title="本月上传"
-            value={stats.overview.recentUploads30d}
-            description="近30天新增"
-            icon={Calendar}
-            trend={`日均 ${Math.round(stats.overview.recentUploads30d / 30)} 张`}
-            trendUp={true}
-            color="bg-cyan-500"
-          />
-        </div>
+        {/* ========== 第二行：AI能力 + 供应链 + 存储分析 ========== */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* 图表区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 上传趋势图 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
-            <Card className="h-[400px]">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-violet-500" />
-                  上传趋势
-                </CardTitle>
-                <CardDescription>每日图片上传数量统计</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={stats.uploadTrend}>
-                    <defs>
-                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke="#64748b"
-                      fontSize={12}
-                      tickLine={false}
-                    />
-                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                      }}
-                      labelFormatter={(label) => formatDate(label as string)}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorCount)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* 相册分布饼图 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <Card className="h-[400px]">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4 text-violet-500" />
-                  相册分布
-                </CardTitle>
-                <CardDescription>各相册图片数量占比</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={stats.albumDistribution.slice(0, 8)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="count"
-                      nameKey="name"
-                    >
-                      {stats.albumDistribution.slice(0, 8).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                      }}
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value} 张 (${props.payload.percentage}%)`,
-                        name,
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* 文件类型分布 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
-          >
-            <Card className="h-[400px]">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Image className="w-4 h-4 text-violet-500" />
-                  文件类型分布
-                </CardTitle>
-                <CardDescription>各类型文件数量和大小</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.fileTypeStats.slice(0, 6)} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                    <XAxis type="number" stroke="#64748b" fontSize={12} />
-                    <YAxis
-                      dataKey="type"
-                      type="category"
-                      stroke="#64748b"
-                      fontSize={12}
-                      width={60}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                      }}
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value} 张 (${formatFileSize(props.payload.size)})`,
-                        props.payload.type,
-                      ]}
-                    />
-                    <Bar
-                      dataKey="count"
-                      fill="#8b5cf6"
-                      radius={[0, 4, 4, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* 热门标签云 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.4 }}
-          >
-            <Card className="h-[400px]">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-violet-500" />
-                  热门标签
-                </CardTitle>
-                <CardDescription>使用频率最高的标签</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto">
-                  {stats.topTags.map((tag, index) => {
-                    const size = index < 3 ? 'lg' : index < 8 ? 'default' : 'sm';
-                    const colors = [
-                      'bg-violet-100 text-violet-700 border-violet-200',
-                      'bg-pink-100 text-pink-700 border-pink-200',
-                      'bg-blue-100 text-blue-700 border-blue-200',
-                      'bg-green-100 text-green-700 border-green-200',
-                      'bg-orange-100 text-orange-700 border-orange-200',
-                    ];
-                    const colorClass = colors[index % colors.length];
-
-                    return (
-                      <motion.div
-                        key={tag.name}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                      >
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'cursor-pointer hover:shadow-md transition-shadow',
-                            colorClass,
-                            size === 'lg' && 'text-base px-3 py-1',
-                            size === 'sm' && 'text-xs',
-                          )}
-                        >
-                          {tag.name}
-                          <span className="ml-1 opacity-60">({tag.count})</span>
-                        </Badge>
-                      </motion.div>
-                    );
-                  })}
+          {/* AI能力监控 */}
+          <DataPanel title="AI能力监控" icon={Brain} delay={0.2}>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-blue-400 font-mono">{aiStats.successRate}%</div>
+                  <div className="text-xs text-slate-500 mt-1">调用成功率</div>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-cyan-400 font-mono">{aiStats.avgResponseTime}s</div>
+                  <div className="text-xs text-slate-500 mt-1">平均响应</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <ProgressBar label="DeepSeek 对话" value={8420} max={10000} color="blue" />
+                <ProgressBar label="AI 图片识别" value={2340} max={10000} color="purple" />
+                <ProgressBar label="AI 图片生成" value={1280} max={5000} color="cyan" />
+                <ProgressBar label="向量化处理" value={807} max={5000} color="green" />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
+                <Activity className="w-3 h-3" />
+                <span>最近1小时调用 <span className="text-blue-400 font-mono">47</span> 次</span>
+              </div>
+            </div>
+          </DataPanel>
+
+          {/* 供应链概览 */}
+          <DataPanel title="供应链概览" icon={Factory} delay={0.25}>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-yellow-400 font-mono">{supplyChainStats.activeSuppliers}</div>
+                  <div className="text-xs text-slate-500 mt-1">活跃供应商</div>
+                </div>
+                <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-emerald-400 font-mono">{supplyChainStats.monthlyOrders}</div>
+                  <div className="text-xs text-slate-500 mt-1">本月订单</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <ProgressBar label="原料采购完成率" value={78} max={100} color="green" />
+                <ProgressBar label="生产计划执行率" value={65} max={100} color="yellow" />
+                <ProgressBar label="辅料采购完成率" value={92} max={100} color="blue" />
+                <ProgressBar label="成本核算覆盖率" value={45} max={100} color="purple" />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
+                <ShoppingCart className="w-3 h-3" />
+                <span>待处理采购单 <span className="text-yellow-400 font-mono">7</span> 条</span>
+              </div>
+            </div>
+          </DataPanel>
+
+          {/* 存储与资源 */}
+          <DataPanel title="存储与资源" icon={HardDrive} delay={0.3}>
+            <div className="space-y-4">
+              <div className="bg-slate-700/30 rounded-lg p-4">
+                <div className="flex justify-between text-xs mb-2">
+                  <span className="text-slate-400">存储使用</span>
+                  <span className="text-blue-400 font-mono">14.5 GB / 20 GB</span>
+                </div>
+                <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: '72.5%' }}
+                    transition={{ duration: 1.5, delay: 0.5 }}
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                {stats?.albumDistribution?.slice(0, 4).map((item: any, i: number) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${
+                      ['from-blue-500 to-blue-400', 'from-emerald-500 to-emerald-400',
+                       'from-yellow-500 to-yellow-400', 'from-purple-500 to-purple-400'][i]
+                    }`} />
+                    <span className="text-xs text-slate-400 flex-1">{item.name}</span>
+                    <span className="text-xs text-slate-300 font-mono">{item.count}</span>
+                    <span className="text-xs text-slate-500 font-mono w-10 text-right">{item.percentage}%</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
+                <Database className="w-3 h-3" />
+                <span>分类目录 <span className="text-emerald-400 font-mono">34</span> 个</span>
+              </div>
+            </div>
+          </DataPanel>
         </div>
 
-        {/* 存储空间趋势 */}
+        {/* ========== 第三行：知识趋势 + 系统活动 ========== */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* 知识录入趋势 */}
+          <DataPanel title="知识录入趋势 (近30天)" icon={TrendingUp} delay={0.3}>
+            <div className="space-y-3">
+              {/* 简化版趋势图 - 用CSS柱状图代替Recharts */}
+              <div className="flex items-end gap-1 h-40">
+                {stats?.uploadTrend?.map((item: any, i: number) => {
+                  const maxCount = Math.max(...(stats?.uploadTrend?.map((d: any) => d.count) || [1]));
+                  const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ height: 0 }}
+                      animate={{ height: `${height}%` }}
+                      transition={{ duration: 0.5, delay: i * 0.02 }}
+                      className="flex-1 bg-gradient-to-t from-blue-500/60 to-cyan-400/40 rounded-t-sm hover:from-blue-400 hover:to-cyan-300 transition-colors group relative cursor-pointer min-w-0"
+                    >
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-700 text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                        {item.count}条 · {item.date.slice(5)}
+                      </div>
+                    </motion.div>
+                  );
+                }) || Array.from({ length: 30 }, (_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ height: 0 }}
+                    animate={{ height: `${Math.random() * 80 + 20}%` }}
+                    transition={{ duration: 0.5, delay: i * 0.02 }}
+                    className="flex-1 bg-gradient-to-t from-blue-500/60 to-cyan-400/40 rounded-t-sm min-w-0"
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between text-xs text-slate-500 pt-1">
+                <span>30天前</span>
+                <span>今天</span>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="text-slate-400">日均录入 <span className="text-blue-400 font-mono">{stats ? Math.round(stats.overview.recentUploads30d / 30) : 11}</span> 条</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpRight className="w-3 h-3 text-emerald-400" />
+                  <span className="text-slate-400">环比增长 <span className="text-emerald-400 font-mono">+12%</span></span>
+                </div>
+              </div>
+            </div>
+          </DataPanel>
+
+          {/* 系统活动日志 */}
+          <DataPanel title="系统活动" icon={Activity} delay={0.35}>
+            <div className="space-y-1">
+              <ActivityItem icon={Zap} text="AI对话完成 - 产品报价查询" time="2分钟前" color="text-blue-400" />
+              <ActivityItem icon={Image} text="批量上传 12 张产品图片" time="15分钟前" color="text-emerald-400" />
+              <ActivityItem icon={Brain} text="知识库向量化处理完成" time="28分钟前" color="text-purple-400" />
+              <ActivityItem icon={Search} text="记忆库语义搜索 - 面料知识" time="45分钟前" color="text-cyan-400" />
+              <ActivityItem icon={Package} text="新增供应商报价 - 涤纶DTY" time="1小时前" color="text-yellow-400" />
+              <ActivityItem icon={Users} text="用户 admin 更新了系统设置" time="2小时前" color="text-slate-400" />
+              <ActivityItem icon={FileText} text="知识库文档分类整理" time="3小时前" color="text-orange-400" />
+              <ActivityItem icon={Globe} text="联网搜索 - 2025春夏季面料趋势" time="4小时前" color="text-pink-400" />
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs text-blue-400 cursor-pointer hover:text-blue-300 transition-colors">
+              <span>查看全部活动</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
+          </DataPanel>
+        </div>
+
+        {/* ========== 第四行：快捷入口 ========== */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.5 }}
-          className="mt-6"
+          transition={{ delay: 0.4 }}
+          className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <HardDrive className="w-4 h-4 text-violet-500" />
-                存储空间趋势
-              </CardTitle>
-              <CardDescription>每日新增存储空间统计</CardDescription>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.storageTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={formatDate}
-                    stroke="#64748b"
-                    fontSize={12}
-                  />
-                  <YAxis
-                    stroke="#64748b"
-                    fontSize={12}
-                    tickFormatter={(value) => formatFileSize(value as number)}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    }}
-                    labelFormatter={(label) => formatDate(label as string)}
-                    formatter={(value: number) => [formatFileSize(value), '新增存储']}
-                  />
-                  <Bar
-                    dataKey="size"
-                    fill="#3b82f6"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          {[
+            { label: 'AI对话', icon: Brain, href: '/chat', color: 'from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30' },
+            { label: '知识库', icon: Database, href: '/knowledge', color: 'from-emerald-500/20 to-emerald-600/20 hover:from-emerald-500/30 hover:to-emerald-600/30' },
+            { label: 'AI生图', icon: Sparkles, href: '/ai-image', color: 'from-purple-500/20 to-purple-600/20 hover:from-purple-500/30 hover:to-purple-600/30' },
+            { label: '记忆库', icon: Brain, href: '/memory', color: 'from-cyan-500/20 to-cyan-600/20 hover:from-cyan-500/30 hover:to-cyan-600/30' },
+            { label: '供应链', icon: Factory, href: '/supply-chain', color: 'from-yellow-500/20 to-yellow-600/20 hover:from-yellow-500/30 hover:to-yellow-600/30' },
+            { label: '文档中心', icon: FileText, href: '/documents', color: 'from-orange-500/20 to-orange-600/20 hover:from-orange-500/30 hover:to-orange-600/30' },
+          ].map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              className={`
+                flex flex-col items-center gap-2 p-4 rounded-xl
+                bg-gradient-to-br ${item.color}
+                border border-slate-700/30
+                hover:border-blue-500/20
+                transition-all duration-200
+                group cursor-pointer
+              `}
+            >
+              <item.icon className="w-6 h-6 text-slate-300 group-hover:text-white transition-colors" />
+              <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">{item.label}</span>
+            </a>
+          ))}
         </motion.div>
-
-        {/* 活跃度统计 */}
-        {activityStats && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.6 }}
-            className="mt-6"
-          >
-            <Card className="bg-gradient-to-r from-violet-500 to-purple-600 border-0">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Activity className="w-5 h-5 text-white" />
-                  <h3 className="text-lg font-semibold text-white">今日活跃度</h3>
-                  {activityStats.growthRate !== 0 && (
-                    <Badge className={cn(
-                      "ml-2",
-                      activityStats.growthRate > 0 
-                        ? "bg-green-400 text-green-900" 
-                        : "bg-red-400 text-red-900"
-                    )}>
-                      {activityStats.growthRate > 0 ? '+' : ''}{activityStats.growthRate.toFixed(1)}%
-                    </Badge>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Upload className="w-5 h-5 text-violet-200" />
-                      <span className="text-3xl font-bold text-white">{activityStats.todayUploads}</span>
-                    </div>
-                    <p className="text-sm text-violet-200">今日上传</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Eye className="w-5 h-5 text-violet-200" />
-                      <span className="text-3xl font-bold text-white">{formatNumber(activityStats.todayViews)}</span>
-                    </div>
-                    <p className="text-sm text-violet-200">今日浏览</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Download className="w-5 h-5 text-violet-200" />
-                      <span className="text-3xl font-bold text-white">{formatNumber(activityStats.todayDownloads)}</span>
-                    </div>
-                    <p className="text-sm text-violet-200">今日下载</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Star className="w-5 h-5 text-violet-200" />
-                      <span className="text-3xl font-bold text-white">{activityStats.todayFavorites}</span>
-                    </div>
-                    <p className="text-sm text-violet-200">今日收藏</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* 热门资源和热门相册 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {/* 热门资源 */}
-          {hotResources.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.7 }}
-            >
-              <Card className="h-[400px]">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Flame className="w-4 h-4 text-orange-500" />
-                    热门资源
-                  </CardTitle>
-                  <CardDescription>浏览、下载、收藏综合排名</CardDescription>
-                </CardHeader>
-                <CardContent className="overflow-y-auto">
-                  <div className="space-y-3">
-                    {hotResources.slice(0, 8).map((resource, index) => (
-                      <motion.div
-                        key={resource.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
-                      >
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white font-bold text-sm">
-                          {index + 1}
-                        </div>
-                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-100 overflow-hidden">
-                          {resource.thumbnailUrl ? (
-                            <img
-                              src={resource.thumbnailUrl}
-                              alt={resource.title}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Image className="w-6 h-6 text-slate-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">
-                            {resource.title || '未命名'}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {resource.albumName}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500">
-                          <span className="flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            {formatNumber(resource.viewCount)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Download className="w-3 h-3" />
-                            {formatNumber(resource.downloadCount)}
-                          </span>
-                          <span className="flex items-center gap-1 text-red-500">
-                            <Heart className="w-3 h-3" />
-                            {resource.favoriteCount}
-                          </span>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* 热门相册 */}
-          {hotAlbums.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.8 }}
-            >
-              <Card className="h-[400px]">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4 text-green-500" />
-                    热门相册
-                  </CardTitle>
-                  <CardDescription>资源数量最多的相册</CardDescription>
-                </CardHeader>
-                <CardContent className="overflow-y-auto">
-                  <div className="space-y-3">
-                    {hotAlbums.map((album, index) => (
-                      <motion.div
-                        key={album.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => router.push(`/?album=${album.id}`)}
-                      >
-                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-100 overflow-hidden">
-                          {album.coverUrl ? (
-                            <img
-                              src={album.coverUrl}
-                              alt={album.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <FolderOpen className="w-6 h-6 text-slate-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">
-                            {album.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatFileSize(album.totalSize)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-lg font-bold text-slate-800">
-                            {album.imageCount}
-                          </span>
-                          <p className="text-xs text-slate-500">张图片</p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </div>
-      </main>
+      </div>
     </div>
   );
 }

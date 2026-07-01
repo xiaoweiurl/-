@@ -56,44 +56,43 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* 深色科技风主题色板 */
+  --background: #0a0e1a;
+  --foreground: #f0f4ff;
+  --card: #111827;
+  --card-foreground: #f0f4ff;
+  --popover: #111827;
+  --popover-foreground: #f0f4ff;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #94a3b8;
+  --muted: #1e293b;
+  --muted-foreground: #64748b;
+  --accent: #1e293b;
+  --accent-foreground: #94a3b8;
+  --destructive: #ef4444;
+  --border: rgba(59, 130, 246, 0.15);
+  --input: rgba(59, 130, 246, 0.15);
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+  --sidebar: #070b14;
+  --sidebar-foreground: #94a3b8;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(59, 130, 246, 0.1);
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: rgba(59, 130, 246, 0.1);
+  --sidebar-ring: #3b82f6;
 }
-
-/* 深色模式已禁用 - 本应用仅支持浅色主题 */
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
   }
   * {
     @apply border-border outline-ring/50;
@@ -120,6 +119,134 @@ body {
   font-display: swap;
 }
 
+/* ===== 科技风全局样式 ===== */
+
+/* 网格背景 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.02) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* 蓝光扫描线 */
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+/* 科技卡片基础样式 */
+.tech-card {
+  @apply relative overflow-hidden rounded-xl border border-blue-500/10 bg-slate-900/80 backdrop-blur-sm;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.05), inset 0 1px 0 rgba(59, 130, 246, 0.1);
+  transition: all 0.3s ease;
+}
+
+.tech-card:hover {
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.1), inset 0 1px 0 rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* 蓝光顶线 */
+.tech-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent);
+}
+
+/* 发光数字 */
+.glow-number {
+  color: #60a5fa;
+  text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.glow-number-green {
+  color: #34d399;
+  text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.glow-number-amber {
+  color: #fbbf24;
+  text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+.glow-number-red {
+  color: #f87171;
+  text-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+.glow-number-purple {
+  color: #a78bfa;
+  text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+/* 玻璃态面板 */
+.glass-panel {
+  @apply backdrop-blur-xl border border-white/5;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+/* 脉冲呼吸动画 */
+@keyframes tech-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+  }
+}
+
+.tech-pulse {
+  animation: tech-pulse 2s ease-in-out infinite;
+}
+
+/* 数字跳动动画 */
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-count-up {
+  animation: count-up 0.6s ease-out forwards;
+}
+
+/* 页面进入动画 */
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up 0.4s ease-out forwards;
+}
+
 /* 通知动画 */
 @keyframes slide-in {
   from {
@@ -138,7 +265,7 @@ body {
   }
   50% {
     opacity: 0.7;
-    background-color: oklch(0.95 0.05 285);
+    background-color: rgba(59, 130, 246, 0.1);
   }
 }
 
@@ -182,11 +309,12 @@ body {
   animation: unread-pulse 2s ease-in-out infinite;
 }
 
-/* Markdown渲染样式 */
+/* Markdown渲染样式 - 深色主题 */
 .markdown-body {
   font-size: 13px;
   line-height: 1.8;
   word-break: break-word;
+  color: #e2e8f0;
 }
 
 .markdown-body > *:first-child {
@@ -209,19 +337,20 @@ body {
 }
 
 .markdown-body th {
-  background: linear-gradient(to right, #f8fafc, #f5f3ff);
+  background: rgba(59, 130, 246, 0.1);
   font-weight: 600;
+  color: #93c5fd;
 }
 
 .markdown-body td, .markdown-body th {
   padding: 6px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(59, 130, 246, 0.15);
   text-align: left;
   font-size: 12px;
 }
 
 .markdown-body tr:hover td {
-  background: #f5f3ff;
+  background: rgba(59, 130, 246, 0.05);
 }
 
 /* 聊天消息入场动画 */
@@ -250,7 +379,7 @@ body {
   }
 }
 
-/* 自定义滚动条 */
+/* 自定义滚动条 - 深色 */
 .chat-scroll::-webkit-scrollbar {
   width: 4px;
 }
@@ -260,12 +389,12 @@ body {
 }
 
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
+  background: rgba(59, 130, 246, 0.2);
   border-radius: 2px;
 }
 
 .chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
+  background: rgba(59, 130, 246, 0.4);
 }
 
 /* details 展开动画 */
@@ -283,4 +412,51 @@ details[open] > .details-content {
     opacity: 1;
     max-height: 500px;
   }
+}
+
+/* 全局滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0e1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.4);
+}
+
+/* 数据状态指示灯 */
+.status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-dot-online {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.status-dot-warning {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.status-dot-offline {
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
