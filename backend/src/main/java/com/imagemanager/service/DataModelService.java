@@ -48,7 +48,7 @@ public class DataModelService {
         List<Map<String, Object>> models = jdbc.queryForList(sql.toString(), params.toArray());
         // 为每个模型附加字段数和记录数
         for (Map<String, Object> m : models) {
-            String modelId = m.get("id").toString();
+            Object modelId = m.get("id");
             Long fieldCount = jdbc.queryForObject("SELECT COUNT(*) FROM data_model_fields WHERE model_id = ?", Long.class, modelId);
             Long recordCount = jdbc.queryForObject("SELECT COUNT(*) FROM data_model_records WHERE model_id = ?", Long.class, modelId);
             m.put("fieldCount", fieldCount);
