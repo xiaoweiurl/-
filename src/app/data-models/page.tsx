@@ -12,7 +12,7 @@ interface FieldDef {
   id?: string;
   name: string;
   label: string;
-  type: 'text' | 'number' | 'date' | 'select' | 'textarea' | 'boolean' | 'url' | 'email';
+  type: 'text' | 'number' | 'date' | 'select' | 'textarea' | 'boolean' | 'url' | 'email' | 'decimal' | 'multi_select';
   required: boolean;
   defaultValue?: string;
   options?: string; // 逗号分隔的选项(select用)
@@ -27,7 +27,7 @@ interface DataModel {
   description?: string;
   icon?: string;
   color?: string;
-  fields: FieldDef[];
+  fields?: FieldDef[];
   recordCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -44,10 +44,10 @@ interface DataRecord {
 
 type Tab = 'models' | 'fields' | 'records' | 'detail';
 
-const FIELD_TYPES: FieldDef['type'][] = ['text', 'number', 'date', 'select', 'textarea', 'boolean', 'url', 'email'];
+const FIELD_TYPES: FieldDef['type'][] = ['text', 'number', 'decimal', 'date', 'select', 'multi_select', 'textarea', 'boolean', 'url', 'email'];
 const TYPE_LABELS: Record<string, string> = {
-  text: '文本', number: '数字', date: '日期', select: '下拉选择',
-  textarea: '长文本', boolean: '布尔', url: '链接', email: '邮箱'
+  text: '文本', number: '整数', decimal: '小数', date: '日期', select: '下拉选择',
+  multi_select: '多选', textarea: '长文本', boolean: '布尔', url: '链接', email: '邮箱'
 };
 const MODEL_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -57,6 +57,37 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, { headers: { 'Content-Type': 'application/json' }, ...init });
   const json = await res.json();
   return json.data ?? json;
+}
+
+/** 将后端 DB 列名映射为前端 FieldDef 格式 */
+function mapFieldFromBackend(raw: Record<string, unknown>): FieldDef {
+  return {
+    id: String(raw.id ?? ''),
+    name: String(raw.code ?? raw.name ?? ''),           // code=英文标识 → name
+    label: String(raw.name ?? raw.code ?? ''),           // name=中文显示名 → label
+    type: (raw.field_type ?? raw.type ?? 'text') as FieldDef['type'],
+    required: Boolean(raw.required),
+    defaultValue: raw.default_value != null ? String(raw.default_value) : undefined,
+    options: raw.options != null ? String(raw.options) : undefined,
+    orderNum: Number(raw.sort_order ?? raw.orderNum ?? 0),
+    visible: Boolean(raw.show_in_list ?? raw.visible ?? true),
+    searchable: Boolean(raw.searchable),
+  };
+}
+
+/** 将前端 FieldDef 映射为后端字段格式 */
+function mapFieldToBackend(f: FieldDef): Record<string, unknown> {
+  return {
+    name: f.label,             // 后端 name = 中文显示名
+    code: f.name,              // 后端 code = 英文标识
+    fieldType: f.type,
+    required: f.required,
+    showInList: f.visible,
+    searchable: f.searchable,
+    sortOrder: f.orderNum,
+    defaultValue: f.defaultValue ?? null,
+    options: f.options ?? null,
+  };
 }
 
 /* ===== 主页面 ===== */
@@ -71,8 +102,27 @@ export default function DataModelsPage() {
   const fetchModels = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await api<DataModel[]>('');
-      setModels(Array.isArray(list) ? list : []);
+      const list = await api<unknown[]>('');
+      if (Array.isArray(list)) {
+        // 后端 listModels 返回 fieldCount 而非 fields，做适配
+        const adapted: DataModel[] = list.map((item: unknown) => {
+          const r = item as Record<string, unknown>;
+          return {
+            id: String(r.id ?? ''),
+            name: String(r.name ?? ''),
+            description: r.description != null ? String(r.description) : undefined,
+            icon: r.icon != null ? String(r.icon) : undefined,
+            color: r.color != null ? String(r.color) : undefined,
+            fields: [], // 列表不加载字段，选中时再获取
+            recordCount: r.recordCount != null ? Number(r.recordCount) : (r.record_count != null ? Number(r.record_count) : 0),
+            createdAt: String(r.created_at ?? r.createdAt ?? ''),
+            updatedAt: String(r.updated_at ?? r.updatedAt ?? ''),
+          };
+        });
+        setModels(adapted);
+      } else {
+        setModels([]);
+      }
     } catch { setModels([]); }
     setLoading(false);
   }, []);
@@ -86,10 +136,30 @@ export default function DataModelsPage() {
 
   useEffect(() => { fetchModels(); }, [fetchModels]);
 
-  const selectModel = (m: DataModel) => {
-    setSelectedModel(m);
+  const selectModel = async (m: DataModel) => {
+    // 从列表模型构建基础模型（含 recordCount）
+    const baseModel: DataModel = { ...m, fields: [] };
+    setSelectedModel(baseModel);
     setTab('fields');
     fetchRecords(m.id);
+    // 获取模型详情（含字段列表）
+    try {
+      const detail = await api<Record<string, unknown>>(`/${m.id}`);
+      const rawFields = detail.fields ?? [];
+      const fields: FieldDef[] = Array.isArray(rawFields)
+        ? rawFields.map((f: unknown) => mapFieldFromBackend(f as Record<string, unknown>))
+        : [];
+      setSelectedModel({ ...baseModel, fields, recordCount: detail.recordCount != null ? Number(detail.recordCount) : m.recordCount });
+    } catch {
+      // 如果获取详情失败，尝试通过 /fields 接口获取
+      try {
+        const rawFields = await api<unknown[]>(`/${m.id}/fields`);
+        const fields: FieldDef[] = Array.isArray(rawFields)
+          ? rawFields.map((f: unknown) => mapFieldFromBackend(f as Record<string, unknown>))
+          : [];
+        setSelectedModel({ ...baseModel, fields });
+      } catch { /* 保持无字段状态 */ }
+    }
   };
 
   const deleteModel = async (id: string) => {
@@ -147,8 +217,37 @@ export default function DataModelsPage() {
         )}
         {tab === 'fields' && selectedModel && (
           <FieldsEditor model={selectedModel} onSave={async (m) => {
-            await api(`/${m.id}`, { method: 'PUT', body: JSON.stringify(m) });
-            fetchModels(); setSelectedModel(m);
+            // 更新模型基础信息
+            await api(`/${m.id}`, { method: 'PUT', body: JSON.stringify({ name: m.name, description: m.description, icon: m.icon, color: m.color }) });
+            // 同步字段：逐条更新/新增
+            const existingFields = selectedModel.fields ?? [];
+            const currentFields = m.fields ?? [];
+            const existingIds = new Set(existingFields.map(f => f.id));
+            for (const f of currentFields) {
+              const backendField = mapFieldToBackend(f);
+              if (f.id && !f.id.startsWith('field_') && existingIds.has(f.id)) {
+                // 更新已有字段
+                await api(`/${m.id}/fields/${f.id}`, { method: 'PUT', body: JSON.stringify(backendField) });
+              } else {
+                // 新增字段
+                await api(`/${m.id}/fields`, { method: 'POST', body: JSON.stringify(backendField) });
+              }
+            }
+            // 删除已移除的字段
+            const newIds = new Set(currentFields.map(f => f.id));
+            for (const f of existingFields) {
+              if (f.id && !f.id.startsWith('field_') && !newIds.has(f.id)) {
+                await api(`/${m.id}/fields/${f.id}`, { method: 'DELETE' });
+              }
+            }
+            // 重新获取详情
+            fetchModels();
+            try {
+              const detail = await api<Record<string, unknown>>(`/${m.id}`);
+              const rawFields = detail.fields ?? [];
+              const fields: FieldDef[] = Array.isArray(rawFields) ? rawFields.map((rf: unknown) => mapFieldFromBackend(rf as Record<string, unknown>)) : [];
+              setSelectedModel({ ...m, fields });
+            } catch { setSelectedModel(m); }
           }} />
         )}
         {tab === 'records' && selectedModel && (
@@ -274,6 +373,11 @@ function FieldsEditor({ model, onSave }: { model: DataModel; onSave: (m: DataMod
   const [fields, setFields] = useState<FieldDef[]>(model.fields ?? []);
   const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // 当 model.fields 从后端加载完成后同步到本地 state
+  useEffect(() => {
+    setFields(model.fields ?? []);
+  }, [model.fields]);
 
   const addField = () => {
     const f: FieldDef = {

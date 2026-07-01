@@ -67,7 +67,10 @@ public class DataModelService {
     public Map<String, Object> getModelDetail(UUID id) {
         Map<String, Object> model = jdbc.queryForMap("SELECT * FROM data_models WHERE id = ?", id);
         List<Map<String, Object>> fields = jdbc.queryForList("SELECT * FROM data_model_fields WHERE model_id = ? ORDER BY sort_order, created_at", id);
+        Long recordCount = jdbc.queryForObject("SELECT COUNT(*) FROM data_model_records WHERE model_id = ?", Long.class, id);
         model.put("fields", fields);
+        model.put("recordCount", recordCount);
+        model.put("fieldCount", fields.size());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
         result.put("data", model);
