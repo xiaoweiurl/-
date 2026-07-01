@@ -1,5 +1,6 @@
 package com.imagemanager.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,9 @@ public class DataModelService {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     // ==================== 模型管理 ====================
 
@@ -262,7 +266,8 @@ public class DataModelService {
 
     public Map<String, Object> createRecord(UUID modelId, Map<String, Object> body) {
         Object dataObj = body.getOrDefault("data", new LinkedHashMap<>());
-        String dataJson = dataObj.toString();
+        String dataJson;
+        try { dataJson = objectMapper.writeValueAsString(dataObj); } catch (Exception e) { dataJson = "{}"; }
         String createdBy = (String) body.getOrDefault("createdBy", "admin");
         String status = (String) body.getOrDefault("status", "active");
 
@@ -279,7 +284,10 @@ public class DataModelService {
         StringBuilder sql = new StringBuilder("UPDATE data_model_records SET updated_at = NOW()");
         List<Object> params = new ArrayList<>();
 
-        if (body.containsKey("data")) { sql.append(", data = ?::jsonb"); params.add(body.get("data").toString()); }
+        if (body.containsKey("data")) {
+            sql.append(", data = ?::jsonb");
+            try { params.add(objectMapper.writeValueAsString(body.get("data"))); } catch (Exception e) { params.add("{}"); }
+        }
         if (body.containsKey("status")) { sql.append(", status = ?"); params.add(body.get("status")); }
         if (body.containsKey("updatedBy")) { sql.append(", updated_by = ?"); params.add(body.get("updatedBy")); }
 
