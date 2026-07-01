@@ -388,7 +388,7 @@ export default function DataAssetsPage() {
                           <span className="text-xs text-slate-500">{asset.owner}</span>
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {asset.tags.map(tag => <span key={tag} className="px-1.5 py-0.5 text-[10px] rounded bg-slate-700/50 text-slate-400">{tag}</span>)}
+                          {[...new Set(asset.tags)].map(tag => <span key={tag} className="px-1.5 py-0.5 text-[10px] rounded bg-slate-700/50 text-slate-400">{tag}</span>)}
                         </div>
                       </div>
                       <div className="flex items-center gap-4 flex-shrink-0">
