@@ -1458,6 +1458,10 @@ export default function Home() {
       router.push('/data-assets');
       return;
     }
+    if (item === 'data-models') {
+      router.push('/data-models');
+      return;
+    }
     if (item === 'ops-center') {
       router.push('/ops-center');
       return;

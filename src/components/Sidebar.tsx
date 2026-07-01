@@ -722,6 +722,11 @@ export default function Sidebar({
       icon: Database,
     },
     {
+      id: 'data-models',
+      label: '数据模型',
+      icon: FileSpreadsheet,
+    },
+    {
       id: 'ops-center',
       label: '运维中心',
       icon: Server,
