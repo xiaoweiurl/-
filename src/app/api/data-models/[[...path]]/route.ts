@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBackendInternalUrl, extractSessionId } from '@/lib/backend-proxy';
+import { getBackendInternalUrl, getSessionId } from '@/lib/backend-proxy';
 
 async function proxy(request: NextRequest, method: string) {
   const backendUrl = getBackendInternalUrl();
-  const sessionId = extractSessionId(request);
+  const sessionId = getSessionId(Object.fromEntries(request.headers.entries()));
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api\/data-models/, '/data-models');
   const targetUrl = `${backendUrl}${path}${url.search}`;
