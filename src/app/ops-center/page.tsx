@@ -131,9 +131,9 @@ export default function OpsCenterPage() {
       if (bData?.success) setBackups(bData.backups || bData.data?.backups || []); else failedApis.push('备份管理');
 
       if (failedApis.length === 5) {
-        setApiError('后端服务未启动，请确保Java后端正在运行');
+        setApiError('无法连接后端服务（默认 http://localhost:8080/api），请检查Java后端是否启动及端口配置');
       } else if (failedApis.length > 0) {
-        setApiError(`${failedApis.join('、')}数据加载失败`);
+        setApiError(`${failedApis.join('、')}数据加载失败，请检查对应后端接口`);
       }
     } catch (e) {
       console.error('Failed to fetch ops data:', e);
