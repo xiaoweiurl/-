@@ -1454,6 +1454,10 @@ export default function Home() {
       router.push('/ai-center');
       return;
     }
+    if (item === 'data-assets') {
+      router.push('/data-assets');
+      return;
+    }
 
     // 如果点击系统设置，跳转到设置页面
     if (item === 'settings') {

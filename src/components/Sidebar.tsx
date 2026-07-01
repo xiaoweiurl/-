@@ -38,6 +38,7 @@ import {
   MessageSquare,
   Scissors,
   Cloud,
+  Database,
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';
 import {
@@ -713,6 +714,11 @@ export default function Sidebar({
       id: 'ai-center',
       label: 'AI 能力中心',
       icon: Brain,
+    },
+    {
+      id: 'data-assets',
+      label: '数据资产',
+      icon: Database,
     },
     {
       id: 'all',
