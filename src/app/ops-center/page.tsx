@@ -63,9 +63,10 @@ interface BackupItem {
 type TabKey = 'monitor' | 'errors' | 'performance' | 'audit' | 'backup' | 'users';
 
 // ============ 工具函数 ============
-const fmt = (n: number) => n.toLocaleString();
-const fmtMs = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
-const fmtSize = (bytes: number) => {
+const fmt = (n: number | undefined | null) => n != null ? n.toLocaleString() : '-';
+const fmtMs = (ms: number | undefined | null) => ms == null ? '-' : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+const fmtSize = (bytes: number | undefined | null) => {
+  if (bytes == null) return '-';
   if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)}GB`;
   if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)}MB`;
   return `${(bytes / 1024).toFixed(1)}KB`;
@@ -233,7 +234,8 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
       <p className="text-sm">后端服务未连接，API监控数据暂不可用</p>
     </div>
   );
-  const { summary = {} as any, hourlyRequests = [], endpoints = [], systemResources: sys = {} as any } = metrics;
+  const { summary: rawSummary = { totalRequests: 0, errorRate: 0, avgResponseTime: 0, successRate: 0, requestsPerMinute: 0, errorCount: 0, activeUsers: 0, uptime: 0 }, hourlyRequests = [], endpoints = [], systemResources: sys = { cpu: { current: 0, peak: 0, cores: 0 }, memory: { usedMb: 0, totalMb: 0, peakMb: 0, percentage: 0 }, disk: { usedGb: 0, totalGb: 0, percentage: 0 }, network: { inboundKbps: 0, outboundKbps: 0, totalRequests: 0 } } } = metrics || {};
+  const summary = Object.assign({ totalRequests: 0, errorRate: 0, avgResponseTime: 0, successRate: 0, requestsPerMinute: 0, errorCount: 0, activeUsers: 0, uptime: 0 }, rawSummary);
   const maxRequests = hourlyRequests.length > 0 ? Math.max(...hourlyRequests.map((h: any) => h.total)) : 1;
 
   return (
@@ -241,10 +243,10 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
       {/* KPI 指标 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: '总请求数', value: fmt(summary.totalRequests), icon: <Globe className="w-5 h-5" />, color: 'blue', sub: `${summary.requestsPerMinute} 次/分` },
-          { label: '成功率', value: `${summary.successRate}%`, icon: <CheckCircle2 className="w-5 h-5" />, color: 'green', sub: `${fmt(summary.errorCount)} 错误` },
-          { label: '平均响应', value: fmtMs(summary.avgResponseTime), icon: <Clock className="w-5 h-5" />, color: 'cyan', sub: '全端点平均' },
-          { label: '在线用户', value: fmt(summary.activeUsers), icon: <Users className="w-5 h-5" />, color: 'purple', sub: `运行 ${summary.uptime}` },
+          { label: '总请求数', value: fmt(summary.totalRequests ?? 0), icon: <Globe className="w-5 h-5" />, color: 'blue', sub: `${summary.requestsPerMinute ?? 0} 次/分` },
+          { label: '成功率', value: `${summary.successRate ?? 0}%`, icon: <CheckCircle2 className="w-5 h-5" />, color: 'green', sub: `${fmt(summary.errorCount ?? 0)} 错误` },
+          { label: '平均响应', value: fmtMs(summary.avgResponseTime ?? 0), icon: <Clock className="w-5 h-5" />, color: 'cyan', sub: '全端点平均' },
+          { label: '在线用户', value: fmt(summary.activeUsers), icon: <Users className="w-5 h-5" />, color: 'purple', sub: `运行 ${summary.uptime ?? '-'}` },
         ].map((kpi, i) => (
           <div key={i} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30 hover:border-blue-500/20 transition-all">
             <div className="flex items-center justify-between mb-2">
@@ -313,7 +315,7 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
                 <span className="text-slate-300 font-mono">{sys.memory.usedMb}MB / {sys.memory.totalMb}MB</span>
               </div>
               <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${sys.memory.percentage > 70 ? 'bg-red-500' : sys.memory.percentage > 50 ? 'bg-yellow-500' : 'bg-cyan-500'}`} style={{ width: `${sys.memory.percentage}%` }} />
+                <div className={`h-full rounded-full transition-all ${(sys.memory.usedMb/sys.memory.totalMb*100) > 70 ? 'bg-red-500' : (sys.memory.usedMb/sys.memory.totalMb*100) > 50 ? 'bg-yellow-500' : 'bg-cyan-500'}`} style={{ width: `${Math.round(sys.memory.usedMb/sys.memory.totalMb*100)}%` }} />
               </div>
             </div>
             {/* Disk */}
@@ -364,13 +366,13 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
                   <td className="text-right py-2.5 px-3 text-slate-300 font-mono">{fmt(ep.calls)}</td>
                   <td className="text-right py-2.5 px-3 text-slate-300 font-mono">{fmtMs(ep.avgMs)}</td>
                   <td className="text-right py-2.5 px-3 font-mono">
-                    <span className={ep.p99Ms > 5000 ? 'text-red-400' : ep.p99Ms > 1000 ? 'text-yellow-400' : 'text-slate-300'}>
+                    <span className={(ep.p99Ms ?? 0) > 5000 ? 'text-red-400' : (ep.p99Ms ?? 0) > 1000 ? 'text-yellow-400' : 'text-slate-300'}>
                       {fmtMs(ep.p99Ms)}
                     </span>
                   </td>
                   <td className="text-right py-2.5 px-3 font-mono">
-                    <span className={ep.errorRate > 2 ? 'text-red-400' : ep.errorRate > 1 ? 'text-yellow-400' : 'text-green-400'}>
-                      {ep.errorRate}%
+                    <span className={(ep.errorRate ?? 0) > 2 ? 'text-red-400' : (ep.errorRate ?? 0) > 1 ? 'text-yellow-400' : 'text-green-400'}>
+                      {(ep.errorRate ?? 0)}%
                     </span>
                   </td>
                 </tr>
@@ -492,7 +494,11 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
       <p className="text-sm">后端服务未连接，性能指标数据暂不可用</p>
     </div>
   );
-  const { services = [], slowQueries = [], runtime = {} as any } = perf;
+  const rawPerf = perf || {};
+  const services = (rawPerf.services || []).map((s: any) => ({ responseTime: { p50: 0, p99: 0 }, errorRate: 0, throughput: 0, activeConnections: 0, ...s }));
+  const slowQueries = (rawPerf.slowQueries || []).map((q: any) => ({ duration: 0, ...q }));
+  const runtime = rawPerf.runtime || { jvm: { heapUsedMb: 0, heapMaxMb: 0, gcPauseMs: 0, threadCount: 0, peakThreadCount: 0 }, node: { rssMb: 0, heapUsedMb: 0, heapTotalMb: 0, externalMb: 0, arrayBuffersMb: 0 }, database: { activeConnections: 0, maxConnections: 0, waitingConnections: 0, avgQueryMs: 0, slowQueryCount: 0 } };
+  const lastUpdated = rawPerf.lastUpdated || '';
 
   return (
     <div className="space-y-6">
@@ -513,10 +519,10 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><span className="text-slate-500">P50</span> <span className="text-slate-300 font-mono ml-1">{fmtMs(svc.responseTime.p50)}</span></div>
-                <div><span className="text-slate-500">P99</span> <span className="text-slate-300 font-mono ml-1">{fmtMs(svc.responseTime.p99)}</span></div>
-                <div><span className="text-slate-500">吞吐</span> <span className="text-slate-300 font-mono ml-1">{svc.throughput}/s</span></div>
-                <div><span className="text-slate-500">错误率</span> <span className={`font-mono ml-1 ${svc.errorRate > 2 ? 'text-red-400' : svc.errorRate > 1 ? 'text-yellow-400' : 'text-green-400'}`}>{svc.errorRate}%</span></div>
+                <div><span className="text-slate-500">P50</span> <span className="text-slate-300 font-mono ml-1">{fmtMs(svc.responseTime?.p50 ?? 0)}</span></div>
+                <div><span className="text-slate-500">P99</span> <span className="text-slate-300 font-mono ml-1">{fmtMs(svc.responseTime?.p99 ?? 0)}</span></div>
+                <div><span className="text-slate-500">吞吐</span> <span className="text-slate-300 font-mono ml-1">{svc.throughput ?? 0}/s</span></div>
+                <div><span className="text-slate-500">错误率</span> <span className={`font-mono ml-1 ${svc.errorRate ?? 0 > 2 ? 'text-red-400' : svc.errorRate ?? 0 > 1 ? 'text-yellow-400' : 'text-green-400'}`}>{svc.errorRate ?? 0}%</span></div>
                 <div className="col-span-2">
                   <span className="text-slate-500">连接</span>
                   <span className="text-slate-300 font-mono ml-1">{svc.connections}/{svc.maxConnections}</span>
