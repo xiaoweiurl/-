@@ -69,9 +69,6 @@ export default function FloatingAI() {
 
   const { mode, label, icon } = getModeFromPath(pathname);
 
-  // 登录页不显示悬浮助手
-  if (pathname === '/login') return null;
-
   // 智能自动滚动
   const scrollToBottom = useCallback((force = false) => {
     if (force || !isUserScrollingRef.current) {
@@ -247,6 +244,9 @@ export default function FloatingAI() {
       loadHistory(mode);
     }
   }, [isOpen]);
+
+  // 登录页不显示悬浮助手
+  if (pathname === '/login') return null;
 
   return (
     <>
