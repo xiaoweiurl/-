@@ -816,7 +816,7 @@ function UsersTab() {
                   <div className="flex items-center gap-2.5">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
                       ${user.role === 'admin' ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
-                      {user.username[0].toUpperCase()}
+                      {user.username?.[0]?.toUpperCase() ?? '?'}
                     </div>
                     <span className="text-slate-200">{user.username}</span>
                   </div>
