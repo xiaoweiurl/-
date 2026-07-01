@@ -87,13 +87,13 @@ app:
   # Coze API Token: 登录 https://www.coze.cn/ → 个人空间 → 设置 → 开发者令牌
   ai:
     enabled: true
-    api-key: ${AI_API_KEY:REDACTED_DOUBAO_KEY}
+    api-key: ${AI_API_KEY:}
     base-url: ${AI_BASE_URL:https://api.coze.cn}
     model: doubao-seed-2-0-pro-260215
   
   # MiniMax 配置（Embedding 向量化，保留）
   minimax:
-    api-key: ${MINIMAX_API_KEY:REDACTED_MINIMAX_KEY}
+    api-key: ${MINIMAX_API_KEY:}
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com}
     model: ${MINIMAX_MODEL:MiniMax-M3}
     # MiniMax Embedding 配置（向量维度 1536）
@@ -104,7 +104,7 @@ app:
   
   # DeepSeek 配置（AI对话，思考模式）
   deepseek:
-    api-key: ${DEEPSEEK_API_KEY:REDACTED_DEEPSEEK_KEY}
+    api-key: ${DEEPSEEK_API_KEY:}
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
     model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
     # 思考模式：enabled=开启思维链，disabled=关闭
