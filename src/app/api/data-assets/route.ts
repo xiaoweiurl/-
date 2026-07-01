@@ -25,8 +25,9 @@ async function fetchBackend(
       headers,
       signal: AbortSignal.timeout(15000),
     });
-    if (!res.ok) return null;
-    return await res.json();
+    const text = await res.text();
+    if (!text) return null;
+    try { return JSON.parse(text); } catch { return null; }
   } catch {
     return null;
   }
@@ -43,16 +44,24 @@ export async function GET(request: NextRequest) {
     fetchBackend('/memory/documents', sessionId, cookieHeader),
   ]);
 
-  const documents = Array.isArray(docsRes?.data) ? docsRes.data : Array.isArray(docsRes) ? docsRes : [];
-  const knowledgeDocs = Array.isArray(knowledgeRes?.data?.content)
-    ? knowledgeRes.data.content
-    : Array.isArray(knowledgeRes?.data)
-      ? knowledgeRes.data
-      : Array.isArray(knowledgeRes)
-        ? knowledgeRes
-        : [];
-  const images = Array.isArray(imagesRes?.data) ? imagesRes.data : Array.isArray(imagesRes) ? imagesRes : [];
-  const memoryDocs = Array.isArray(memoryRes?.data) ? memoryRes.data : Array.isArray(memoryRes) ? memoryRes : [];
+  // 通用：提取数组，兼容 { data: { content: [...] } }, { data: [...] }, { content: [...] }, 直接数组
+  function extractList(res: any): any[] {
+    if (!res) return [];
+    if (res.success === false) return [];
+    const d = res.data ?? res;
+    if (Array.isArray(d)) return d;
+    if (d && typeof d === 'object') {
+      if (Array.isArray(d.content)) return d.content;
+      if (Array.isArray(d.documents)) return d.documents;
+      if (Array.isArray(d.images)) return d.images;
+      if (Array.isArray(d.list)) return d.list;
+    }
+    return [];
+  }
+  const documents = extractList(docsRes);
+  const knowledgeDocs = extractList(knowledgeRes);
+  const images = extractList(imagesRes);
+  const memoryDocs = extractList(memoryRes);
 
   const assets: any[] = [];
 
