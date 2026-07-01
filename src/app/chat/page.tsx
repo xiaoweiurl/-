@@ -585,12 +585,12 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50/50">
+    <div className="flex h-screen bg-[#0a0e1a]">
       {/* 左侧边栏 */}
       {showSidebar && (
         <div className="w-72 border-r border-blue-500/10 bg-[#0f172a]/95 backdrop-blur-xl flex flex-col shadow-sm">
           {/* 侧边栏头部 */}
-          <div className="p-4 border-b border-slate-100/80">
+          <div className="p-4 border-b border-slate-700/50">
             <button
               onClick={handleNewChat}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
@@ -606,10 +606,10 @@ export default function ChatPage() {
           {/* 对话列表 */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {sessions.length === 0 ? (
-              <div className="text-center py-12 text-slate-300 text-xs">
+              <div className="text-center py-12 text-slate-500 text-xs">
                 <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-30" />
                 <p>暂无对话记录</p>
-                <p className="text-[10px] mt-1 text-slate-300/60">点击上方按钮开始新对话</p>
+                <p className="text-[10px] mt-1 text-slate-600">点击上方按钮开始新对话</p>
               </div>
             ) : (
               sessions.map(s => (
@@ -630,7 +630,7 @@ export default function ChatPage() {
                   <button
                     onClick={(e) => handleDeleteChat(s.id, e)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg
-                      text-slate-300 hover:text-red-500 hover:bg-red-50
+                      text-slate-400 hover:text-red-400 hover:bg-red-500/10
                       opacity-0 group-hover:opacity-100 transition-all"
                     title="删除对话"
                   >
@@ -642,7 +642,7 @@ export default function ChatPage() {
           </div>
 
           {/* 底部操作 */}
-          <div className="p-3 border-t border-slate-100/80">
+          <div className="p-3 border-t border-slate-700/50">
             <button
               onClick={() => router.push('/')}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-400
@@ -675,17 +675,17 @@ export default function ChatPage() {
               <div>
                 <h1 className="text-sm font-semibold text-slate-200">AI 智能对话</h1>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[10px] font-medium border border-blue-200/40">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-medium border border-blue-500/20">
                     <Brain className="w-2.5 h-2.5" />
                     记忆库
                   </span>
-                  <span className="text-slate-200 text-[10px]">+</span>
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-medium border border-emerald-200/40">
+                  <span className="text-slate-500 text-[10px]">+</span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
                     <BookOpen className="w-2.5 h-2.5" />
                     知识库
                   </span>
-                  <span className="text-slate-200 text-[10px]">+</span>
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-medium border border-sky-200/40">
+                  <span className="text-slate-500 text-[10px]">+</span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[10px] font-medium border border-sky-500/20">
                     <Globe className="w-2.5 h-2.5" />
                     联网搜索
                   </span>
@@ -696,7 +696,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-1">
             <button
               onClick={handleClearChat}
-              className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+              className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="清空对话"
             >
               <Trash2 className="w-4 h-4" />
@@ -720,7 +720,7 @@ export default function ChatPage() {
                 {/* Logo */}
                 <div className="relative mb-6">
                   <div className="w-16 h-16 rounded-2xl bg-slate-800
-                    flex items-center justify-center shadow-lg shadow-slate-200/50">
+                    flex items-center justify-center shadow-lg shadow-blue-500/10">
                     <Bot className="w-8 h-8 text-white" />
                   </div>
                   <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-slate-500 to-slate-600
@@ -736,17 +736,17 @@ export default function ChatPage() {
 
                 {/* 三大能力标签 */}
                 <div className="flex items-center gap-3 mb-8">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium border border-blue-100/60">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
                     <Brain className="w-3.5 h-3.5" />
                     记忆库检索
                   </div>
-                  <div className="w-px h-4 bg-slate-200" />
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-medium border border-emerald-100/60">
+                  <div className="w-px h-4 bg-slate-700" />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">
                     <BookOpen className="w-3.5 h-3.5" />
                     知识库检索
                   </div>
-                  <div className="w-px h-4 bg-slate-200" />
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-600 text-xs font-medium border border-sky-100/60">
+                  <div className="w-px h-4 bg-slate-700" />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 text-xs font-medium border border-sky-500/20">
                     <Globe className="w-3.5 h-3.5" />
                     联网搜索
                   </div>
@@ -792,8 +792,8 @@ export default function ChatPage() {
                             key={j}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border
                               ${s.source === 'memory'
-                                ? 'bg-blue-50/80 text-blue-500 border-blue-100/50'
-                                : 'bg-emerald-50/80 text-emerald-500 border-emerald-100/50'}`}
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}
                           >
                             {s.source === 'memory' ? <Brain className="w-2.5 h-2.5" /> : <BookOpen className="w-2.5 h-2.5" />}
                             {s.source === 'memory' ? s.title || s.domain || '记忆库' : '知识库'}
@@ -836,7 +836,7 @@ export default function ChatPage() {
                           <Globe className="w-3 h-3 shrink-0" />
                           <span>联网搜索结果</span>
                         </summary>
-                        <div className="mt-1.5 text-[11.5px] text-sky-600/70 bg-gradient-to-br from-sky-50/50 to-blue-50/30 rounded-xl p-3 whitespace-pre-wrap border border-sky-100/50 shadow-sm leading-relaxed">
+                        <div className="mt-1.5 text-[11.5px] text-sky-400/80 bg-gradient-to-br from-sky-900/20 to-blue-900/10 rounded-xl p-3 whitespace-pre-wrap border border-sky-500/20 shadow-sm leading-relaxed">
                           {msg.searchResults}
                         </div>
                       </details>
@@ -1004,21 +1004,21 @@ export default function ChatPage() {
               </button>
             </div>
             <div className="mt-2 flex items-center justify-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[10px] font-medium border border-blue-200/40">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-medium border border-blue-500/20">
                 <Brain className="w-2.5 h-2.5" />
                 记忆库
               </span>
-              <span className="text-slate-300 text-[10px]">+</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-medium border border-emerald-200/40">
+              <span className="text-slate-500 text-[10px]">+</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
                 <BookOpen className="w-2.5 h-2.5" />
                 知识库
               </span>
-              <span className="text-slate-300 text-[10px]">+</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-medium border border-sky-200/40">
+              <span className="text-slate-500 text-[10px]">+</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[10px] font-medium border border-sky-500/20">
                 <Globe className="w-2.5 h-2.5" />
                 联网搜索
               </span>
-              <span className="text-slate-300 text-[10px]">|</span>
+              <span className="text-slate-600 text-[10px]">|</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700/60 text-white text-[10px] font-medium tracking-wide">
                 <Zap className="w-2.5 h-2.5 text-yellow-400" />
                 DeepSeek V4 Pro
