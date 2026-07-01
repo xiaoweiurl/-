@@ -7,6 +7,10 @@ server:
 spring:
   application:
     name: image-manager-backend
+  profiles:
+    # 本地开发默认激活 local profile（加载 application-local.yml 中的 API Key）
+    # 生产部署时设为 prod，通过环境变量注入密钥
+    active: ${SPRING_PROFILES_ACTIVE:local}
 
   # PostgreSQL 数据库配置
   datasource:
