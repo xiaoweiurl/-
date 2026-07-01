@@ -125,46 +125,73 @@ public class OpsService {
         }
         result.put("endpoints", endpoints);
 
-        // 4. systemResources（从 performance_snapshots 取最新）
+        // 4. systemResources（直接读当前 JVM Runtime 实时数据）
         Map<String, Object> sysRes = new HashMap<>();
         try {
-            String resourceSql = "SELECT cpu_usage, memory_used_mb, memory_total_mb, memory_usage_pct, " +
-                    "disk_used_mb, disk_total_mb, disk_usage_pct, active_connections " +
-                    "FROM performance_snapshots WHERE 1=1" +
-                    (company != null ? " AND company = ?" : "") +
-                    " ORDER BY recorded_at DESC LIMIT 1";
-            Object[] resourceParams = company != null ? new Object[]{company} : new Object[]{};
-            Map<String, Object> row = jdbcTemplate.queryForMap(resourceSql, resourceParams);
+            Runtime rt = Runtime.getRuntime();
+            long totalMemMb = rt.totalMemory() / (1024 * 1024);
+            long freeMemMb = rt.freeMemory() / (1024 * 1024);
+            long maxMemMb = rt.maxMemory() / (1024 * 1024);
+            long usedMemMb = totalMemMb - freeMemMb;
+            int cores = rt.availableProcessors();
+
+            // CPU 使用率（通过 OperatingSystemMXBean）
+            double cpuUsage = 0;
+            try {
+                var osBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+                if (osBean instanceof com.sun.management.OperatingSystemMXBean sunOsBean) {
+                    cpuUsage = sunOsBean.getProcessCpuLoad() * 100.0;
+                    if (cpuUsage < 0) cpuUsage = 0;
+                }
+            } catch (Exception ignored) {}
 
             Map<String, Object> cpu = new HashMap<>();
-            cpu.put("current", Math.round(toDouble(row.get("cpu_usage"))));
-            cpu.put("peak", Math.round(toDouble(row.get("cpu_usage"))));
-            cpu.put("cores", Runtime.getRuntime().availableProcessors());
+            cpu.put("current", Math.round(cpuUsage * 10.0) / 10.0);
+            cpu.put("peak", Math.round(cpuUsage * 10.0) / 10.0);
+            cpu.put("cores", cores);
 
             Map<String, Object> memory = new HashMap<>();
-            memory.put("usedMb", Math.round(toDouble(row.get("memory_used_mb"))));
-            memory.put("totalMb", Math.round(toDouble(row.get("memory_total_mb"))));
-            memory.put("peakMb", Math.round(toDouble(row.get("memory_used_mb"))));
-            memory.put("percentage", Math.round(toDouble(row.get("memory_usage_pct"))));
+            memory.put("usedMb", usedMemMb);
+            memory.put("totalMb", maxMemMb);
+            memory.put("peakMb", usedMemMb);
+            memory.put("percentage", maxMemMb > 0 ? Math.round((double) usedMemMb / maxMemMb * 1000.0) / 10.0 : 0);
 
+            // 磁盘使用（通过 File 获取当前工作目录所在分区）
             Map<String, Object> disk = new HashMap<>();
-            double diskUsedMb = toDouble(row.get("disk_used_mb"));
-            double diskTotalMb = toDouble(row.get("disk_total_mb"));
-            disk.put("usedGb", Math.round(diskUsedMb / 1024.0 * 10.0) / 10.0);
-            disk.put("totalGb", Math.round(diskTotalMb / 1024.0 * 10.0) / 10.0);
-            disk.put("percentage", Math.round(toDouble(row.get("disk_usage_pct"))));
+            try {
+                var fileStore = java.nio.file.Files.getFileStore(java.nio.file.Paths.get("."));
+                long totalBytes = fileStore.getTotalSpace();
+                long usedBytes = fileStore.getTotalSpace() - fileStore.getUsableSpace();
+                double usedGb = usedBytes / (1024.0 * 1024.0 * 1024.0);
+                double totalGb = totalBytes / (1024.0 * 1024.0 * 1024.0);
+                disk.put("usedGb", Math.round(usedGb * 10.0) / 10.0);
+                disk.put("totalGb", Math.round(totalGb * 10.0) / 10.0);
+                disk.put("percentage", totalBytes > 0 ? Math.round((double) usedBytes / totalBytes * 1000.0) / 10.0 : 0);
+            } catch (Exception ex) {
+                disk.put("usedGb", 0.0);
+                disk.put("totalGb", 0.0);
+                disk.put("percentage", 0);
+            }
 
+            // 网络指标（从 api_metrics 统计请求数）
             Map<String, Object> network = new HashMap<>();
             network.put("inboundKbps", 0);
             network.put("outboundKbps", 0);
-            network.put("totalRequests", toLong(row.get("active_connections")));
+            try {
+                String reqCountSql = "SELECT COUNT(*) as cnt FROM api_metrics WHERE created_at >= ?" +
+                        (company != null ? " AND company = ?" : "");
+                long reqCount = toLong(jdbcTemplate.queryForMap(reqCountSql, params).get("cnt"));
+                network.put("totalRequests", reqCount);
+            } catch (Exception ex) {
+                network.put("totalRequests", 0);
+            }
 
             sysRes.put("cpu", cpu);
             sysRes.put("memory", memory);
             sysRes.put("disk", disk);
             sysRes.put("network", network);
         } catch (Exception e) {
-            // 没有性能快照数据，返回空结构
+            log.debug("[Ops] 系统资源采集失败: {}", e.getMessage());
             sysRes.put("cpu", Map.of("current", 0, "peak", 0, "cores", 0));
             sysRes.put("memory", Map.of("usedMb", 0, "totalMb", 0, "peakMb", 0, "percentage", 0));
             sysRes.put("disk", Map.of("usedGb", 0.0, "totalGb", 0.0, "percentage", 0));
@@ -297,45 +324,87 @@ public class OpsService {
         }
         result.put("slowQueries", slowQueries);
 
-        // 3. runtime（运行时指标，从 performance_snapshots 取最新）
+        // 3. runtime（直接读当前 JVM Runtime + HikariCP 连接池实时数据）
         Map<String, Object> runtime = new HashMap<>();
         try {
-            String runtimeSql = "SELECT cpu_usage, memory_used_mb, memory_total_mb, memory_usage_pct, " +
-                    "jvm_heap_used_mb, jvm_heap_max_mb, jvm_gc_count, jvm_thread_count, " +
-                    "node_rss_mb, node_heap_used_mb, " +
-                    "db_active_connections, db_slow_queries, " +
-                    "active_connections, recorded_at " +
-                    "FROM performance_snapshots WHERE 1=1" +
-                    (company != null ? " AND company = ?" : "") +
-                    " ORDER BY recorded_at DESC LIMIT 1";
-            Object[] runtimeParams = company != null ? new Object[]{company} : new Object[]{};
-            Map<String, Object> row = jdbcTemplate.queryForMap(runtimeSql, runtimeParams);
+            // JVM 实时指标
+            Runtime rt = Runtime.getRuntime();
+            long heapUsed = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+            long heapMax = rt.maxMemory() / (1024 * 1024);
+            int threadCount = Thread.activeCount();
+
+            // GC 指标（通过 ManagementFactory）
+            long gcPauseMs = 0;
+            try {
+                for (var gcBean : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
+                    gcPauseMs += gcBean.getGcInfo() != null ? gcBean.getGcInfo().getDuration() : 0;
+                }
+            } catch (Exception ignored) {}
+
+            // 峰值线程数（通过 ThreadMXBean）
+            int peakThreadCount = threadCount;
+            try {
+                peakThreadCount = java.lang.management.ManagementFactory.getThreadMXBean().getPeakThreadCount();
+            } catch (Exception ignored) {}
 
             Map<String, Object> jvm = new HashMap<>();
-            jvm.put("heapUsedMb", Math.round(toDouble(row.get("jvm_heap_used_mb"))));
-            jvm.put("heapMaxMb", Math.round(toDouble(row.get("jvm_heap_max_mb"))));
-            jvm.put("gcPauseMs", 0);
-            jvm.put("threadCount", toLong(row.get("jvm_thread_count")));
-            jvm.put("peakThreadCount", toLong(row.get("jvm_thread_count")));
-
-            Map<String, Object> node = new HashMap<>();
-            node.put("rssMb", Math.round(toDouble(row.get("node_rss_mb"))));
-            node.put("heapUsedMb", Math.round(toDouble(row.get("node_heap_used_mb"))));
-            node.put("heapTotalMb", 0);
-            node.put("externalMb", 0);
-            node.put("arrayBuffersMb", 0);
-
-            Map<String, Object> database = new HashMap<>();
-            database.put("activeConnections", toLong(row.get("db_active_connections")));
-            database.put("maxConnections", 100);
-            database.put("waitingConnections", 0);
-            database.put("avgQueryMs", 0);
-            database.put("slowQueryCount", toLong(row.get("db_slow_queries")));
-
+            jvm.put("heapUsedMb", heapUsed);
+            jvm.put("heapMaxMb", heapMax);
+            jvm.put("gcPauseMs", gcPauseMs);
+            jvm.put("threadCount", threadCount);
+            jvm.put("peakThreadCount", peakThreadCount);
             runtime.put("jvm", jvm);
-            runtime.put("node", node);
+
+            // 数据库连接池指标（HikariCP）
+            Map<String, Object> database = new HashMap<>();
+            try {
+                var hikariDataSources = com.zaxxer.hikari.HikariConfig.class; // 确保类存在
+                // 通过 JNDI 或 Spring 查找 HikariDataSource
+                int activeConns = 0, idleConns = 0, maxConns = 0, waitingConns = 0;
+                try {
+                    // 尝试从 Spring ApplicationContext 获取 HikariDataSource
+                    var ctx = org.springframework.web.context.support.WebApplicationContextUtils
+                            .getWebApplicationContext(((org.springframework.web.context.request.ServletRequestAttributes)
+                                    org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()).getServletContext());
+                    if (ctx != null) {
+                        var dsBeans = ctx.getBeansOfType(com.zaxxer.hikari.HikariDataSource.class);
+                        for (var entry : dsBeans.entrySet()) {
+                            var pool = entry.getValue().getHikariPoolMXBean();
+                            if (pool != null) {
+                                activeConns += pool.getActiveConnections();
+                                idleConns += pool.getIdleConnections();
+                                maxConns += entry.getValue().getMaximumPoolSize();
+                                waitingConns += pool.getThreadsAwaitingConnection();
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+                database.put("activeConnections", activeConns);
+                database.put("maxConnections", maxConns > 0 ? maxConns : 100);
+                database.put("waitingConnections", waitingConns);
+                database.put("avgQueryMs", 0);
+                // 慢查询数从 api_metrics 表中统计
+                try {
+                    String slowCountSql = "SELECT COUNT(*) FROM api_metrics WHERE response_time_ms > 1000 AND created_at >= ?" +
+                            (company != null ? " AND company = ?" : "");
+                    long slowCount = toLong(jdbcTemplate.queryForMap(slowCountSql, params).get("count"));
+                    database.put("slowQueryCount", slowCount);
+                } catch (Exception ex) {
+                    database.put("slowQueryCount", 0);
+                }
+            } catch (NoClassDefFoundError e) {
+                database.put("activeConnections", 0);
+                database.put("maxConnections", 100);
+                database.put("waitingConnections", 0);
+                database.put("avgQueryMs", 0);
+                database.put("slowQueryCount", 0);
+            }
             runtime.put("database", database);
+
+            // Node.js 指标（本项目是 Java 后端，没有 Node.js 运行时，填 0）
+            runtime.put("node", Map.of("rssMb", 0, "heapUsedMb", 0, "heapTotalMb", 0, "externalMb", 0, "arrayBuffersMb", 0));
         } catch (Exception e) {
+            log.debug("[Ops] 运行时指标采集失败: {}", e.getMessage());
             runtime.put("jvm", Map.of("heapUsedMb", 0, "heapMaxMb", 0, "gcPauseMs", 0, "threadCount", 0, "peakThreadCount", 0));
             runtime.put("node", Map.of("rssMb", 0, "heapUsedMb", 0, "heapTotalMb", 0, "externalMb", 0, "arrayBuffersMb", 0));
             runtime.put("database", Map.of("activeConnections", 0, "maxConnections", 100, "waitingConnections", 0, "avgQueryMs", 0, "slowQueryCount", 0));
@@ -489,35 +558,7 @@ public class OpsService {
         }
     }
 
-    /**
-     * 记录性能快照
-     */
-    public void recordPerformanceSnapshot(Map<String, Object> snapshot) {
-        try {
-            String id = UUID.randomUUID().toString();
-            jdbcTemplate.update(
-                    "INSERT INTO performance_snapshots (id, cpu_usage, memory_used_mb, memory_total_mb, memory_usage_pct, " +
-                            "disk_used_mb, disk_total_mb, disk_usage_pct, " +
-                            "jvm_heap_used_mb, jvm_heap_max_mb, jvm_gc_count, jvm_thread_count, " +
-                            "active_connections, recorded_at) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                    id,
-                    snapshot.get("cpuUsage"),
-                    snapshot.get("memoryUsedMb"),
-                    snapshot.get("memoryTotalMb"),
-                    snapshot.get("memoryUsagePct"),
-                    snapshot.get("diskUsedMb"),
-                    snapshot.get("diskTotalMb"),
-                    snapshot.get("diskUsagePct"),
-                    snapshot.get("jvmHeapUsedMb"),
-                    snapshot.get("jvmHeapMaxMb"),
-                    snapshot.get("jvmGcCount"),
-                    snapshot.get("jvmThreadCount"),
-                    0);
-        } catch (Exception e) {
-            log.warn("[Ops] 记录性能快照失败: {}", e.getMessage());
-        }
-    }
+    // 性能指标已改为直接读取 JVM Runtime + HikariCP 实时数据，不再需要 recordPerformanceSnapshot
 
     // ========== 私有方法 ==========
 

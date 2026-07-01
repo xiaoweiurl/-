@@ -64,38 +64,6 @@ COMMENT ON TABLE system_errors IS '系统错误表';
 COMMENT ON COLUMN system_errors.severity IS '严重级别: warning, error, critical, fatal';
 COMMENT ON COLUMN system_errors.resolved IS '是否已解决';
 
--- 性能快照表（定时记录系统性能指标）
-CREATE TABLE IF NOT EXISTS performance_snapshots (
-    id VARCHAR(36) PRIMARY KEY,
-    cpu_usage DECIMAL(5,2),
-    memory_used_mb DECIMAL(10,2),
-    memory_total_mb DECIMAL(10,2),
-    memory_usage_pct DECIMAL(5,2),
-    disk_used_mb DECIMAL(10,2),
-    disk_total_mb DECIMAL(10,2),
-    disk_usage_pct DECIMAL(5,2),
-    active_connections INT DEFAULT 0,
-    total_requests BIGINT DEFAULT 0,
-    avg_response_ms DECIMAL(10,2),
-    error_rate DECIMAL(5,4) DEFAULT 0,
-    jvm_heap_used_mb DECIMAL(10,2),
-    jvm_heap_max_mb DECIMAL(10,2),
-    jvm_gc_count INT DEFAULT 0,
-    jvm_thread_count INT DEFAULT 0,
-    node_rss_mb DECIMAL(10,2),
-    node_heap_used_mb DECIMAL(10,2),
-    db_active_connections INT DEFAULT 0,
-    db_slow_queries INT DEFAULT 0,
-    company VARCHAR(100),
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_perf_snap_recorded ON performance_snapshots(recorded_at);
-CREATE INDEX IF NOT EXISTS idx_perf_snap_company ON performance_snapshots(company);
-
-COMMENT ON TABLE performance_snapshots IS '性能快照表';
-COMMENT ON COLUMN performance_snapshots.cpu_usage IS 'CPU使用率(%)';
-COMMENT ON COLUMN performance_snapshots.memory_usage_pct IS '内存使用率(%)';
 
 -- 备份记录表
 CREATE TABLE IF NOT EXISTS backup_records (
