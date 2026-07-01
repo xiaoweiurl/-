@@ -488,6 +488,15 @@ function ErrorsTab({ errors, expandedError, setExpandedError }: { errors: ErrorI
 
 // ============ 性能指标 Tab ============
 function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
+  const [nodeMetrics, setNodeMetrics] = useState<{ rssMb: number; heapUsedMb: number; heapTotalMb: number; externalMb: number; arrayBuffersMb: number } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ops/node-metrics')
+      .then(r => r.json())
+      .then(d => { if (d.success && d.data?.node) setNodeMetrics(d.data.node); })
+      .catch(() => {});
+  }, []);
+
   if (!perf) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
       <Zap className="w-10 h-10 mb-3 text-slate-600" />
@@ -497,7 +506,8 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
   const rawPerf = perf || {};
   const services = (rawPerf.services || []).map((s: any) => ({ responseTime: { p50: 0, p99: 0 }, errorRate: 0, throughput: 0, activeConnections: 0, ...s }));
   const slowQueries = (rawPerf.slowQueries || []).map((q: any) => ({ duration: 0, ...q }));
-  const runtime = rawPerf.runtime || { jvm: { heapUsedMb: 0, heapMaxMb: 0, gcPauseMs: 0, threadCount: 0, peakThreadCount: 0 }, node: { rssMb: 0, heapUsedMb: 0, heapTotalMb: 0, externalMb: 0, arrayBuffersMb: 0 }, database: { activeConnections: 0, maxConnections: 0, waitingConnections: 0, avgQueryMs: 0, slowQueryCount: 0 } };
+  const defaultRuntime = { jvm: { heapUsedMb: 0, heapMaxMb: 0, gcPauseMs: 0, threadCount: 0, peakThreadCount: 0 }, node: { rssMb: 0, heapUsedMb: 0, heapTotalMb: 0, externalMb: 0, arrayBuffersMb: 0 }, database: { activeConnections: 0, maxConnections: 0, waitingConnections: 0, avgQueryMs: 0, slowQueryCount: 0 } };
+  const runtime = { ...defaultRuntime, ...rawPerf.runtime, node: nodeMetrics || rawPerf.runtime?.node || defaultRuntime.node };
   const lastUpdated = rawPerf.lastUpdated || '';
 
   return (
