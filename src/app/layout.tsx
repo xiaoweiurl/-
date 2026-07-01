@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 import { ClientProviders } from '@/components/ClientProviders';
+import FloatingAI from '@/components/FloatingAI';
 
 export const metadata: Metadata = {
   title: {
@@ -62,11 +63,12 @@ export default function RootLayout({
   const isDev = process.env.COZE_PROJECT_ENV === 'DEV';
 
   return (
-    <html lang="zh-CN" style={{ colorScheme: 'light' }}>
+    <html lang="zh-CN" style={{ colorScheme: 'dark' }}>
       <body className={`antialiased`}>
         <ClientProviders>
           {isDev && <Inspector />}
           {children}
+          <FloatingAI />
         </ClientProviders>
       </body>
     </html>
