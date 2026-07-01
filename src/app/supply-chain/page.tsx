@@ -97,7 +97,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="p-1 rounded-md text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all"
+      className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-all"
       title="复制内容"
     >
       {copied ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -460,48 +460,48 @@ export default function SupplyChainPage() {
             { label: '供应商数', value: stats.supplierCount, icon: <ShoppingBag className="w-5 h-5" />, color: 'from-violet-500 to-purple-600', suffix: '家' },
             { label: '平均利润率', value: (stats.avgProfitRate * 100).toFixed(1), icon: <TrendingUp className="w-5 h-5" />, color: 'from-green-500 to-emerald-600', suffix: '%', valueColor: profitRateColor },
           ].map((card, i) => (
-            <div key={i} className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-lg transition-all duration-200">
+            <div key={i} className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-200">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-slate-500">{card.label}</span>
+                <span className="text-sm text-slate-400">{card.label}</span>
                 <div className={`w-9 h-9 rounded-lg bg-gradient-to-r ${card.color} flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
               </div>
-              <div className={`text-2xl font-bold ${card.valueColor || 'text-slate-800'}`}>{card.value}<span className="text-sm font-normal text-slate-400 ml-1">{card.suffix}</span></div>
+              <div className={`text-2xl font-bold ${card.valueColor || 'text-slate-100'}`}>{card.value}<span className="text-sm font-normal text-slate-500 ml-1">{card.suffix}</span></div>
             </div>
           ))}
         </div>
 
         {/* 产品报价概览 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-amber-500" />产品报价概览
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-3 text-slate-500 font-medium">产品编码</th>
-                  <th className="text-left py-3 px-3 text-slate-500 font-medium">生产编码</th>
-                  <th className="text-left py-3 px-3 text-slate-500 font-medium">客户</th>
-                  <th className="text-left py-3 px-3 text-slate-500 font-medium">销售员</th>
-                  <th className="text-left py-3 px-3 text-slate-500 font-medium">审批状态</th>
-                  <th className="text-right py-3 px-3 text-slate-500 font-medium">辅料费用</th>
+                <tr className="border-b border-slate-700/50">
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">产品编码</th>
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">生产编码</th>
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">客户</th>
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">销售员</th>
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">审批状态</th>
+                  <th className="text-right py-3 px-3 text-slate-400 font-medium">辅料费用</th>
                 </tr>
               </thead>
               <tbody>
                 {(quotations || []).map((q: any) => (
-                  <tr key={q.id} className="border-b border-slate-50 hover:bg-amber-50/50 transition-colors">
-                    <td className="py-3 px-3 font-medium text-slate-800">{q.productCode}</td>
-                    <td className="py-3 px-3 text-slate-600">{q.productionCode}</td>
-                    <td className="py-3 px-3 text-slate-600">{q.customer}</td>
-                    <td className="py-3 px-3 text-slate-600">{q.salesperson}</td>
+                  <tr key={q.id} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
+                    <td className="py-3 px-3 font-medium text-slate-200">{q.productCode}</td>
+                    <td className="py-3 px-3 text-slate-400">{q.productionCode}</td>
+                    <td className="py-3 px-3 text-slate-400">{q.customer}</td>
+                    <td className="py-3 px-3 text-slate-400">{q.salesperson}</td>
                     <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${q.approvalStatus === '已终审' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${q.approvalStatus === '已终审' ? 'bg-green-500/15 text-green-400' : 'bg-amber-500/15 text-amber-400'}`}>
                         {q.approvalStatus}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-700">¥{formatMoneyShort(q.accessoryPrice)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-slate-300">¥{formatMoneyShort(q.accessoryPrice)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -510,21 +510,21 @@ export default function SupplyChainPage() {
         </div>
 
         {/* 供应商最优推荐 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
             <Zap className="w-5 h-5 text-violet-500" />供应商最优推荐
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {(supplierCompares || []).map((sc, i) => (
-              <div key={i} className="border border-slate-100 rounded-lg p-4 hover:border-amber-300 transition-colors">
+              <div key={i} className="border border-slate-700/50 rounded-lg p-4 hover:border-blue-500/30 transition-colors">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-slate-800">{sc.materialCode}</span>
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">节省{(sc.savingRate * 100).toFixed(1)}%</span>
+                  <span className="font-medium text-slate-200">{sc.materialCode}</span>
+                  <span className="text-xs bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full">节省{(sc.savingRate * 100).toFixed(1)}%</span>
                 </div>
-                <div className="text-sm text-slate-500 mb-1">最优: <span className="text-green-600 font-medium">{sc.bestSupplier}</span> ¥{formatMoneyShort(sc.bestPrice)}</div>
+                <div className="text-sm text-slate-400 mb-1">最优: <span className="text-green-400 font-medium">{sc.bestSupplier}</span> ¥{formatMoneyShort(sc.bestPrice)}</div>
                 <div className="flex gap-2 flex-wrap">
                   {(sc.suppliers || []).filter((s: any) => s.supplier !== sc.bestSupplier).map((s: any, j: number) => (
-                    <span key={j} className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
+                    <span key={j} className="text-xs bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded">
                       {s.supplier} ¥{formatMoneyShort(s.unitPrice)}
                     </span>
                   ))}
@@ -541,22 +541,22 @@ export default function SupplyChainPage() {
   const renderSmartQuote = () => (
     <div className="space-y-6">
       {/* 参数配置 */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+        <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
           <Calculator className="w-5 h-5 text-amber-500" />报价参数配置
         </h3>
         <div className="flex flex-wrap gap-6 items-end">
           <div>
-            <label className="block text-sm text-slate-500 mb-1">目标利润率 (%)</label>
+            <label className="block text-sm text-slate-400 mb-1">目标利润率 (%)</label>
             <input type="number" value={targetProfitRate} onChange={e => setTargetProfitRate(Number(e.target.value))}
-              style={{color: '#1e293b'}}
-              className="w-28 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none bg-white" />
+              style={{color: '#f8fafc'}}
+              className="w-28 px-3 py-2 border border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none bg-slate-900/50" />
           </div>
           <div>
-            <label className="block text-sm text-slate-500 mb-1">加工费 (元/条)</label>
+            <label className="block text-sm text-slate-400 mb-1">加工费 (元/条)</label>
             <input type="number" step="0.01" value={processingCost} onChange={e => setProcessingCost(Number(e.target.value))}
-              style={{color: '#1e293b'}}
-              className="w-28 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none bg-white" />
+              style={{color: '#f8fafc'}}
+              className="w-28 px-3 py-2 border border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none bg-slate-900/50" />
           </div>
           <button onClick={loadAllData} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all">
             <RefreshCw className="w-4 h-4 inline mr-1" />重新计算
@@ -567,18 +567,18 @@ export default function SupplyChainPage() {
       {/* 逐产品报价卡片 */}
       {(smartQuotes || []).map((sq, idx) => {
         const profitColor = sq.profitRate >= 0.3 ? 'text-green-600' : sq.profitRate >= 0.2 ? 'text-amber-600' : 'text-red-600';
-        const profitBg = sq.profitRate >= 0.3 ? 'bg-green-50 border-green-200' : sq.profitRate >= 0.2 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+        const profitBg = sq.profitRate >= 0.3 ? 'bg-green-500/10 border-green-500/30' : sq.profitRate >= 0.2 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-red-500/10 border-red-500/30';
         return (
-          <div key={idx} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div key={idx} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
               <div>
-                <h4 className="text-lg font-bold text-slate-800">{sq.productCode}
-                  <span className="text-sm font-normal text-slate-500 ml-2">({sq.productionCode})</span>
+                <h4 className="text-lg font-bold text-slate-100">{sq.productCode}
+                  <span className="text-sm font-normal text-slate-400 ml-2">({sq.productionCode})</span>
                 </h4>
-                <div className="text-sm text-slate-500 mt-0.5">客户: {sq.customer} | 下机克重: {sq.productWeight || sq.sewingWeight}g | 日产能: {sq.dailyCapacity}条</div>
+                <div className="text-sm text-slate-400 mt-0.5">客户: {sq.customer} | 下机克重: {sq.productWeight || sq.sewingWeight}g | 日产能: {sq.dailyCapacity}条</div>
               </div>
               <div className={`px-4 py-2 rounded-lg border ${profitBg}`}>
-                <div className="text-xs text-slate-500">利润率</div>
+                <div className="text-xs text-slate-400">利润率</div>
                 <div className={`text-xl font-bold ${profitColor}`}>{(sq.profitRate * 100).toFixed(1)}%</div>
               </div>
             </div>
@@ -587,41 +587,41 @@ export default function SupplyChainPage() {
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-2 px-3 text-slate-600 font-semibold">原料名称</th>
-                      <th className="text-right py-2 px-3 text-slate-600 font-semibold">用量(g)</th>
-                      <th className="text-right py-2 px-3 text-slate-600 font-semibold">单价(元/kg)</th>
-                      <th className="text-right py-2 px-3 text-slate-600 font-semibold">采购参考价</th>
-                      <th className="text-right py-2 px-3 text-slate-600 font-semibold">原料成本</th>
-                      <th className="text-left py-2 px-3 text-slate-600 font-semibold">最优供应商</th>
+                    <tr className="border-b-2 border-slate-700/50">
+                      <th className="text-left py-2 px-3 text-slate-400 font-semibold">原料名称</th>
+                      <th className="text-right py-2 px-3 text-slate-400 font-semibold">用量(g)</th>
+                      <th className="text-right py-2 px-3 text-slate-400 font-semibold">单价(元/kg)</th>
+                      <th className="text-right py-2 px-3 text-slate-400 font-semibold">采购参考价</th>
+                      <th className="text-right py-2 px-3 text-slate-400 font-semibold">原料成本</th>
+                      <th className="text-left py-2 px-3 text-slate-400 font-semibold">最优供应商</th>
                     </tr>
                   </thead>
                   <tbody>
                     {((sq.materials || [])).map((m: any, mi: number) => (
-                      <tr key={mi} className="border-b border-slate-50 hover:bg-amber-50/30">
-                        <td className="py-2 px-3 text-slate-800 font-medium">{m.name}</td>
-                        <td className="py-2 px-3 text-right font-mono text-slate-600">{m.usage}</td>
-                        <td className="py-2 px-3 text-right font-mono text-slate-600">¥{formatMoney(m.unitPrice)}</td>
-                        <td className="py-2 px-3 text-right font-mono text-slate-400">{m.purchaseRefPrice ? `¥${formatMoney(m.purchaseRefPrice)}/kg` : '-'}</td>
-                        <td className="py-2 px-3 text-right font-mono text-amber-700 font-semibold">¥{formatMoney(m.cost)}</td>
-                        <td className="py-2 px-3 text-slate-500 text-xs">{m.bestSupplier || '-'}</td>
+                      <tr key={mi} className="border-b border-slate-700/30 hover:bg-slate-700/20">
+                        <td className="py-2 px-3 text-slate-200 font-medium">{m.name}</td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-400">{m.usage}</td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-400">¥{formatMoney(m.unitPrice)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-500">{m.purchaseRefPrice ? `¥${formatMoney(m.purchaseRefPrice)}/kg` : '-'}</td>
+                        <td className="py-2 px-3 text-right font-mono text-amber-400 font-semibold">¥{formatMoney(m.cost)}</td>
+                        <td className="py-2 px-3 text-slate-400 text-xs">{m.bestSupplier || '-'}</td>
                       </tr>
                     ))}
                     {/* 辅料行 */}
-                    <tr className="border-b border-slate-50 bg-blue-50/30">
-                      <td className="py-2 px-3 text-blue-800 font-medium">{sq.accessoryName || '辅料'}</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-600">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-600">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-blue-700 font-semibold">¥{formatMoney(sq.accessoryCost)}</td>
-                      <td className="py-2 px-3 text-slate-500 text-xs">-</td>
+                    <tr className="border-b border-slate-700/30 bg-blue-500/10">
+                      <td className="py-2 px-3 text-blue-300 font-medium">{sq.accessoryName || '辅料'}</td>
+                      <td className="py-2 px-3 text-right font-mono text-slate-400">-</td>
+                      <td className="py-2 px-3 text-right font-mono text-slate-400">-</td>
+                      <td className="py-2 px-3 text-right font-mono text-blue-400 font-semibold">¥{formatMoney(sq.accessoryCost)}</td>
+                      <td className="py-2 px-3 text-slate-400 text-xs">-</td>
                     </tr>
                     {/* 制造部分小计 */}
-                    <tr className="border-b border-slate-50 bg-purple-50/30">
-                      <td className="py-2 px-3 text-purple-800 font-medium">制造合计(织造+后整理)</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-600">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-600">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-purple-700 font-semibold">¥{formatMoney(sq.manufacturingCost)}</td>
-                      <td className="py-2 px-3 text-purple-600 text-xs">R/P + M/1000×D</td>
+                    <tr className="border-b border-slate-700/30 bg-purple-500/10">
+                      <td className="py-2 px-3 text-purple-300 font-medium">制造合计(织造+后整理)</td>
+                      <td className="py-2 px-3 text-right font-mono text-slate-400">-</td>
+                      <td className="py-2 px-3 text-right font-mono text-slate-400">-</td>
+                      <td className="py-2 px-3 text-right font-mono text-purple-400 font-semibold">¥{formatMoney(sq.manufacturingCost)}</td>
+                      <td className="py-2 px-3 text-purple-400 text-xs">R/P + M/1000×D</td>
                     </tr>
                   </tbody>
                 </table>
@@ -629,61 +629,61 @@ export default function SupplyChainPage() {
 
               {/* 制造部分明细 - 新公式 */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="bg-slate-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">机台费率 R(元/h)</div>
-                  <div className="text-sm font-bold text-slate-700">{sq.machineHourlyRate || 50}</div>
+                <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">机台费率 R(元/h)</div>
+                  <div className="text-sm font-bold text-slate-200">{sq.machineHourlyRate || 50}</div>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">单机产量 P(双/h)</div>
-                  <div className="text-sm font-bold text-slate-700">{sq.singleMachineOutput || 1000}</div>
+                <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">单机产量 P(双/h)</div>
+                  <div className="text-sm font-bold text-slate-200">{sq.singleMachineOutput || 1000}</div>
                 </div>
-                <div className="bg-purple-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">织造成本 R/P</div>
-                  <div className="text-sm font-bold text-purple-700">¥{formatMoney(sq.weavingCost)}</div>
+                <div className="bg-purple-500/10 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">织造成本 R/P</div>
+                  <div className="text-sm font-bold text-purple-400">¥{formatMoney(sq.weavingCost)}</div>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">下机克重 M(g)</div>
-                  <div className="text-sm font-bold text-slate-700">{sq.productWeight || sq.sewingWeight}</div>
+                <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">下机克重 M(g)</div>
+                  <div className="text-sm font-bold text-slate-200">{sq.productWeight || sq.sewingWeight}</div>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">染色单价 D(元/kg)</div>
-                  <div className="text-sm font-bold text-slate-700">{sq.dyeingUnitPrice || '-'}</div>
+                <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">染色单价 D(元/kg)</div>
+                  <div className="text-sm font-bold text-slate-200">{sq.dyeingUnitPrice || '-'}</div>
                 </div>
-                <div className="bg-orange-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">后整理 M/1000×D</div>
-                  <div className="text-sm font-bold text-orange-700">¥{formatMoney(sq.postProcessCost)}</div>
+                <div className="bg-orange-500/10 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">后整理 M/1000×D</div>
+                  <div className="text-sm font-bold text-orange-400">¥{formatMoney(sq.postProcessCost)}</div>
                 </div>
-                <div className="bg-purple-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">制造合计</div>
-                  <div className="text-sm font-bold text-purple-700">¥{formatMoney(sq.manufacturingCost)}</div>
+                <div className="bg-purple-500/10 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">制造合计</div>
+                  <div className="text-sm font-bold text-purple-400">¥{formatMoney(sq.manufacturingCost)}</div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-slate-500">正品率</div>
-                  <div className="text-sm font-bold text-blue-700">{sq.yieldRate || 100}%</div>
+                <div className="bg-blue-500/10 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-400">正品率</div>
+                  <div className="text-sm font-bold text-blue-400">{sq.yieldRate || 100}%</div>
                 </div>
               </div>
 
               {/* 汇总行 */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div className="bg-slate-50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-500 mb-1">原料成本</div>
-                  <div className="text-lg font-bold text-slate-700">¥{formatMoneyShort(sq.totalMaterialCost)}</div>
+                <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">原料成本</div>
+                  <div className="text-lg font-bold text-slate-200">¥{formatMoneyShort(sq.totalMaterialCost)}</div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-500 mb-1">辅料成本</div>
-                  <div className="text-lg font-bold text-blue-700">¥{formatMoneyShort(sq.accessoryCost)}</div>
+                <div className="bg-blue-500/10 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">辅料成本</div>
+                  <div className="text-lg font-bold text-blue-400">¥{formatMoneyShort(sq.accessoryCost)}</div>
                 </div>
-                <div className="bg-purple-50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-500 mb-1">制造合计</div>
-                  <div className="text-lg font-bold text-purple-700">¥{formatMoneyShort(sq.manufacturingCost)}</div>
+                <div className="bg-purple-500/10 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">制造合计</div>
+                  <div className="text-lg font-bold text-purple-400">¥{formatMoneyShort(sq.manufacturingCost)}</div>
                 </div>
-                <div className="bg-amber-50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-500 mb-1">净成本/条</div>
-                  <div className="text-lg font-bold text-amber-700">¥{formatMoneyShort(sq.netCost)}</div>
+                <div className="bg-amber-500/10 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">净成本/条</div>
+                  <div className="text-lg font-bold text-amber-400">¥{formatMoneyShort(sq.netCost)}</div>
                 </div>
-                <div className="bg-green-50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-500 mb-1">建议报价/条</div>
-                  <div className="text-lg font-bold text-green-700">¥{formatMoneyShort(sq.suggestedPrice)}</div>
+                <div className="bg-green-500/10 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">建议报价/条</div>
+                  <div className="text-lg font-bold text-green-400">¥{formatMoneyShort(sq.suggestedPrice)}</div>
                 </div>
               </div>
             </div>
@@ -692,40 +692,40 @@ export default function SupplyChainPage() {
       })}
 
       {/* 供应商对比 */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+        <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
           <Target className="w-5 h-5 text-blue-500" />原料采购供应商对比
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b-2 border-slate-200">
-                <th className="text-left py-3 px-3 text-slate-600 font-semibold">原料编码</th>
-                <th className="text-left py-3 px-3 text-slate-600 font-semibold">最优供应商</th>
-                <th className="text-right py-3 px-3 text-slate-600 font-semibold">最低价</th>
-                <th className="text-right py-3 px-3 text-slate-600 font-semibold">最高价</th>
-                <th className="text-right py-3 px-3 text-slate-600 font-semibold">节省比例</th>
-                <th className="text-left py-3 px-3 text-slate-600 font-semibold">全部供应商</th>
+              <tr className="border-b-2 border-slate-700/50">
+                <th className="text-left py-3 px-3 text-slate-400 font-semibold">原料编码</th>
+                <th className="text-left py-3 px-3 text-slate-400 font-semibold">最优供应商</th>
+                <th className="text-right py-3 px-3 text-slate-400 font-semibold">最低价</th>
+                <th className="text-right py-3 px-3 text-slate-400 font-semibold">最高价</th>
+                <th className="text-right py-3 px-3 text-slate-400 font-semibold">节省比例</th>
+                <th className="text-left py-3 px-3 text-slate-400 font-semibold">全部供应商</th>
               </tr>
             </thead>
             <tbody>
               {(supplierCompares || []).map((sc, i) => (
-                <tr key={i} className="border-b border-slate-50 hover:bg-blue-50/30">
-                  <td className="py-3 px-3 font-medium text-slate-800">{sc.materialCode}</td>
+                <tr key={i} className="border-b border-slate-700/30 hover:bg-slate-700/20">
+                  <td className="py-3 px-3 font-medium text-slate-200">{sc.materialCode}</td>
                   <td className="py-3 px-3">
-                    <span className="text-green-700 font-medium">{sc.bestSupplier}</span>
+                    <span className="text-green-400 font-medium">{sc.bestSupplier}</span>
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-green-600 font-semibold">¥{formatMoney(sc.bestPrice)}</td>
-                  <td className="py-3 px-3 text-right font-mono text-red-500">¥{formatMoney(sc.worstPrice)}</td>
+                  <td className="py-3 px-3 text-right font-mono text-green-400 font-semibold">¥{formatMoney(sc.bestPrice)}</td>
+                  <td className="py-3 px-3 text-right font-mono text-red-400">¥{formatMoney(sc.worstPrice)}</td>
                   <td className="py-3 px-3 text-right">
-                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                    <span className="bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full text-xs font-medium">
                       -{(sc.savingRate * 100).toFixed(1)}%
                     </span>
                   </td>
                   <td className="py-3 px-3">
                     <div className="flex flex-wrap gap-1">
                       {(sc.suppliers || []).map((s: any, j: number) => (
-                        <span key={j} className={`text-xs px-2 py-0.5 rounded ${s.supplier === sc.bestSupplier ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                        <span key={j} className={`text-xs px-2 py-0.5 rounded ${s.supplier === sc.bestSupplier ? 'bg-green-500/15 text-green-400' : 'bg-slate-700/50 text-slate-400'}`}>
                           {s.supplier} ¥{formatMoneyShort(s.unitPrice)}
                         </span>
                       ))}
@@ -820,16 +820,16 @@ export default function SupplyChainPage() {
     const deleteType = activeTab === 'quotation' ? 'quotations' : activeTab === 'warehouse' ? 'warehouse' : activeTab === 'purchase' ? 'purchases' : activeTab === 'plan' ? 'plans' : 'accessories';
 
     return (
-      <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden">
         {/* 工具栏 */}
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input type="text" placeholder="搜索..." value={searchKeyword}
                 onChange={e => setSearchKeyword(e.target.value)}
-                style={{color: '#1e293b'}}
-                className="pl-9 pr-3 py-1.5 text-[13px] border border-slate-200/60 rounded-lg w-52 focus:ring-2 focus:ring-amber-400/30 focus:border-amber-300 outline-none bg-slate-50/50 focus:bg-white transition-colors" />
+                style={{color: '#f8fafc'}}
+                className="pl-9 pr-3 py-1.5 text-[13px] border border-slate-600/50 rounded-lg w-52 focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400/50 outline-none bg-slate-900/50 transition-colors placeholder:text-slate-500" />
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -844,28 +844,28 @@ export default function SupplyChainPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/60">
+              <tr className="bg-slate-700/30 border-b border-slate-700/50">
                 {columns.map(col => (
-                  <th key={col.key} className={`py-2.5 px-3 text-slate-500 font-semibold text-[12px] uppercase tracking-wider ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
+                  <th key={col.key} className={`py-2.5 px-3 text-slate-400 font-semibold text-[12px] uppercase tracking-wider ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
                     {col.label}
                   </th>
                 ))}
-                <th className="py-2.5 px-3 text-slate-500 font-semibold text-[12px] uppercase tracking-wider text-right">操作</th>
+                <th className="py-2.5 px-3 text-slate-400 font-semibold text-[12px] uppercase tracking-wider text-right">操作</th>
               </tr>
             </thead>
             <tbody>
               {(data || []).length === 0 ? (
                 <tr><td colSpan={columns.length + 1} className="py-12 text-center text-slate-400 text-[13px]">暂无数据</td></tr>
               ) : (data || []).map((row: any, ri: number) => (
-                <tr key={row.id || ri} className="border-b border-slate-50 hover:bg-amber-50/20 transition-colors">
+                <tr key={row.id || ri} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
                   {columns.map((col: any) => (
-                    <td key={col.key} className={`py-2.5 px-3 text-slate-600 ${col.align === 'right' ? 'text-right font-mono text-[12px]' : ''}`}>
+                    <td key={col.key} className={`py-2.5 px-3 text-slate-300 ${col.align === 'right' ? 'text-right font-mono text-[12px]' : ''}`}>
                       {col.format ? col.format(row[col.key]) : (row[col.key] ?? '-')}
                     </td>
                   ))}
                   <td className="py-2.5 px-3 text-right">
                     <button onClick={() => handleDelete(deleteType, row.id)}
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -890,14 +890,14 @@ export default function SupplyChainPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f8f9fc]">
+    <div className="min-h-screen bg-[#0a0e1a]">
       {/* 顶部导航 */}
-      <header className="bg-white/[0.97] backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-50">
+      <header className="bg-[#0f172a]/90 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
               <button
                 onClick={() => { localStorage.setItem('back_to_portal', 'true'); router.push('/login'); }}
-                className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors shrink-0"
+                className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-200 transition-colors shrink-0"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>返回</span>
@@ -907,13 +907,13 @@ export default function SupplyChainPage() {
                 <BrandIcon className="w-4 h-4" />
               </div>
               <div>
-                <h1 className="text-[15px] font-bold text-slate-800 leading-tight">{brand.name}企业数智中台系统</h1>
+                <h1 className="text-[15px] font-bold text-slate-100 leading-tight">{brand.name}企业数智中台系统</h1>
                 <p className="text-[11px] text-slate-400">供应链 & 工厂管理</p>
               </div>
             </div>
           <div className="flex items-center gap-2">
             <button onClick={handleLogout}
-              className="text-sm text-slate-500 hover:text-red-500 transition-colors px-3 py-1.5 hover:bg-red-50 rounded-lg">
+              className="text-sm text-slate-400 hover:text-red-400 transition-colors px-3 py-1.5 hover:bg-red-500/10 rounded-lg">
               退出登录
             </button>
           </div>
@@ -923,13 +923,13 @@ export default function SupplyChainPage() {
 
       <div className="max-w-[1600px] mx-auto px-4 py-4">
         {/* Tab导航 */}
-        <div className="flex gap-0.5 mb-4 bg-white rounded-xl p-1 border border-slate-200/60 shadow-sm overflow-x-auto">
+        <div className="flex gap-0.5 mb-4 bg-slate-800/50 rounded-xl p-1 border border-slate-700/50 shadow-sm overflow-x-auto">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all ${
                 activeTab === tab.key
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                  : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
               }`}>
               {tab.icon}{tab.label}
             </button>
@@ -945,7 +945,7 @@ export default function SupplyChainPage() {
         ) : (
           <>
             {activeTab === 'chat' && (
-              <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="flex flex-col h-[calc(100vh-140px)] bg-slate-800/30 rounded-2xl border border-slate-700/50 shadow-sm overflow-hidden">
                 {/* 聊天消息区 */}
                 <div
                   ref={chatScrollContainerRef}
@@ -962,21 +962,21 @@ export default function SupplyChainPage() {
                       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center mb-4 shadow-lg shadow-slate-200/50">
                         <MessageSquare className="w-8 h-8 text-white" />
                       </div>
-                      <h2 className="text-xl font-bold text-slate-800 mb-2">工厂AI助手</h2>
-                      <p className="text-sm text-slate-500 mb-6 max-w-md leading-relaxed">基于DeepSeek大模型，专注供应链与工厂业务知识，支持产品报价、原料采购、生产计划等智能问答</p>
+                      <h2 className="text-xl font-bold text-slate-100 mb-2">工厂AI助手</h2>
+                      <p className="text-sm text-slate-400 mb-6 max-w-md leading-relaxed">基于DeepSeek大模型，专注供应链与工厂业务知识，支持产品报价、原料采购、生产计划等智能问答</p>
                       <div className="flex flex-wrap gap-2 justify-center">
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-600 border border-orange-200/60">产品报价</span>
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200/60">原料采购</span>
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">生产计划</span>
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-600 border border-sky-200/60">联网搜索</span>
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-500/10 text-orange-400 border border-orange-500/20">产品报价</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">原料采购</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">生产计划</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">联网搜索</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300 border border-slate-600/50">
                           <Zap className="w-3 h-3 inline-block text-yellow-500 mr-0.5" />DeepSeek V4 Pro
                         </span>
                       </div>
                       <div className="mt-6 flex flex-col gap-2.5">
                         {['帮我分析原料采购的供应商报价', '最新的涤纶面料市场行情如何', '查询产品SK-H001的成本构成'].map(q => (
                           <button key={q} onClick={() => handleFactoryChat(q)}
-                            className="text-left px-4 py-3 text-sm text-slate-600 bg-slate-50/80 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/60 hover:border-slate-300 hover:shadow-sm">
+                            className="text-left px-4 py-3 text-sm text-slate-300 bg-slate-800/50 hover:bg-slate-700/60 rounded-xl transition-all border border-slate-700/50 hover:border-slate-600 hover:shadow-sm">
                             <span className="text-slate-400 mr-2">→</span>{q}
                           </button>
                         ))}
@@ -994,7 +994,7 @@ export default function SupplyChainPage() {
                         {/* 思维链（DeepSeek思考模式） */}
                         {msg.role === 'assistant' && msg.reasoning && msg.reasoning.length > 0 && (
                           <details className="mb-2.5 group">
-                            <summary className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer hover:text-slate-700 transition-colors select-none py-1">
+                            <summary className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors select-none py-1">
                               <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
@@ -1008,7 +1008,7 @@ export default function SupplyChainPage() {
                                 <span>思考过程</span>
                               )}
                             </summary>
-                            <div className="mt-1.5 p-3 bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl text-[11.5px] text-slate-500 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
+                            <div className="mt-1.5 p-3 bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/60 rounded-xl text-[11.5px] text-slate-400 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
                               {msg.reasoning}
                             </div>
                           </details>
@@ -1024,10 +1024,10 @@ export default function SupplyChainPage() {
                               <Globe className="w-3 h-3 shrink-0" />
                               <span>联网搜索结果</span>
                             </summary>
-                            <div className="mt-1.5 text-[11.5px] bg-gradient-to-br from-sky-50/50 to-blue-50/30 rounded-xl p-3 border border-sky-100/50 shadow-sm space-y-1.5">
+                            <div className="mt-1.5 text-[11.5px] bg-gradient-to-br from-sky-900/20 to-blue-900/10 rounded-xl p-3 border border-sky-500/20 shadow-sm space-y-1.5">
                               {msg.searchResults.map((r, i) => (
-                                <div key={i} className="text-sky-700 truncate">
-                                  <span className="text-sky-400 mr-1">{i + 1}.</span>
+                                <div key={i} className="text-sky-300 truncate">
+                                  <span className="text-sky-500 mr-1">{i + 1}.</span>
                                   {r.title}
                                 </div>
                               ))}
@@ -1038,8 +1038,8 @@ export default function SupplyChainPage() {
                         {/* 消息内容 */}
                         <div className={`relative group/msg
                           ${msg.role === 'user'
-                            ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-slate-700 text-white shadow-md shadow-slate-200/30'
-                            : 'px-4 py-3 rounded-2xl rounded-tl-md bg-white border border-slate-200/60 text-slate-600 shadow-sm'}`}
+                            ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/20'
+                            : 'px-4 py-3 rounded-2xl rounded-tl-md bg-slate-800/50 border border-slate-700/50 text-slate-300 shadow-sm'}`}
                         >
                           {msg.role === 'user' ? (
                             <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
@@ -1048,7 +1048,7 @@ export default function SupplyChainPage() {
                           )}
                           {msg.isStreaming && (
                             <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
-                              ${msg.isThinking ? 'bg-slate-400' : 'bg-slate-500'}`} />
+                              ${msg.isThinking ? 'bg-blue-400' : 'bg-blue-500'}`} />
                           )}
                           {/* 复制按钮 - 仅assistant消息完成时显示 */}
                           {msg.role === 'assistant' && !msg.isStreaming && msg.content && (
@@ -1068,7 +1068,7 @@ export default function SupplyChainPage() {
                   <div ref={chatMessagesEndRef} />
                 </div>
                 {/* 输入区 */}
-                <div className="border-t border-slate-200/60 px-4 py-3 bg-white">
+                <div className="border-t border-slate-700/50 px-4 py-3 bg-slate-800/50">
                   <div className="flex gap-2 items-end">
                     <textarea
                       value={chatInput}
@@ -1081,21 +1081,21 @@ export default function SupplyChainPage() {
                       }}
                       placeholder="输入工厂业务问题..."
                       rows={1}
-                      className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all placeholder:text-slate-400"
+                      className="flex-1 resize-none rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all placeholder:text-slate-500"
                     />
                     <button
                       onClick={() => handleFactoryChat()}
                       disabled={chatLoading || !chatInput.trim()}
-                      className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center hover:shadow-lg hover:shadow-slate-200/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                      className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
                     >
                       <Send className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex items-center justify-center gap-2 mt-2">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200/60">供应链数据</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">知识库</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-sky-50 text-sky-600 border border-sky-200/60">联网搜索</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-500/10 text-orange-400 border border-orange-500/20">供应链数据</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">知识库</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">联网搜索</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-700/50 text-slate-300 border border-slate-600/50">
                       <Zap className="w-2.5 h-2.5 inline-block text-yellow-500 mr-0.5" />DeepSeek V4 Pro
                     </span>
                   </div>

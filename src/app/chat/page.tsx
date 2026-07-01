@@ -98,7 +98,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="p-1 rounded-md text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all"
+      className="p-1 rounded-md text-slate-300 hover:text-slate-400 hover:bg-slate-700/50 transition-all"
       title="复制内容"
     >
       {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -572,7 +572,7 @@ export default function ChatPage() {
 
   if (!mounted || !authChecked) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
+      <div className="flex h-screen items-center justify-center bg-[#0a0e1a]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-slate-700
             flex items-center justify-center shadow-md animate-pulse">
@@ -588,7 +588,7 @@ export default function ChatPage() {
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50/50">
       {/* 左侧边栏 */}
       {showSidebar && (
-        <div className="w-72 border-r border-slate-200/50 bg-white/80 backdrop-blur-sm flex flex-col shadow-sm">
+        <div className="w-72 border-r border-blue-500/10 bg-[#0f172a]/95 backdrop-blur-xl flex flex-col shadow-sm">
           {/* 侧边栏头部 */}
           <div className="p-4 border-b border-slate-100/80">
             <button
@@ -618,8 +618,8 @@ export default function ChatPage() {
                     onClick={() => handleSwitchChat(s.id)}
                     className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border
                       ${s.id === activeSessionId
-                        ? 'bg-slate-100/80 text-slate-700 border-slate-200/80 shadow-sm'
-                        : 'text-slate-500 border-transparent hover:bg-slate-50/80 hover:text-slate-700'}`}
+                        ? 'bg-slate-800/80 text-slate-200 border-slate-600/80 shadow-sm'
+                        : 'text-slate-400 border-transparent hover:bg-slate-700/50 hover:text-slate-200'}`}
                   >
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full shrink-0 ${s.id === activeSessionId ? 'bg-slate-600' : 'bg-slate-300'}`} />
@@ -646,7 +646,7 @@ export default function ChatPage() {
             <button
               onClick={() => router.push('/')}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-400
-                hover:bg-slate-50 hover:text-slate-600 transition-all"
+                hover:bg-slate-700/50 hover:text-slate-300 transition-all"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               返回主页
@@ -658,12 +658,12 @@ export default function ChatPage() {
       {/* 主聊天区域 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部栏 */}
-        <div className="h-14 border-b border-slate-200/50 bg-white/80 backdrop-blur-sm
+        <div className="h-14 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl
           flex items-center justify-between px-5 shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors lg:hidden"
+              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-all"
             >
               <MessageSquare className="w-4 h-4 text-slate-400" />
             </button>
@@ -673,7 +673,7 @@ export default function ChatPage() {
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-slate-700">AI 智能对话</h1>
+                <h1 className="text-sm font-semibold text-slate-200">AI 智能对话</h1>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[10px] font-medium border border-blue-200/40">
                     <Brain className="w-2.5 h-2.5" />
@@ -703,7 +703,7 @@ export default function ChatPage() {
             </button>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-2 rounded-lg text-slate-300 hover:bg-slate-100 transition-colors hidden lg:block"
+              className="p-2 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors hidden lg:block"
               title="切换侧边栏"
             >
               <MessageSquare className="w-4 h-4" />
@@ -729,7 +729,7 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                <h2 className="text-lg font-bold text-slate-800 mb-1.5">AI 智能对话</h2>
+                <h2 className="text-lg font-bold text-slate-200 mb-1.5">AI 智能对话</h2>
                 <p className="text-sm text-slate-400 mb-8 text-center max-w-sm leading-relaxed">
                   融合记忆库、知识库与全网搜索，为您提供精准、专业的智能问答
                 </p>
@@ -758,9 +758,9 @@ export default function ChatPage() {
                     <button
                       key={i}
                       onClick={() => setInput(q)}
-                      className="group text-left px-4 py-3 rounded-xl border border-slate-200/60 bg-white
-                        text-sm text-slate-500 hover:border-slate-300 hover:bg-slate-50/80
-                        hover:text-slate-700 hover:shadow-sm transition-all active:scale-[0.98]"
+                      className="group text-left px-4 py-3 rounded-xl border border-slate-600/40 bg-slate-800/60
+                        text-sm text-slate-400 hover:border-slate-500/50 hover:bg-slate-700/60
+                        hover:text-slate-100 hover:shadow-sm transition-all active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-2.5">
                         <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
@@ -806,7 +806,7 @@ export default function ChatPage() {
                     {/* 思维链（DeepSeek思考模式） */}
                     {msg.role === 'assistant' && msg.reasoning && (
                       <details className="mb-2.5 group">
-                        <summary className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer hover:text-slate-700 transition-colors select-none py-1">
+                        <summary className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors select-none py-1">
                           <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
@@ -820,7 +820,7 @@ export default function ChatPage() {
                             <span>思考过程</span>
                           )}
                         </summary>
-                        <div className="mt-1.5 p-3 bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl text-[11.5px] text-slate-500 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
+                        <div className="mt-1.5 p-3 bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/60 rounded-xl text-[11.5px] text-slate-400 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
                           {msg.reasoning}
                         </div>
                       </details>
@@ -845,8 +845,8 @@ export default function ChatPage() {
                     {/* 消息内容 */}
                     <div className={`relative group/msg
                       ${msg.role === 'user'
-                        ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-slate-700 text-white shadow-md shadow-slate-200/30'
-                        : 'px-4 py-3 rounded-2xl rounded-tl-md bg-white border border-slate-200/60 text-slate-600 shadow-sm'}`}
+                        ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/20'
+                        : 'px-4 py-3 rounded-2xl rounded-tl-md bg-slate-800/80 border border-blue-500/20 text-slate-200 shadow-lg shadow-black/20'}`}
                     >
                       {msg.role === 'user' ? (
                         <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
@@ -855,7 +855,7 @@ export default function ChatPage() {
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
-                          ${msg.isThinking ? 'bg-slate-400' : 'bg-slate-500'}`} />
+                          ${msg.isThinking ? 'bg-blue-400' : 'bg-blue-500'}`} />
                       )}
 
                       {/* 复制按钮 - 仅assistant消息完成时显示 */}
@@ -877,10 +877,10 @@ export default function ChatPage() {
                           为您找到 {msg.images.length} 个相关产品
                         </div>
                         {msg.images.map((product: ChatImage & { mainImage?: ChatImage; detailImages?: ChatImage[]; productName?: string; albumName?: string }, pIdx: number) => (
-                          <div key={pIdx} className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+                          <div key={pIdx} className="rounded-xl border border-slate-600/40 bg-slate-800/80 shadow-sm overflow-hidden">
                             {(product.productName || product.albumName) && (
-                              <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/50">
-                                <p className="text-xs font-medium text-slate-700 truncate">
+                              <div className="px-3 py-2 border-b border-slate-700/50 bg-slate-800/50">
+                                <p className="text-xs font-medium text-slate-300 truncate">
                                   {product.productName || ''}
                                 </p>
                                 {product.albumName && (
@@ -894,7 +894,7 @@ export default function ChatPage() {
                                   href={product.mainImage.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="group block rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50/30 relative"
+                                  className="group block rounded-lg overflow-hidden border border-slate-700/60 bg-slate-800/30 relative"
                                 >
                                   <div className="aspect-[4/3] relative">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -913,7 +913,7 @@ export default function ChatPage() {
                                   </div>
                                   {product.mainImage.title && (
                                     <div className="px-2 py-1.5">
-                                      <p className="text-xs text-slate-600 truncate">{product.mainImage.title}</p>
+                                      <p className="text-xs text-slate-400 truncate">{product.mainImage.title}</p>
                                     </div>
                                   )}
                                 </a>
@@ -929,7 +929,7 @@ export default function ChatPage() {
                                       href={img.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="group block rounded-lg overflow-hidden border border-slate-200/60 bg-white"
+                                      className="group block rounded-lg overflow-hidden border border-slate-600/40 bg-slate-800/80"
                                       title={img.title || '详情图'}
                                     >
                                       <div className="aspect-square relative">
@@ -955,9 +955,9 @@ export default function ChatPage() {
                     )}
                   </div>
                   {msg.role === 'user' && (
-                    <div className="w-8 h-8 rounded-xl bg-slate-100
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600
                       flex items-center justify-center shrink-0 mt-0.5">
-                      <User className="w-4 h-4 text-slate-500" />
+                      <User className="w-4 h-4 text-white" />
                     </div>
                   )}
                 </div>
@@ -968,7 +968,7 @@ export default function ChatPage() {
         </div>
 
         {/* 输入框区域 */}
-        <div className="border-t border-slate-200/50 bg-white/80 backdrop-blur-sm p-4 shrink-0">
+        <div className="border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-xl p-4 shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-end gap-3">
               <div className="flex-1 relative">
@@ -984,11 +984,11 @@ export default function ChatPage() {
                   }}
                   placeholder="输入您的问题，AI 将智能检索并回答..."
                   rows={1}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200/60
-                    bg-slate-50/50 text-slate-700 text-[13px] resize-none
-                    focus:outline-none focus:ring-2 focus:ring-slate-500/15 focus:border-slate-300 focus:bg-white
-                    placeholder:text-slate-400 transition-all shadow-sm"
-                  style={{ maxHeight: '120px', minHeight: '44px', color: '#334155' }}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-700/50
+                    bg-slate-800/50 text-slate-200 text-[13px] resize-none
+                    focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50
+                    placeholder:text-slate-500 placeholder:font-normal transition-all shadow-sm"
+                  style={{ maxHeight: '120px', minHeight: '44px' }}
                   disabled={isChatting}
                 />
               </div>
@@ -997,8 +997,8 @@ export default function ChatPage() {
                 disabled={isChatting || !input.trim()}
                 className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all
                   ${isChatting || !input.trim()
-                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-slate-700 to-slate-900 text-white shadow-md shadow-slate-200/40 hover:shadow-lg hover:shadow-slate-300/40 active:scale-95'}`}
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50 active:scale-95'}`}
               >
                 {isChatting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
