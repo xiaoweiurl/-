@@ -1,10 +1,16 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight, Sparkles, Building2, CheckCircle2, Zap, Shield, Globe, Cpu, TrendingUp, Layers } from 'lucide-react';
+import {
+  User, Lock, Eye, EyeOff, Loader2, Palette, Factory,
+  ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight,
+  Sparkles, Building2, CheckCircle2, Shield, Globe, Cpu,
+  TrendingUp, Layers, Hexagon, Activity, Radar, Orbit,
+  Fingerprint, ArrowRight
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
@@ -31,10 +37,140 @@ interface LoginResponse {
 type Step = 'login' | 'company' | 'portal';
 type PortalType = 'designer' | 'factory' | 'marketing' | null;
 
+/* ============ 粒子背景 Canvas ============ */
+function ParticleBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animId: number;
+    let w = 0, h = 0;
+
+    const resize = () => {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const particles: { x: number; y: number; vx: number; vy: number; size: number; alpha: number }[] = [];
+    for (let i = 0; i < 80; i++) {
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        size: Math.random() * 1.5 + 0.5,
+        alpha: Math.random() * 0.5 + 0.2,
+      });
+    }
+
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+
+      // draw connections
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 150) {
+            const alpha = (1 - dist / 150) * 0.15;
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
+            ctx.lineWidth = 0.5;
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // draw particles
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(59, 130, 246, ${p.alpha})`;
+        ctx.fill();
+      });
+
+      animId = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full"
+      style={{ opacity: 0.6 }}
+    />
+  );
+}
+
+/* ============ 扫描线装饰 ============ */
+function ScanLine() {
+  return (
+    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
+  );
+}
+
+/* ============ 浮动角标装饰 ============ */
+function CornerDecoration() {
+  return (
+    <>
+      <div className="absolute top-0 left-0 w-16 h-px bg-gradient-to-r from-blue-500/60 to-transparent" />
+      <div className="absolute top-0 left-0 w-px h-16 bg-gradient-to-b from-blue-500/60 to-transparent" />
+      <div className="absolute top-0 right-0 w-16 h-px bg-gradient-to-l from-blue-500/60 to-transparent" />
+      <div className="absolute top-0 right-0 w-px h-16 bg-gradient-to-b from-blue-500/60 to-transparent" />
+      <div className="absolute bottom-0 left-0 w-16 h-px bg-gradient-to-r from-blue-500/60 to-transparent" />
+      <div className="absolute bottom-0 left-0 w-px h-16 bg-gradient-to-t from-blue-500/60 to-transparent" />
+      <div className="absolute bottom-0 right-0 w-16 h-px bg-gradient-to-l from-blue-500/60 to-transparent" />
+      <div className="absolute bottom-0 right-0 w-px h-16 bg-gradient-to-t from-blue-500/60 to-transparent" />
+    </>
+  );
+}
+
+/* ============ 玻璃态卡片 ============ */
+function GlassCard({ children, className, style, onClick }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; onClick?: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      style={style}
+      className={cn(
+        'relative overflow-hidden rounded-2xl',
+        'backdrop-blur-xl',
+        'bg-slate-900/40',
+        'border border-blue-500/10',
+        'shadow-[0_0_40px_-12px_rgba(59,130,246,0.15)]',
+        className
+      )}
+    >
+      <CornerDecoration />
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-500/[0.02] to-transparent pointer-events-none" />
+      {children}
+    </div>
+  );
+}
+
+/* ============ 主页面 ============ */
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>(() => {
-    // 如果标记了返回角色选择页面，且用户有session，直接进入portal
     if (typeof window !== 'undefined') {
       const backToPortal = localStorage.getItem('back_to_portal');
       if (backToPortal === 'true' && localStorage.getItem('session_id')) {
@@ -62,12 +198,10 @@ export default function LoginPage() {
 
   const brand = BRANDS[selectedBrand];
 
-  // 当从子页面返回(step=portal)时，恢复用户信息
   React.useEffect(() => {
     if (step === 'portal' && !loggedInUser) {
       const username = localStorage.getItem('user_id') || '';
       const company = localStorage.getItem('user_company') || '';
-      // 构造最小用户信息以支持 portal 页面显示
       setLoggedInUser({
         sessionId: localStorage.getItem('session_id') || '',
         user: {
@@ -104,12 +238,8 @@ export default function LoginPage() {
           const cookieExpiry = new Date(Date.now() + maxAge * 1000).toUTCString();
           document.cookie = `session_id=${sessionId}; path=/; expires=${cookieExpiry}; SameSite=Lax`;
         }
-        if (result.data.user?.id) {
-          localStorage.setItem('user_id', result.data.user.id);
-        }
-        if (result.data.user?.username) {
-          localStorage.setItem('username', result.data.user.username);
-        }
+        if (result.data.user?.id) localStorage.setItem('user_id', result.data.user.id);
+        if (result.data.user?.username) localStorage.setItem('username', result.data.user.username);
         setLoggedInUser(result.data);
         const userCompany = result.data.user?.company;
         if (userCompany && userCompany.trim() !== '') {
@@ -167,120 +297,73 @@ export default function LoginPage() {
     router.refresh();
   };
 
+  // ========== Shared background ==========
+  const Background = () => (
+    <div className="fixed inset-0 bg-[#060b14] overflow-hidden">
+      {/* 深层渐变 */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#060b14] via-[#0a1628] to-[#060b14]" />
+      {/* 光晕 */}
+      <div className="absolute top-[-20%] right-[-10%] w-[700px] h-[700px] bg-blue-600/[0.07] rounded-full blur-[150px]" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-600/[0.05] rounded-full blur-[150px]" />
+      <div className="absolute top-[40%] left-[50%] w-[400px] h-[400px] bg-indigo-600/[0.04] rounded-full blur-[120px]" />
+      {/* 网格 */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: 'linear-gradient(rgba(59,130,246,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.5) 1px, transparent 1px)',
+        backgroundSize: '60px 60px'
+      }} />
+      {/* 粒子 */}
+      <ParticleBackground />
+      {/* 扫描线 */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
+    </div>
+  );
+
   // ========== Step 1: 登录 ==========
   if (step === 'login') {
     return (
-      <div className="min-h-screen flex">
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <Background />
         <Toaster position="top-center" richColors closeButton />
 
-        {/* 左侧品牌区 */}
-        <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-gradient-to-br from-[#1a1035] via-[#2d1b69] to-[#1a1035]">
-          {/* 深层光晕 */}
-          <div className="absolute inset-0">
-            <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-violet-600/20 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-15%] left-[-10%] w-[500px] h-[500px] bg-fuchsia-500/15 rounded-full blur-[100px]" />
-            <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-indigo-400/10 rounded-full blur-[80px]" />
-            {/* 细网格 */}
-            <div className="absolute inset-0 opacity-[0.03]" style={{
-              backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
-              backgroundSize: '80px 80px'
-            }} />
-            {/* 浮动粒子 */}
-            <div className="absolute top-[15%] left-[20%] w-2 h-2 bg-violet-400/40 rounded-full animate-pulse" />
-            <div className="absolute top-[60%] right-[25%] w-1.5 h-1.5 bg-fuchsia-400/30 rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
-            <div className="absolute top-[80%] left-[40%] w-1 h-1 bg-indigo-300/40 rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="relative z-10 w-full max-w-[420px]">
+          {/* Logo 区 */}
+          <div className="flex flex-col items-center mb-10">
+            <div className="relative mb-5">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-[0_0_30px_-5px_rgba(59,130,246,0.5)]">
+                <Hexagon className="w-8 h-8 text-white" strokeWidth={1.5} />
+              </div>
+              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 opacity-20 blur-md animate-pulse" />
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">盈云产品智能中台</h1>
+            <p className="text-blue-400/50 text-xs mt-1.5 tracking-widest uppercase font-medium">AI Data Intelligence Platform</p>
           </div>
 
-          {/* 品牌内容 */}
-          <div className="relative z-10 flex flex-col justify-between px-14 xl:px-20 py-12 w-full">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-white/60 text-sm font-medium tracking-wider uppercase">Smart Platform</span>
-            </div>
+          {/* 登录卡片 */}
+          <GlassCard className="p-8">
+            <ScanLine />
 
-            <div className="max-w-lg">
-              <h1 className="text-[3.2rem] xl:text-[3.8rem] font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
-                企业数智
-                <br />
-                <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-amber-200 bg-clip-text text-transparent">中台系统</span>
-              </h1>
-              <p className="text-white/50 text-base leading-relaxed mb-10 max-w-md">
-                融合AI智能与供应链管理，赋能无缝针织行业数字化升级。从设计到生产，从报价到营销，一站式智能解决方案。
-              </p>
-
-              {/* 数据指标 */}
-              <div className="flex gap-8 mb-10">
-                {[
-                  { value: '99.9%', label: '系统可用性' },
-                  { value: '< 200ms', label: '响应延迟' },
-                  { value: '50+', label: '企业客户' },
-                ].map((item, i) => (
-                  <div key={i}>
-                    <div className="text-xl font-bold text-white/90">{item.value}</div>
-                    <div className="text-xs text-white/35 mt-0.5">{item.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 能力卡片 */}
-              <div className="space-y-3">
-                {[
-                  { icon: Cpu, title: 'AI 智能识别', desc: '自动分类 · 标签提取 · 语义搜索' },
-                  { icon: TrendingUp, title: '供应链管理', desc: '智能报价 · 供应商对比 · 成本分析' },
-                  { icon: Layers, title: '多品牌协同', desc: '宝娜斯 & 盈云 · 数据隔离 · 统一管理' },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3.5 group cursor-default">
-                    <div className="w-9 h-9 rounded-lg bg-white/[0.07] backdrop-blur-sm flex items-center justify-center border border-white/[0.06] group-hover:bg-white/[0.12] group-hover:border-white/[0.1] transition-all duration-300">
-                      <item.icon className="w-4 h-4 text-white/70" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-white/85 text-sm font-semibold">{item.title}</span>
-                        <span className="text-white/30 text-xs">{item.desc}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="text-white/20 text-xs">
-              © 2024 企业数智中台系统 · v2.0
-            </div>
-          </div>
-        </div>
-
-        {/* 右侧登录区 */}
-        <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe] relative">
-          {/* 移动端 Logo */}
-          <div className="lg:hidden absolute top-8 left-1/2 -translate-x-1/2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-          </div>
-
-          <div className="w-full max-w-[380px]">
-            {/* 标题 */}
-            <div className="mb-10">
-              <h2 className="text-[1.65rem] font-bold text-slate-800 tracking-tight">欢迎回来</h2>
-              <p className="text-slate-400 mt-1.5 text-sm">登录以访问您的工作空间</p>
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Fingerprint className="w-4 h-4 text-blue-400" />
+                身份验证
+              </h2>
+              <p className="text-slate-500 text-xs mt-1">请输入您的账号信息以继续</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
               {/* 用户名 */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">用户名</label>
+                <label className="block text-[11px] font-medium text-blue-400/70 uppercase tracking-wider mb-2">用户名</label>
                 <div className={cn(
-                  'relative rounded-xl border transition-all duration-200',
+                  'relative rounded-xl border transition-all duration-300',
                   focusedField === 'username'
-                    ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-blue-500/50 bg-slate-800/60 shadow-[0_0_15px_-3px_rgba(59,130,246,0.2)]'
+                    : 'border-blue-500/10 bg-slate-800/40 hover:border-blue-500/25'
                 )}>
                   <div className={cn(
-                    'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                    focusedField === 'username' ? 'text-violet-500' : 'text-slate-400'
+                    'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-300',
+                    focusedField === 'username' ? 'text-blue-400' : 'text-slate-600'
                   )}>
                     <User className="w-[17px] h-[17px]" />
                   </div>
@@ -291,23 +374,23 @@ export default function LoginPage() {
                     onFocus={() => setFocusedField('username')}
                     onBlur={() => setFocusedField(null)}
                     placeholder="请输入用户名"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-600 text-slate-200 text-sm"
                   />
                 </div>
               </div>
 
               {/* 密码 */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">密码</label>
+                <label className="block text-[11px] font-medium text-blue-400/70 uppercase tracking-wider mb-2">密码</label>
                 <div className={cn(
-                  'relative rounded-xl border transition-all duration-200',
+                  'relative rounded-xl border transition-all duration-300',
                   focusedField === 'password'
-                    ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-blue-500/50 bg-slate-800/60 shadow-[0_0_15px_-3px_rgba(59,130,246,0.2)]'
+                    : 'border-blue-500/10 bg-slate-800/40 hover:border-blue-500/25'
                 )}>
                   <div className={cn(
-                    'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                    focusedField === 'password' ? 'text-violet-500' : 'text-slate-400'
+                    'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-300',
+                    focusedField === 'password' ? 'text-blue-400' : 'text-slate-600'
                   )}>
                     <Lock className="w-[17px] h-[17px]" />
                   </div>
@@ -318,12 +401,12 @@ export default function LoginPage() {
                     onFocus={() => setFocusedField('password')}
                     onBlur={() => setFocusedField(null)}
                     placeholder="请输入密码"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-600 text-slate-200 text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-blue-400 transition-colors p-0.5"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -331,13 +414,13 @@ export default function LoginPage() {
               </div>
 
               {/* 记住我 */}
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center justify-between">
                 <label className="flex items-center cursor-pointer group">
                   <div className={cn(
-                    'w-4 h-4 rounded border flex items-center justify-center transition-all duration-200',
+                    'w-4 h-4 rounded border flex items-center justify-center transition-all duration-300',
                     rememberMe
-                      ? 'bg-violet-500 border-violet-500'
-                      : 'border-slate-300 group-hover:border-slate-400'
+                      ? 'bg-blue-500 border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]'
+                      : 'border-slate-600 group-hover:border-blue-500/50'
                   )}>
                     {rememberMe && (
                       <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
@@ -346,9 +429,9 @@ export default function LoginPage() {
                     )}
                   </div>
                   <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only" />
-                  <span className="ml-2 text-sm text-slate-500 group-hover:text-slate-700 transition-colors">记住我</span>
+                  <span className="ml-2 text-xs text-slate-500 group-hover:text-slate-300 transition-colors">记住我</span>
                 </label>
-                <span className="text-xs text-slate-400">7天免登录</span>
+                <span className="text-[10px] text-slate-600">7天免登录</span>
               </div>
 
               {/* 登录按钮 */}
@@ -356,14 +439,14 @@ export default function LoginPage() {
                 type="submit"
                 disabled={isLoading}
                 className={cn(
-                  'w-full py-2.5 h-auto text-white font-semibold text-sm rounded-xl',
-                  'bg-gradient-to-r from-violet-600 to-fuchsia-600',
-                  'shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)]',
-                  'hover:shadow-[0_6px_20px_-2px_rgba(124,58,237,0.5)]',
-                  'hover:from-violet-500 hover:to-fuchsia-500',
+                  'w-full py-3 h-auto text-white font-semibold text-sm rounded-xl',
+                  'bg-gradient-to-r from-blue-600 to-cyan-600',
+                  'shadow-[0_0_20px_-5px_rgba(59,130,246,0.4)]',
+                  'hover:shadow-[0_0_30px_-3px_rgba(59,130,246,0.6)]',
+                  'hover:from-blue-500 hover:to-cyan-500',
                   'active:scale-[0.98]',
-                  'transition-all duration-200',
-                  'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)] disabled:active:scale-100'
+                  'transition-all duration-300',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
                 {isLoading ? (
@@ -372,26 +455,41 @@ export default function LoginPage() {
                     验证中...
                   </>
                 ) : (
-                  '登 录'
+                  <span className="flex items-center gap-2">
+                    登 录
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
                 )}
               </Button>
             </form>
 
+            {/* 注册链接 */}
             <div className="mt-6 text-center">
               <button
                 type="button"
                 onClick={() => router.push('/register')}
-                className="text-sm text-slate-400 hover:text-violet-600 transition-colors"
+                className="text-xs text-slate-600 hover:text-blue-400 transition-colors"
               >
                 没有账号？<span className="font-semibold">立即注册</span>
               </button>
             </div>
 
             {/* 安全提示 */}
-            <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-300">
-              <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> 加密传输</span>
-              <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> 安全连接</span>
+            <div className="mt-6 pt-5 border-t border-blue-500/10 flex items-center justify-center gap-6 text-[10px] text-slate-700">
+              <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-blue-500/50" /> 加密传输</span>
+              <span className="flex items-center gap-1.5"><Globe className="w-3 h-3 text-blue-500/50" /> 安全连接</span>
+              <span className="flex items-center gap-1.5"><Activity className="w-3 h-3 text-blue-500/50" /> 实时监控</span>
             </div>
+          </GlassCard>
+
+          {/* 底部信息 */}
+          <div className="mt-8 text-center">
+            <div className="flex items-center justify-center gap-6 text-[10px] text-slate-700">
+              <span className="flex items-center gap-1"><Cpu className="w-3 h-3 text-blue-500/40" /> AI 驱动</span>
+              <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-blue-500/40" /> 供应链</span>
+              <span className="flex items-center gap-1"><Layers className="w-3 h-3 text-blue-500/40" /> 多品牌</span>
+            </div>
+            <p className="text-[10px] text-slate-800 mt-3"> 2024 盈云产品智能中台 · v2.0</p>
           </div>
         </div>
       </div>
@@ -401,105 +499,86 @@ export default function LoginPage() {
   // ========== Step 2: 选择公司 ==========
   if (step === 'company') {
     return (
-      <div className="min-h-screen flex">
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <Background />
         <Toaster position="top-center" richColors closeButton />
 
-        {/* 左侧 */}
-        <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gradient-to-br from-[#1a1035] via-[#2d1b69] to-[#1a1035]">
-          <div className="absolute inset-0">
-            <div className="absolute top-[-5%] right-[10%] w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-orange-500/10 rounded-full blur-[100px]" />
-            <div className="absolute inset-0 opacity-[0.03]" style={{
-              backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
-              backgroundSize: '80px 80px'
-            }} />
+        <div className="relative z-10 w-full max-w-[560px]">
+          {/* 标题区 */}
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 mb-5">
+              <Building2 className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-xs text-blue-400 font-medium">公司绑定</span>
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">选择您的所属公司</h1>
+            <p className="text-slate-500 text-xs mt-2">此选择将永久绑定到您的账号，绑定后不可更改</p>
           </div>
 
-          <div className="relative z-10 flex flex-col justify-center px-14 xl:px-20">
-            <div className="max-w-md">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 mb-10">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-[2.8rem] font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
-                选择您的
-                <br />
-                <span className="bg-gradient-to-r from-amber-300 to-orange-200 bg-clip-text text-transparent">所属公司</span>
-              </h2>
-              <p className="text-white/45 text-base leading-relaxed mb-8">
-                此选择将永久绑定到您的账号，绑定后不可更改。
-              </p>
-              {loggedInUser?.user?.username && (
-                <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/[0.08]">
-                  <User className="w-4 h-4 text-white/60" />
-                  <span className="text-white/70 text-sm font-medium">当前账号：{loggedInUser.user.username}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+          {/* 公司卡片 */}
+          <div className="space-y-4">
+            {COMPANY_OPTIONS.map((company) => {
+              const isBonasi = company.key === 'bonasi';
+              const Icon = isBonasi ? Scissors : Cloud;
+              const accentFrom = isBonasi ? 'from-rose-500' : 'from-blue-500';
+              const accentTo = isBonasi ? 'to-pink-600' : 'to-cyan-500';
+              const glowColor = isBonasi ? 'rgba(244,63,94,0.3)' : 'rgba(59,130,246,0.3)';
+              const borderHover = isBonasi ? 'hover:border-rose-500/30' : 'hover:border-blue-500/30';
 
-        {/* 右侧 */}
-        <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe]">
-          <div className="w-full max-w-xl">
-            <div className="lg:hidden text-center mb-8">
-              <div className="w-12 h-12 mx-auto rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg mb-4">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-slate-800">选择您所属的公司</h1>
-              <p className="text-slate-400 mt-1 text-sm">此选择将绑定到您的账号，不可更改</p>
-            </div>
-
-            <div className="space-y-3">
-              {COMPANY_OPTIONS.map((company) => {
-                const isBonasi = company.key === 'bonasi';
-                const Icon = isBonasi ? Scissors : Cloud;
-                const gradientFrom = isBonasi ? 'from-rose-500' : 'from-violet-500';
-                const gradientTo = isBonasi ? 'to-pink-600' : 'to-fuchsia-600';
-                const shadowColor = isBonasi ? 'shadow-rose-500/25' : 'shadow-violet-500/25';
-                const hoverBorder = isBonasi ? 'hover:border-rose-200' : 'hover:border-violet-200';
-                const accentColor = isBonasi ? 'text-rose-500' : 'text-violet-500';
-
-                return (
-                  <button
-                    key={company.key}
-                    onClick={() => handleSelectCompany(company.key)}
-                    className={cn(
-                      'group w-full bg-white rounded-2xl border border-slate-150 p-5',
-                      'hover:shadow-lg hover:-translate-y-0.5',
-                      hoverBorder,
-                      'transition-all duration-300 text-left flex items-center gap-4'
-                    )}
-                  >
+              return (
+                <GlassCard
+                  key={company.key}
+                  className={cn(
+                    'p-6 cursor-pointer group transition-all duration-500',
+                    'hover:shadow-[0_0_40px_-10px_var(--glow)]',
+                    borderHover
+                  )}
+                  style={{ '--glow': glowColor } as React.CSSProperties}
+                  onClick={() => handleSelectCompany(company.key)}
+                >
+                  <ScanLine />
+                  <div className="flex items-center gap-5">
                     <div className={cn(
-                      'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
-                      gradientFrom, gradientTo, shadowColor
+                      'w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
+                      accentFrom, accentTo
                     )}>
-                      <Icon className="w-6 h-6 text-white" />
+                      <Icon className="w-7 h-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-base font-bold text-slate-800">{company.fullName}</h2>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">{company.description}</p>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-bold text-white">{company.fullName}</h2>
+                        <span className="text-[10px] text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+                          不可更改
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">{company.description}</p>
+                      <div className="flex gap-2 mt-2.5">
+                        <span className="text-[10px] text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700/50">{isBonasi ? '无缝针织' : 'AI智能'}</span>
+                        <span className="text-[10px] text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700/50">{isBonasi ? '品质制造' : '数字化转型'}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                      <ChevronRight className={cn('w-4 h-4 text-slate-300 group-hover:translate-x-0.5 transition-all duration-300', accentColor)} />
-                      <span className="text-[10px] text-amber-600/80 bg-amber-50 px-1.5 py-0.5 rounded-md font-medium">
-                        不可更改
-                      </span>
+                    <div className="flex-shrink-0">
+                      <div className={cn(
+                        'w-10 h-10 rounded-full border border-blue-500/20 flex items-center justify-center',
+                        'group-hover:border-blue-500/50 group-hover:bg-blue-500/10 transition-all duration-300'
+                      )}>
+                        <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all duration-300" />
+                      </div>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setStep('login')}
-              className="mt-6 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mx-auto"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              返回登录
-            </button>
+                  </div>
+                </GlassCard>
+              );
+            })}
           </div>
+
+          {/* 返回 */}
+          <button
+            type="button"
+            onClick={() => setStep('login')}
+            className="mt-8 flex items-center gap-2 text-xs text-slate-600 hover:text-blue-400 transition-colors mx-auto"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            返回登录
+          </button>
         </div>
       </div>
     );
@@ -508,9 +587,8 @@ export default function LoginPage() {
   // ========== Step 3: 选择入口 ==========
   const Icon = selectedBrand === 'bonasi' ? Scissors : Cloud;
   const companyName = brand.name;
-  const brandGradientFrom = selectedBrand === 'bonasi' ? 'from-rose-600' : 'from-violet-600';
-  const brandGradientVia = selectedBrand === 'bonasi' ? 'via-pink-700' : 'via-purple-700';
-  const brandGradientTo = selectedBrand === 'bonasi' ? 'to-rose-800' : 'to-indigo-800';
+  const accentFrom = selectedBrand === 'bonasi' ? 'from-rose-500' : 'from-blue-500';
+  const accentTo = selectedBrand === 'bonasi' ? 'to-pink-600' : 'to-cyan-500';
 
   const portalCards = [
     {
@@ -519,9 +597,10 @@ export default function LoginPage() {
       title: '设计师入口',
       desc: '知识库管理 · 图片上传 · AI识别 · 文档中心',
       gradient: 'from-violet-500 to-fuchsia-600',
-      shadow: 'shadow-violet-500/25',
-      hoverBorder: 'hover:border-violet-200',
-      accent: 'text-violet-500',
+      glow: 'rgba(139,92,246,0.3)',
+      borderHover: 'hover:border-violet-500/30',
+      iconBg: 'bg-violet-500/10',
+      iconColor: 'text-violet-400',
     },
     {
       key: 'factory' as PortalType,
@@ -529,9 +608,10 @@ export default function LoginPage() {
       title: '工厂 / 供应链入口',
       desc: '产品报价 · 原料管理 · 生产计划 · 辅料采购',
       gradient: 'from-amber-500 to-orange-600',
-      shadow: 'shadow-amber-500/25',
-      hoverBorder: 'hover:border-amber-200',
-      accent: 'text-amber-500',
+      glow: 'rgba(245,158,11,0.3)',
+      borderHover: 'hover:border-amber-500/30',
+      iconBg: 'bg-amber-500/10',
+      iconColor: 'text-amber-400',
     },
     {
       key: 'marketing' as PortalType,
@@ -539,102 +619,82 @@ export default function LoginPage() {
       title: '市场营销 AI 入口',
       desc: '营销策略 · 市场分析 · 文案生成 · 行业洞察',
       gradient: 'from-emerald-500 to-teal-600',
-      shadow: 'shadow-emerald-500/25',
-      hoverBorder: 'hover:border-emerald-200',
-      accent: 'text-emerald-500',
+      glow: 'rgba(16,185,129,0.3)',
+      borderHover: 'hover:border-emerald-500/30',
+      iconBg: 'bg-emerald-500/10',
+      iconColor: 'text-emerald-400',
     },
   ];
 
   return (
-    <div className="min-h-screen flex">
+    <div className="relative min-h-screen flex items-center justify-center p-4">
+      <Background />
       <Toaster position="top-center" richColors closeButton />
 
-      {/* 左侧 */}
-      <div className={cn('hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gradient-to-br', brandGradientFrom, brandGradientVia, brandGradientTo)}>
-        <div className="absolute inset-0">
-          <div className="absolute top-[-10%] right-[5%] w-[500px] h-[500px] bg-white/[0.06] rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] left-[5%] w-[400px] h-[400px] bg-white/[0.04] rounded-full blur-[100px]" />
-          <div className="absolute inset-0 opacity-[0.03]" style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
-            backgroundSize: '80px 80px'
-          }} />
+      <div className="relative z-10 w-full max-w-[680px]">
+        {/* 用户信息 */}
+        <div className="text-center mb-10">
+          <div className={cn(
+            'w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4',
+            accentFrom, accentTo
+          )}>
+            <Icon className="w-7 h-7 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{companyName}</h1>
+          <p className="text-slate-500 text-xs mt-1">企业数智中台系统</p>
+          {loggedInUser?.user?.username && (
+            <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              <span className="text-xs text-emerald-400 font-medium">{loggedInUser.user.username} 已登录</span>
+            </div>
+          )}
         </div>
 
-        <div className="relative z-10 flex flex-col justify-center px-14 xl:px-20">
-          <div className="max-w-md">
-            <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center mb-10 border border-white/10">
-              <Icon className="w-6 h-6 text-white" />
-            </div>
-            <h2 className="text-[2.8rem] font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
-              {companyName}
-              <br />
-              <span className="text-white/70">企业数智中台系统</span>
-            </h2>
-            <p className="text-white/40 text-base leading-relaxed mb-8">{brand.slogan}</p>
-
-            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/[0.08]">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-white/60 text-sm font-medium">已绑定：{companyName}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 右侧 */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe]">
-        <div className="w-full max-w-lg">
-          <div className="lg:hidden text-center mb-8">
-            <div className={cn('w-12 h-12 mx-auto rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4', brandGradientFrom, brandGradientTo)}>
-              <Icon className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-xl font-bold text-slate-800">{companyName}企业数智中台系统</h1>
-            <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-lg">
-              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-              <span className="text-[11px] text-emerald-700 font-medium">已绑定：{companyName}</span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {portalCards.map((card) => {
-              const CardIcon = card.icon;
-              return (
-                <button
-                  key={card.key}
-                  onClick={() => handleSelectPortal(card.key)}
-                  className={cn(
-                    'group w-full bg-white rounded-2xl border border-slate-150 p-5',
-                    'hover:shadow-lg hover:-translate-y-0.5',
-                    card.hoverBorder,
-                    'transition-all duration-300 text-left flex items-center gap-4'
-                  )}
-                >
+        {/* 入口卡片 - 2列布局 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {portalCards.map((card) => {
+            const CardIcon = card.icon;
+            return (
+              <GlassCard
+                key={card.key}
+                className={cn(
+                  'p-5 cursor-pointer group transition-all duration-500',
+                  'hover:shadow-[0_0_40px_-10px_var(--glow)]',
+                  'hover:-translate-y-1',
+                  card.borderHover
+                )}
+                style={{ '--glow': card.glow } as React.CSSProperties}
+                onClick={() => handleSelectPortal(card.key)}
+              >
+                <ScanLine />
+                <div className="flex flex-col items-center text-center">
                   <div className={cn(
-                    'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
-                    card.gradient, card.shadow
+                    'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4',
+                    card.gradient
                   )}>
                     <CardIcon className="w-6 h-6 text-white" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-base font-bold text-slate-800">{card.title}</h2>
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">{card.desc}</p>
+                  <h2 className="text-sm font-bold text-white mb-1.5">{card.title}</h2>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">{card.desc}</p>
+                  <div className="mt-4 flex items-center gap-1 text-[11px] text-blue-400/70 group-hover:text-blue-400 transition-colors">
+                    <span>进入</span>
+                    <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform duration-300" />
                   </div>
-                  <ChevronRight className={cn('w-4 h-4 text-slate-300 group-hover:translate-x-0.5 transition-all duration-300', card.accent)} />
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setStep(loggedInUser?.user?.company ? 'login' : 'company');
-            }}
-            className="mt-6 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mx-auto"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            返回上一步
-          </button>
+                </div>
+              </GlassCard>
+            );
+          })}
         </div>
+
+        {/* 返回 */}
+        <button
+          type="button"
+          onClick={() => setStep(loggedInUser?.user?.company ? 'login' : 'company')}
+          className="mt-8 flex items-center gap-2 text-xs text-slate-600 hover:text-blue-400 transition-colors mx-auto"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          返回上一步
+        </button>
       </div>
     </div>
   );
