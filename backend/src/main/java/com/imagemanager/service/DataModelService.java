@@ -46,8 +46,9 @@ public class DataModelService {
         params.add((page - 1) * size);
 
         List<Map<String, Object>> models = jdbc.queryForList(sql.toString(), params.toArray());
-        // 为每个模型附加字段数和记录数
+        // 为每个模型附加字段数和记录数，并解析 JSONB
         for (Map<String, Object> m : models) {
+            parseJsonbFields(m);
             Object modelId = m.get("id");
             Long fieldCount = jdbc.queryForObject("SELECT COUNT(*) FROM data_model_fields WHERE model_id = ?", Long.class, modelId);
             Long recordCount = jdbc.queryForObject("SELECT COUNT(*) FROM data_model_records WHERE model_id = ?", Long.class, modelId);
@@ -66,7 +67,11 @@ public class DataModelService {
 
     public Map<String, Object> getModelDetail(UUID id) {
         Map<String, Object> model = jdbc.queryForMap("SELECT * FROM data_models WHERE id = ?", id);
+        parseJsonbFields(model); // 解析模型中的 JSONB 字段
         List<Map<String, Object>> fields = jdbc.queryForList("SELECT * FROM data_model_fields WHERE model_id = ? ORDER BY sort_order, created_at", id);
+        for (Map<String, Object> f : fields) {
+            parseJsonbFields(f); // 解析字段定义中的 JSONB（options/validation 等）
+        }
         Long recordCount = jdbc.queryForObject("SELECT COUNT(*) FROM data_model_records WHERE model_id = ?", Long.class, id);
         model.put("fields", fields);
         model.put("recordCount", recordCount);
@@ -136,6 +141,9 @@ public class DataModelService {
 
     public Map<String, Object> listFields(UUID modelId) {
         List<Map<String, Object>> fields = jdbc.queryForList("SELECT * FROM data_model_fields WHERE model_id = ? ORDER BY sort_order, created_at", modelId);
+        for (Map<String, Object> f : fields) {
+            parseJsonbFields(f);
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
         result.put("data", fields);
@@ -228,6 +236,45 @@ public class DataModelService {
 
     // ==================== 数据记录 ====================
 
+    /** 解析 JSONB 类型的 data 字段，PGobject → Map */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseJsonbData(Object dataObj) {
+        if (dataObj == null) return new LinkedHashMap<>();
+        if (dataObj instanceof Map) return (Map<String, Object>) dataObj;
+        try {
+            String jsonStr;
+            if (dataObj instanceof org.postgresql.util.PGobject) {
+                jsonStr = ((org.postgresql.util.PGobject) dataObj).getValue();
+            } else {
+                jsonStr = dataObj.toString();
+            }
+            if (jsonStr == null || jsonStr.trim().isEmpty()) return new LinkedHashMap<>();
+            return objectMapper.readValue(jsonStr, Map.class);
+        } catch (Exception e) {
+            return new LinkedHashMap<>();
+        }
+    }
+
+    /** 解析 Map 中所有 JSONB 类型字段（PGobject → 真实对象） */
+    private void parseJsonbFields(Map<String, Object> map, String... jsonbKeys) {
+        Set<String> keys = jsonbKeys.length > 0 ? new HashSet<>(Arrays.asList(jsonbKeys)) : null;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            Object val = entry.getValue();
+            if (val instanceof org.postgresql.util.PGobject) {
+                String jsonStr = ((org.postgresql.util.PGobject) val).getValue();
+                if (jsonStr == null || jsonStr.trim().isEmpty()) {
+                    entry.setValue(null);
+                    continue;
+                }
+                try {
+                    entry.setValue(objectMapper.readValue(jsonStr, Object.class));
+                } catch (Exception e) {
+                    entry.setValue(jsonStr);
+                }
+            }
+        }
+    }
+
     public Map<String, Object> listRecords(UUID modelId, String keyword, String status, int page, int size) {
         StringBuilder sql = new StringBuilder("SELECT * FROM data_model_records WHERE model_id = ?");
         List<Object> params = new ArrayList<>();
@@ -249,6 +296,13 @@ public class DataModelService {
         params.add((page - 1) * size);
 
         List<Map<String, Object>> records = jdbc.queryForList(sql.toString(), params.toArray());
+        // 解析每条记录的 JSONB data 字段为真实 Map
+        for (Map<String, Object> r : records) {
+            Object dataObj = r.get("data");
+            if (dataObj != null) {
+                r.put("data", parseJsonbData(dataObj));
+            }
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
@@ -261,6 +315,11 @@ public class DataModelService {
 
     public Map<String, Object> getRecord(UUID modelId, UUID recordId) {
         Map<String, Object> record = jdbc.queryForMap("SELECT * FROM data_model_records WHERE id = ? AND model_id = ?", recordId, modelId);
+        // 解析 JSONB data 字段
+        Object dataObj = record.get("data");
+        if (dataObj != null) {
+            record.put("data", parseJsonbData(dataObj));
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
         result.put("data", record);

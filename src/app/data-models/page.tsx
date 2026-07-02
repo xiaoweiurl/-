@@ -21,6 +21,14 @@ interface FieldDef {
   searchable: boolean;
 }
 
+/* 字段类型中文标签 */
+const TYPE_LABELS: Record<string, string> = {
+  text: '文本', number: '整数', decimal: '小数', date: '日期',
+  select: '单选', multi_select: '多选', textarea: '长文本',
+  boolean: '开关', url: '链接', email: '邮箱',
+};
+const ALL_FIELD_TYPES = Object.keys(TYPE_LABELS) as FieldDef['type'][];
+
 interface DataModel {
   id: string;
   name: string;
@@ -44,11 +52,6 @@ interface DataRecord {
 
 type Tab = 'models' | 'fields' | 'records' | 'detail';
 
-const FIELD_TYPES: FieldDef['type'][] = ['text', 'number', 'decimal', 'date', 'select', 'multi_select', 'textarea', 'boolean', 'url', 'email'];
-const TYPE_LABELS: Record<string, string> = {
-  text: '文本', number: '整数', decimal: '小数', date: '日期', select: '下拉选择',
-  multi_select: '多选', textarea: '长文本', boolean: '布尔', url: '链接', email: '邮箱'
-};
 const MODEL_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
 /* ===== API ===== */
@@ -456,7 +459,7 @@ function FieldsEditor({ model, onSave }: { model: DataModel; onSave: (m: DataMod
                       <label className="block text-xs text-slate-400 mb-1">类型</label>
                       <select value={f.type} onChange={e => updateField(f.id!, { type: e.target.value as FieldDef['type'] })}
                         className="w-full px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none">
-                        {FIELD_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+                        {ALL_FIELD_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
                       </select>
                     </div>
                     <div>
@@ -529,7 +532,17 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
-  const visibleFields = (model.fields ?? []).filter(f => f.visible);
+  const allFields = model.fields ?? [];
+  const visibleFields = allFields.filter(f => f.visible);
+
+  // 确保 record.data 是对象（后端可能返回 JSON 字符串）
+  const safeData = (r: DataRecord): Record<string, unknown> => {
+    if (!r.data) return {};
+    if (typeof r.data === 'string') {
+      try { return JSON.parse(r.data as string); } catch { return {}; }
+    }
+    return r.data;
+  };
 
   const createRecord = async () => {
     await api(`/${model.id}/records`, { method: 'POST', body: JSON.stringify({ data: formData }) });
@@ -550,34 +563,91 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
   };
 
   const startEdit = (r: DataRecord) => {
-    setFormData(r.data); setEditingId(r.id); setShowForm(true);
+    setFormData(safeData(r)); setEditingId(r.id); setShowForm(true);
   };
 
+  /** 根据字段定义动态渲染表单输入控件 */
   const renderInput = (f: FieldDef) => {
     const val = formData[f.name] ?? f.defaultValue ?? '';
-    if (f.type === 'boolean') return (
-      <button type="button" onClick={() => setFormData({ ...formData, [f.name]: !val })}
-        className="flex items-center gap-2 text-sm">
-        {val ? <ToggleRight className="w-6 h-6 text-blue-400" /> : <ToggleLeft className="w-6 h-6 text-slate-500" />}
-        {val ? '是' : '否'}
-      </button>
-    );
-    if (f.type === 'select') return (
-      <select value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })}
-        className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none">
-        <option value="">请选择</option>
-        {(f.options ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    );
-    if (f.type === 'textarea') return (
-      <textarea value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} rows={3}
-        className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm resize-none focus:border-blue-500 outline-none" />
-    );
-    return (
-      <input type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text'}
-        value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: f.type === 'number' ? Number(e.target.value) : e.target.value })}
-        className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none" />
-    );
+    const baseClass = 'w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none';
+
+    switch (f.type) {
+      case 'boolean':
+        return (
+          <button type="button" onClick={() => setFormData({ ...formData, [f.name]: !val })}
+            className="flex items-center gap-2 text-sm">
+            {val ? <ToggleRight className="w-6 h-6 text-blue-400" /> : <ToggleLeft className="w-6 h-6 text-slate-500" />}
+            {val ? '是' : '否'}
+          </button>
+        );
+      case 'select':
+        return (
+          <select value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })}
+            className={baseClass}>
+            <option value="">请选择</option>
+            {(f.options ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        );
+      case 'multi_select': {
+        const selected: string[] = Array.isArray(val) ? val : (typeof val === 'string' && val ? val.split(',').map(s => s.trim()) : []);
+        const opts = (f.options ?? '').split(',').map(o => o.trim()).filter(Boolean);
+        const toggle = (o: string) => {
+          const next = selected.includes(o) ? selected.filter(s => s !== o) : [...selected, o];
+          setFormData({ ...formData, [f.name]: next.join(',') });
+        };
+        return (
+          <div className="flex flex-wrap gap-2">
+            {opts.map(o => (
+              <button key={o} type="button" onClick={() => toggle(o)}
+                className={`px-3 py-1 rounded-lg text-sm transition ${selected.includes(o) ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
+                {o}
+              </button>
+            ))}
+          </div>
+        );
+      }
+      case 'textarea':
+        return (
+          <textarea value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} rows={3}
+            className={`${baseClass} resize-none`} />
+        );
+      case 'date':
+        return <input type="date" value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} className={baseClass} />;
+      case 'number':
+      case 'decimal':
+        return <input type="number" step={f.type === 'decimal' ? '0.01' : '1'} value={String(val)}
+          onChange={e => setFormData({ ...formData, [f.name]: e.target.value === '' ? '' : Number(e.target.value) })} className={baseClass} />;
+      case 'email':
+        return <input type="email" value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} className={baseClass} />;
+      case 'url':
+        return <input type="url" value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} className={baseClass} />;
+      case 'text':
+      default:
+        return <input type="text" value={String(val)} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} className={baseClass} />;
+    }
+  };
+
+  /** 根据字段定义动态渲染单元格值 */
+  const renderCellValue = (f: FieldDef, data: Record<string, unknown>) => {
+    const val = data[f.name];
+    if (val === undefined || val === null || val === '') return <span className="text-slate-500">-</span>;
+    switch (f.type) {
+      case 'boolean':
+        return val ? <span className="text-green-400">✓</span> : <span className="text-slate-500">✗</span>;
+      case 'multi_select':
+        return <span className="text-slate-200">{String(val)}</span>;
+      case 'number':
+      case 'decimal':
+        return <span className="font-mono text-slate-200">{String(val)}</span>;
+      case 'date':
+        return <span className="text-slate-200">{String(val)}</span>;
+      case 'url':
+        return <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block max-w-[200px]">{String(val)}</a>;
+      case 'email':
+        return <a href={`mailto:${val}`} className="text-blue-400 hover:underline">{String(val)}</a>;
+      default:
+        return <span className="text-slate-200">{String(val)}</span>;
+    }
   };
 
   return (
@@ -593,16 +663,17 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
         </button>
       </div>
 
-      {/* 动态表单弹窗 */}
+      {/* 动态表单弹窗 - 完全由字段定义驱动 */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)}>
           <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 rounded-2xl bg-slate-800 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-4">{editingId ? '编辑记录' : '新增记录'}</h3>
             <div className="space-y-4">
-              {(model.fields ?? []).map(f => (
+              {allFields.map(f => (
                 <div key={f.id}>
                   <label className="block text-sm text-slate-300 mb-1">
                     {f.label}{f.required && <span className="text-red-400 ml-1">*</span>}
+                    <span className="ml-2 text-xs text-slate-500">({TYPE_LABELS[f.type] ?? f.type})</span>
                   </label>
                   {renderInput(f)}
                 </div>
@@ -619,37 +690,47 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
         </div>
       )}
 
-      {/* 记录表格 */}
+      {/* 动态表格 - 列由字段定义驱动 */}
       {records.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <Table2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>暂无数据记录</p>
+        </div>
+      ) : visibleFields.length === 0 ? (
+        <div className="text-center py-12 text-slate-400">
+          <p>请在「字段配置」中添加并设置字段可见性</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-700">
           <table className="w-full text-sm">
             <thead className="bg-slate-800/80">
               <tr>
-                {visibleFields.map(f => <th key={f.id} className="px-4 py-3 text-left text-slate-300 font-medium">{f.label}</th>)}
+                {visibleFields.map(f => (
+                  <th key={f.id} className="px-4 py-3 text-left text-slate-300 font-medium whitespace-nowrap">
+                    {f.label}
+                    <span className="ml-1 text-xs text-slate-500">({TYPE_LABELS[f.type] ?? f.type})</span>
+                  </th>
+                ))}
                 <th className="px-4 py-3 text-right text-slate-300 font-medium w-24">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {records.map(r => (
-                <tr key={r.id} className="hover:bg-slate-800/50 transition">
-                  {visibleFields.map(f => (
-                    <td key={f.id} className="px-4 py-3 text-slate-200">
-                      {f.type === 'boolean' ? (r.data[f.name] ? '✓' : '✗') : String(r.data[f.name] ?? '-')}
+              {records.map(r => {
+                const data = safeData(r);
+                return (
+                  <tr key={r.id} className="hover:bg-slate-800/50 transition">
+                    {visibleFields.map(f => (
+                      <td key={f.id} className="px-4 py-3">{renderCellValue(f, data)}</td>
+                    ))}
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => startEdit(r)} className="p-1 rounded hover:bg-slate-600 text-slate-400 hover:text-blue-400 transition"><Edit3 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteRecord(r.id)} className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
+                      </div>
                     </td>
-                  ))}
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => startEdit(r)} className="p-1 rounded hover:bg-slate-600 text-slate-400 hover:text-blue-400 transition"><Edit3 className="w-4 h-4" /></button>
-                      <button onClick={() => deleteRecord(r.id)} className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
