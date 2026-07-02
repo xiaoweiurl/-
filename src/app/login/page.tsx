@@ -1,552 +1,244 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  User, Lock, Eye, EyeOff, Loader2, Palette, Factory,
-  ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight,
-  Sparkles, Building2, CheckCircle2, Shield, Globe, Cpu,
-  TrendingUp, Layers, Activity, Radar, Orbit,
-  Fingerprint, ArrowRight, Hexagon
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { Toaster } from '@/components/ui/sonner';
-import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
-import {
-  AuthShell, GlassCard, HexagonLogo, ScanLine, SecurityBadges, DataFlowDecoration
-} from '@/components/AuthVisuals';
+import { Eye, EyeOff, ArrowRight, Loader2, Building2, ChevronRight, Palette, Factory, TrendingUp } from 'lucide-react';
+import { BrandSidebar, inputClass, primaryBtnClass, Divider } from '@/components/AuthVisuals';
+import { COMPANY_OPTIONS } from '@/lib/brand';
+type CompanyOption = typeof COMPANY_OPTIONS[number];
 
-interface LoginResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-  data?: {
-    sessionId?: string;
-    expiresIn?: number;
-    user: {
-      id: string;
-      username: string;
-      email?: string;
-      avatar?: string;
-      role: string;
-      membership?: string;
-      company?: string;
-    };
-  };
-}
+const PORTALS = [
+  { key: 'designer', label: '设计师平台', icon: Palette, color: 'from-violet-500 to-purple-600', bgLight: 'bg-violet-50', textLight: 'text-violet-600', desc: '款式设计·AI识别·素材管理' },
+  { key: 'factory', label: '工厂平台', icon: Factory, color: 'from-amber-500 to-orange-600', bgLight: 'bg-amber-50', textLight: 'text-amber-600', desc: '生产计划·原料采购·质量控制' },
+  { key: 'marketing', label: '市场营销平台', icon: TrendingUp, color: 'from-emerald-500 to-teal-600', bgLight: 'bg-emerald-50', textLight: 'text-emerald-600', desc: '商品管理·渠道分析·智能报价' },
+];
 
-type Step = 'login' | 'company' | 'portal';
-type PortalType = 'designer' | 'factory' | 'marketing' | null;
-
-/* ============ 主页面 ============ */
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = React.useState<Step>(() => {
-    if (typeof window !== 'undefined') {
-      const backToPortal = localStorage.getItem('back_to_portal');
-      if (backToPortal === 'true' && localStorage.getItem('session_id')) {
-        localStorage.removeItem('back_to_portal');
-        return 'portal';
-      }
-    }
-    return 'login';
-  });
-  const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('selected_brand');
-      if (saved === 'bonasi' || saved === 'yingyun') return saved;
-    }
-    return 'yingyun';
-  });
-  const [portal, setPortal] = React.useState<PortalType>(null);
-  const [username, setUsername] = React.useState('');
-  const [password, setPassword] = React.useState('');
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [rememberMe, setRememberMe] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [loggedInUser, setLoggedInUser] = React.useState<LoginResponse['data'] | null>(null);
-  const [focusedField, setFocusedField] = React.useState<string | null>(null);
+  const [step, setStep] = useState<'login' | 'company' | 'portal'>('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
 
-  const brand = BRANDS[selectedBrand];
+  /* 检查已登录 */
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/login');
+        const d = await r.json();
+        if (d?.loggedIn) {
+          if (d.company && d.portal) router.replace('/');
+          else if (d.company) setStep('portal');
+          else setStep('company');
+        }
+      } catch {}
+    })();
+  }, [router]);
 
-  React.useEffect(() => {
-    if (step === 'portal' && !loggedInUser) {
-      const username = localStorage.getItem('user_id') || '';
-      const company = localStorage.getItem('user_company') || '';
-      setLoggedInUser({
-        sessionId: localStorage.getItem('session_id') || '',
-        user: {
-          id: username,
-          username: localStorage.getItem('username') || '用户',
-          role: 'user' as const,
-          company,
-        },
-      });
-    }
-  }, []);
-
+  /* 登录 */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      toast.error('请输入用户名和密码');
-      return;
-    }
-    setIsLoading(true);
+    if (!username.trim() || !password.trim()) { setError('请输入用户名和密码'); return; }
+    setLoading(true); setError('');
     try {
-      const response = await fetch('/api/auth/login', {
+      const r = await fetch('/api/auth/login', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, rememberMe }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
-      const result: LoginResponse = await response.json();
-      if (result.success && result.data) {
-        const sessionId = result.data.sessionId;
-        if (sessionId) {
-          const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
-          localStorage.setItem('session_id', sessionId);
-          localStorage.setItem('session_expires', String(Date.now() + maxAge * 1000));
-          const cookieExpiry = new Date(Date.now() + maxAge * 1000).toUTCString();
-          document.cookie = `session_id=${sessionId}; path=/; expires=${cookieExpiry}; SameSite=Lax`;
-        }
-        if (result.data.user?.id) localStorage.setItem('user_id', result.data.user.id);
-        if (result.data.user?.username) localStorage.setItem('username', result.data.user.username);
-        setLoggedInUser(result.data);
-        const userCompany = result.data.user?.company;
-        if (userCompany && userCompany.trim() !== '') {
-          const brandKey = userCompany === '宝娜斯' ? 'bonasi' : 'yingyun';
-          setSelectedBrand(brandKey);
-          localStorage.setItem('selected_brand', brandKey);
-          localStorage.setItem('user_company', userCompany);
-          setStep('portal');
-          toast.success('登录成功', { description: `欢迎回来，${result.data.user?.username || '用户'}！` });
-        } else {
-          setStep('company');
-          toast.success('验证通过', { description: '请选择您所属的公司' });
-        }
-      } else {
-        toast.error('登录失败', { description: result.error || '用户名或密码错误' });
-      }
-    } catch (error) {
-      console.error('登录失败:', error);
-      toast.error('登录失败', { description: '网络错误，请重试' });
-    } finally {
-      setIsLoading(false);
-    }
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || '登录失败'); return; }
+      if (d.company && d.portal) { router.replace('/'); return; }
+      setStep('company');
+    } catch { setError('网络错误，请重试'); }
+    finally { setLoading(false); }
   };
 
-  const handleSelectCompany = async (companyKey: BrandKey) => {
-    setSelectedBrand(companyKey);
-    const companyName = companyKey === 'bonasi' ? '宝娜斯' : '盈云';
-    try {
-      const userId = loggedInUser?.user?.id;
-      if (userId) {
-        await fetch('/api/auth/bind-company', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, company: companyName }),
-        });
-      }
-    } catch { /* 降级 */ }
-    localStorage.setItem('selected_brand', companyKey);
-    localStorage.setItem('user_company', companyName);
+  /* 选择公司 */
+  const handleSelectCompany = (company: CompanyOption) => {
+    setSelectedCompany(company);
+    document.cookie = `company=${company.key}; path=/; max-age=${30 * 86400}; SameSite=Lax`;
     setStep('portal');
   };
 
-  const handleSelectPortal = (portalType: PortalType) => {
-    setPortal(portalType);
-    localStorage.setItem('portal_type', portalType || 'designer');
-    toast.success('欢迎进入', { description: '正在跳转...' });
-    if (portalType === 'factory') {
-      router.replace('/supply-chain');
-    } else if (portalType === 'marketing') {
-      router.replace('/marketing');
-    } else {
-      router.replace('/');
-    }
-    router.refresh();
+  /* 选择门户 */
+  const handleSelectPortal = (portal: string) => {
+    document.cookie = `portal=${portal}; path=/; max-age=${30 * 86400}; SameSite=Lax`;
+    router.replace('/');
   };
 
-  // ========== Step 1: 登录 ==========
-  if (step === 'login') {
-    return (
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <AuthShell />
-        <Toaster position="top-center" richColors closeButton />
+  /* ============ 渲染 ============ */
+  return (
+    <div className="min-h-screen flex bg-slate-50">
+      <BrandSidebar />
 
-        <div className="relative z-10 w-full max-w-[420px]">
-          {/* Logo 区 */}
-          <div className="flex flex-col items-center mb-10">
-            <div className="relative mb-5">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-[0_0_30px_-5px_rgba(59,130,246,0.5)]">
-                <Hexagon className="w-8 h-8 text-white" strokeWidth={1.5} />
-              </div>
-              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 opacity-20 blur-md animate-pulse" />
-            </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">盈云产品智能中台</h1>
-            <p className="text-blue-400/50 text-xs mt-1.5 tracking-widest uppercase font-medium">AI Data Intelligence Platform</p>
+      {/* 右侧表单区 */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
+        <div className="w-full max-w-md">
+          {step === 'login' && renderLogin()}
+          {step === 'company' && renderCompany()}
+          {step === 'portal' && renderPortal()}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ---------- 登录表单 ---------- */
+  function renderLogin() {
+    return (
+      <div>
+        {/* 移动端 Logo */}
+        <div className="lg:hidden flex items-center gap-2.5 mb-10">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <span className="text-lg font-bold text-white">盈</span>
+          </div>
+          <span className="text-lg font-bold text-slate-800">盈云中台</span>
+        </div>
+
+        <h2 className="text-2xl font-bold text-slate-900 mb-1.5">欢迎回来</h2>
+        <p className="text-sm text-slate-500 mb-8">登录您的账户以继续</p>
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">用户名</label>
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="请输入用户名"
+              className={inputClass}
+              autoComplete="username"
+            />
           </div>
 
-          {/* 登录卡片 */}
-          <GlassCard className="p-8">
-            <ScanLine />
-
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Fingerprint className="w-4 h-4 text-blue-400" />
-                身份验证
-              </h2>
-              <p className="text-slate-500 text-xs mt-1">请输入您的账号信息以继续</p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-5">
-              {/* 用户名 */}
-              <div>
-                <label className="block text-[11px] font-medium text-blue-400/70 uppercase tracking-wider mb-2">用户名</label>
-                <div className={cn(
-                  'relative rounded-xl border transition-all duration-300',
-                  focusedField === 'username'
-                    ? 'border-blue-500/50 bg-slate-800/60 shadow-[0_0_15px_-3px_rgba(59,130,246,0.2)]'
-                    : 'border-blue-500/10 bg-slate-800/40 hover:border-blue-500/25'
-                )}>
-                  <div className={cn(
-                    'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-300',
-                    focusedField === 'username' ? 'text-blue-400' : 'text-slate-600'
-                  )}>
-                    <User className="w-[17px] h-[17px]" />
-                  </div>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    onFocus={() => setFocusedField('username')}
-                    onBlur={() => setFocusedField(null)}
-                    placeholder="请输入用户名"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-600 text-slate-200 text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* 密码 */}
-              <div>
-                <label className="block text-[11px] font-medium text-blue-400/70 uppercase tracking-wider mb-2">密码</label>
-                <div className={cn(
-                  'relative rounded-xl border transition-all duration-300',
-                  focusedField === 'password'
-                    ? 'border-blue-500/50 bg-slate-800/60 shadow-[0_0_15px_-3px_rgba(59,130,246,0.2)]'
-                    : 'border-blue-500/10 bg-slate-800/40 hover:border-blue-500/25'
-                )}>
-                  <div className={cn(
-                    'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-300',
-                    focusedField === 'password' ? 'text-blue-400' : 'text-slate-600'
-                  )}>
-                    <Lock className="w-[17px] h-[17px]" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField(null)}
-                    placeholder="请输入密码"
-                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-600 text-slate-200 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-blue-400 transition-colors p-0.5"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* 记住我 */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center cursor-pointer group">
-                  <div className={cn(
-                    'w-4 h-4 rounded border flex items-center justify-center transition-all duration-300',
-                    rememberMe
-                      ? 'bg-blue-500 border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]'
-                      : 'border-slate-600 group-hover:border-blue-500/50'
-                  )}>
-                    {rememberMe && (
-                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only" />
-                  <span className="ml-2 text-xs text-slate-500 group-hover:text-slate-300 transition-colors">记住我</span>
-                </label>
-                <span className="text-[10px] text-slate-600">7天免登录</span>
-              </div>
-
-              {/* 登录按钮 */}
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className={cn(
-                  'w-full py-3 h-auto text-white font-semibold text-sm rounded-xl',
-                  'bg-gradient-to-r from-blue-600 to-cyan-600',
-                  'shadow-[0_0_20px_-5px_rgba(59,130,246,0.4)]',
-                  'hover:shadow-[0_0_30px_-3px_rgba(59,130,246,0.6)]',
-                  'hover:from-blue-500 hover:to-cyan-500',
-                  'active:scale-[0.98]',
-                  'transition-all duration-300',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
-                )}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    验证中...
-                  </>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    登 录
-                    <ArrowRight className="w-4 h-4" />
-                  </span>
-                )}
-              </Button>
-            </form>
-
-            {/* 注册链接 */}
-            <div className="mt-6 text-center">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">密码</label>
+            <div className="relative">
+              <input
+                type={showPwd ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                className={cn(inputClass, 'pr-10')}
+                autoComplete="current-password"
+              />
               <button
                 type="button"
-                onClick={() => router.push('/register')}
-                className="text-xs text-slate-600 hover:text-blue-400 transition-colors"
+                onClick={() => setShowPwd(!showPwd)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                没有账号？<span className="font-semibold">立即注册</span>
+                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-
-            {/* 安全提示 */}
-            <div className="mt-6 pt-5 border-t border-blue-500/10 flex items-center justify-center gap-6 text-[10px] text-slate-700">
-              <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-blue-500/50" /> 加密传输</span>
-              <span className="flex items-center gap-1.5"><Globe className="w-3 h-3 text-blue-500/50" /> 安全连接</span>
-              <span className="flex items-center gap-1.5"><Activity className="w-3 h-3 text-blue-500/50" /> 实时监控</span>
-            </div>
-          </GlassCard>
-
-          {/* 底部信息 */}
-          <div className="mt-8 text-center">
-            <div className="flex items-center justify-center gap-6 text-[10px] text-slate-700">
-              <span className="flex items-center gap-1"><Cpu className="w-3 h-3 text-blue-500/40" /> AI 驱动</span>
-              <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-blue-500/40" /> 供应链</span>
-              <span className="flex items-center gap-1"><Layers className="w-3 h-3 text-blue-500/40" /> 多品牌</span>
-            </div>
-            <p className="text-[10px] text-slate-800 mt-3"> 2024 盈云产品智能中台 · v2.0</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ========== Step 2: 选择公司 ==========
-  if (step === 'company') {
-    return (
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <AuthShell />
-        <Toaster position="top-center" richColors closeButton />
-
-        <div className="relative z-10 w-full max-w-[560px]">
-          {/* 标题区 */}
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 mb-5">
-              <Building2 className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-xs text-blue-400 font-medium">公司绑定</span>
-            </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">选择您的所属公司</h1>
-            <p className="text-slate-500 text-xs mt-2">此选择将永久绑定到您的账号，绑定后不可更改</p>
           </div>
 
-          {/* 公司卡片 */}
-          <div className="space-y-4">
-            {COMPANY_OPTIONS.map((company) => {
-              const isBonasi = company.key === 'bonasi';
-              const Icon = isBonasi ? Scissors : Cloud;
-              const accentFrom = isBonasi ? 'from-rose-500' : 'from-blue-500';
-              const accentTo = isBonasi ? 'to-pink-600' : 'to-cyan-500';
-              const glowColor = isBonasi ? 'rgba(244,63,94,0.3)' : 'rgba(59,130,246,0.3)';
-              const borderHover = isBonasi ? 'hover:border-rose-500/30' : 'hover:border-blue-500/30';
-
-              return (
-                <GlassCard
-                  key={company.key}
-                  className={cn(
-                    'p-6 cursor-pointer group transition-all duration-500',
-                    'hover:shadow-[0_0_40px_-10px_var(--glow)]',
-                    borderHover
-                  )}
-                  style={{ '--glow': glowColor } as React.CSSProperties}
-                  onClick={() => handleSelectCompany(company.key)}
-                >
-                  <ScanLine />
-                  <div className="flex items-center gap-5">
-                    <div className={cn(
-                      'w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
-                      accentFrom, accentTo
-                    )}>
-                      <Icon className="w-7 h-7 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-base font-bold text-white">{company.fullName}</h2>
-                        <span className="text-[10px] text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
-                          不可更改
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">{company.description}</p>
-                      <div className="flex gap-2 mt-2.5">
-                        <span className="text-[10px] text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700/50">{isBonasi ? '无缝针织' : 'AI智能'}</span>
-                        <span className="text-[10px] text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700/50">{isBonasi ? '品质制造' : '数字化转型'}</span>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <div className={cn(
-                        'w-10 h-10 rounded-full border border-blue-500/20 flex items-center justify-center',
-                        'group-hover:border-blue-500/50 group-hover:bg-blue-500/10 transition-all duration-300'
-                      )}>
-                        <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all duration-300" />
-                      </div>
-                    </div>
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
-
-          {/* 返回 */}
-          <button
-            type="button"
-            onClick={() => setStep('login')}
-            className="mt-8 flex items-center gap-2 text-xs text-slate-600 hover:text-blue-400 transition-colors mx-auto"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            返回登录
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ========== Step 3: 选择入口 ==========
-  const Icon = selectedBrand === 'bonasi' ? Scissors : Cloud;
-  const companyName = brand.name;
-  const accentFrom = selectedBrand === 'bonasi' ? 'from-rose-500' : 'from-blue-500';
-  const accentTo = selectedBrand === 'bonasi' ? 'to-pink-600' : 'to-cyan-500';
-
-  const portalCards = [
-    {
-      key: 'designer' as PortalType,
-      icon: Palette,
-      title: '设计师入口',
-      desc: '知识库管理 · 图片上传 · AI识别 · 文档中心',
-      gradient: 'from-violet-500 to-fuchsia-600',
-      glow: 'rgba(139,92,246,0.3)',
-      borderHover: 'hover:border-violet-500/30',
-      iconBg: 'bg-violet-500/10',
-      iconColor: 'text-violet-400',
-    },
-    {
-      key: 'factory' as PortalType,
-      icon: Factory,
-      title: '工厂 / 供应链入口',
-      desc: '产品报价 · 原料管理 · 生产计划 · 辅料采购',
-      gradient: 'from-amber-500 to-orange-600',
-      glow: 'rgba(245,158,11,0.3)',
-      borderHover: 'hover:border-amber-500/30',
-      iconBg: 'bg-amber-500/10',
-      iconColor: 'text-amber-400',
-    },
-    {
-      key: 'marketing' as PortalType,
-      icon: Megaphone,
-      title: '市场营销 AI 入口',
-      desc: '营销策略 · 市场分析 · 文案生成 · 行业洞察',
-      gradient: 'from-emerald-500 to-teal-600',
-      glow: 'rgba(16,185,129,0.3)',
-      borderHover: 'hover:border-emerald-500/30',
-      iconBg: 'bg-emerald-500/10',
-      iconColor: 'text-emerald-400',
-    },
-  ];
-
-  return (
-    <div className="relative min-h-screen flex items-center justify-center p-4">
-      <AuthShell />
-      <Toaster position="top-center" richColors closeButton />
-
-      <div className="relative z-10 w-full max-w-[680px]">
-        {/* 用户信息 */}
-        <div className="text-center mb-10">
-          <div className={cn(
-            'w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4',
-            accentFrom, accentTo
-          )}>
-            <Icon className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">{companyName}</h1>
-          <p className="text-slate-500 text-xs mt-1">企业数智中台系统</p>
-          {loggedInUser?.user?.username && (
-            <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-              <span className="text-xs text-emerald-400 font-medium">{loggedInUser.user.username} 已登录</span>
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+              {error}
             </div>
           )}
+
+          <button type="submit" disabled={loading} className={primaryBtnClass + ' flex items-center justify-center gap-2'}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>登录 <ArrowRight className="w-4 h-4" /></>}
+          </button>
+        </form>
+
+        <Divider text="或" />
+
+        <p className="text-center text-sm text-slate-500">
+          还没有账户？{' '}
+          <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">立即注册</a>
+        </p>
+
+        {/* 底部安全标签 */}
+        <div className="flex items-center justify-center gap-5 mt-10 text-[10px] text-slate-400">
+          <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-green-400" />加密传输</span>
+          <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-blue-400" />安全连接</span>
+          <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-indigo-400" />实时监控</span>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- 公司选择 ---------- */
+  function renderCompany() {
+    return (
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-1.5">选择公司</h2>
+        <p className="text-sm text-slate-500 mb-8">选择您要登录的公司组织</p>
+
+        <div className="space-y-3">
+          {COMPANY_OPTIONS.map(company => (
+            <button
+              key={company.key}
+              onClick={() => handleSelectCompany(company)}
+              className="w-full flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-500/5 transition-all duration-200 group text-left"
+            >
+              <div className={cn(
+                'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
+                company.key === 'bonasi' ? 'bg-rose-50 text-rose-500' : 'bg-blue-50 text-blue-500'
+              )}>
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">{company.name}</h3>
+                <p className="text-xs text-slate-400 mt-0.5 truncate">{company.description}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+            </button>
+          ))}
         </div>
 
-        {/* 入口卡片 - 2列布局 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {portalCards.map((card) => {
-            const CardIcon = card.icon;
+        <button onClick={() => setStep('login')} className="mt-8 text-sm text-slate-500 hover:text-slate-700 transition-colors">
+          ← 返回登录
+        </button>
+      </div>
+    );
+  }
+
+  /* ---------- 门户选择 ---------- */
+  function renderPortal() {
+    return (
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-1.5">选择工作台</h2>
+        <p className="text-sm text-slate-500 mb-8">
+          {selectedCompany ? `${selectedCompany.name} · ` : ''}选择您的工作入口
+        </p>
+
+        <div className="space-y-3">
+          {PORTALS.map(portal => {
+            const Icon = portal.icon;
             return (
-              <GlassCard
-                key={card.key}
-                className={cn(
-                  'p-5 cursor-pointer group transition-all duration-500',
-                  'hover:shadow-[0_0_40px_-10px_var(--glow)]',
-                  'hover:-translate-y-1',
-                  card.borderHover
-                )}
-                style={{ '--glow': card.glow } as React.CSSProperties}
-                onClick={() => handleSelectPortal(card.key)}
+              <button
+                key={portal.key}
+                onClick={() => handleSelectPortal(portal.key)}
+                className="w-full flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200 group text-left"
               >
-                <ScanLine />
-                <div className="flex flex-col items-center text-center">
-                  <div className={cn(
-                    'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4',
-                    card.gradient
-                  )}>
-                    <CardIcon className="w-6 h-6 text-white" />
-                  </div>
-                  <h2 className="text-sm font-bold text-white mb-1.5">{card.title}</h2>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">{card.desc}</p>
-                  <div className="mt-4 flex items-center gap-1 text-[11px] text-blue-400/70 group-hover:text-blue-400 transition-colors">
-                    <span>进入</span>
-                    <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform duration-300" />
-                  </div>
+                <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center shrink-0', portal.bgLight, portal.textLight)}>
+                  <Icon className="w-5 h-5" />
                 </div>
-              </GlassCard>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">{portal.label}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{portal.desc}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+              </button>
             );
           })}
         </div>
 
-        {/* 返回 */}
-        <button
-          type="button"
-          onClick={() => setStep(loggedInUser?.user?.company ? 'login' : 'company')}
-          className="mt-8 flex items-center gap-2 text-xs text-slate-600 hover:text-blue-400 transition-colors mx-auto"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          返回上一步
+        <button onClick={() => setStep('company')} className="mt-8 text-sm text-slate-500 hover:text-slate-700 transition-colors">
+          ← 返回选择公司
         </button>
       </div>
-    </div>
-  );
+    );
+  }
+}
+
+function cn(...args: (string | undefined | false)[]) {
+  return args.filter(Boolean).join(' ');
 }
