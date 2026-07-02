@@ -37,11 +37,10 @@ export async function GET(request: NextRequest) {
   const sessionId = request.cookies.get('session_id')?.value;
   const cookieHeader = request.headers.get('cookie') || '';
 
-  const [docsRes, knowledgeRes, imagesRes, memoryRes] = await Promise.all([
+  const [docsRes, knowledgeRes, imagesRes] = await Promise.all([
     fetchBackend('/documents?category=all&pageSize=500', sessionId, cookieHeader),
     fetchBackend('/knowledge/docs?page=0&size=500', sessionId, cookieHeader),
     fetchBackend('/images?pageSize=500', sessionId, cookieHeader),
-    fetchBackend('/memory/documents', sessionId, cookieHeader),
   ]);
 
   // 通用：提取数组，兼容 { data: { content: [...] } }, { data: [...] }, { content: [...] }, 直接数组
@@ -61,7 +60,6 @@ export async function GET(request: NextRequest) {
   const documents = extractList(docsRes);
   const knowledgeDocs = extractList(knowledgeRes);
   const images = extractList(imagesRes);
-  const memoryDocs = extractList(memoryRes);
 
   const assets: any[] = [];
 
@@ -140,31 +138,6 @@ export async function GET(request: NextRequest) {
     });
   });
 
-  // 记忆库 -> memory
-  memoryDocs.forEach((d: any) => {
-    assets.push({
-      id: `mem-${d.id}`,
-      name: d.title || d.name || '未命名记忆',
-      type: 'memory',
-      category: d.domainName || d.domain?.name || '记忆库',
-      tags: [...new Set(d.tags || [])],
-      quality: 'high',
-      qualityScore: 88,
-      size: d.content?.length * 2 || d.size || 0,
-      createdAt: d.createdAt || d.created_at || new Date().toISOString(),
-      updatedAt: d.updatedAt || d.updated_at || new Date().toISOString(),
-      lastAccessedAt: d.updatedAt || d.updated_at || new Date().toISOString(),
-      accessCount: d.accessCount || 0,
-      lineage: { sources: ['文档切片', '手动录入'], targets: ['AI对话', '语义搜索', 'RAG检索'] },
-      owner: d.createdBy || '系统',
-      status: 'active',
-      format: 'TXT',
-      vectorized: true,
-      embeddingStatus: 'COMPLETED',
-      sourceUrl: d.sourceUrl,
-    });
-  });
-
   return NextResponse.json({
     success: true,
     data: assets,
@@ -174,7 +147,6 @@ export async function GET(request: NextRequest) {
         knowledge: assets.filter((a) => a.type === 'knowledge').length,
         document: assets.filter((a) => a.type === 'document').length,
         image: assets.filter((a) => a.type === 'image').length,
-        memory: assets.filter((a) => a.type === 'memory').length,
       },
     },
   });

@@ -5,28 +5,25 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
+/**
+ * 向量语义搜索结果 DTO（知识库共用）
+ */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class MemorySearchResult {
-
     private UUID id;
-    private String domainCode;
+    private UUID domainId;
     private String domainName;
-    private String domainIcon;
-    private String domainColor;
+    private UUID cardId;
     private String title;
     private String content;
-    private String[] tags;
-    private String productCode;
-    private String source;
+    private BigDecimal score;
     private String confidence;
-    private String createdBy;
-    private LocalDateTime createdAt;
-    private String chunkText;
-    private Double score;
+    private String source;
+    private UUID sourceDocId;
 }

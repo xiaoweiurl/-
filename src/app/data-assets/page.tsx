@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 // ========== 数据类型 ==========
-type AssetType = 'knowledge' | 'document' | 'image' | 'memory' | 'model';
+type AssetType = 'knowledge' | 'document' | 'image' | 'model';
 type QualityLevel = 'high' | 'medium' | 'low' | 'unknown';
 
 interface DataAsset {
@@ -26,7 +26,6 @@ const TYPE_CONFIG: Record<AssetType, { label: string; icon: React.ReactNode; col
   knowledge: { label: '知识库', icon: <BookOpen className="w-4 h-4" />, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
   document: { label: '文档', icon: <FileText className="w-4 h-4" />, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' },
   image: { label: '图片', icon: <Image className="w-4 h-4" />, color: 'text-violet-400', bgColor: 'bg-violet-500/10' },
-  memory: { label: '记忆库', icon: <Layers className="w-4 h-4" />, color: 'text-amber-400', bgColor: 'bg-amber-500/10' },
   model: { label: 'AI模型', icon: <Zap className="w-4 h-4" />, color: 'text-cyan-400', bgColor: 'bg-cyan-500/10' },
 };
 
@@ -110,7 +109,7 @@ export default function DataAssetsPage() {
   }, [assets]);
 
   const typeStats = useMemo(() => {
-    const stats: Record<AssetType, number> = { knowledge: 0, document: 0, image: 0, memory: 0, model: 0 };
+    const stats: Record<AssetType, number> = { knowledge: 0, document: 0, image: 0, model: 0 };
     assets.forEach(a => { if (stats[a.type] != null) stats[a.type]++; });
     return stats;
   }, [assets]);

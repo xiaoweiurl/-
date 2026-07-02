@@ -30,7 +30,7 @@ interface ChatMessage {
   reasoning?: string;
   searchResults?: string;
   sources?: Array<{
-    source: 'memory' | 'knowledge';
+    source: 'knowledge';
     title?: string;
     domain?: string;
     content?: string;
@@ -675,11 +675,6 @@ export default function ChatPage() {
               <div>
                 <h1 className="text-sm font-semibold text-slate-200">AI 智能对话</h1>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-medium border border-blue-500/20">
-                    <Brain className="w-2.5 h-2.5" />
-                    记忆库
-                  </span>
-                  <span className="text-slate-500 text-[10px]">+</span>
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
                     <BookOpen className="w-2.5 h-2.5" />
                     知识库
@@ -731,16 +726,11 @@ export default function ChatPage() {
 
                 <h2 className="text-lg font-bold text-slate-200 mb-1.5">AI 智能对话</h2>
                 <p className="text-sm text-slate-400 mb-8 text-center max-w-sm leading-relaxed">
-                  融合记忆库、知识库与全网搜索，为您提供精准、专业的智能问答
+                  融合知识库与全网搜索，为您提供精准、专业的智能问答
                 </p>
 
-                {/* 三大能力标签 */}
+                {/* 两大能力标签 */}
                 <div className="flex items-center gap-3 mb-8">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
-                    <Brain className="w-3.5 h-3.5" />
-                    记忆库检索
-                  </div>
-                  <div className="w-px h-4 bg-slate-700" />
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">
                     <BookOpen className="w-3.5 h-3.5" />
                     知识库检索
@@ -791,12 +781,10 @@ export default function ChatPage() {
                           <span
                             key={j}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border
-                              ${s.source === 'memory'
-                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}
+                              bg-emerald-500/10 text-emerald-400 border-emerald-500/20`}
                           >
-                            {s.source === 'memory' ? <Brain className="w-2.5 h-2.5" /> : <BookOpen className="w-2.5 h-2.5" />}
-                            {s.source === 'memory' ? s.title || s.domain || '记忆库' : '知识库'}
+                            <BookOpen className="w-2.5 h-2.5" />
+                            {s.title || '知识库'}
                             <span className="opacity-50 ml-0.5">{(s.score * 100).toFixed(0)}%</span>
                           </span>
                         ))}
@@ -1004,11 +992,6 @@ export default function ChatPage() {
               </button>
             </div>
             <div className="mt-2 flex items-center justify-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-medium border border-blue-500/20">
-                <Brain className="w-2.5 h-2.5" />
-                记忆库
-              </span>
-              <span className="text-slate-500 text-[10px]">+</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
                 <BookOpen className="w-2.5 h-2.5" />
                 知识库

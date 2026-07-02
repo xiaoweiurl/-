@@ -49,7 +49,7 @@ const AI_CAPABILITIES: AICapability[] = [
   {
     id: 'smart-chat',
     name: 'AI 智能对话',
-    description: '基于 DeepSeek V4 Pro 的多模态智能对话，支持思考模式、联网搜索、知识库检索和记忆库上下文',
+    description: '基于 DeepSeek V4 Pro 的多模态智能对话，支持思考模式、联网搜索、知识库检索',
     icon: <MessageSquare className="w-6 h-6" />,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/10',
@@ -61,7 +61,7 @@ const AI_CAPABILITIES: AICapability[] = [
     avgLatency: 2300,
     successRate: 98.5,
     route: '/chat',
-    features: ['DeepSeek V4 Pro', '思考模式', '联网搜索', '知识库检索', '记忆库上下文', '多轮对话'],
+    features: ['DeepSeek V4 Pro', '思考模式', '联网搜索', '知识库检索', '多轮对话'],
   },
   {
     id: 'ai-image',
@@ -130,23 +130,6 @@ const AI_CAPABILITIES: AICapability[] = [
     successRate: 99.2,
     route: '/knowledge',
     features: ['语义检索', '文档切片', '向量化存储', '多格式支持', 'RAG增强'],
-  },
-  {
-    id: 'memory-rag',
-    name: '记忆库 RAG',
-    description: 'AI 对话上下文记忆与检索增强生成，支持知识域管理、卡片式知识存储和对话历史',
-    icon: <Brain className="w-6 h-6" />,
-    color: 'text-violet-400',
-    bgColor: 'bg-violet-500/10',
-    borderColor: 'border-violet-500/20',
-    status: 'online',
-    category: '检索能力',
-    callsToday: 45,
-    callsTotal: 1567,
-    avgLatency: 380,
-    successRate: 99.5,
-    route: '/memory',
-    features: ['知识域管理', '知识卡片', '文档上传', '语义搜索', 'RAG对话'],
   },
   {
     id: 'web-search',
@@ -554,7 +537,7 @@ export default function AICenterPage() {
             { time: '16:40:12', capability: 'AI 智能对话', model: 'DeepSeek V4 Pro', status: 'success', latency: '3.1s', tokens: 2341 },
             { time: '16:39:55', capability: '工厂供应链助手', model: 'DeepSeek V4 Pro', status: 'success', latency: '2.7s', tokens: 1567 },
             { time: '16:39:21', capability: 'AI 智能识别', model: '豆包 Vision', status: 'fail', latency: '1.2s', tokens: 0 },
-            { time: '16:38:47', capability: '记忆库 RAG', model: 'MiniMax Embedding', status: 'success', latency: '0.4s', tokens: 312 },
+            { time: '16:38:47', capability: '知识库检索', model: 'MiniMax Embedding', status: 'success', latency: '0.4s', tokens: 312 },
           ].map((log, i) => (
             <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-700/20 transition-colors text-xs">
               <span className="text-slate-500 font-mono w-16 shrink-0">{log.time}</span>

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.service.KnowledgeBaseService;
-import com.imagemanager.service.MemoryService;
 import com.imagemanager.service.SmartChatService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,20 +26,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 智能对话服务实现 - 双库检索(知识库+记忆库) + DeepSeek V4 Pro流式对话(思考模式)
+ * 智能对话服务实现 - 知识库检索 + DeepSeek V4 Pro流式对话(思考模式)
  *
  * 检索流程:
- * 1. 记忆库检索: PostgreSQL向量搜索(MemoryService.search)
- * 2. 知识库检索: 同样使用PostgreSQL向量搜索(MemoryService.search，不限定domain)
- * 3. 合并去重结果作为上下文
- * 4. 调DeepSeek V4 Pro API流式对话(思考模式，含思维链)
+ * 1. 知识库检索: PostgreSQL向量搜索(KnowledgeBaseService.search)
+ * 2. 调DeepSeek V4 Pro API流式对话(思考模式，含思维链)
  */
 @Slf4j
 @Service
 public class SmartChatServiceImpl implements SmartChatService {
-
-    @Autowired
-    private MemoryService memoryService;
 
     @Autowired
     private KnowledgeBaseService knowledgeBaseService;
@@ -162,20 +156,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 当岗位意图且岗位卡片有结果时，或通用闲聊意图时，跳过知识库PDF检索
                 boolean skipKnowledgeSearch = skipVectorSearch || (positionIntent && !positionCardResults.isEmpty());
 
-                // 4b. 记忆库检索（仅设计师模式）
-                List<MemorySearchResult> memoryResults = Collections.emptyList();
-                if (!skipVectorSearch) {
-                    try {
-                        memoryResults = memoryService.search(message, null, 0.2, 5, company, userId);
-                        log.info("记忆库检索到 {} 条结果", memoryResults.size());
-                    } catch (Exception e) {
-                        log.warn("记忆库检索异常: {}", e.getMessage());
-                    }
-                } else {
-                    log.info("跳过向量检索: isFactory={}, generalChatIntent={}, externalKnowledgeIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, externalKnowledgeIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
-                }
-
-                // 4c. 知识库检索（仅设计师模式）
+                // 4b. 知识库检索
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
                 if (!skipKnowledgeSearch) {
                     try {
@@ -202,19 +183,6 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 3. 发送来源信息
                 List<Map<String, Object>> sources = new ArrayList<>();
-
-                // 记忆库来源（仅设计师模式）
-                if (!isFactory) {
-                    for (MemorySearchResult r : memoryResults) {
-                        sources.add(Map.of(
-                                "source", "memory",
-                                "id", r.getId().toString(),
-                                "title", r.getTitle() != null ? r.getTitle() : "",
-                                "domain", r.getDomainName() != null ? r.getDomainName() : "",
-                                "score", r.getScore() != null ? r.getScore() : 0
-                        ));
-                    }
-                }
 
                 // 知识库来源（仅设计师模式）
                 if (!isFactory) {
@@ -284,18 +252,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                     knowledgeContext.append("⚠️ 用户询问的是供应链/工厂相关问题，请务必基于以上精确业务数据回答，引用具体数字。" +
                             "不要用知识库文档中的泛泛内容替代这些精确数据！\n\n");
-                }
-
-                if (!memoryResults.isEmpty()) {
-                    knowledgeContext.append("## 记忆库相关知识卡片：\n");
-                    for (int i = 0; i < memoryResults.size(); i++) {
-                        MemorySearchResult r = memoryResults.get(i);
-                        String content = r.getContent();
-                        if (content != null && content.length() > 300) content = content.substring(0, 300) + "...";
-                        knowledgeContext.append(String.format("### 卡片%d [%s] %s\n%s\n置信度: %s | 来源: %s\n\n",
-                                i + 1, r.getDomainName(), r.getTitle(), content,
-                                r.getConfidence(), r.getSource() != null ? r.getSource() : "未知"));
-                    }
                 }
 
                 // 岗位卡片上下文（岗位意图时标注优先级最高，排在知识库PDF之前）

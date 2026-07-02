@@ -465,7 +465,7 @@ export default function DashboardPage() {
               <ActivityItem icon={Zap} text="AI对话完成 - 产品报价查询" time="2分钟前" color="text-blue-400" />
               <ActivityItem icon={Image} text="批量上传 12 张产品图片" time="15分钟前" color="text-emerald-400" />
               <ActivityItem icon={Brain} text="知识库向量化处理完成" time="28分钟前" color="text-purple-400" />
-              <ActivityItem icon={Search} text="记忆库语义搜索 - 面料知识" time="45分钟前" color="text-cyan-400" />
+              <ActivityItem icon={Search} text="知识库语义搜索 - 面料知识" time="45分钟前" color="text-cyan-400" />
               <ActivityItem icon={Package} text="新增供应商报价 - 涤纶DTY" time="1小时前" color="text-yellow-400" />
               <ActivityItem icon={Users} text="用户 admin 更新了系统设置" time="2小时前" color="text-slate-400" />
               <ActivityItem icon={FileText} text="知识库文档分类整理" time="3小时前" color="text-orange-400" />
@@ -489,8 +489,7 @@ export default function DashboardPage() {
             { label: 'AI对话', icon: Brain, href: '/chat', color: 'from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30' },
             { label: '知识库', icon: Database, href: '/knowledge', color: 'from-emerald-500/20 to-emerald-600/20 hover:from-emerald-500/30 hover:to-emerald-600/30' },
             { label: 'AI生图', icon: Sparkles, href: '/ai-image', color: 'from-purple-500/20 to-purple-600/20 hover:from-purple-500/30 hover:to-purple-600/30' },
-            { label: '记忆库', icon: Brain, href: '/memory', color: 'from-cyan-500/20 to-cyan-600/20 hover:from-cyan-500/30 hover:to-cyan-600/30' },
-            { label: '供应链', icon: Factory, href: '/supply-chain', color: 'from-yellow-500/20 to-yellow-600/20 hover:from-yellow-500/30 hover:to-yellow-600/30' },
+            { label: '供应链', icon: Factory, href: '/supply-chain', color: 'from-yellow-500/20 to-yellow-600/20 hover:from-yellow-600/20 hover:from-yellow-500/30 hover:to-yellow-600/30' },
             { label: '文档中心', icon: FileText, href: '/documents', color: 'from-orange-500/20 to-orange-600/20 hover:from-orange-500/30 hover:to-orange-600/30' },
           ].map((item) => (
             <a
