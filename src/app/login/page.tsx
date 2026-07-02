@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -8,12 +8,15 @@ import {
   User, Lock, Eye, EyeOff, Loader2, Palette, Factory,
   ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight,
   Sparkles, Building2, CheckCircle2, Shield, Globe, Cpu,
-  TrendingUp, Layers, Hexagon, Activity, Radar, Orbit,
-  Fingerprint, ArrowRight
+  TrendingUp, Layers, Activity, Radar, Orbit,
+  Fingerprint, ArrowRight, Hexagon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
+import {
+  AuthShell, GlassCard, HexagonLogo, ScanLine, SecurityBadges, DataFlowDecoration
+} from '@/components/AuthVisuals';
 
 interface LoginResponse {
   success: boolean;
@@ -36,136 +39,6 @@ interface LoginResponse {
 
 type Step = 'login' | 'company' | 'portal';
 type PortalType = 'designer' | 'factory' | 'marketing' | null;
-
-/* ============ 粒子背景 Canvas ============ */
-function ParticleBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animId: number;
-    let w = 0, h = 0;
-
-    const resize = () => {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const particles: { x: number; y: number; vx: number; vy: number; size: number; alpha: number }[] = [];
-    for (let i = 0; i < 80; i++) {
-      particles.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        size: Math.random() * 1.5 + 0.5,
-        alpha: Math.random() * 0.5 + 0.2,
-      });
-    }
-
-    const draw = () => {
-      ctx.clearRect(0, 0, w, h);
-
-      // draw connections
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 150) {
-            const alpha = (1 - dist / 150) * 0.15;
-            ctx.beginPath();
-            ctx.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
-            ctx.lineWidth = 0.5;
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      // draw particles
-      particles.forEach(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0 || p.x > w) p.vx *= -1;
-        if (p.y < 0 || p.y > h) p.vy *= -1;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(59, 130, 246, ${p.alpha})`;
-        ctx.fill();
-      });
-
-      animId = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ opacity: 0.6 }}
-    />
-  );
-}
-
-/* ============ 扫描线装饰 ============ */
-function ScanLine() {
-  return (
-    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-  );
-}
-
-/* ============ 浮动角标装饰 ============ */
-function CornerDecoration() {
-  return (
-    <>
-      <div className="absolute top-0 left-0 w-16 h-px bg-gradient-to-r from-blue-500/60 to-transparent" />
-      <div className="absolute top-0 left-0 w-px h-16 bg-gradient-to-b from-blue-500/60 to-transparent" />
-      <div className="absolute top-0 right-0 w-16 h-px bg-gradient-to-l from-blue-500/60 to-transparent" />
-      <div className="absolute top-0 right-0 w-px h-16 bg-gradient-to-b from-blue-500/60 to-transparent" />
-      <div className="absolute bottom-0 left-0 w-16 h-px bg-gradient-to-r from-blue-500/60 to-transparent" />
-      <div className="absolute bottom-0 left-0 w-px h-16 bg-gradient-to-t from-blue-500/60 to-transparent" />
-      <div className="absolute bottom-0 right-0 w-16 h-px bg-gradient-to-l from-blue-500/60 to-transparent" />
-      <div className="absolute bottom-0 right-0 w-px h-16 bg-gradient-to-t from-blue-500/60 to-transparent" />
-    </>
-  );
-}
-
-/* ============ 玻璃态卡片 ============ */
-function GlassCard({ children, className, style, onClick }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; onClick?: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      style={style}
-      className={cn(
-        'relative overflow-hidden rounded-2xl',
-        'backdrop-blur-xl',
-        'bg-slate-900/40',
-        'border border-blue-500/10',
-        'shadow-[0_0_40px_-12px_rgba(59,130,246,0.15)]',
-        className
-      )}
-    >
-      <CornerDecoration />
-      <div className="absolute inset-0 bg-gradient-to-b from-blue-500/[0.02] to-transparent pointer-events-none" />
-      {children}
-    </div>
-  );
-}
 
 /* ============ 主页面 ============ */
 export default function LoginPage() {
@@ -297,33 +170,11 @@ export default function LoginPage() {
     router.refresh();
   };
 
-  // ========== Shared background ==========
-  const Background = () => (
-    <div className="fixed inset-0 bg-[#060b14] overflow-hidden">
-      {/* 深层渐变 */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#060b14] via-[#0a1628] to-[#060b14]" />
-      {/* 光晕 */}
-      <div className="absolute top-[-20%] right-[-10%] w-[700px] h-[700px] bg-blue-600/[0.07] rounded-full blur-[150px]" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-600/[0.05] rounded-full blur-[150px]" />
-      <div className="absolute top-[40%] left-[50%] w-[400px] h-[400px] bg-indigo-600/[0.04] rounded-full blur-[120px]" />
-      {/* 网格 */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: 'linear-gradient(rgba(59,130,246,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.5) 1px, transparent 1px)',
-        backgroundSize: '60px 60px'
-      }} />
-      {/* 粒子 */}
-      <ParticleBackground />
-      {/* 扫描线 */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
-    </div>
-  );
-
   // ========== Step 1: 登录 ==========
   if (step === 'login') {
     return (
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <Background />
+        <AuthShell />
         <Toaster position="top-center" richColors closeButton />
 
         <div className="relative z-10 w-full max-w-[420px]">
@@ -500,7 +351,7 @@ export default function LoginPage() {
   if (step === 'company') {
     return (
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <Background />
+        <AuthShell />
         <Toaster position="top-center" richColors closeButton />
 
         <div className="relative z-10 w-full max-w-[560px]">
@@ -628,7 +479,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4">
-      <Background />
+      <AuthShell />
       <Toaster position="top-center" richColors closeButton />
 
       <div className="relative z-10 w-full max-w-[680px]">
