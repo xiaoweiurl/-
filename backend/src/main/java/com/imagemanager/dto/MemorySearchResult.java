@@ -19,6 +19,7 @@ public class MemorySearchResult {
     private UUID id;
     private UUID domainId;
     private String domainName;
+    private String domainCode;
     private UUID cardId;
     private String title;
     private String content;
