@@ -297,47 +297,67 @@ public class AiImageController {
     }
 
     /**
-     * 从API响应中提取图片URL
+     * 从API响应中提取所有图片URL
      */
-    private String extractImageUrl(JsonNode resultJson) {
-        // data.url
+    private List<String> extractAllImageUrls(JsonNode resultJson) {
+        List<String> urls = new ArrayList<>();
+
+        // results 数组（异步任务完成后返回格式: { results: [{ url }] }）
+        if (resultJson.has("results") && resultJson.get("results").isArray()) {
+            for (JsonNode item : resultJson.get("results")) {
+                if (item.has("url")) urls.add(item.get("url").asText());
+            }
+            if (!urls.isEmpty()) return urls;
+        }
+
+        // data 是数组（同步格式: { data: [{ url }] }）
+        if (resultJson.has("data") && resultJson.get("data").isArray()) {
+            for (JsonNode item : resultJson.get("data")) {
+                if (item.has("url")) urls.add(item.get("url").asText());
+                else if (item.has("image_url")) urls.add(item.get("image_url").asText());
+                else if (item.has("b64_json")) urls.add("data:image/png;base64," + item.get("b64_json").asText());
+            }
+            if (!urls.isEmpty()) return urls;
+        }
+
+        // data 是对象
         if (resultJson.has("data") && resultJson.get("data").isObject()) {
             JsonNode data = resultJson.get("data");
-            if (data.has("url")) return data.get("url").asText();
-            if (data.has("image_url")) return data.get("image_url").asText();
-            if (data.has("b64_json")) return "data:image/png;base64," + data.get("b64_json").asText();
+            if (data.has("url")) urls.add(data.get("url").asText());
+            else if (data.has("image_url")) urls.add(data.get("image_url").asText());
+            else if (data.has("b64_json")) urls.add("data:image/png;base64," + data.get("b64_json").asText());
+            if (!urls.isEmpty()) return urls;
         }
-        // 顶层 url / image_url
-        if (resultJson.has("url")) return resultJson.get("url").asText();
-        if (resultJson.has("image_url")) return resultJson.get("image_url").asText();
-        if (resultJson.has("b64_json")) return "data:image/png;base64," + resultJson.get("b64_json").asText();
-        // data 是数组
-        if (resultJson.has("data") && resultJson.get("data").isArray() && resultJson.get("data").size() > 0) {
-            JsonNode first = resultJson.get("data").get(0);
-            if (first.has("url")) return first.get("url").asText();
-            if (first.has("image_url")) return first.get("image_url").asText();
-            if (first.has("b64_json")) return "data:image/png;base64," + first.get("b64_json").asText();
-        }
-        // results 数组（异步任务完成后返回格式: { results: [{ url }] }）
-        if (resultJson.has("results") && resultJson.get("results").isArray() && resultJson.get("results").size() > 0) {
-            JsonNode first = resultJson.get("results").get(0);
-            if (first.has("url")) return first.get("url").asText();
-        }
+
         // images 数组
-        if (resultJson.has("images") && resultJson.get("images").isArray() && resultJson.get("images").size() > 0) {
-            JsonNode first = resultJson.get("images").get(0);
-            if (first.has("url")) return first.get("url").asText();
+        if (resultJson.has("images") && resultJson.get("images").isArray()) {
+            for (JsonNode item : resultJson.get("images")) {
+                if (item.has("url")) urls.add(item.get("url").asText());
+            }
+            if (!urls.isEmpty()) return urls;
         }
-        // output.url（某些模型格式）
+
+        // 顶层 url / image_url
+        if (resultJson.has("url")) urls.add(resultJson.get("url").asText());
+        if (resultJson.has("image_url")) urls.add(resultJson.get("image_url").asText());
+        if (resultJson.has("b64_json")) urls.add("data:image/png;base64," + resultJson.get("b64_json").asText());
+        if (!urls.isEmpty()) return urls;
+
+        // output.url
         if (resultJson.has("output") && resultJson.get("output").isObject()) {
             JsonNode output = resultJson.get("output");
-            if (output.has("url")) return output.get("url").asText();
+            if (output.has("url")) urls.add(output.get("url").asText());
+            if (!urls.isEmpty()) return urls;
         }
-        // 正则匹配
+
+        // 正则兜底匹配
         String jsonStr = resultJson.toString();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("https?://[^\\s\"']+?\\.(png|jpg|jpeg|webp)").matcher(jsonStr);
-        if (m.find()) return m.group();
-        return null;
+        while (m.find()) {
+            urls.add(m.group());
+        }
+
+        return urls;
     }
 
     /**
