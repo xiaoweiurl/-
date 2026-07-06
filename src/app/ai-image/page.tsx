@@ -258,6 +258,9 @@ export default function AiImagePage() {
         setIsUploadingRef(false);
       }
 
+      // 默认生成4张
+      const generateCount = 4;
+
       let requestBody: Record<string, unknown>;
 
       if (modelType === 'nano') {
@@ -268,6 +271,7 @@ export default function AiImagePage() {
           imageSize: nanoImageSize,
           images: imageUrls,
           replyType: 'json',
+          count: generateCount,
         };
       } else {
         let aspectRatio: string;
@@ -286,6 +290,7 @@ export default function AiImagePage() {
           aspectRatio,
           images: imageUrls,
           replyType: 'json',
+          count: generateCount,
         };
       }
 
@@ -301,22 +306,6 @@ export default function AiImagePage() {
         throw new Error(data.error || data.message || '生成失败');
       }
 
-      let imageUrl = '';
-      if (data.data?.url) imageUrl = data.data.url;
-      else if (data.data?.image_url) imageUrl = data.data.image_url;
-      else if (data.url) imageUrl = data.url;
-      else if (data.image_url) imageUrl = data.image_url;
-      else if (data.data?.b64_json) imageUrl = `data:image/png;base64,${data.data.b64_json}`;
-      else if (data.b64_json) imageUrl = `data:image/png;base64,${data.b64_json}`;
-      else if (Array.isArray(data.data) && data.data[0]?.url) imageUrl = data.data[0].url;
-      else if (Array.isArray(data.images) && data.images[0]?.url) imageUrl = data.images[0].url;
-      else {
-        const jsonStr = JSON.stringify(data);
-        const urlMatch = jsonStr.match(/https?:\/\/[^\s"']+?\.(png|jpg|jpeg|webp)/i);
-        if (urlMatch) imageUrl = urlMatch[0];
-        else throw new Error('无法解析生成结果');
-      }
-
       const detail = modelType === 'nano'
         ? `${nanoAspectRatio} / ${nanoImageSize}`
         : isGptVip
@@ -325,10 +314,54 @@ export default function AiImagePage() {
             ? `${gptAspectRatio}（比例格式）`
             : `${gptAspectRatio} / ${GPT_RES_STANDARD[gptAspectRatio] || ''}`;
 
-      setGeneratedImages((prev) => [
-        { url: imageUrl, prompt: prompt.trim(), model: activeModel, detail, timestamp: Date.now() },
-        ...prev,
-      ]);
+      // 解析多图结果
+      const newImages: { url: string; prompt: string; model: string; detail: string; timestamp: number }[] = [];
+
+      if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        // 后端批量模式返回 { images: [{ url, index, revised_prompt }, ...] }
+        for (const img of data.images) {
+          if (img.url) {
+            newImages.push({
+              url: img.url,
+              prompt: img.revised_prompt || prompt.trim(),
+              model: activeModel,
+              detail,
+              timestamp: Date.now() + img.index,
+            });
+          }
+        }
+      } else {
+        // 兼容单图模式：后端直接返回一张图
+        let imageUrl = '';
+        if (data.data?.url) imageUrl = data.data.url;
+        else if (data.data?.image_url) imageUrl = data.data.image_url;
+        else if (data.url) imageUrl = data.url;
+        else if (data.image_url) imageUrl = data.image_url;
+        else if (data.data?.b64_json) imageUrl = `data:image/png;base64,${data.data.b64_json}`;
+        else if (data.b64_json) imageUrl = `data:image/png;base64,${data.b64_json}`;
+        else if (Array.isArray(data.data) && data.data[0]?.url) imageUrl = data.data[0].url;
+        else if (Array.isArray(data.images) && data.images[0]?.url) imageUrl = data.images[0].url;
+        else {
+          const jsonStr = JSON.stringify(data);
+          const urlMatch = jsonStr.match(/https?:\/\/[^\s"']+?\.(png|jpg|jpeg|webp)/i);
+          if (urlMatch) imageUrl = urlMatch[0];
+          else throw new Error('无法解析生成结果');
+        }
+
+        newImages.push({
+          url: imageUrl,
+          prompt: prompt.trim(),
+          model: activeModel,
+          detail,
+          timestamp: Date.now(),
+        });
+      }
+
+      if (newImages.length === 0) {
+        throw new Error('未能生成任何图片');
+      }
+
+      setGeneratedImages((prev) => [...newImages, ...prev]);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '生成失败';
       setError(message);
@@ -868,7 +901,7 @@ export default function AiImagePage() {
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4" />
-                        开始生成
+                        生成4张
                       </>
                     )}
                   </button>

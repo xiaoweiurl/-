@@ -12,8 +12,8 @@ import com.imagemanager.service.ImageTableService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.*;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -75,6 +75,9 @@ public class AiImageController {
             String model = requestJson.has("model") ? requestJson.get("model").asText() : "nano-banana-2";
             String prompt = requestJson.has("prompt") ? requestJson.get("prompt").asText() : "";
             String aspectRatio = requestJson.has("aspectRatio") ? requestJson.get("aspectRatio").asText() : "1:1";
+            int count = requestJson.has("count") ? requestJson.get("count").asInt() : 1;
+            // 限制最多4张
+            count = Math.max(1, Math.min(count, 4));
 
             if (prompt.isEmpty()) {
                 return ResponseEntity.badRequest().body("{\"error\":\"提示词不能为空\"}");
@@ -88,15 +91,12 @@ public class AiImageController {
 
             // 根据 model 类型设置参数
             if (model.startsWith("nano-banana")) {
-                // nano-banana 系列：aspectRatio 用比例，imageSize 用 1K/2K/4K
                 apiRequestBody.put("aspectRatio", aspectRatio);
                 String imageSize = requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "1K";
                 apiRequestBody.put("imageSize", imageSize);
             } else if (model.startsWith("gpt-image")) {
-                // gpt-image 系列：aspectRatio 直接用像素值
                 apiRequestBody.put("aspectRatio", aspectRatio);
             } else {
-                // 其他模型默认用比例
                 apiRequestBody.put("aspectRatio", aspectRatio);
                 String imageSize = requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "1K";
                 if (!imageSize.isEmpty()) {
@@ -113,10 +113,10 @@ public class AiImageController {
 
             String apiRequestBodyStr = objectMapper.writeValueAsString(apiRequestBody);
             int imagesCount = requestJson.has("images") && requestJson.get("images").isArray() ? requestJson.get("images").size() : 0;
-            log.info("AI生图请求: model={}, aspectRatio={}, imageSize={}, prompt长度={}, 参考图片数={}",
+            log.info("AI生图请求: model={}, aspectRatio={}, imageSize={}, prompt长度={}, 参考图片数={}, 生成数量={}",
                     model, aspectRatio,
                     requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "N/A",
-                    prompt.length(), imagesCount);
+                    prompt.length(), imagesCount, count);
 
             // 设置请求头
             HttpHeaders headers = new HttpHeaders();
@@ -124,39 +124,155 @@ public class AiImageController {
             headers.set("Authorization", apiKey);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
-            HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
+            // 并发生成多张图片
+            if (count == 1) {
+                // 单张生成，走原逻辑
+                HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
+                ResponseEntity<String> response = createSlowRestTemplate().exchange(apiUrl, HttpMethod.POST, entity, String.class);
 
-            // 发送请求到外部API（超时5分钟，生图可能较慢）
-            RestTemplate slowRestTemplate = new RestTemplate();
-            javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
-            sslContext.init(null, null, null);
-            javax.net.ssl.SSLSocketFactory socketFactory = sslContext.getSocketFactory();
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    log.error("AI生图API调用失败: status={}, body={}", response.getStatusCode(), response.getBody());
+                    return ResponseEntity.status(response.getStatusCode())
+                            .body("{\"error\":\"AI生图服务调用失败: " + response.getStatusCode() + "\"}");
+                }
 
-            org.springframework.http.client.SimpleClientHttpRequestFactory factory =
-                    new org.springframework.http.client.SimpleClientHttpRequestFactory();
-            factory.setConnectTimeout(30 * 1000);  // 30秒连接超时
-            factory.setReadTimeout(5 * 60 * 1000);  // 5分钟读取超时
-            slowRestTemplate.setRequestFactory(factory);
-
-            ResponseEntity<String> response = slowRestTemplate.exchange(apiUrl, HttpMethod.POST, entity, String.class);
-
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                log.error("AI生图API调用失败: status={}, body={}", response.getStatusCode(), response.getBody());
-                return ResponseEntity.status(response.getStatusCode())
-                        .body("{\"error\":\"AI生图服务调用失败: " + response.getStatusCode() + "\"}");
+                log.info("AI生图成功: model={}", model);
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(response.getBody());
             }
 
-            log.info("AI生图成功: model={}", model);
-            // 直接返回API响应
+            // 多张并发生成
+            ExecutorService executor = Executors.newFixedThreadPool(count);
+            List<Future<String>> futures = new ArrayList<>();
+
+            for (int i = 0; i < count; i++) {
+                final int index = i;
+                futures.add(executor.submit(() -> {
+                    try {
+                        HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
+                        ResponseEntity<String> resp = createSlowRestTemplate().exchange(apiUrl, HttpMethod.POST, entity, String.class);
+                        if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
+                            return resp.getBody();
+                        } else {
+                            log.warn("AI生图第{}张失败: status={}", index + 1, resp.getStatusCode());
+                            return null;
+                        }
+                    } catch (Exception e) {
+                        log.error("AI生图第{}张异常: {}", index + 1, e.getMessage());
+                        return null;
+                    }
+                }));
+            }
+            executor.shutdown();
+
+            // 收集结果
+            List<Map<String, Object>> images = new ArrayList<>();
+            int successCount = 0;
+            int failCount = 0;
+
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    String result = futures.get(i).get(5, TimeUnit.MINUTES);
+                    if (result != null) {
+                        // 解析单张结果，提取图片URL
+                        JsonNode resultJson = objectMapper.readTree(result);
+                        String imageUrl = extractImageUrl(resultJson);
+                        if (imageUrl != null && !imageUrl.isEmpty()) {
+                            Map<String, Object> img = new HashMap<>();
+                            img.put("url", imageUrl);
+                            img.put("index", i);
+                            // 保留原始响应中的其他字段
+                            if (resultJson.has("data") && resultJson.get("data").isObject()) {
+                                JsonNode dataNode = resultJson.get("data");
+                                if (dataNode.has("revised_prompt")) {
+                                    img.put("revised_prompt", dataNode.get("revised_prompt").asText());
+                                }
+                            }
+                            images.add(img);
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                    } else {
+                        failCount++;
+                    }
+                } catch (Exception e) {
+                    log.error("获取第{}张生图结果异常: {}", i + 1, e.getMessage());
+                    failCount++;
+                }
+            }
+
+            // 构建多图响应
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", successCount > 0);
+            response.put("count", count);
+            response.put("successCount", successCount);
+            response.put("failCount", failCount);
+            response.put("images", images);
+            response.put("model", model);
+
+            log.info("AI生图批量完成: model={}, 成功={}, 失败={}", model, successCount, failCount);
+
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(response.getBody());
+                    .body(objectMapper.writeValueAsString(response));
 
         } catch (Exception e) {
             log.error("AI生图请求异常", e);
             return ResponseEntity.status(500)
                     .body("{\"error\":\"AI生图服务异常: " + e.getMessage() + "\"}");
         }
+    }
+
+    /**
+     * 从API响应中提取图片URL
+     */
+    private String extractImageUrl(JsonNode resultJson) {
+        // data.url
+        if (resultJson.has("data") && resultJson.get("data").isObject()) {
+            JsonNode data = resultJson.get("data");
+            if (data.has("url")) return data.get("url").asText();
+            if (data.has("image_url")) return data.get("image_url").asText();
+            if (data.has("b64_json")) return "data:image/png;base64," + data.get("b64_json").asText();
+        }
+        // 顶层 url / image_url
+        if (resultJson.has("url")) return resultJson.get("url").asText();
+        if (resultJson.has("image_url")) return resultJson.get("image_url").asText();
+        if (resultJson.has("b64_json")) return "data:image/png;base64," + resultJson.get("b64_json").asText();
+        // data 是数组
+        if (resultJson.has("data") && resultJson.get("data").isArray() && resultJson.get("data").size() > 0) {
+            JsonNode first = resultJson.get("data").get(0);
+            if (first.has("url")) return first.get("url").asText();
+            if (first.has("image_url")) return first.get("image_url").asText();
+            if (first.has("b64_json")) return "data:image/png;base64," + first.get("b64_json").asText();
+        }
+        // images 数组
+        if (resultJson.has("images") && resultJson.get("images").isArray() && resultJson.get("images").size() > 0) {
+            JsonNode first = resultJson.get("images").get(0);
+            if (first.has("url")) return first.get("url").asText();
+        }
+        // 正则匹配
+        String jsonStr = resultJson.toString();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("https?://[^\\s\"']+?\\.(png|jpg|jpeg|webp)").matcher(jsonStr);
+        if (m.find()) return m.group();
+        return null;
+    }
+
+    /**
+     * 创建超时5分钟的 RestTemplate
+     */
+    private RestTemplate createSlowRestTemplate() throws Exception {
+        RestTemplate slowRestTemplate = new RestTemplate();
+        javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+        sslContext.init(null, null, null);
+
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(30 * 1000);
+        factory.setReadTimeout(5 * 60 * 1000);
+        slowRestTemplate.setRequestFactory(factory);
+        return slowRestTemplate;
     }
 
     /**
