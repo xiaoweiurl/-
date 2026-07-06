@@ -791,6 +791,26 @@ export default function AiImagePage() {
                       </div>
                     </>
                   )}
+
+                  {/* 生成数量 - 所有模型通用 */}
+                  <div className="mt-5 pt-5 border-t border-slate-100">
+                    <label className="text-sm font-medium text-slate-600 mb-3 block">生成数量</label>
+                    <div className="flex gap-3">
+                      {[1, 2, 3, 4].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setGenerateCount(n)}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            generateCount === n
+                              ? `${accentBgBtn} text-white shadow-md`
+                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                          }`}
+                        >
+                          {n} 张
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* 提示词输入 + 生成 */}
@@ -900,7 +920,7 @@ export default function AiImagePage() {
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4" />
-                        生成4张
+                        生成{generateCount}张
                       </>
                     )}
                   </button>
