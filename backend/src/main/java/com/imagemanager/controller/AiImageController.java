@@ -13,11 +13,9 @@ import com.imagemanager.service.ImageTableService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -146,28 +144,42 @@ public class AiImageController {
                         .body(response.getBody());
             }
 
-            // 多张并发生成
+            // 多张并发生成（CompletableFuture，超时由 RestTemplate 控制）
             ExecutorService executor = Executors.newFixedThreadPool(count);
-            List<Future<String>> futures = new ArrayList<>();
+            List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
 
             for (int i = 0; i < count; i++) {
                 final int index = i;
-                futures.add(executor.submit(() -> {
+                futures.add(CompletableFuture.supplyAsync(() -> {
                     try {
                         HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
                         ResponseEntity<String> resp = createSlowRestTemplate().exchange(apiUrl, HttpMethod.POST, entity, String.class);
                         if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
-                            return resp.getBody();
-                        } else {
-                            log.warn("AI生图第{}张失败: status={}", index + 1, resp.getStatusCode());
-                            return null;
+                            JsonNode resultJson = objectMapper.readTree(resp.getBody());
+                            String imageUrl = extractImageUrl(resultJson);
+                            if (imageUrl != null && !imageUrl.isEmpty()) {
+                                Map<String, Object> img = new HashMap<>();
+                                img.put("url", imageUrl);
+                                img.put("index", index);
+                                if (resultJson.has("data") && resultJson.get("data").isObject()) {
+                                    JsonNode dataNode = resultJson.get("data");
+                                    if (dataNode.has("revised_prompt")) {
+                                        img.put("revised_prompt", dataNode.get("revised_prompt").asText());
+                                    }
+                                }
+                                return img;
+                            }
                         }
+                        log.warn("AI生图第{}张失败: status={}", index + 1, resp.getStatusCode());
                     } catch (Exception e) {
                         log.error("AI生图第{}张异常: {}", index + 1, e.getMessage());
-                        return null;
                     }
-                }));
+                    return null;
+                }, executor));
             }
+
+            // 等待全部完成
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             executor.shutdown();
 
             // 收集结果
@@ -177,27 +189,10 @@ public class AiImageController {
 
             for (int i = 0; i < futures.size(); i++) {
                 try {
-                    String result = futures.get(i).get(5, TimeUnit.MINUTES);
-                    if (result != null) {
-                        // 解析单张结果，提取图片URL
-                        JsonNode resultJson = objectMapper.readTree(result);
-                        String imageUrl = extractImageUrl(resultJson);
-                        if (imageUrl != null && !imageUrl.isEmpty()) {
-                            Map<String, Object> img = new HashMap<>();
-                            img.put("url", imageUrl);
-                            img.put("index", i);
-                            // 保留原始响应中的其他字段
-                            if (resultJson.has("data") && resultJson.get("data").isObject()) {
-                                JsonNode dataNode = resultJson.get("data");
-                                if (dataNode.has("revised_prompt")) {
-                                    img.put("revised_prompt", dataNode.get("revised_prompt").asText());
-                                }
-                            }
-                            images.add(img);
-                            successCount++;
-                        } else {
-                            failCount++;
-                        }
+                    Map<String, Object> img = futures.get(i).getNow(null);
+                    if (img != null) {
+                        images.add(img);
+                        successCount++;
                     } else {
                         failCount++;
                     }
