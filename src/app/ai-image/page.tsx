@@ -314,19 +314,19 @@ export default function AiImagePage() {
             ? `${gptAspectRatio}（比例格式）`
             : `${gptAspectRatio} / ${GPT_RES_STANDARD[gptAspectRatio] || ''}`;
 
-      // 解析多图结果
+      // 解析多图结果 — 兼容 handleBackendResponse 包装：images 可能在 data.images 或 data.data.images
       const newImages: { url: string; prompt: string; model: string; detail: string; timestamp: number }[] = [];
-
-      if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+      const imagesPayload = data.images ?? data.data?.images;
+      if (imagesPayload && Array.isArray(imagesPayload) && imagesPayload.length > 0) {
         // 后端批量模式返回 { images: [{ url, index, revised_prompt }, ...] }
-        for (const img of data.images) {
+        for (const img of imagesPayload) {
           if (img.url) {
             newImages.push({
               url: img.url,
               prompt: img.revised_prompt || prompt.trim(),
               model: activeModel,
               detail,
-              timestamp: Date.now() + img.index,
+              timestamp: Date.now() + (img.index ?? 0),
             });
           }
         }
