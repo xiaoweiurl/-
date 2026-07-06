@@ -56,17 +56,13 @@ public class AiImageController {
     }
 
     /**
-     * 生成 AI 图像
+     * 生成 AI 图像（支持异步轮询）
      * POST /ai-image/generate
      *
-     * 请求体:
-     * {
-     *   "model": "nano-banana-2" | "gpt-image-2" | ...,
-     *   "prompt": "描述文本",
-     *   "aspectRatio": "1:1" | "16:9" | "1024x1024" | ...,
-     *   "imageSize": "1K" | "2K" | "4K",   // nano-banana 系列专用
-     *   "images": []  // 可选，用于图生图
-     * }
+     * 外部 API 流程：
+     * 1. POST 提交任务 → 返回 { id, status: "running" } 或 { id, status: "succeeded", results: [...] }
+     * 2. 如果 status != "succeeded"，轮询 GET /v1/api/generate/{id} 直到完成
+     * 3. 最终结果中 results: [{ url }] 包含图片
      */
     @PostMapping("/generate")
     public ResponseEntity<?> generate(@RequestBody String requestBody,
@@ -78,7 +74,6 @@ public class AiImageController {
             String prompt = requestJson.has("prompt") ? requestJson.get("prompt").asText() : "";
             String aspectRatio = requestJson.has("aspectRatio") ? requestJson.get("aspectRatio").asText() : "1:1";
             int count = requestJson.has("count") ? requestJson.get("count").asInt() : 1;
-            // 限制最多4张
             count = Math.max(1, Math.min(count, 4));
 
             if (prompt.isEmpty()) {
@@ -91,7 +86,6 @@ public class AiImageController {
             apiRequestBody.put("prompt", prompt);
             apiRequestBody.put("replyType", "json");
 
-            // 根据 model 类型设置参数
             if (model.startsWith("nano-banana")) {
                 apiRequestBody.put("aspectRatio", aspectRatio);
                 String imageSize = requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "1K";
@@ -106,7 +100,6 @@ public class AiImageController {
                 }
             }
 
-            // images 字段
             if (requestJson.has("images") && requestJson.get("images").isArray()) {
                 apiRequestBody.set("images", requestJson.get("images"));
             } else {
@@ -115,72 +108,72 @@ public class AiImageController {
 
             String apiRequestBodyStr = objectMapper.writeValueAsString(apiRequestBody);
             int imagesCount = requestJson.has("images") && requestJson.get("images").isArray() ? requestJson.get("images").size() : 0;
-            log.info("AI生图请求: model={}, aspectRatio={}, imageSize={}, prompt长度={}, 参考图片数={}, 生成数量={}",
-                    model, aspectRatio,
-                    requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "N/A",
-                    prompt.length(), imagesCount, count);
+            log.info("AI生图请求: model={}, prompt长度={}, 参考图片数={}, 生成数量={}", model, prompt.length(), imagesCount, count);
 
-            // 设置请求头
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", apiKey);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
-            // 并发生成多张图片
-            if (count == 1) {
-                // 单张生成，走原逻辑
-                HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
-                ResponseEntity<String> response = createSlowRestTemplate().exchange(apiUrl, HttpMethod.POST, entity, String.class);
-
-                if (!response.getStatusCode().is2xxSuccessful()) {
-                    log.error("AI生图API调用失败: status={}, body={}", response.getStatusCode(), response.getBody());
-                    return ResponseEntity.status(response.getStatusCode())
-                            .body("{\"error\":\"AI生图服务调用失败: " + response.getStatusCode() + "\"}");
-                }
-
-                log.info("AI生图成功: model={}", model);
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(response.getBody());
-            }
-
-            // 多张并发生成（CompletableFuture，超时由 RestTemplate 控制）
-            ExecutorService executor = Executors.newFixedThreadPool(count);
+            // 并发生成，每张独立提交+轮询
             List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
 
             for (int i = 0; i < count; i++) {
                 final int index = i;
                 futures.add(CompletableFuture.supplyAsync(() -> {
                     try {
+                        // 第一步：提交生图任务
                         HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
                         ResponseEntity<String> resp = createSlowRestTemplate().exchange(apiUrl, HttpMethod.POST, entity, String.class);
-                        if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
-                            JsonNode resultJson = objectMapper.readTree(resp.getBody());
-                            String imageUrl = extractImageUrl(resultJson);
-                            if (imageUrl != null && !imageUrl.isEmpty()) {
-                                Map<String, Object> img = new HashMap<>();
-                                img.put("url", imageUrl);
-                                img.put("index", index);
-                                if (resultJson.has("data") && resultJson.get("data").isObject()) {
-                                    JsonNode dataNode = resultJson.get("data");
-                                    if (dataNode.has("revised_prompt")) {
-                                        img.put("revised_prompt", dataNode.get("revised_prompt").asText());
-                                    }
-                                }
-                                return img;
-                            }
+
+                        if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
+                            log.warn("AI生图第{}张提交失败: status={}", index + 1, resp.getStatusCode());
+                            return null;
                         }
-                        log.warn("AI生图第{}张失败: status={}", index + 1, resp.getStatusCode());
+
+                        JsonNode resultJson = objectMapper.readTree(resp.getBody());
+
+                        // 第二步：如果异步任务，轮询等待结果
+                        resultJson = pollUntilComplete(resultJson, headers);
+
+                        if (resultJson == null) {
+                            log.warn("AI生图第{}张轮询超时", index + 1);
+                            return null;
+                        }
+
+                        // 第三步：从最终结果提取图片 URL
+                        String imageUrl = extractImageUrl(resultJson);
+                        if (imageUrl != null && !imageUrl.isEmpty()) {
+                            Map<String, Object> img = new HashMap<>();
+                            img.put("url", imageUrl);
+                            img.put("index", index);
+                            // 提取 revised_prompt
+                            if (resultJson.has("results") && resultJson.get("results").isArray() && resultJson.get("results").size() > 0) {
+                                JsonNode firstResult = resultJson.get("results").get(0);
+                                if (firstResult.has("revised_prompt")) {
+                                    img.put("revised_prompt", firstResult.get("revised_prompt").asText());
+                                }
+                            }
+                            if (resultJson.has("data") && resultJson.get("data").isObject()) {
+                                JsonNode dataNode = resultJson.get("data");
+                                if (dataNode.has("revised_prompt")) {
+                                    img.put("revised_prompt", dataNode.get("revised_prompt").asText());
+                                }
+                            }
+                            return img;
+                        }
+
+                        log.warn("AI生图第{}张: 无法提取图片URL, 响应={}", index + 1, resultJson.toString().substring(0, Math.min(200, resultJson.toString().length())));
+                        return null;
                     } catch (Exception e) {
                         log.error("AI生图第{}张异常: {}", index + 1, e.getMessage());
+                        return null;
                     }
-                    return null;
-                }, executor));
+                }));
             }
 
-            // 等待全部完成
+            // 等待全部完成（最多 5 分钟，由 RestTemplate readTimeout 控制）
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            executor.shutdown();
 
             // 收集结果
             List<Map<String, Object>> images = new ArrayList<>();
@@ -202,26 +195,94 @@ public class AiImageController {
                 }
             }
 
-            // 构建多图响应
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", successCount > 0);
-            response.put("count", count);
-            response.put("successCount", successCount);
-            response.put("failCount", failCount);
-            response.put("images", images);
-            response.put("model", model);
+            // 构建响应（统一格式，无论 count 是多少）
+            Map<String, Object> responseMap = new HashMap<>();
+            responseMap.put("success", successCount > 0);
+            responseMap.put("count", count);
+            responseMap.put("successCount", successCount);
+            responseMap.put("failCount", failCount);
+            responseMap.put("images", images);
+            responseMap.put("model", model);
 
-            log.info("AI生图批量完成: model={}, 成功={}, 失败={}", model, successCount, failCount);
+            log.info("AI生图完成: model={}, 成功={}, 失败={}", model, successCount, failCount);
 
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(objectMapper.writeValueAsString(response));
+                    .body(objectMapper.writeValueAsString(responseMap));
 
         } catch (Exception e) {
             log.error("AI生图请求异常", e);
             return ResponseEntity.status(500)
                     .body("{\"error\":\"AI生图服务异常: " + e.getMessage() + "\"}");
         }
+    }
+
+    /**
+     * 轮询异步任务直到完成
+     * 外部API可能返回 { id, status: "running" }，需要轮询到 status: "succeeded"
+     */
+    private JsonNode pollUntilComplete(JsonNode initialResponse, HttpHeaders headers) {
+        String status = initialResponse.has("status") ? initialResponse.get("status").asText() : "";
+
+        // 已经是成功状态，直接返回
+        if ("succeeded".equals(status)) {
+            return initialResponse;
+        }
+
+        // 如果没有 id 字段，说明不是异步任务，直接返回原始响应
+        if (!initialResponse.has("id")) {
+            return initialResponse;
+        }
+
+        String taskId = initialResponse.get("id").asText();
+        log.info("AI生图异步任务已提交: taskId={}, status={}", taskId, status);
+
+        // 轮询查询结果，最多 120 秒
+        String queryUrl = apiUrl + "/" + taskId;
+        int maxRetries = 60;  // 60次 × 2秒 = 120秒
+        int interval = 2000;  // 2秒间隔
+
+        for (int i = 0; i < maxRetries; i++) {
+            try {
+                Thread.sleep(interval);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+
+            try {
+                HttpEntity<String> entity = new HttpEntity<>(headers);
+                RestTemplate queryRestTemplate = new RestTemplate();
+                ResponseEntity<String> queryResp = queryRestTemplate.exchange(queryUrl, HttpMethod.GET, entity, String.class);
+
+                if (!queryResp.getStatusCode().is2xxSuccessful() || queryResp.getBody() == null) {
+                    log.warn("AI生图轮询第{}次失败: status={}", i + 1, queryResp.getStatusCode());
+                    continue;
+                }
+
+                JsonNode queryResult = objectMapper.readTree(queryResp.getBody());
+                String currentStatus = queryResult.has("status") ? queryResult.get("status").asText() : "";
+
+                log.info("AI生图轮询第{}次: taskId={}, status={}", i + 1, taskId, currentStatus);
+
+                if ("succeeded".equals(currentStatus)) {
+                    return queryResult;
+                }
+
+                if ("failed".equals(currentStatus) || "violation".equals(currentStatus)) {
+                    String error = queryResult.has("error") ? queryResult.get("error").asText() : "生成失败";
+                    log.error("AI生图任务失败: taskId={}, status={}, error={}", taskId, currentStatus, error);
+                    return null;
+                }
+
+                // status 仍然是 running，继续轮询
+            } catch (Exception e) {
+                log.warn("AI生图轮询第{}次异常: {}", i + 1, e.getMessage());
+            }
+        }
+
+        log.error("AI生图轮询超时: taskId={}", taskId);
+        return null;
     }
 
     /**
@@ -246,10 +307,20 @@ public class AiImageController {
             if (first.has("image_url")) return first.get("image_url").asText();
             if (first.has("b64_json")) return "data:image/png;base64," + first.get("b64_json").asText();
         }
+        // results 数组（异步任务完成后返回格式: { results: [{ url }] }）
+        if (resultJson.has("results") && resultJson.get("results").isArray() && resultJson.get("results").size() > 0) {
+            JsonNode first = resultJson.get("results").get(0);
+            if (first.has("url")) return first.get("url").asText();
+        }
         // images 数组
         if (resultJson.has("images") && resultJson.get("images").isArray() && resultJson.get("images").size() > 0) {
             JsonNode first = resultJson.get("images").get(0);
             if (first.has("url")) return first.get("url").asText();
+        }
+        // output.url（某些模型格式）
+        if (resultJson.has("output") && resultJson.get("output").isObject()) {
+            JsonNode output = resultJson.get("output");
+            if (output.has("url")) return output.get("url").asText();
         }
         // 正则匹配
         String jsonStr = resultJson.toString();
