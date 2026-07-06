@@ -116,7 +116,7 @@ public class AiImageController {
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
             // 并发生成，每张独立提交+轮询
-            List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
+            List<CompletableFuture<List<Map<String, Object>>>> futures = new ArrayList<>();
 
             for (int i = 0; i < count; i++) {
                 final int index = i;
@@ -142,25 +142,32 @@ public class AiImageController {
                         }
 
                         // 第三步：从最终结果提取图片 URL
-                        String imageUrl = extractImageUrl(resultJson);
-                        if (imageUrl != null && !imageUrl.isEmpty()) {
-                            Map<String, Object> img = new HashMap<>();
-                            img.put("url", imageUrl);
-                            img.put("index", index);
-                            // 提取 revised_prompt
-                            if (resultJson.has("results") && resultJson.get("results").isArray() && resultJson.get("results").size() > 0) {
-                                JsonNode firstResult = resultJson.get("results").get(0);
-                                if (firstResult.has("revised_prompt")) {
-                                    img.put("revised_prompt", firstResult.get("revised_prompt").asText());
+                        List<String> imageUrls = extractAllImageUrls(resultJson);
+                        log.info("AI生图第{}张: 提取到{}个图片URL, 响应前200字符={}", index + 1, imageUrls.size(), resultJson.toString().substring(0, Math.min(200, resultJson.toString().length())));
+                        
+                        if (!imageUrls.isEmpty()) {
+                            // 每个URL生成一条记录
+                            List<Map<String, Object>> imgs = new ArrayList<>();
+                            for (int j = 0; j < imageUrls.size(); j++) {
+                                Map<String, Object> img = new HashMap<>();
+                                img.put("url", imageUrls.get(j));
+                                img.put("index", index * 10 + j);  // 避免index重复
+                                // 提取 revised_prompt
+                                if (resultJson.has("results") && resultJson.get("results").isArray() && resultJson.get("results").size() > j) {
+                                    JsonNode resultItem = resultJson.get("results").get(j);
+                                    if (resultItem.has("revised_prompt")) {
+                                        img.put("revised_prompt", resultItem.get("revised_prompt").asText());
+                                    }
                                 }
-                            }
-                            if (resultJson.has("data") && resultJson.get("data").isObject()) {
-                                JsonNode dataNode = resultJson.get("data");
-                                if (dataNode.has("revised_prompt")) {
-                                    img.put("revised_prompt", dataNode.get("revised_prompt").asText());
+                                if (resultJson.has("data") && resultJson.get("data").isObject()) {
+                                    JsonNode dataNode = resultJson.get("data");
+                                    if (dataNode.has("revised_prompt")) {
+                                        img.put("revised_prompt", dataNode.get("revised_prompt").asText());
+                                    }
                                 }
+                                imgs.add(img);
                             }
-                            return img;
+                            return imgs;
                         }
 
                         log.warn("AI生图第{}张: 无法提取图片URL, 响应={}", index + 1, resultJson.toString().substring(0, Math.min(200, resultJson.toString().length())));
@@ -182,10 +189,10 @@ public class AiImageController {
 
             for (int i = 0; i < futures.size(); i++) {
                 try {
-                    Map<String, Object> img = futures.get(i).getNow(null);
-                    if (img != null) {
-                        images.add(img);
-                        successCount++;
+                    List<Map<String, Object>> imgs = futures.get(i).getNow(null);
+                    if (imgs != null && !imgs.isEmpty()) {
+                        images.addAll(imgs);
+                        successCount += imgs.size();
                     } else {
                         failCount++;
                     }
