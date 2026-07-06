@@ -238,7 +238,11 @@ public class AiImageController {
         log.info("AI生图异步任务已提交: taskId={}, status={}", taskId, status);
 
         // 轮询查询结果，最多 120 秒
-        String queryUrl = apiUrl + "/" + taskId;
+        // 查询接口: GET https://grsai.dakka.com.cn/v1/api/result?id={taskId}
+        String resultApiBase = apiUrl.contains("grsaiapi.com")
+                ? "https://grsai.dakka.com.cn/v1/api/result"
+                : apiUrl.replace("/generate", "/result");
+        String queryUrl = resultApiBase + "?id=" + taskId;
         int maxRetries = 60;  // 60次 × 2秒 = 120秒
         int interval = 2000;  // 2秒间隔
 
