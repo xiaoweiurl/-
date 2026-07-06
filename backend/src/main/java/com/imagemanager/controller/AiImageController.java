@@ -9,6 +9,7 @@ import com.imagemanager.entity.Image;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ImageDynamicRepository;
 import com.imagemanager.service.ImageTableService;
+import com.imagemanager.service.FileStorageService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
@@ -46,13 +47,16 @@ public class AiImageController {
     private final ImageRepository imageRepository;
     private final ImageDynamicRepository imageDynamicRepository;
     private final ImageTableService imageTableService;
+    private final FileStorageService fileStorageService;
 
     public AiImageController(ImageRepository imageRepository,
                              ImageDynamicRepository imageDynamicRepository,
-                             ImageTableService imageTableService) {
+                             ImageTableService imageTableService,
+                             FileStorageService fileStorageService) {
         this.imageRepository = imageRepository;
         this.imageDynamicRepository = imageDynamicRepository;
         this.imageTableService = imageTableService;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
@@ -465,14 +469,47 @@ public class AiImageController {
                 return ResponseEntity.badRequest().body("{\"error\":\"图片地址不能为空\"}");
             }
 
+            // 下载远程图片到本地存储
+            String localUrl = imageUrl;
+            String storedName = "ai-generated-" + System.currentTimeMillis() + ".png";
+            try {
+                log.info("开始下载AI生成图片: {}", imageUrl);
+                RestTemplate downloadRestTemplate = new RestTemplate();
+                downloadRestTemplate.setRequestFactory(new SimpleClientHttpRequestFactory() {{
+                    setConnectTimeout(15000);
+                    setReadTimeout(30000);
+                }});
+                byte[] imageBytes = downloadRestTemplate.getForObject(imageUrl, byte[].class);
+                if (imageBytes != null && imageBytes.length > 0) {
+                    // 推断文件扩展名
+                    String ext = "png";
+                    if (imageUrl.contains(".jpg") || imageUrl.contains(".jpeg")) ext = "jpg";
+                    else if (imageUrl.contains(".webp")) ext = "webp";
+                    storedName = "ai-generated-" + System.currentTimeMillis() + "." + ext;
+
+                    // 上传到文件存储
+                    String uploadResult = fileStorageService.uploadFile(imageBytes, storedName, "ai-generated");
+                    if (uploadResult != null && !uploadResult.isEmpty()) {
+                        localUrl = uploadResult;
+                        log.info("AI图片已下载并上传到本地存储: localUrl={}", localUrl);
+                    } else {
+                        log.warn("上传到本地存储失败，使用原始URL");
+                    }
+                } else {
+                    log.warn("下载远程图片返回空数据，使用原始URL");
+                }
+            } catch (Exception e) {
+                log.warn("下载AI生成图片失败，使用原始URL: {}", e.getMessage());
+            }
+
             // 创建图片记录
             Image image = new Image();
             image.setId(UUID.randomUUID().toString());
-            image.setUrl(imageUrl);
+            image.setUrl(localUrl);
             image.setOriginalUrl(imageUrl);
-            image.setThumbnailUrl(imageUrl);
+            image.setThumbnailUrl(localUrl);
             image.setTitle(prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt);
-            image.setOriginalName("ai-generated-" + System.currentTimeMillis() + ".png");
+            image.setOriginalName(storedName);
             image.setAlbumName("二创中心");
             image.setUserId(userId);
             image.setCompany(company != null ? company : "盈云");
