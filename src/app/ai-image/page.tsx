@@ -124,6 +124,7 @@ export default function AiImagePage() {
   const [generatedImages, setGeneratedImages] = useState<
     { url: string; prompt: string; model: string; detail: string; timestamp: number }[]
   >([]);
+  const [generateCount, setGenerateCount] = useState(4);
   const [error, setError] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -258,8 +259,7 @@ export default function AiImagePage() {
         setIsUploadingRef(false);
       }
 
-      // 默认生成4张
-      const generateCount = 4;
+      // 用户选择的生成数量
 
       let requestBody: Record<string, unknown>;
 
@@ -271,7 +271,7 @@ export default function AiImagePage() {
           imageSize: nanoImageSize,
           images: imageUrls,
           replyType: 'json',
-          count: generateCount,
+          count: generateCount
         };
       } else {
         let aspectRatio: string;
@@ -290,7 +290,6 @@ export default function AiImagePage() {
           aspectRatio,
           images: imageUrls,
           replyType: 'json',
-          count: generateCount,
         };
       }
 
