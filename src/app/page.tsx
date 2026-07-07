@@ -618,8 +618,7 @@ export default function Home() {
         params.append('source', 'creative');
         apiUrl = `/images?${params}`;
       } else if (activeMenuItem === 'creative-center') {
-        // 二创中心 - 查看同公司所有用户的二创图片
-        params.append('otherUsers', 'true');
+        // 二创中心 - 查看所有用户的二创图片（包括自己）
         params.append('includeDeleted', 'false');
         params.append('source', 'creative');
         apiUrl = `/images?${params}`;
