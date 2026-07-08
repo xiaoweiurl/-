@@ -359,6 +359,7 @@ export const imageApi = {
     onlyMine?: boolean;
     otherUsers?: boolean;
     includeDeleted?: boolean;
+    source?: string;
     requestHeaders?: Record<string, string | null>;
   } = {}): Promise<Response> {
     const { requestHeaders, ...restParams } = params;
@@ -376,6 +377,7 @@ export const imageApi = {
       onlyMine: restParams.onlyMine,
       otherUsers: restParams.otherUsers,
       includeDeleted: restParams.includeDeleted,
+      source: restParams.source,
     });
 
     return backendFetch(`/images${queryString}`, { requestHeaders });

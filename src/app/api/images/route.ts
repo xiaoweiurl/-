@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
       sortOrder: searchParams.get('sortOrder') || undefined,
       search: searchParams.get('search') || searchParams.get('keyword') || undefined,
       tag: searchParams.get('tag') || undefined,
+      source: searchParams.get('source') || undefined,
     };
     
     // 移除 undefined 值

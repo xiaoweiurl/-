@@ -450,8 +450,19 @@ public class ImageServiceImpl implements ImageService {
                     predicates.add(cb.equal(root.get("userId"), request.getUserId()));
                 }
                 
-                // 二创中心：查询同公司所有用户的图片（含自己）
-                // 不再排除当前用户，管理员和普通用户都能看到同公司的二创
+                // 二创中心数据隔离：管理员看同公司所有用户，普通用户只看自己
+                if ("creative".equals(request.getSource())) {
+                    String currentUserRole = com.imagemanager.util.SessionUtil.getCurrentUserRole();
+                    boolean isAdmin = "admin".equalsIgnoreCase(currentUserRole);
+                    if (!isAdmin) {
+                        // 普通用户：只能看到自己的二创图片
+                        String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+                        if (currentUserId != null && !currentUserId.isEmpty()) {
+                            predicates.add(cb.equal(root.get("userId"), currentUserId));
+                        }
+                    }
+                    // 管理员：不加 userId 过滤，看同公司所有用户的二创
+                }
                 
                 // 全部知识/相册：只显示知识图片，排除二创图片(source=creative)
                 // 我的二创/二创中心：只显示二创图片(source=creative)

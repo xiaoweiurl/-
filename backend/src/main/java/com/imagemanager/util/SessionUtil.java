@@ -81,6 +81,33 @@ public class SessionUtil {
     }
 
     /**
+     * 获取当前用户角色
+     */
+    public static String getCurrentUserRole() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest request = attrs.getRequest();
+                Object userInfo = request.getAttribute(USER_INFO_ATTRIBUTE);
+                if (userInfo != null) {
+                    if (userInfo instanceof Map) {
+                        Object role = ((Map<?, ?>) userInfo).get("role");
+                        if (role != null) return role.toString();
+                    } else {
+                        try {
+                            Object role = userInfo.getClass().getMethod("getRole").invoke(userInfo);
+                            if (role != null) return role.toString();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "user"; // 默认普通用户
+    }
+
+    /**
      * 获取当前登录用户名
      */
     public static String getCurrentUsername() {
