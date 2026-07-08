@@ -440,15 +440,18 @@ public class ImageServiceImpl implements ImageService {
                 predicates.add(cb.equal(root.get("deleted"), false));
                 predicates.add(cb.equal(root.get("isMainImage"), true));
                 
+                // 公司隔离：只显示同公司的图片
+                if (request.getCompany() != null && !request.getCompany().isEmpty()) {
+                    predicates.add(cb.equal(root.get("company"), request.getCompany()));
+                }
+                
                 // 数据隔离：按用户ID过滤（我的二创 / 收藏夹 / 回收站）
                 if (request.getUserId() != null && !request.getUserId().isEmpty()) {
                     predicates.add(cb.equal(root.get("userId"), request.getUserId()));
                 }
                 
-                // 二创中心：排除当前用户，查询其他用户上传的图片
-                if (request.getOtherUsersUserId() != null && !request.getOtherUsersUserId().isEmpty()) {
-                    predicates.add(cb.notEqual(root.get("userId"), request.getOtherUsersUserId()));
-                }
+                // 二创中心：查询同公司所有用户的图片（含自己）
+                // 不再排除当前用户，管理员和普通用户都能看到同公司的二创
                 
                 // 全部知识/相册：只显示知识图片，排除二创图片(source=creative)
                 // 我的二创/二创中心：只显示二创图片(source=creative)
