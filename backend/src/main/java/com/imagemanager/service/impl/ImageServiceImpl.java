@@ -455,8 +455,7 @@ public class ImageServiceImpl implements ImageService {
                     String currentUserRole = com.imagemanager.util.SessionUtil.getCurrentUserRole();
                     boolean isAdmin = "admin".equalsIgnoreCase(currentUserRole);
                     if (!isAdmin) {
-                        // 普通用户：只能看到自己的二创图片
-                        String currentUserId = com.imagemanager.util.SessionUtil.getCurrentUserId();
+                        // 普通用户：只能看到自己的二创图片（使用外部已声明的 currentUserId）
                         if (currentUserId != null && !currentUserId.isEmpty()) {
                             predicates.add(cb.equal(root.get("userId"), currentUserId));
                         }
