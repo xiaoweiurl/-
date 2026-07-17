@@ -141,12 +141,8 @@ export default function ImageCard({
         return;
       }
       
-      // 如果是相对路径或本地存储路径，尝试使用 API 代理
-      let downloadUrl = fullUrl;
-      if (fullUrl.includes('/uploads/') && !fullUrl.startsWith('http')) {
-        // 相对路径，使用 API 代理
-        downloadUrl = `/api/images/${image.id}/file`;
-      }
+      // 统一走 API 代理下载（服务端无CORS限制，可下载外部URL和后端存储文件）
+      const downloadUrl = `/api/images/${image.id}/file`;
       
       const response = await fetch(downloadUrl, {
         headers: {
@@ -166,13 +162,18 @@ export default function ImageCard({
           return;
         }
         
+        // 如果是 502/504，说明后端不可用
+        if (response.status === 502 || response.status === 504) {
+          toast.error('后端服务不可用，无法下载');
+          return;
+        }
+        
         toast.error(`下载失败: ${response.status}`);
         return;
       }
       
       // 获取 Content-Type
       const contentType = response.headers.get('content-type') || '';
-      console.log('[ImageCard] 响应Content-Type:', contentType);
       
       // 如果响应是 JSON（错误信息），直接抛出错误
       if (contentType.includes('application/json') || contentType.includes('text/plain')) {
