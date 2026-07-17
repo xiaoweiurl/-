@@ -132,7 +132,8 @@ export default function ImageCard({
     e.stopPropagation();
     try {
       const fullUrl = getFullImageUrl(image.url);
-      console.log('[ImageCard] 下载图片，URL:', fullUrl.substring(0, 80));
+      const sessionId = getSessionId();
+      console.log('[ImageCard] 下载图片，完整URL:', fullUrl, 'sessionId:', sessionId ? sessionId.substring(0, 8) + '...' : 'null');
       
       // 如果是旧格式的沙箱 URL，提示用户重新上传
       if (fullUrl.includes('sandbox/coze_coding/file/proxy')) {
@@ -140,30 +141,30 @@ export default function ImageCard({
         return;
       }
       
-      // 下载策略（不需要后端参与）：
-      // 1. 同源路径（/api/uploads/...）→ 直接 fetch（无CORS问题）
-      // 2. 外部URL（https://...）→ 走下载代理（服务端无CORS限制）
-      let downloadUrl: string;
+      // 统一走 API 代理下载（服务端无CORS限制，可下载外部URL和后端存储文件）
+      const downloadUrl = `/api/images/${image.id}/file`;
       
-      if (fullUrl.startsWith('/')) {
-        // 同源路径，直接请求
-        downloadUrl = fullUrl;
-      } else if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
-        // 外部URL，走下载代理避免CORS
-        downloadUrl = `/api/download?url=${encodeURIComponent(fullUrl)}&title=${encodeURIComponent(image.title || 'image')}`;
-      } else {
-        // 其他格式，走下载代理
-        downloadUrl = `/api/download?url=${encodeURIComponent(fullUrl)}&title=${encodeURIComponent(image.title || 'image')}`;
-      }
+      const response = await fetch(downloadUrl, {
+        headers: {
+          'X-Session-Id': sessionId || '',
+        },
+        credentials: 'include',
+      });
       
-      const response = await fetch(downloadUrl);
-      
+      // 检查响应状态
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[ImageCard] 下载失败，HTTP状态:', response.status, '响应:', errorText);
         
+        // 如果是 410 Gone，说明是旧格式 URL
         if (response.status === 410) {
           toast.error('图片路径格式不支持，请删除后重新上传');
+          return;
+        }
+        
+        // 如果是 502/504，说明后端不可用
+        if (response.status === 502 || response.status === 504) {
+          toast.error('后端服务不可用，无法下载');
           return;
         }
         
@@ -171,9 +172,11 @@ export default function ImageCard({
         return;
       }
       
-      // 如果响应是 JSON（错误信息），直接提示
+      // 获取 Content-Type
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      
+      // 如果响应是 JSON（错误信息），直接抛出错误
+      if (contentType.includes('application/json') || contentType.includes('text/plain')) {
         const text = await response.text();
         console.error('[ImageCard] 收到错误响应:', text);
         toast.error('下载失败: 文件不存在或路径错误');
