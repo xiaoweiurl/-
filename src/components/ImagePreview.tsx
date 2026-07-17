@@ -81,7 +81,6 @@ export default function ImagePreview({
     
     try {
       const fullUrl = getFullImageUrl(image.url);
-      const sessionId = getSessionId();
       
       // 如果是旧格式的沙箱 URL，提示用户重新上传
       if (fullUrl.includes('sandbox/coze_coding/file/proxy')) {
@@ -89,18 +88,20 @@ export default function ImagePreview({
         return;
       }
       
-      // 如果是相对路径，使用 API 代理
-      let downloadUrl = fullUrl;
-      if (fullUrl.includes('/uploads/') && !fullUrl.startsWith('http')) {
-        downloadUrl = `/api/images/${image.id}/file`;
+      // 下载策略（不需要后端参与）：
+      // 1. 同源路径（/api/uploads/...）→ 直接 fetch
+      // 2. 外部URL（https://...）→ 走下载代理避免CORS
+      let downloadUrl: string;
+      
+      if (fullUrl.startsWith('/')) {
+        downloadUrl = fullUrl;
+      } else if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        downloadUrl = `/api/download?url=${encodeURIComponent(fullUrl)}&title=${encodeURIComponent(image.title || 'image')}`;
+      } else {
+        downloadUrl = `/api/download?url=${encodeURIComponent(fullUrl)}&title=${encodeURIComponent(image.title || 'image')}`;
       }
       
-      const response = await fetch(downloadUrl, {
-        headers: {
-          'X-Session-Id': sessionId || '',
-        },
-        credentials: 'include',
-      });
+      const response = await fetch(downloadUrl);
       
       if (!response.ok) {
         if (response.status === 410) {
@@ -112,7 +113,7 @@ export default function ImagePreview({
       }
       
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json') || contentType.includes('text/plain')) {
+      if (contentType.includes('application/json')) {
         toast.error('下载失败: 文件不存在或路径错误');
         return;
       }
