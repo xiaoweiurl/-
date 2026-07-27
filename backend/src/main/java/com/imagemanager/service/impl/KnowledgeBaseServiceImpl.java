@@ -10,14 +10,16 @@ import com.imagemanager.repository.KnowledgeBaseDocRepository;
 import com.imagemanager.service.DocumentParserService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
@@ -29,30 +31,53 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     private final KnowledgeBaseDocRepository docRepository;
     private final KnowledgeBaseCategoryRepository categoryRepository;
-    private final FileStorageService fileStorageService;
+    private final FileStorageService localFileStorageService;
     private final DocumentParserService documentParserService;
     private final JdbcTemplate jdbcTemplate;
+    private final PlatformTransactionManager transactionManager;
 
-    @Value("${app.minimax.api-key:}")
-    private String minimaxApiKey;
+    public KnowledgeBaseServiceImpl(
+            KnowledgeBaseDocRepository docRepository,
+            KnowledgeBaseCategoryRepository categoryRepository,
+            @Qualifier("localFileStorageService") FileStorageService localFileStorageService,
+            DocumentParserService documentParserService,
+            JdbcTemplate jdbcTemplate,
+            PlatformTransactionManager transactionManager) {
+        this.docRepository = docRepository;
+        this.categoryRepository = categoryRepository;
+        this.localFileStorageService = localFileStorageService;
+        this.documentParserService = documentParserService;
+        this.jdbcTemplate = jdbcTemplate;
+        this.transactionManager = transactionManager;
+    }
 
-    @Value("${app.minimax.embedding.base-url:https://api.minimaxi.com/v1/embeddings}")
-    private String minimaxEmbeddingUrl;
+    @Value("${app.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
 
-    @Value("${app.minimax.embedding.model:embo-01}")
-    private String minimaxEmbeddingModel;
+    @Value("${app.ollama.embedding-model:bge-m3}")
+    private String ollamaEmbeddingModel;
+
+    @Value("${app.ollama.timeout:60000}")
+    private int ollamaTimeout;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    // 有界线程池，防止无限创建线程导致OOM
+    private final ExecutorService executorService = new ThreadPoolExecutor(
+            5, 10, 60L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(50),
+            r -> { Thread t = new Thread(r, "kb-embedding-"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.CallerRunsPolicy()
+    );
 
     @Override
     @Transactional
@@ -65,7 +90,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             String storagePath = "knowledge/" + company + "/" + UUID.randomUUID() + "." + extension;
-            String fileUrl = fileStorageService.uploadFile(file, storagePath);
+            String fileUrl = localFileStorageService.uploadFile(file, storagePath);
             String fileType = determineFileType(extension);
 
             KnowledgeBaseDoc doc = new KnowledgeBaseDoc();
@@ -76,7 +101,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             doc.setFileType(fileType);
             doc.setFileSize(file.getSize());
             doc.setCategoryId(categoryId);
-            doc.setTags(tags);
+            doc.setTags(tags != null ? String.join(",", tags) : null);
             doc.setUserId(userId);
             doc.setCompany(company);
             doc.setEmbeddingStatus("PENDING");
@@ -143,37 +168,55 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             // 更新状态为处理中
-            KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
-            if (doc != null) {
-                doc.setEmbeddingStatus("PROCESSING");
-                docRepository.save(doc);
-            }
+            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+            tx.execute(status -> {
+                KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
+                if (doc != null) {
+                    doc.setEmbeddingStatus("PROCESSING");
+                    docRepository.save(doc);
+                }
+                return null;
+            });
 
             // 切片
             List<String> chunks = documentParserService.chunkText(text, 800, 100);
             int successCount = 0;
+            int failCount = 0;
+            String firstError = null;
+
+            log.info("文本文档向量化开始: docId={}, 切片数={}, embedding模型={}", docId, chunks.size(), ollamaEmbeddingModel);
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
+                final int chunkIndex = i;
                 if (chunk.trim().isEmpty()) continue;
 
                 float[] embedding = getEmbedding(chunk);
                 if (embedding == null || embedding.length == 0) {
-                    log.warn("文档 {} 切片 {} 向量化失败", docId, i);
+                    failCount++;
+                    if (firstError == null) firstError = "embedding返回null";
+                    log.warn("文档 {} 切片 {} 向量化失败", docId, chunkIndex);
                     continue;
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
-                jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString(), company
-                );
+                tx.execute(status -> {
+                    jdbcTemplate.update(
+                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), company
+                    );
+                    return null;
+                });
                 successCount++;
             }
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
-            log.info("文本文档 {} 向量化完成: {}/{} 切片成功", docId, successCount, chunks.size());
+            log.info("文本文档向量化结束: docId={}, 成功={}, 失败={}", docId, successCount, failCount);
+            if (successCount == 0) {
+                log.error("文本文档向量化全部失败: docId={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
+            }
         } catch (Exception e) {
             log.error("文本文档 {} 向量化失败: {}", docId, e.getMessage(), e);
             updateDocEmbeddingStatus(docId, 0, "FAILED");
@@ -182,12 +225,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     private void updateDocEmbeddingStatus(UUID docId, int chunkCount, String status) {
         try {
-            KnowledgeBaseDoc d = docRepository.findById(docId).orElse(null);
-            if (d != null) {
-                d.setChunkCount(chunkCount);
-                d.setEmbeddingStatus(status);
-                docRepository.save(d);
-            }
+            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+            tx.execute(status2 -> {
+                jdbcTemplate.update("UPDATE knowledge_base_docs SET embedding_status = ?, chunk_count = ?, updated_at = NOW() WHERE id = ?::uuid",
+                        status, chunkCount, docId.toString());
+                return null;
+            });
         } catch (Exception e) {
             log.error("更新文档 {} 向量化状态失败: {}", docId, e.getMessage());
         }
@@ -208,38 +252,53 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             // 保存提取的文本
-            KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
-            if (doc != null) {
-                doc.setFileContent(text.substring(0, Math.min(text.length(), 50000)));
-                doc.setEmbeddingStatus("PROCESSING");
-                docRepository.save(doc);
-            }
+            // Update file content and status via direct SQL for reliability
+            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+            tx.execute(status -> {
+                jdbcTemplate.update("UPDATE knowledge_base_docs SET file_content = ?, embedding_status = 'PROCESSING', updated_at = NOW() WHERE id = ?::uuid",
+                        text.substring(0, Math.min(text.length(), 50000)), docId.toString());
+                return null;
+            });
 
             // 切片
             List<String> chunks = documentParserService.chunkText(text, 800, 100);
             int successCount = 0;
+            int failCount = 0;
+            String firstError = null;
+
+            log.info("知识库文档向量化开始: docId={}, 切片数={}, embedding模型={}", docId, chunks.size(), ollamaEmbeddingModel);
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
+                final int chunkIndex = i;
                 if (chunk.trim().isEmpty()) continue;
 
                 float[] embedding = getEmbedding(chunk);
                 if (embedding == null || embedding.length == 0) {
-                    log.warn("文档 {} 切片 {} 向量化失败", docId, i);
+                    failCount++;
+                    if (firstError == null) firstError = "embedding返回null";
+                    log.warn("文档 {} 切片 {} 向量化失败", docId, chunkIndex);
                     continue;
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
-                jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString(), company
-                );
+                tx.execute(status -> {
+                    jdbcTemplate.update(
+                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), company
+                    );
+                    return null;
+                });
                 successCount++;
             }
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
-            log.info("知识库文档 {} 向量化完成: {}/{} 切片成功", docId, successCount, chunks.size());
+            log.info("知识库文档向量化结束: docId={}, 成功={}, 失败={}", docId, successCount, failCount);
+            if (successCount == 0) {
+                log.error("知识库文档向量化全部失败: docId={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
+            }
         } catch (Exception e) {
             log.error("知识库文档 {} 向量化失败: {}", docId, e.getMessage(), e);
             updateDocEmbeddingStatus(docId, 0, "FAILED");
@@ -264,11 +323,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 return;
             }
 
-            doc.setEmbeddingStatus("PROCESSING");
-            docRepository.save(doc);
-
-            // 先删除旧的向量记录
-            jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?::uuid", docId.toString());
+            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+            tx.execute(status -> {
+                doc.setEmbeddingStatus("PROCESSING");
+                docRepository.save(doc);
+                // 先删除旧的向量记录
+                jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?::uuid", docId.toString());
+                return null;
+            });
 
             // 切片
             List<String> chunks = documentParserService.chunkText(text, 800, 100);
@@ -277,20 +340,24 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
+                final int chunkIndex = i;
                 if (chunk.trim().isEmpty()) continue;
 
                 float[] embedding = getEmbedding(chunk);
                 if (embedding == null || embedding.length == 0) {
-                    log.warn("文档 {} 切片 {} 向量化失败", docId, i);
+                    log.warn("文档 {} 切片 {} 向量化失败", docId, chunkIndex);
                     continue;
                 }
 
                 String vectorStr = arrayToVectorString(embedding);
-                jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                                "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                        UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i, "KNOWLEDGE_BASE", docId.toString(), docCompany
-                );
+                tx.execute(status -> {
+                    jdbcTemplate.update(
+                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), docCompany
+                    );
+                    return null;
+                });
                 successCount++;
             }
 
@@ -330,7 +397,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
         // 删除存储的文件
         try {
-            fileStorageService.deleteFile(doc.getFilePath());
+            localFileStorageService.deleteFile(doc.getFilePath());
         } catch (Exception e) {
             log.warn("删除知识库文件失败: {}", e.getMessage());
         }
@@ -496,61 +563,40 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         };
     }
 
-    // ========== MiniMax Embedding ==========
+    // ========== Ollama Embedding ==========
 
     private float[] getEmbedding(String text) {
         try {
-            String apiKey = minimaxApiKey;
-            if (apiKey == null || apiKey.isEmpty()) {
-                apiKey = System.getenv("MINIMAX_API_KEY");
-            }
-            if (apiKey == null || apiKey.isEmpty()) {
-                log.warn("未配置MiniMax API密钥, 跳过向量化");
-                return null;
-            }
+            String url = ollamaBaseUrl + "/api/embed";
 
-            String url = minimaxEmbeddingUrl;
             Map<String, Object> body = new HashMap<>();
-            body.put("model", minimaxEmbeddingModel);
-            body.put("texts", new String[]{text});
-            body.put("type", "db");
+            body.put("model", ollamaEmbeddingModel);
+            body.put("input", text);
 
             String jsonBody = objectMapper.writeValueAsString(body);
-            String response = doPost(url, jsonBody, apiKey);
+            String response = doPost(url, jsonBody, null);
             JsonNode root = objectMapper.readTree(response);
 
-            if (root.has("vectors") && root.get("vectors").isArray() && root.get("vectors").size() > 0) {
-                JsonNode embeddingNode = root.get("vectors").get(0);
-                if (embeddingNode != null && embeddingNode.isArray()) {
-                    float[] embedding = new float[embeddingNode.size()];
-                    for (int i = 0; i < embeddingNode.size(); i++) {
-                        embedding[i] = (float) embeddingNode.get(i).asDouble();
-                    }
-                    return embedding;
+            // Ollama /api/embed 返回 embeddings（复数，二维数组），/api/embeddings 返回 embedding（单数）
+            JsonNode embeddingNode = null;
+            if (root.has("embeddings") && root.get("embeddings").isArray() && root.get("embeddings").size() > 0) {
+                embeddingNode = root.get("embeddings").get(0);
+            } else if (root.has("embedding") && root.get("embedding").isArray()) {
+                embeddingNode = root.get("embedding");
+            }
+            if (embeddingNode != null) {
+                float[] embedding = new float[embeddingNode.size()];
+                for (int i = 0; i < embeddingNode.size(); i++) {
+                    embedding[i] = (float) embeddingNode.get(i).asDouble();
                 }
+                log.info("Ollama embedding成功: model={}, 维度={}", ollamaEmbeddingModel, embedding.length);
+                return embedding;
             }
 
-            // 兜底尝试 OpenAI 兼容格式
-            body.remove("texts");
-            body.remove("type");
-            body.put("input", text);
-            response = doPost(url, objectMapper.writeValueAsString(body), apiKey);
-            root = objectMapper.readTree(response);
-            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
-                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
-                if (embeddingNode != null && embeddingNode.isArray()) {
-                    float[] embedding = new float[embeddingNode.size()];
-                    for (int i = 0; i < embeddingNode.size(); i++) {
-                        embedding[i] = (float) embeddingNode.get(i).asDouble();
-                    }
-                    return embedding;
-                }
-            }
-
-            log.warn("MiniMax Embedding返回异常: {}", response);
+            log.warn("Ollama Embedding返回格式异常, 完整响应: {}", response);
             return null;
         } catch (Exception e) {
-            log.error("获取Embedding失败: {}", e.getMessage());
+            log.error("获取embedding异常(Ollama): model={}, url={}, error={}", ollamaEmbeddingModel, ollamaBaseUrl + "/api/embed", e.getMessage());
             return null;
         }
     }
@@ -560,10 +606,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+        if (apiKey != null && !apiKey.isEmpty()) {
+            conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+        }
         conn.setDoOutput(true);
         conn.setConnectTimeout(30000);
-        conn.setReadTimeout(60000);
+        conn.setReadTimeout(ollamaTimeout);
 
         try (OutputStream os = conn.getOutputStream()) {
             os.write(jsonBody.getBytes(StandardCharsets.UTF_8));

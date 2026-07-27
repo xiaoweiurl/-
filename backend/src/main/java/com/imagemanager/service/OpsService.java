@@ -5,6 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.time.LocalDateTime;
@@ -22,6 +24,7 @@ public class OpsService {
 
     private final JdbcTemplate jdbcTemplate;
     private final DataSource dataSource;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * 获取API调用指标（返回格式匹配前端 MonitorTab）
@@ -264,9 +267,12 @@ public class OpsService {
         Map<String, Object> result = new HashMap<>();
         String userId = getUserIdFromRequest(request);
 
-        int updated = jdbcTemplate.update(
-                "UPDATE system_errors SET resolved = true, resolved_by = ?, resolved_at = NOW() WHERE id = ?",
-                userId, id);
+        int updated;
+        TransactionTemplate txResolve = new TransactionTemplate(transactionManager);
+        updated = txResolve.execute(status ->
+                jdbcTemplate.update(
+                        "UPDATE system_errors SET resolved = true, resolved_by = ?, resolved_at = NOW() WHERE id = ?",
+                        userId, id));
 
         result.put("success", updated > 0);
         result.put("id", id);
@@ -442,22 +448,29 @@ public class OpsService {
         String id = UUID.randomUUID().toString();
         String name = type + "_backup_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 
-        jdbcTemplate.update(
-                "INSERT INTO backup_records (id, name, type, status, description, created_by, company, started_at) " +
-                        "VALUES (?, ?, ?, 'running', ?, ?, ?, NOW())",
-                id, name, type, description, userId, company);
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> {
+            jdbcTemplate.update(
+                    "INSERT INTO backup_records (id, name, type, status, description, created_by, company, started_at) " +
+                            "VALUES (?, ?, ?, 'running', ?, ?, ?, NOW())",
+                    id, name, type, description, userId, company);
+        });
 
         // 异步执行备份（实际项目中应异步调用）
         try {
             long sizeBytes = performBackup(type, id);
-            jdbcTemplate.update(
-                    "UPDATE backup_records SET status = 'completed', size_bytes = ?, completed_at = NOW() WHERE id = ?",
-                    sizeBytes, id);
+            tx.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "UPDATE backup_records SET status = 'completed', size_bytes = ?, completed_at = NOW() WHERE id = ?",
+                        sizeBytes, id);
+            });
             result.put("status", "completed");
         } catch (Exception e) {
-            jdbcTemplate.update(
-                    "UPDATE backup_records SET status = 'failed', error_message = ? WHERE id = ?",
-                    e.getMessage(), id);
+            tx.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "UPDATE backup_records SET status = 'failed', error_message = ? WHERE id = ?",
+                        e.getMessage(), id);
+            });
             result.put("status", "failed");
             result.put("error", e.getMessage());
         }
@@ -474,22 +487,25 @@ public class OpsService {
     public void recordMetric(Map<String, Object> metric) {
         try {
             String id = UUID.randomUUID().toString();
-            jdbcTemplate.update(
-                    "INSERT INTO api_metrics (id, endpoint, method, status_code, response_time_ms, " +
-                            "user_id, ip_address, user_agent, request_size, response_size, error_message, company) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    id,
-                    metric.get("endpoint"),
-                    metric.get("method"),
-                    metric.getOrDefault("statusCode", 200),
-                    metric.getOrDefault("responseTimeMs", 0),
-                    metric.get("userId"),
-                    metric.get("ipAddress"),
-                    metric.get("userAgent"),
-                    metric.getOrDefault("requestSize", 0),
-                    metric.getOrDefault("responseSize", 0),
-                    metric.get("errorMessage"),
-                    metric.get("company"));
+            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            tx.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "INSERT INTO api_metrics (id, endpoint, method, status_code, response_time_ms, " +
+                                "user_id, ip_address, user_agent, request_size, response_size, error_message, company) " +
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        id,
+                        metric.get("endpoint"),
+                        metric.get("method"),
+                        metric.getOrDefault("statusCode", 200),
+                        metric.getOrDefault("responseTimeMs", 0),
+                        metric.get("userId"),
+                        metric.get("ipAddress"),
+                        metric.get("userAgent"),
+                        metric.getOrDefault("requestSize", 0),
+                        metric.getOrDefault("responseSize", 0),
+                        metric.get("errorMessage"),
+                        metric.get("company"));
+            });
         } catch (Exception e) {
             log.warn("[Ops] 记录API指标失败: {}", e.getMessage());
         }
@@ -515,29 +531,35 @@ public class OpsService {
                 // 已有相同未解决错误，增加计数并更新 last_seen_at
                 String existingId = (String) existing.get("id");
                 int count = ((Number) existing.get("occurrence_count")).intValue() + 1;
-                jdbcTemplate.update(
-                        "UPDATE system_errors SET occurrence_count = ?, last_seen_at = NOW() WHERE id = ?",
-                        count, existingId);
+                TransactionTemplate txUpdate = new TransactionTemplate(transactionManager);
+                txUpdate.executeWithoutResult(status -> {
+                    jdbcTemplate.update(
+                            "UPDATE system_errors SET occurrence_count = ?, last_seen_at = NOW() WHERE id = ?",
+                            count, existingId);
+                });
                 return;
             } catch (Exception ignored) {
                 // 没有找到已有错误，插入新记录
             }
 
-            jdbcTemplate.update(
-                    "INSERT INTO system_errors (id, error_type, severity, message, stack_trace, " +
-                            "endpoint, method, user_id, ip_address, status_code, company) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    id,
-                    errorType,
-                    error.getOrDefault("severity", "error"),
-                    message,
-                    error.get("stackTrace"),
-                    endpoint,
-                    error.get("method"),
-                    error.get("userId"),
-                    error.get("ipAddress"),
-                    error.get("statusCode"),
-                    error.get("company"));
+            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            tx.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "INSERT INTO system_errors (id, error_type, severity, message, stack_trace, " +
+                                "endpoint, method, user_id, ip_address, status_code, company) " +
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        id,
+                        errorType,
+                        error.getOrDefault("severity", "error"),
+                        message,
+                        error.get("stackTrace"),
+                        endpoint,
+                        error.get("method"),
+                        error.get("userId"),
+                        error.get("ipAddress"),
+                        error.get("statusCode"),
+                        error.get("company"));
+            });
         } catch (Exception e) {
             log.warn("[Ops] 记录系统错误失败: {}", e.getMessage());
         }

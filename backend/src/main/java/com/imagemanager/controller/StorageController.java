@@ -1,8 +1,10 @@
 package com.imagemanager.controller;
 
 import com.imagemanager.config.AuthInterceptor;
+import com.imagemanager.config.StorageConfig;
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.dto.StorageQuotaDTO;
+import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.StorageService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,8 @@ import java.util.Map;
 public class StorageController {
 
     private final StorageService storageService;
+    private final FileStorageService fileStorageService;
+    private final StorageConfig storageConfig;
 
     /**
      * 获取当前用户的存储配额
@@ -148,6 +152,70 @@ public class StorageController {
         
         result.put("success", true);
         result.put("message", "存储使用量已重新计算");
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 测试 S3/OSS 存储连接状态（管理员）
+     */
+    @GetMapping("/s3-test")
+    public ResponseEntity<Map<String, Object>> testS3Connection(HttpServletRequest request) {
+        Map<String, Object> result = new HashMap<>();
+        
+        LoginResponse.UserInfo userInfo = getUserInfo(request);
+        if (userInfo == null) {
+            result.put("error", "未登录");
+            return ResponseEntity.status(401).body(result);
+        }
+
+        if (!"ADMIN".equalsIgnoreCase(userInfo.getRole())) {
+            result.put("error", "无权限");
+            return ResponseEntity.status(403).body(result);
+        }
+
+        // 存储类型信息
+        String storageType = storageConfig.getType();
+        result.put("storageType", storageType);
+        
+        if ("s3".equalsIgnoreCase(storageType)) {
+            result.put("endpoint", storageConfig.getS3Endpoint());
+            result.put("region", storageConfig.getS3Region());
+            result.put("bucket", storageConfig.getS3BucketName());
+            
+            try {
+                // 尝试上传一个测试文件（不删除，方便用户在OSS控制台验证）
+                String testContent = "S3连接测试 - " + System.currentTimeMillis();
+                byte[] testBytes = testContent.getBytes("UTF-8");
+                String testKey = fileStorageService.uploadFile(testBytes, "s3-test.txt", "text/plain");
+                result.put("uploadSuccess", true);
+                result.put("testFileKey", testKey);
+                
+                // 尝试获取 URL
+                String fileUrl = fileStorageService.getFileUrl(testKey);
+                result.put("fileUrl", fileUrl);
+                
+                // 尝试生成预签名URL
+                String presignedUrl = fileStorageService.generatePresignedUrl(testKey, 3600);
+                result.put("presignedUrl", presignedUrl);
+                
+                // 不删除测试文件，方便用户到OSS控制台验证文件是否存在
+                result.put("deleteSuccess", "跳过（保留测试文件供OSS控制台验证）");
+                result.put("tip", "请到阿里云OSS控制台查看 yingyun-image-manager bucket 下是否有 images/s3-test.txt 文件");
+                
+                result.put("success", true);
+                result.put("message", "S3/OSS 上传测试通过，请到OSS控制台验证文件是否实际存在");
+            } catch (Exception e) {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+                result.put("errorClass", e.getClass().getSimpleName());
+                log.error("S3连接测试失败", e);
+            }
+        } else {
+            result.put("success", true);
+            result.put("message", "当前使用本地存储，非S3模式");
+            result.put("localPath", storageConfig.getLocalPath());
+        }
+        
         return ResponseEntity.ok(result);
     }
 

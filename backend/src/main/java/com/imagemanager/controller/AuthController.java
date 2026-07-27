@@ -1,6 +1,8 @@
 package com.imagemanager.controller;
 
 import com.imagemanager.dto.*;
+import com.imagemanager.entity.User;
+import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.UserService;
@@ -10,7 +12,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 /**
  * 认证控制器
@@ -32,6 +37,12 @@ public class AuthController {
     
     @Autowired
     private ImageTableService imageTableService;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     
     /**
      * 用户注册
@@ -183,6 +194,128 @@ public class AuthController {
             log.error("公司绑定失败: ", e);
             return ApiResponse.error(500, "绑定失败: " + e.getMessage());
         }
+    }
+    
+    /**
+     * 找回密码 - 获取用户验证信息（脱敏）
+     */
+    @GetMapping("/forgot-password/user-info")
+    @Operation(summary = "找回密码-获取用户信息", description = "根据用户名获取脱敏的邮箱和手机号")
+    public ApiResponse<java.util.Map<String, Object>> getForgotPasswordUserInfo(
+            @RequestParam String username,
+            HttpServletResponse response) {
+        
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        
+        log.info("找回密码-查询用户信息: username={}", username);
+        
+        if (username == null || username.trim().isEmpty()) {
+            return ApiResponse.error(400, "请输入用户名");
+        }
+        
+        Optional<User> userOpt = userRepository.findByUsername(username.trim());
+        if (userOpt.isEmpty()) {
+            return ApiResponse.error(404, "用户不存在");
+        }
+        
+        User user = userOpt.get();
+        
+        String email = user.getEmail();
+        String phone = user.getPhone();
+        
+        // 脱敏处理
+        String maskedEmail = maskEmail(email);
+        String maskedPhone = maskPhone(phone);
+        
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("username", user.getUsername());
+        data.put("maskedEmail", maskedEmail);
+        data.put("maskedPhone", maskedPhone);
+        data.put("hasEmail", email != null && !email.isEmpty());
+        data.put("hasPhone", phone != null && !phone.isEmpty());
+        
+        return ApiResponse.success("查询成功", data);
+    }
+    
+    /**
+     * 找回密码 - 重置密码
+     */
+    @PostMapping("/forgot-password/reset")
+    @Operation(summary = "找回密码-重置密码", description = "验证邮箱或手机号后重置密码")
+    public ApiResponse<Void> resetPassword(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletResponse response) {
+        
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        
+        String username = body.get("username");
+        String verifyValue = body.get("verifyValue");
+        String verifyType = body.get("verifyType");
+        String newPassword = body.get("newPassword");
+        String confirmPassword = body.get("confirmPassword");
+        
+        log.info("找回密码-重置密码: username={}, verifyType={}", username, verifyType);
+        
+        // 参数校验
+        if (username == null || username.trim().isEmpty()) {
+            return ApiResponse.error(400, "请输入用户名");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return ApiResponse.error(400, "密码长度至少6位");
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            return ApiResponse.error(400, "两次输入的密码不一致");
+        }
+        
+        // 查找用户
+        Optional<User> userOpt = userRepository.findByUsername(username.trim());
+        if (userOpt.isEmpty()) {
+            return ApiResponse.error(404, "用户不存在");
+        }
+        
+        User user = userOpt.get();
+        
+        // 验证身份
+        if ("email".equals(verifyType)) {
+            if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(verifyValue)) {
+                return ApiResponse.error(400, "邮箱验证失败，请检查输入的邮箱地址");
+            }
+        } else if ("phone".equals(verifyType)) {
+            if (user.getPhone() == null || !user.getPhone().equals(verifyValue)) {
+                return ApiResponse.error(400, "手机号验证失败，请检查输入的手机号码");
+            }
+        } else {
+            return ApiResponse.error(400, "不支持的验证方式");
+        }
+        
+        // 重置密码
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        
+        log.info("密码重置成功: username={}", username);
+        return ApiResponse.success("密码重置成功，请使用新密码登录", null);
+    }
+    
+    /**
+     * 邮箱脱敏：a***@example.com
+     */
+    private String maskEmail(String email) {
+        if (email == null || email.isEmpty()) return "";
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) return "***";
+        String prefix = email.substring(0, Math.min(1, atIndex));
+        String suffix = email.substring(atIndex);
+        return prefix + "***" + suffix;
+    }
+    
+    /**
+     * 手机号脱敏：138****1234
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) return "****";
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
     
     /**

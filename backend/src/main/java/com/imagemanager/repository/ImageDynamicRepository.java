@@ -989,7 +989,7 @@ public class ImageDynamicRepository {
         pstmt.setString(2, image.getUrl());
         pstmt.setString(3, image.getTitle());
         pstmt.setString(4, image.getOriginalName());
-        pstmt.setLong(5, image.getSize() != null ? image.getSize() : 0L);
+        pstmt.setLong(5, image.getFileSize() != null ? image.getFileSize() : 0L);
         if (image.getWidth() != null) pstmt.setInt(6, image.getWidth()); else pstmt.setNull(6, java.sql.Types.INTEGER);
         if (image.getHeight() != null) pstmt.setInt(7, image.getHeight()); else pstmt.setNull(7, java.sql.Types.INTEGER);
         pstmt.setString(8, image.getFileType());
@@ -1017,7 +1017,7 @@ public class ImageDynamicRepository {
         pstmt.setString(1, image.getUrl());
         pstmt.setString(2, image.getTitle());
         pstmt.setString(3, image.getOriginalName());
-        pstmt.setLong(4, image.getSize() != null ? image.getSize() : 0L);
+        pstmt.setLong(4, image.getFileSize() != null ? image.getFileSize() : 0L);
         if (image.getWidth() != null) pstmt.setInt(5, image.getWidth()); else pstmt.setNull(5, java.sql.Types.INTEGER);
         if (image.getHeight() != null) pstmt.setInt(6, image.getHeight()); else pstmt.setNull(6, java.sql.Types.INTEGER);
         pstmt.setString(7, image.getFileType());
@@ -1047,7 +1047,7 @@ public class ImageDynamicRepository {
         image.setUrl((String) row[1]);
         image.setTitle((String) row[2]);
         image.setOriginalName((String) row[3]);
-        image.setSize(row[4] != null ? ((Number) row[4]).longValue() : 0L);
+        image.setFileSize(row[4] != null ? ((Number) row[4]).longValue() : 0L);
         image.setWidth(row[5] != null ? ((Number) row[5]).intValue() : null);
         image.setHeight(row[6] != null ? ((Number) row[6]).intValue() : null);
         image.setFileType((String) row[7]);

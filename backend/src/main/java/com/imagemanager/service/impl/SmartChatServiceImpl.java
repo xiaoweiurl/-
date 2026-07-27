@@ -10,7 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.BufferedReader;
@@ -26,11 +28,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 智能对话服务实现 - 知识库检索 + DeepSeek V4 Pro流式对话(思考模式)
+ * 智能对话服务实现 - 知识库检索 + Ollama Qwen3.6流式对话
  *
  * 检索流程:
  * 1. 知识库检索: PostgreSQL向量搜索(KnowledgeBaseService.search)
- * 2. 调DeepSeek V4 Pro API流式对话(思考模式，含思维链)
+ * 2. 调Ollama本地模型流式对话(自托管)
  */
 @Slf4j
 @Service
@@ -43,43 +45,22 @@ public class SmartChatServiceImpl implements SmartChatService {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
-    @Value("${app.minimax.api-key:}")
-    private String minimaxApiKey;
+    @Value("${app.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
 
-    @Value("${app.minimax.base-url:https://api.minimaxi.com/anthropic/v1/messages}")
-    private String minimaxBaseUrl;
+    @Value("${app.ollama.embedding-model:bge-m3}")
+    private String ollamaEmbeddingModel;
 
-    @Value("${app.minimax.embedding-url:https://api.minimaxi.com/v1/embeddings}")
-    private String minimaxEmbeddingUrl;
+    @Value("${app.ollama.chat-model:qwen3.6}")
+    private String ollamaChatModel;
 
-    @Value("${app.minimax.embedding-model:embo-01}")
-    private String minimaxEmbeddingModel;
-
-    @Value("${app.minimax.model:MiniMax-M3}")
-    private String minimaxModel;
-
-    @Value("${app.deepseek.api-key:}")
-    private String deepseekApiKey;
-
-    @Value("${app.deepseek.base-url:https://api.deepseek.com}")
-    private String deepseekBaseUrl;
-
-    @Value("${app.deepseek.model:deepseek-v4-pro}")
-    private String deepseekModel;
-
-    @Value("${app.deepseek.thinking-enabled:true}")
-    private boolean deepseekThinkingEnabled;
-
-    @Value("${app.deepseek.reasoning-effort:high}")
-    private String deepseekReasoningEffort;
-
-    @Value("${app.deepseek.web-search-enabled:true}")
-    private boolean deepseekWebSearchEnabled;
-
-    @Value("${app.deepseek.web-search-context-size:medium}")
-    private String deepseekWebSearchContextSize;
+    @Value("${app.ollama.timeout:60000}")
+    private int ollamaTimeout;
 
     @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode) {
@@ -137,8 +118,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 4. 双库检索（工厂模式只检索供应链数据，不检索知识库/记忆库/岗位卡片）
-                // 外部知识意图时也跳过向量检索，因为这类问题需要联网搜索而非查PDF
-                boolean skipVectorSearch = isFactory || (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent || externalKnowledgeIntent;
+                // 外部知识意图不再跳过向量检索：用户可能上传了相关PDF，先查知识库，知识库无结果时再走联网搜索
+                boolean skipVectorSearch = isFactory || (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
 
                 // 4a. 岗位卡片向量检索（仅设计师模式）
                 List<Map<String, Object>> positionCardResults = Collections.emptyList();
@@ -150,11 +131,22 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("岗位卡片检索异常: {}", e.getMessage());
                     }
                 } else {
-                    log.info("跳过岗位卡片检索: isFactory={}, generalChatIntent={}, externalKnowledgeIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, externalKnowledgeIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
+                    log.info("跳过岗位卡片检索: isFactory={}, generalChatIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
                 }
 
                 // 当岗位意图且岗位卡片有结果时，或通用闲聊意图时，跳过知识库PDF检索
                 boolean skipKnowledgeSearch = skipVectorSearch || (positionIntent && !positionCardResults.isEmpty());
+
+                // 4a-2. RAG检索历史对话Q&A对（仅设计师模式，通用闲聊时跳过）
+                List<Map<String, Object>> chatHistoryQAResults = Collections.emptyList();
+                if (!skipVectorSearch && !generalChatIntent) {
+                    try {
+                        chatHistoryQAResults = searchChatHistoryQA(message, company);
+                        log.info("历史对话QA检索到 {} 条结果", chatHistoryQAResults.size());
+                    } catch (Exception e) {
+                        log.warn("历史对话QA检索异常: {}", e.getMessage());
+                    }
+                }
 
                 // 4b. 知识库检索
                 List<Map<String, Object>> knowledgeResults = Collections.emptyList();
@@ -166,7 +158,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("知识库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    String reason = isFactory ? "工厂模式" : (generalChatIntent ? "通用闲聊意图" : (externalKnowledgeIntent ? "外部知识意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片")));
+                    String reason = isFactory ? "工厂模式" : (generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片"));
                     log.info("跳过知识库检索（原因: {}）", reason);
                 }
 
@@ -211,6 +203,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 "source", "position_card",
                                 "content", r.getOrDefault("content", "").toString(),
                                 "score", r.getOrDefault("score", 0)
+                        ));
+                    }
+                }
+
+                // 历史对话QA来源（仅设计师模式）
+                if (!isFactory) {
+                    for (Map<String, Object> r : chatHistoryQAResults) {
+                        sources.add(Map.of(
+                                "source", "chat_history",
+                                "content", r.getOrDefault("content", "").toString(),
+                                "score", r.getOrDefault("similarity", 0)
                         ));
                     }
                 }
@@ -288,6 +291,20 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
+                // 历史对话Q&A对上下文（增强AI对历史专业回答的记忆）
+                if (!chatHistoryQAResults.isEmpty()) {
+                    knowledgeContext.append("## 历史专业问答参考（相似历史对话）：\n");
+                    for (int i = 0; i < chatHistoryQAResults.size(); i++) {
+                        Map<String, Object> r = chatHistoryQAResults.get(i);
+                        double score = ((Number) r.getOrDefault("similarity", 0)).doubleValue();
+                        String content = r.getOrDefault("content", "").toString();
+                        if (content.length() > 500) content = content.substring(0, 500) + "...";
+                        knowledgeContext.append(String.format("### 历史问答%d (相关度: %.1f%%)\n%s\n\n",
+                                i + 1, score * 100, content));
+                    }
+                    knowledgeContext.append("⚠️ 以上来自历史对话中的专业问答，请参考其专业表达风格和知识深度，但以当前知识库内容和供应链数据为准。\n");
+                }
+
                 if (!imageResults.isEmpty()) {
                     knowledgeContext.append("## 图片库搜索结果：\n");
                     for (int i = 0; i < imageResults.size(); i++) {
@@ -333,8 +350,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "2. 当检索结果中包含【供应链/工厂业务数据】时，必须优先且主要基于这些精确的业务数据回答，引用具体数字和供应商名称。" +
                             "3. 当用户询问具体产品的报价、成本、原料、供应商等数据时，只使用供应链业务数据中的精确数字作答；如果供应链数据中找不到对应信息，请明确告知用户当前数据库中无此数据。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
-                            "5. 你也可以回答行业通识、市场行情、生产技术等一般性问题，但需说明'以下回答基于通用知识'。" +
-                            "6. 回答时标注引用来源（供应链数据/产品图片/通用知识/网络搜索）。" +
+                            "5. 严禁使用自身通用知识编造数据。如果供应链数据和知识库中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +
+                            "6. 回答时标注引用来源（供应链数据/产品图片/知识库/网络搜索）。" +
                             "7. 保持专业、简洁、有帮助的回答风格，重点关注成本控制、供应商管理、生产效率等工厂核心议题。" +
                             "8. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             "\n\n【成本计算公式】当用户询问产品成本、报价、核价等问题时，必须严格按照以下公式计算：" +
@@ -369,8 +386,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "核心职责：" +
                             "1. 回答知识库管理、图片上传、AI识别、文档中心等设计师工作相关问题。" +
                             "2. 当用户询问岗位职责、工作内容、任职要求、入职指导等问题时，必须优先基于【岗位知识卡片】中的实际工作经验回答，不要用知识库文档中的泛泛内容替代。" +
-                            "3. 当用户询问设计趋势、行业动态、最佳实践、方法论等外部通用知识时，请基于网络搜索结果回答，而非知识库文档。" +
-                            "4. 回答时标注引用来源（岗位卡片/记忆库/知识库/网络搜索/通用知识）。" +
+                            "3. 严禁使用自身通用知识编造内容。如果知识库和岗位卡片中均无相关信息，必须明确告知用户'当前知识库中暂无此内容'，不要凭通用知识猜测或补充。" +
+                            "4. 回答时标注引用来源（岗位卡片/记忆库/知识库/网络搜索）。" +
                             "5. 保持专业、简洁、有帮助的回答风格。" +
                             "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
@@ -403,6 +420,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (!knowledgeContext.isEmpty()) {
                     boolean hasSupplyChain = !supplyChainResults.isEmpty();
                     boolean hasPositionCards = !positionCardResults.isEmpty();
+                    boolean hasKnowledge = !knowledgeResults.isEmpty();
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
                     if (isFactory && hasSupplyChain) {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答。";
@@ -410,10 +428,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答，不要使用知识库文档内容替代业务数据。";
                     } else if (positionIntent && hasPositionCards) {
                         userContent += "\n\n请优先基于上方【岗位知识卡片】中的实际工作经验回答，不要使用知识库文档内容替代岗位卡片中的精确信息。";
-                    } else if (externalKnowledgeIntent) {
-                        userContent += "\n\n用户的问题涉及外部通用知识/行业趋势/方法论等，知识库文档中可能没有相关内容，请基于网络搜索结果回答，如果网络搜索无结果则基于自身通用知识回答。";
+                    } else if (externalKnowledgeIntent && !hasKnowledge && !hasPositionCards && chatHistoryQAResults.isEmpty()) {
+                        userContent += "\n\n用户的问题涉及外部通用知识/行业趋势/方法论等，知识库文档中没有找到相关内容，请基于网络搜索结果回答，如果网络搜索无结果则基于自身通用知识回答。";
+                    } else if (externalKnowledgeIntent && (hasKnowledge || hasPositionCards || !chatHistoryQAResults.isEmpty())) {
+                        userContent += "\n\n知识库中已检索到相关内容，必须严格基于以上知识库内容回答，禁止使用自身通用知识补充或编造知识库中没有的信息。";
                     } else {
-                        userContent += "\n\n请优先基于以上知识内容回答，如资料不足以完整回答，可补充自身通用知识，并标注来源。";
+                        userContent += "\n\n必须严格基于以上知识内容回答，禁止使用自身通用知识补充或编造知识库中没有的信息。如资料不足以完整回答，请明确指出哪些部分知识库中暂无数据。";
                     }
                 } else {
                     userContent = message;
@@ -426,12 +446,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 7. 流式调用DeepSeek V4 Pro
                 // 联网搜索策略：
                 // - 工厂模式：供应链无数据时启用联网搜索
-                // - 设计师模式：外部知识意图/联网搜索意图/通用闲聊时直接联网搜索；知识库无结果时也联网搜索
+                // - 设计师模式：联网搜索意图/通用闲聊时直接联网搜索；外部知识意图且知识库无结果时联网搜索
                 boolean enableWebSearch;
                 if (isFactory) {
                     enableWebSearch = webSearchIntent || generalChatIntent || supplyChainResults.isEmpty();
                 } else {
-                    enableWebSearch = webSearchIntent || generalChatIntent || externalKnowledgeIntent || knowledgeContext.isEmpty();
+                    // 外部知识意图：先查知识库，有结果就不联网，无结果才联网
+                    boolean needWebForExternal = externalKnowledgeIntent && knowledgeContext.isEmpty() && positionCardResults.isEmpty() && chatHistoryQAResults.isEmpty();
+                    enableWebSearch = webSearchIntent || generalChatIntent || needWebForExternal;
                 }
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
@@ -442,6 +464,21 @@ public class SmartChatServiceImpl implements SmartChatService {
                     if (fullResponse.length() > 0) {
                         String reasoning = fullReasoning.length() > 0 ? fullReasoning.toString() : null;
                         saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode);
+                        
+                        // 8b. 异步向量化Q&A对（用户问题+AI回答拼接后向量化，供后续RAG检索）
+                        // 仅在非闲聊场景下向量化，避免存入无价值对话
+                        if (!generalChatIntent) {
+                            final String finalMessage = message;
+                            final String finalAnswer = fullResponse.toString();
+                            final String finalCompany = company;
+                            new Thread(() -> {
+                                try {
+                                    vectorizeChatQA(userId, finalConvId, finalMessage, finalAnswer, finalCompany);
+                                } catch (Exception e) {
+                                    log.warn("Q&A向量化异步任务异常: {}", e.getMessage());
+                                }
+                            }).start();
+                        }
                     }
                 }
 
@@ -468,7 +505,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         String modeCondition = "";
         Object[] params;
         if (mode != null && !mode.isEmpty()) {
-            modeCondition = " AND mode = ? ";
+            modeCondition = " AND model = ? ";
         }
 
         List<Map<String, Object>> results;
@@ -583,7 +620,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             );
         } else {
             // 按mode筛选删除：只删除对应模式的对话历史
-            String modeCondition = (mode != null && !mode.isEmpty()) ? " AND conversation_id IN (SELECT id FROM smart_chat_conversations WHERE mode = ?)" : "";
+            String modeCondition = (mode != null && !mode.isEmpty()) ? " AND conversation_id IN (SELECT id FROM smart_chat_conversations WHERE model = ?)" : "";
             if (mode != null && !mode.isEmpty()) {
                 jdbcTemplate.update(
                         "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)" + modeCondition,
@@ -605,11 +642,14 @@ public class SmartChatServiceImpl implements SmartChatService {
         String convId = UUID.randomUUID().toString();
         String convTitle = (title != null && !title.isEmpty()) ? title : "新对话";
         String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
-        jdbcTemplate.update(
-                "INSERT INTO smart_chat_conversations (id, user_id, company, title, mode, created_at, updated_at) " +
-                        "VALUES (?::uuid, ?, ?, ?, ?::varchar, NOW(), NOW())",
-                convId, userId, company, convTitle, modeValue
-        );
+        TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+        txTemplate.executeWithoutResult(status -> {
+            jdbcTemplate.update(
+                    "INSERT INTO smart_chat_conversations (id, user_id, company, title, model, created_at, updated_at) " +
+                            "VALUES (?::uuid, ?, ?, ?, ?::varchar, NOW(), NOW())",
+                    convId, userId, company, convTitle, modeValue
+            );
+        });
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", convId);
         result.put("title", convTitle);
@@ -624,13 +664,13 @@ public class SmartChatServiceImpl implements SmartChatService {
         Object[] params;
         if (modeValue != null) {
             sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND mode = ? " +
+                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND model = ? " +
                     "ORDER BY updated_at DESC";
             params = new Object[]{userId, company, modeValue};
         } else {
             // 兼容旧数据：mode IS NULL 视为 designer
             sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND (mode = 'designer' OR mode IS NULL) " +
+                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND (model = 'designer' OR model IS NULL) " +
                     "ORDER BY updated_at DESC";
             params = new Object[]{userId, company};
         }
@@ -676,7 +716,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private String getOrCreateDefaultConversation(String userId, String company, String mode) {
         // 查找最近的对话（按mode筛选）
-        String modeCondition = (mode != null && !mode.isEmpty()) ? "AND mode = ?" : "AND mode = 'designer'";
+        String modeCondition = (mode != null && !mode.isEmpty()) ? "AND model = ?" : "AND model = 'designer'";
         String sql = "SELECT id FROM smart_chat_conversations " +
                 "WHERE user_id = ? AND (company = ? OR company IS NULL) " + modeCondition + " " +
                 "ORDER BY updated_at DESC LIMIT 1";
@@ -705,19 +745,24 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void updateConversationTitleFromMessage(String conversationId, String message) {
         try {
+            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
             // 检查该对话是否只有0-1条消息（刚创建的对话）
-            String countSql = "SELECT COUNT(*) FROM smart_chat_history WHERE conversation_id = ?::uuid";
-            Integer count = jdbcTemplate.queryForObject(countSql, Integer.class, conversationId);
+            Integer count = txTemplate.execute(status -> {
+                String countSql = "SELECT COUNT(*) FROM smart_chat_history WHERE conversation_id = ?::uuid";
+                return jdbcTemplate.queryForObject(countSql, Integer.class, conversationId);
+            });
             if (count != null && count <= 2) {
                 // 用消息前20个字符作为标题
                 String title = message.length() > 20 ? message.substring(0, 20) + "..." : message;
                 updateConversationTitle(conversationId, title);
             }
             // 更新对话的 updated_at
-            jdbcTemplate.update(
-                    "UPDATE smart_chat_conversations SET updated_at = NOW() WHERE id = ?::uuid",
-                    conversationId
-            );
+            txTemplate.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "UPDATE smart_chat_conversations SET updated_at = NOW() WHERE id = ?::uuid",
+                        conversationId
+                );
+            });
         } catch (Exception e) {
             log.warn("更新对话标题失败: {}", e.getMessage());
         }
@@ -1096,12 +1141,12 @@ public class SmartChatServiceImpl implements SmartChatService {
             String queryEmbedding = sb.toString();
 
             String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
-                    "1 - (e.embedding <#> ?::vector) AS similarity " +
+                    "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'POSITION_CARD' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
-                    "AND 1 - (e.embedding <#> ?::vector) > 0.25 " +
-                    "ORDER BY e.embedding <#> ?::vector " +
+                    "AND 1 - (e.embedding <=> ?::vector) > 0.25 " +
+                    "ORDER BY e.embedding <=> ?::vector " +
                     "LIMIT 5";
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
             for (Map<String, Object> row : rows) {
@@ -1117,6 +1162,90 @@ public class SmartChatServiceImpl implements SmartChatService {
             log.warn("岗位卡片检索失败: {}", e.getMessage());
         }
         return results;
+    }
+
+    /**
+     * RAG检索历史对话Q&A对 - 从knowledge_embeddings中检索source_type='SMART_CHAT'的向量
+     * 将用户当前提问向量化后，搜索最相似的历史问答，作为额外上下文注入Prompt
+     */
+    private List<Map<String, Object>> searchChatHistoryQA(String query, String company) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            float[] embeddingArray = getEmbedding(query);
+            if (embeddingArray == null || embeddingArray.length == 0) {
+                return results;
+            }
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < embeddingArray.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(embeddingArray[i]);
+            }
+            sb.append("]");
+            String queryEmbedding = sb.toString();
+
+            String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
+                    "1 - (e.embedding <=> ?::vector) AS similarity " +
+                    "FROM knowledge_embeddings e " +
+                    "WHERE e.source_type = 'SMART_CHAT' " +
+                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND 1 - (e.embedding <=> ?::vector) > 0.30 " +
+                    "ORDER BY e.embedding <=> ?::vector " +
+                    "LIMIT 3";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("content", row.get("chunk_text"));
+                item.put("sourceDocId", row.get("source_doc_id"));
+                item.put("similarity", row.get("similarity"));
+                item.put("source", "chat_history");
+                results.add(item);
+            }
+            log.info("历史对话QA检索完成, 查询: '{}', 命中: {}条", query, results.size());
+        } catch (Exception e) {
+            log.warn("历史对话QA检索失败: {}", e.getMessage());
+        }
+        return results;
+    }
+
+    /**
+     * 异步向量化Q&A对 - 将用户问题+AI回答拼接后，调用bge-m3向量化并存入knowledge_embeddings
+     * source_type='SMART_CHAT'，与岗位卡片/知识库物理隔离
+     */
+    private void vectorizeChatQA(String userId, String conversationId, String question, String answer, String company) {
+        try {
+            // 拼接Q&A对
+            String qaText = "【用户问题】" + question + "\n【AI专业回答】" + answer;
+            // 截断防止过长
+            if (qaText.length() > 2000) {
+                qaText = qaText.substring(0, 2000);
+            }
+
+            float[] embeddingArray = getEmbedding(qaText);
+            if (embeddingArray == null || embeddingArray.length == 0) {
+                log.warn("Q&A向量化跳过: embedding获取失败, conversationId={}", conversationId);
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < embeddingArray.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(embeddingArray[i]);
+            }
+            sb.append("]");
+            String embeddingStr = sb.toString();
+
+            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+            txTemplate.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "INSERT INTO knowledge_embeddings (id, source_type, source_doc_id, chunk_text, chunk_index, embedding, company, created_at) " +
+                                "VALUES (gen_random_uuid(), 'SMART_CHAT', ?::uuid, ?, 0, ?::vector, ?, NOW())",
+                        conversationId, qaText, embeddingStr, company
+                );
+            });
+            log.info("Q&A向量化成功: conversationId={}, 维度={}, textLength={}", conversationId, embeddingArray.length, qaText.length());
+        } catch (Exception e) {
+            log.error("Q&A向量化失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
+        }
     }
 
     /**
@@ -1714,6 +1843,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     /**
      * 保存对话消息（按userId+company绑定，session_id存储为基于userId生成的确定性UUID）
+     * 使用TransactionTemplate确保在无事务上下文（新线程）中也能提交
      */
     private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode) {
         try {
@@ -1724,11 +1854,14 @@ public class SmartChatServiceImpl implements SmartChatService {
             String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
             log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, conversationId={}, hasReasoning={}, mode={}", 
                     userId, role, content.length(), company, conversationId, reasoningContent != null && !reasoningContent.isEmpty(), modeValue);
-            jdbcTemplate.update(
-                    "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, mode, created_at) " +
-                            "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, NOW())",
-                    conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue
-            );
+            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+            txTemplate.executeWithoutResult(status -> {
+                jdbcTemplate.update(
+                        "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, model, created_at) " +
+                                "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, NOW())",
+                        conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue
+                );
+            });
             log.info("保存对话消息成功: userId={}, role={}, mode={}", userId, role, modeValue);
         } catch (Exception e) {
             log.error("保存对话消息失败: userId={}, role={}, error={}", userId, role, e.getMessage(), e);
@@ -1758,24 +1891,46 @@ public class SmartChatServiceImpl implements SmartChatService {
     private void streamChat(SseEmitter emitter, List<Map<String, Object>> messages,
                             StringBuilder fullResponse, StringBuilder reasoningContent, boolean enableWebSearch) {
         try {
-            String apiKey = deepseekApiKey;
-            if (apiKey == null || apiKey.isEmpty()) {
-                apiKey = System.getenv("DEEPSEEK_API_KEY");
-            }
-            if (apiKey == null || apiKey.isEmpty()) {
-                throw new RuntimeException("未配置DeepSeek API密钥, 请设置环境变量 DEEPSEEK_API_KEY");
+            log.info("使用Ollama模型进行对话: {}", ollamaChatModel);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", ollamaChatModel);
+            body.put("stream", true);
+            body.put("messages", messages);
+            Map<String, Object> options = new HashMap<>();
+            options.put("temperature", 0.7);
+            options.put("num_predict", 4096);
+            body.put("options", options);
+
+            String endpointUrl = ollamaBaseUrl + "/api/chat";
+            HttpURLConnection conn = (HttpURLConnection) URI.create(endpointUrl).toURL().openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(600000);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
             }
 
-            // 根据是否需要联网搜索选择API端点和格式
-            boolean useWebSearch = deepseekWebSearchEnabled && enableWebSearch;
-
-            if (useWebSearch) {
-                streamChatWithWebSearch(emitter, messages, fullResponse, reasoningContent, apiKey);
-            } else {
-                streamChatStandard(emitter, messages, fullResponse, reasoningContent, apiKey);
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                BufferedReader errorReader = new BufferedReader(
+                        new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8));
+                StringBuilder errorBody = new StringBuilder();
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    errorBody.append(line);
+                }
+                errorReader.close();
+                throw new RuntimeException("Ollama API返回错误 " + responseCode + ": " + errorBody);
             }
+
+            // Ollama使用NDJSON流式格式，每行一个JSON对象
+            parseOllamaSSEStream(emitter, conn, fullResponse, reasoningContent);
         } catch (Exception e) {
-            log.error("DeepSeek流式对话失败: {}", e.getMessage());
+            log.error("Ollama流式对话失败: {}", e.getMessage());
             throw new RuntimeException("流式对话失败: " + e.getMessage());
         }
     }
@@ -2181,32 +2336,24 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 调用MiniMax Embedding API获取文本向量
+     * 调用Ollama Embedding API获取文本向量
      */
     private float[] getEmbedding(String text) {
         try {
-            String url = minimaxEmbeddingUrl;
-            if (url == null || url.isEmpty()) {
-                url = "https://api.minimax.chat/v1/embeddings";
-            }
-            String model = minimaxEmbeddingModel;
-            if (model == null || model.isEmpty()) {
-                model = "embo-01";
-            }
+            String url = ollamaBaseUrl + "/api/embed";
 
-            java.net.URL apiUrl = new java.net.URL(url);
+            java.net.URI uri = java.net.URI.create(url);
+            java.net.URL apiUrl = uri.toURL();
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) apiUrl.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + minimaxApiKey);
             conn.setDoOutput(true);
             conn.setConnectTimeout(30000);
-            conn.setReadTimeout(30000);
+            conn.setReadTimeout(ollamaTimeout);
 
             String requestBody = objectMapper.writeValueAsString(Map.of(
-                    "model", model,
-                    "input", List.of(text),
-                    "type", "db"
+                    "model", ollamaEmbeddingModel,
+                    "input", text
             ));
 
             try (java.io.OutputStream os = conn.getOutputStream()) {
@@ -2216,28 +2363,108 @@ public class SmartChatServiceImpl implements SmartChatService {
             int responseCode = conn.getResponseCode();
             if (responseCode != 200) {
                 String errorBody = new String(conn.getErrorStream().readAllBytes(), "UTF-8");
-                log.error("Embedding API调用失败, status={}, body={}", responseCode, errorBody);
+                log.error("Ollama Embedding调用失败, status={}, body={}", responseCode, errorBody);
                 return null;
             }
 
             String responseBody = new String(conn.getInputStream().readAllBytes(), "UTF-8");
             com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(responseBody);
-            com.fasterxml.jackson.databind.JsonNode dataNode = root.get("data");
-            if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
-                com.fasterxml.jackson.databind.JsonNode embeddingNode = dataNode.get(0).get("embedding");
-                if (embeddingNode != null && embeddingNode.isArray()) {
-                    float[] embedding = new float[embeddingNode.size()];
-                    for (int i = 0; i < embeddingNode.size(); i++) {
-                        embedding[i] = (float) embeddingNode.get(i).asDouble();
-                    }
-                    return embedding;
-                }
+            // Ollama /api/embed 返回 embeddings（复数，二维数组），/api/embeddings 返回 embedding（单数）
+            com.fasterxml.jackson.databind.JsonNode embeddingNode = null;
+            if (root.has("embeddings") && root.get("embeddings").isArray() && root.get("embeddings").size() > 0) {
+                embeddingNode = root.get("embeddings").get(0);
+            } else if (root.has("embedding") && root.get("embedding").isArray()) {
+                embeddingNode = root.get("embedding");
             }
-            log.error("Embedding API返回数据格式异常: {}", responseBody.substring(0, Math.min(responseBody.length(), 200)));
+            if (embeddingNode != null) {
+                float[] embedding = new float[embeddingNode.size()];
+                for (int i = 0; i < embeddingNode.size(); i++) {
+                    embedding[i] = (float) embeddingNode.get(i).asDouble();
+                }
+                log.info("Ollama embedding成功: model={}, 维度={}", ollamaEmbeddingModel, embedding.length);
+                return embedding;
+            }
+            log.error("Ollama Embedding返回数据格式异常, 完整响应: {}", responseBody);
             return null;
         } catch (Exception e) {
-            log.error("获取Embedding失败: {}", e.getMessage());
+            log.error("获取embedding异常(Ollama): model={}, url={}, error={}", ollamaEmbeddingModel, ollamaBaseUrl + "/api/embed", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 解析Ollama NDJSON流式响应
+     * Ollama /api/chat 返回逐行JSON格式:
+     *   {"model":"qwen3.6","message":{"role":"assistant","content":"Hello"},"done":false}
+     *   {"model":"qwen3.6","done":true}
+     */
+    private void parseOllamaSSEStream(SseEmitter emitter, HttpURLConnection conn,
+                                       StringBuilder fullResponse, StringBuilder reasoningContent) throws Exception {
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.isEmpty()) {
+                continue;
+            }
+            try {
+                JsonNode jsonNode = objectMapper.readTree(line);
+
+                // 检查是否完成
+                boolean done = jsonNode.has("done") && jsonNode.get("done").asBoolean(false);
+
+                // 提取思考内容（如果有thinking字段）
+                if (jsonNode.has("message")) {
+                    JsonNode messageNode = jsonNode.get("message");
+
+                    if (messageNode.has("thinking") && messageNode.get("thinking").isTextual()) {
+                        String thinking = messageNode.get("thinking").asText();
+                        if (!thinking.isEmpty()) {
+                            reasoningContent.append(thinking);
+                            emitter.send(SseEmitter.event().name("message").data(
+                                    objectMapper.writeValueAsString(Map.of(
+                                            "type", "reasoning",
+                                            "content", thinking
+                                    ))
+                            ));
+                        }
+                    }
+
+                    if (messageNode.has("content") && messageNode.get("content").isTextual()) {
+                        String content = messageNode.get("content").asText();
+                        if (!content.isEmpty()) {
+                            fullResponse.append(content);
+                            emitter.send(SseEmitter.event().name("message").data(
+                                    objectMapper.writeValueAsString(Map.of(
+                                            "type", "content",
+                                            "content", content
+                                    ))
+                            ));
+                        }
+                    }
+                }
+
+                if (done) {
+                    break;
+                }
+            } catch (Exception e) {
+                log.debug("解析Ollama流式数据行失败: {}", line);
+            }
+        }
+        reader.close();
+
+        // 发送完整的reasoning和done事件
+        if (reasoningContent.length() > 0) {
+            emitter.send(SseEmitter.event().name("message").data(
+                    objectMapper.writeValueAsString(Map.of(
+                            "type", "reasoning",
+                            "content", reasoningContent.toString()
+                    ))
+            ));
+        }
+        emitter.send(SseEmitter.event().name("message").data(
+                objectMapper.writeValueAsString(Map.of("type", "done"))
+        ));
     }
 }

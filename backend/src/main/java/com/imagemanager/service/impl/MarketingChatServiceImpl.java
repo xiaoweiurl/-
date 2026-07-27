@@ -21,10 +21,11 @@ import java.util.*;
 @Service
 public class MarketingChatServiceImpl implements MarketingChatService {
 
-    @Value("${app.minimax.api-key:}")
-    private String apiKey;
+    @Value("${app.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
 
-    private static final String MINIMAX_V2_URL = "https://api.minimax.chat/v1/text/chatcompletion_v2";
+    @Value("${app.ollama.chat-model:qwen3.6}")
+    private String ollamaChatModel;
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -85,7 +86,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 // 3. 保存用户消息
                 saveChatMessage(userId, "user", message, company);
 
-                // 4. 调用 MiniMax V2 流式接口
+                // 4. 调用 Ollama 流式接口
                 StringBuilder fullResponse = new StringBuilder();
                 streamChatV2(emitter, messages, fullResponse);
 
@@ -109,21 +110,21 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
     private void streamChatV2(SseEmitter emitter, List<Map<String, String>> messages, StringBuilder fullResponse) {
         try {
-            if (apiKey == null || apiKey.isEmpty()) {
-                throw new RuntimeException("未配置 MINIMAX_API_KEY");
-            }
-
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", "MiniMax-Text-01");
+            body.put("model", ollamaChatModel);
             body.put("messages", messages);
             body.put("stream", true);
+            Map<String, Object> options = new HashMap<>();
+            options.put("temperature", 0.7);
+            options.put("num_predict", 4096);
+            body.put("options", options);
 
-            HttpURLConnection conn = (HttpURLConnection) URI.create(MINIMAX_V2_URL).toURL().openConnection();
+            String endpointUrl = ollamaBaseUrl + "/api/chat";
+            HttpURLConnection conn = (HttpURLConnection) URI.create(endpointUrl).toURL().openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + apiKey);
             conn.setDoOutput(true);
-            conn.setConnectTimeout(60000);
+            conn.setConnectTimeout(30000);
             conn.setReadTimeout(600000);
 
             try (OutputStream os = conn.getOutputStream()) {
@@ -140,53 +141,46 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                     errorBody.append(line);
                 }
                 errorReader.close();
-                throw new RuntimeException("MiniMax V2 API返回错误 " + responseCode + ": " + errorBody);
+                throw new RuntimeException("Ollama API返回错误 " + responseCode + ": " + errorBody);
             }
 
             try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (line.startsWith("data:")) {
-                        String data = line.substring(5).trim();
-                        if (data.isEmpty()) continue;
-                        if ("[DONE]".equals(data)) {
-                            emitter.send(SseEmitter.event().name("message").data(
-                                objectMapper.writeValueAsString(Map.of("type", "done"))
-                            ));
-                            return;
-                        }
+                    if (line.isEmpty()) continue;
 
-                        try {
-                            JsonNode node = objectMapper.readTree(data);
-                            JsonNode choices = node.path("choices");
-                            if (choices.isArray() && choices.size() > 0) {
-                                JsonNode choice = choices.get(0);
-                                JsonNode delta = choice.path("delta");
-                                String content = delta.path("content").asText("");
+                    try {
+                        JsonNode node = objectMapper.readTree(line);
+                        boolean done = node.has("done") && node.get("done").asBoolean(false);
+
+                        if (node.has("message")) {
+                            JsonNode messageNode = node.get("message");
+                            if (messageNode.has("content") && messageNode.get("content").isTextual()) {
+                                String content = messageNode.get("content").asText();
                                 if (!content.isEmpty()) {
                                     fullResponse.append(content);
                                     emitter.send(SseEmitter.event().name("message").data(
                                         objectMapper.writeValueAsString(Map.of("type", "content", "content", content))
                                     ));
                                 }
-                                // 检查是否结束
-                                String finishReason = choice.path("finish_reason").asText("");
-                                if ("stop".equals(finishReason)) {
-                                    emitter.send(SseEmitter.event().name("message").data(
-                                        objectMapper.writeValueAsString(Map.of("type", "done"))
-                                    ));
-                                    return;
-                                }
                             }
-                        } catch (Exception parseEx) {
-                            log.debug("解析V2 SSE行失败: {}", data.substring(0, Math.min(data.length(), 200)));
                         }
+
+                        if (done) {
+                            emitter.send(SseEmitter.event().name("message").data(
+                                objectMapper.writeValueAsString(Map.of("type", "done"))
+                            ));
+                            return;
+                        }
+                    } catch (Exception parseEx) {
+                        log.debug("解析Ollama流式数据行失败: {}", line.substring(0, Math.min(line.length(), 200)));
                     }
                 }
             }
         } catch (Exception e) {
-            log.error("MiniMax V2流式对话失败: {}", e.getMessage());
+            log.error("Ollama流式对话失败: {}", e.getMessage());
             throw new RuntimeException("流式对话失败: " + e.getMessage());
         }
     }

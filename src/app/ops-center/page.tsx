@@ -60,7 +60,7 @@ interface BackupItem {
   id: string; name: string; type: string; size: number; status: string; createdAt: string;
 }
 
-type TabKey = 'monitor' | 'errors' | 'performance' | 'audit' | 'backup' | 'users';
+type TabKey = 'monitor' | 'errors' | 'performance' | 'audit' | 'backup' | 'users' | 'storage';
 
 // ============ 工具函数 ============
 const fmt = (n: number | undefined | null) => n != null ? n.toLocaleString() : '-';
@@ -152,6 +152,7 @@ export default function OpsCenterPage() {
     { key: 'performance', label: '性能指标', icon: <Zap className="w-4 h-4" /> },
     { key: 'audit', label: '操作审计', icon: <Shield className="w-4 h-4" /> },
     { key: 'backup', label: '备份管理', icon: <Database className="w-4 h-4" /> },
+    { key: 'storage', label: '存储测试', icon: <HardDrive className="w-4 h-4" /> },
     { key: 'users', label: '用户管理', icon: <Users className="w-4 h-4" /> },
   ];
 
@@ -218,6 +219,7 @@ export default function OpsCenterPage() {
             {activeTab === 'performance' && <PerformanceTab perf={perf} />}
             {activeTab === 'audit' && <AuditTab logs={auditLogs || []} />}
             {activeTab === 'backup' && <BackupTab backups={backups || []} onRefresh={fetchData} />}
+            {activeTab === 'storage' && <StorageTestTab />}
             {activeTab === 'users' && <UsersTab />}
           </>
         )}
@@ -862,6 +864,120 @@ function UsersTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ============ 存储测试 Tab ============
+function StorageTestTab() {
+  const [result, setResult] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const testS3 = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch('/api/storage/s3-test');
+      const data = await res.json();
+      setResult(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '请求失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-slate-300">S3/OSS 存储连接测试</h3>
+        <button
+          onClick={testS3}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-medium hover:from-blue-700 hover:to-cyan-600 transition-all disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? '测试中...' : '开始测试'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-4">
+          {/* 连接状态 */}
+          <div className={`p-4 rounded-lg border ${
+            result.success
+              ? 'bg-green-500/10 border-green-500/20'
+              : 'bg-red-500/10 border-red-500/20'
+          }`}>
+            <div className="flex items-center gap-2">
+              {result.success
+                ? <CheckCircle2 className="w-5 h-5 text-green-400" />
+                : <AlertCircle className="w-5 h-5 text-red-400" />
+              }
+              <span className={`text-sm font-medium ${
+                result.success ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {(result.message as string) || (result.success ? '连接成功' : '连接失败')}
+              </span>
+            </div>
+          </div>
+
+          {/* 详细信息 */}
+          <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+            <h4 className="text-xs font-medium text-slate-400 mb-3">连接详情</h4>
+            <div className="space-y-2">
+              {Object.entries(result).filter(([k]) => k !== 'success' && k !== 'message').map(([key, value]) => (
+                <div key={key} className="flex items-center justify-between py-1 border-b border-slate-700/30 last:border-0">
+                  <span className="text-xs text-slate-500">{key}</span>
+                  <span className="text-xs text-slate-300 font-mono max-w-md truncate">
+                    {typeof value === 'boolean'
+                      ? (value ? '✓' : '✗')
+                      : typeof value === 'string'
+                        ? value
+                        : JSON.stringify(value)
+                    }
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 预签名URL访问测试 */}
+          {result.presignedUrl && (
+            <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+              <h4 className="text-xs font-medium text-slate-400 mb-2">预签名 URL</h4>
+              <div className="p-2 rounded bg-slate-900/50 text-xs text-cyan-400 font-mono break-all">
+                {String(result.presignedUrl)}
+              </div>
+              <a
+                href={String(result.presignedUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+              >
+                <Globe className="w-3 h-3" />
+                在浏览器中打开验证
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!result && !error && !loading && (
+        <div className="p-8 rounded-lg bg-slate-800/30 border border-slate-700/30 text-center">
+          <HardDrive className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">点击"开始测试"按钮验证 S3/OSS 存储连接</p>
+          <p className="text-xs text-slate-500 mt-1">测试流程：上传 → 获取URL → 预签名 → 删除</p>
+        </div>
+      )}
     </div>
   );
 }

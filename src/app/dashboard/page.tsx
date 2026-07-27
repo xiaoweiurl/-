@@ -301,11 +301,11 @@ export default function DashboardPage() {
 
         {/* ========== 核心指标行 ========== */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          <MetricCard title="知识总量" value={stats ? formatNum(stats.overview.totalImages) : '2.8K'} unit="条"
+          <MetricCard title="知识总量" value={stats?.overview ? formatNum(stats.overview.totalImages) : '2.8K'} unit="条"
             icon={Database} color="from-blue-600 to-blue-400" trend="+12% 本周" trendUp delay={0} />
-          <MetricCard title="存储空间" value={stats ? formatSize(stats.overview.totalSize) : '14.5'} unit="GB"
+          <MetricCard title="存储空间" value={stats?.overview ? formatSize(stats.overview.totalSize) : '14.5'} unit="GB"
             icon={HardDrive} color="from-cyan-600 to-cyan-400" trend="使用率 68%" delay={0.05} />
-          <MetricCard title="分类目录" value={stats ? stats.overview.totalAlbums : 34} unit="个"
+          <MetricCard title="分类目录" value={stats?.overview ? stats.overview.totalAlbums : 34} unit="个"
             icon={Layers} color="from-emerald-600 to-emerald-400" trend="+3 本月" trendUp delay={0.1} />
           <MetricCard title="AI调用" value={formatNum(aiStats.totalCalls)} unit="次"
             icon={Cpu} color="from-purple-600 to-purple-400" trend={`今日 ${aiStats.todayCalls}`} trendUp delay={0.15} />
@@ -449,7 +449,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span className="text-slate-400">日均录入 <span className="text-blue-400 font-mono">{stats ? Math.round(stats.overview.recentUploads30d / 30) : 11}</span> 条</span>
+                  <span className="text-slate-400">日均录入 <span className="text-blue-400 font-mono">{stats?.overview ? Math.round(stats.overview.recentUploads30d / 30) : 11}</span> 条</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <ArrowUpRight className="w-3 h-3 text-emerald-400" />

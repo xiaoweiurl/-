@@ -5,8 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -32,9 +30,8 @@ public class KnowledgeCard {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "tags", columnDefinition = "TEXT[]")
-    private String[] tags;
+    @Column(name = "tags", columnDefinition = "TEXT")
+    private String tags;
 
     @Column(name = "product_code", length = 50)
     private String productCode;

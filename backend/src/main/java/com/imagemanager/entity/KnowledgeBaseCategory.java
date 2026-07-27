@@ -13,7 +13,7 @@ public class KnowledgeBaseCategory {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @Column(name = "user_id", nullable = false, length = 100)
+    @Column(name = "user_id", length = 100)
     private String userId;
 
     @Column(nullable = false, length = 100)

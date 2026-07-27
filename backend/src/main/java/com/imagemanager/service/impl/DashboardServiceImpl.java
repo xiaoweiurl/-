@@ -349,7 +349,7 @@ public class DashboardServiceImpl implements DashboardService {
 
                     hotAlbum.setId(albumId);
                     hotAlbum.setImageCount((long) images.size());
-                    hotAlbum.setTotalSize(images.stream().mapToLong(img -> img.getSize() != null ? img.getSize() : 0).sum());
+                    hotAlbum.setTotalSize(images.stream().mapToLong(img -> img.getFileSize() != null ? img.getFileSize() : 0).sum());
 
                     // 设置相册名称和封面
                     if ("uncategorized".equals(albumId)) {

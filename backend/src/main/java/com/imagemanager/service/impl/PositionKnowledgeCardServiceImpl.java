@@ -12,9 +12,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -32,15 +34,16 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     private final PositionKnowledgeCardRepository cardRepository;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
-    @Value("${app.minimax.api-key:}")
-    private String minimaxApiKey;
+    @Value("${app.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
 
-    @Value("${app.minimax.embedding.base-url:https://api.minimaxi.com/v1/embeddings}")
-    private String minimaxEmbeddingUrl;
+    @Value("${app.ollama.embedding-model:bge-m3}")
+    private String ollamaEmbeddingModel;
 
-    @Value("${app.minimax.embedding.model:embo-01}")
-    private String minimaxEmbeddingModel;
+    @Value("${app.ollama.timeout:60000}")
+    private int ollamaTimeout;
 
     @Override
     @Transactional
@@ -68,25 +71,34 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+                txTemplate.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
                 try {
+                    // 步骤1: 更新状态为 PROCESSING（独立事务提交）
+                    txTemplate.execute(status -> {
+                        jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'PROCESSING', updated_at = NOW() WHERE id = ?", savedId);
+                        return null;
+                    });
+
+                    // 步骤2: 向量化（独立事务，包含所有 INSERT）
                     PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
                     if (fresh != null) {
-                        fresh.setEmbeddingStatus("PROCESSING");
-                        cardRepository.save(fresh);
-                        vectorizeCard(fresh);
-                        fresh.setEmbeddingStatus("COMPLETED");
-                        cardRepository.save(fresh);
-                        log.info("岗位卡片向量化状态更新为COMPLETED: id={}", savedId);
+                        int successCount = vectorizeCard(fresh);
+
+                        // 步骤3: 更新状态为 COMPLETED（独立事务提交）
+                        txTemplate.execute(status -> {
+                            jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'COMPLETED', updated_at = NOW() WHERE id = ?", savedId);
+                            return null;
+                        });
+                        log.info("岗位卡片向量化完成: id={}, 成功切片数={}", savedId, successCount);
                     }
                 } catch (Exception e) {
-                    log.warn("岗位卡片向量化失败，不影响保存: {}", e.getMessage());
+                    log.warn("岗位卡片向量化失败: {}", e.getMessage(), e);
                     try {
-                        PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
-                        if (fresh != null) {
-                            fresh.setEmbeddingStatus("FAILED");
-                            cardRepository.save(fresh);
-                            log.info("岗位卡片向量化状态更新为FAILED: id={}", savedId);
-                        }
+                        txTemplate.execute(status -> {
+                            jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'FAILED', updated_at = NOW() WHERE id = ?", savedId);
+                            return null;
+                        });
                     } catch (Exception ex) {
                         log.warn("更新向量化状态FAILED也失败: {}", ex.getMessage());
                     }
@@ -142,26 +154,38 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+                txTemplate.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
                 try {
-                    deleteCardVectors(savedId);
+                    // 先删除旧向量（独立事务）
+                    txTemplate.execute(status -> {
+                        deleteCardVectors(savedId);
+                        return null;
+                    });
+
+                    // 更新状态为 PROCESSING（独立事务）
+                    txTemplate.execute(status -> {
+                        jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'PROCESSING', updated_at = NOW() WHERE id = ?", savedId);
+                        return null;
+                    });
+
                     PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
                     if (fresh != null) {
-                        fresh.setEmbeddingStatus("PROCESSING");
-                        cardRepository.save(fresh);
-                        vectorizeCard(fresh);
-                        fresh.setEmbeddingStatus("COMPLETED");
-                        cardRepository.save(fresh);
-                        log.info("岗位卡片重新向量化状态更新为COMPLETED: id={}", savedId);
+                        int successCount = vectorizeCard(fresh);
+
+                        txTemplate.execute(status -> {
+                            jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'COMPLETED', updated_at = NOW() WHERE id = ?", savedId);
+                            return null;
+                        });
+                        log.info("岗位卡片重新向量化完成: id={}, 成功切片数={}", savedId, successCount);
                     }
                 } catch (Exception e) {
-                    log.warn("岗位卡片重新向量化失败: {}", e.getMessage());
+                    log.warn("岗位卡片重新向量化失败: {}", e.getMessage(), e);
                     try {
-                        PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
-                        if (fresh != null) {
-                            fresh.setEmbeddingStatus("FAILED");
-                            cardRepository.save(fresh);
-                            log.info("岗位卡片向量化状态更新为FAILED: id={}", savedId);
-                        }
+                        txTemplate.execute(status -> {
+                            jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'FAILED', updated_at = NOW() WHERE id = ?", savedId);
+                            return null;
+                        });
                     } catch (Exception ex) {
                         log.warn("更新向量化状态FAILED也失败: {}", ex.getMessage());
                     }
@@ -287,37 +311,60 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
      * 将岗位卡片的文本内容拼接、切片、向量化并存入 knowledge_embeddings
      * source_type = 'POSITION_CARD', source_doc_id = card.id
      */
-    private void vectorizeCard(PositionKnowledgeCard card) {
+    private int vectorizeCard(PositionKnowledgeCard card) {
         String fullText = buildCardText(card);
         if (fullText.isBlank()) {
             log.info("岗位卡片内容为空，跳过向量化: id={}", card.getId());
-            return;
+            return 0;
         }
 
         // 切片：800字符/片，100字符重叠
         List<String> chunks = splitText(fullText, 800, 100);
-        log.info("岗位卡片向量化: id={}, 切片数={}", card.getId(), chunks.size());
+        log.info("岗位卡片向量化开始: id={}, 切片数={}, embedding模型={}", card.getId(), chunks.size(), ollamaEmbeddingModel);
+
+        int successCount = 0;
+        int failCount = 0;
+        String firstError = null;
 
         for (int i = 0; i < chunks.size(); i++) {
             String chunk = chunks.get(i);
+            final int chunkIndex = i;
             try {
                 float[] embedding = getEmbedding(chunk);
                 if (embedding == null || embedding.length == 0) {
-                    log.warn("获取embedding失败，跳过切片 {}: cardId={}", i, card.getId());
+                    log.warn("获取embedding返回null，跳过切片 {}: cardId={}", chunkIndex, card.getId());
+                    failCount++;
+                    if (firstError == null) firstError = "embedding返回null";
                     continue;
                 }
                 String vectorStr = arrayToVectorString(embedding);
-                jdbcTemplate.update(
-                    "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                    UUID.randomUUID().toString(), vectorStr, minimaxEmbeddingModel, chunk, i,
-                    "POSITION_CARD", card.getId(), card.getCompany()
-                );
+                TransactionTemplate tx = new TransactionTemplate(transactionManager);
+                tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+                tx.execute(status -> {
+                    jdbcTemplate.update(
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                        "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
+                        UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex,
+                        "POSITION_CARD", card.getId(), card.getCompany()
+                    );
+                    return null;
+                });
+                successCount++;
             } catch (Exception e) {
-                log.warn("岗位卡片切片向量化失败: cardId={}, chunk={}, error={}", card.getId(), i, e.getMessage());
+                failCount++;
+                String errMsg = e.getMessage();
+                if (firstError == null) firstError = errMsg;
+                log.warn("岗位卡片切片向量化失败: cardId={}, chunk={}, error={}", card.getId(), i, errMsg);
             }
         }
-        log.info("岗位卡片向量化完成: id={}, 切片数={}", card.getId(), chunks.size());
+
+        log.info("岗位卡片向量化结束: id={}, 切片数={}, 成功={}, 失败={}", card.getId(), chunks.size(), successCount, failCount);
+
+        if (successCount == 0) {
+            throw new RuntimeException("所有切片向量化均失败: 切片数=" + chunks.size() + ", 首个错误=" + firstError
+                + ", embedding模型=" + ollamaEmbeddingModel + ", Ollama地址=" + ollamaBaseUrl);
+        }
+        return successCount;
     }
 
     /**
@@ -373,10 +420,12 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
      * 删除岗位卡片对应的向量记录
      */
     private void deleteCardVectors(String cardId) {
-        int deleted = jdbcTemplate.update(
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+        int deleted = tx.execute(status -> jdbcTemplate.update(
             "DELETE FROM knowledge_embeddings WHERE source_type = 'POSITION_CARD' AND source_doc_id = ?",
             cardId
-        );
+        ));
         log.info("删除岗位卡片向量: cardId={}, 删除条数={}", cardId, deleted);
     }
 
@@ -395,69 +444,54 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         return chunks;
     }
 
-    // ========== MiniMax Embedding ==========
+    // ========== Ollama Embedding ==========
 
     private float[] getEmbedding(String text) {
         try {
-            String apiKey = minimaxApiKey;
-            if (apiKey == null || apiKey.isEmpty()) {
-                apiKey = System.getenv("MINIMAX_API_KEY");
-            }
-            if (apiKey == null || apiKey.isEmpty()) {
-                log.warn("未配置MiniMax API密钥，跳过岗位卡片向量化");
-                return null;
-            }
+            String url = ollamaBaseUrl + "/api/embed";
 
-            String url = minimaxEmbeddingUrl;
             Map<String, Object> body = new HashMap<>();
-            body.put("model", minimaxEmbeddingModel);
-            body.put("texts", new String[]{text});
-            body.put("type", "db");
+            body.put("model", ollamaEmbeddingModel);
+            body.put("input", text);
 
             String jsonBody = objectMapper.writeValueAsString(body);
-            String response = doPost(url, jsonBody, apiKey);
+            String response = doPost(url, jsonBody, null);
             JsonNode root = objectMapper.readTree(response);
 
-            // MiniMax 格式
-            if (root.has("vectors") && root.get("vectors").isArray() && root.get("vectors").size() > 0) {
-                JsonNode embeddingNode = root.get("vectors").get(0);
-                if (embeddingNode != null && embeddingNode.isArray()) {
-                    float[] embedding = new float[embeddingNode.size()];
-                    for (int i = 0; i < embeddingNode.size(); i++) {
-                        embedding[i] = (float) embeddingNode.get(i).asDouble();
-                    }
-                    return embedding;
+            // Ollama /api/embed 返回 embeddings（复数，二维数组），/api/embeddings 返回 embedding（单数）
+            JsonNode embeddingNode = null;
+            if (root.has("embeddings") && root.get("embeddings").isArray() && root.get("embeddings").size() > 0) {
+                embeddingNode = root.get("embeddings").get(0);
+            } else if (root.has("embedding") && root.get("embedding").isArray()) {
+                embeddingNode = root.get("embedding");
+            }
+            if (embeddingNode != null) {
+                float[] embedding = new float[embeddingNode.size()];
+                for (int i = 0; i < embeddingNode.size(); i++) {
+                    embedding[i] = (float) embeddingNode.get(i).asDouble();
                 }
+                log.info("Ollama embedding成功: model={}, 维度={}", ollamaEmbeddingModel, embedding.length);
+                return embedding;
             }
 
-            // OpenAI 兼容格式
-            if (root.has("data") && root.get("data").isArray() && root.get("data").size() > 0) {
-                JsonNode embeddingNode = root.get("data").get(0).get("embedding");
-                if (embeddingNode != null && embeddingNode.isArray()) {
-                    float[] embedding = new float[embeddingNode.size()];
-                    for (int i = 0; i < embeddingNode.size(); i++) {
-                        embedding[i] = (float) embeddingNode.get(i).asDouble();
-                    }
-                    return embedding;
-                }
-            }
-
-            log.warn("获取embedding返回格式异常: {}", response.substring(0, Math.min(200, response.length())));
+            log.warn("Ollama Embedding返回格式异常, 完整响应: {}", response);
             return null;
         } catch (Exception e) {
-            log.error("获取embedding异常: {}", e.getMessage());
+            log.error("获取embedding异常(Ollama): model={}, url={}, error={}", ollamaEmbeddingModel, ollamaBaseUrl + "/api/embed", e.getMessage());
             return null;
         }
     }
 
     private String doPost(String url, String jsonBody, String apiKey) throws Exception {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody));
+        if (apiKey != null && !apiKey.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + apiKey);
+        }
+        HttpRequest request = requestBuilder.build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new RuntimeException("Embedding API返回错误: " + response.statusCode() + " " + response.body());

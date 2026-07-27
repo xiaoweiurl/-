@@ -54,8 +54,8 @@ public class SystemScheduler {
                 imageRepository.delete(image);
                 
                 // 更新存储使用量
-                if (image.getSize() != null && image.getUserId() != null) {
-                    storageService.subtractUsedStorage(image.getUserId(), image.getSize());
+                if (image.getFileSize() != null && image.getUserId() != null) {
+                    storageService.subtractUsedStorage(image.getUserId(), image.getFileSize());
                 }
                 
                 count++;

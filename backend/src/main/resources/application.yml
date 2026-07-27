@@ -3,6 +3,15 @@ server:
   port: 8080
   servlet:
     context-path: /api
+  # Tomcat 性能优化（支持50+并发用户）
+  tomcat:
+    threads:
+      max: 200              # 最大工作线程数
+      min-spare: 20         # 最小空闲线程
+    max-connections: 500    # 最大连接数
+    accept-count: 200       # 等待队列长度
+    connection-timeout: 20000   # 连接超时(ms)
+    keep-alive-timeout: 60000   # Keep-Alive超时(ms)
 
 spring:
   application:
@@ -20,21 +29,33 @@ spring:
     username: ${DATABASE_USERNAME:postgres}
     password: ${DATABASE_PASSWORD:13369516}
     driver-class-name: org.postgresql.Driver
+    # HikariCP 连接池优化（50人并发×2倍余量）
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      idle-timeout: 300000
-      connection-timeout: 20000
-  
+      auto-commit: false          # 关闭自动提交，由JPA事务管理
+      maximum-pool-size: 50       # 最大连接数
+      minimum-idle: 10            # 最小空闲连接
+      idle-timeout: 300000        # 空闲超时5分钟
+      max-lifetime: 1200000       # 连接最大存活20分钟
+      connection-timeout: 10000   # 获取连接超时10秒
+      validation-timeout: 5000    # 验证连接超时
+      leak-detection-threshold: 60000  # 连接泄漏检测60秒
+
   # JPA 配置
   jpa:
+    open-in-view: false  # 关闭OSIV，避免懒加载问题
     hibernate:
-      ddl-auto: update  # 开发环境自动创建/更新表结构，生产环境建议改为 validate
+      ddl-auto: none  # 使用迁移脚本管理schema，避免Hibernate自动DDL导致类型转换错误
     show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: false  # 生产关闭格式化，减少CPU开销
+        jdbc:
+          batch_size: 20           # JDBC批量操作
+          order_inserts: true
+          order_updates: true
+        connection:
+          provider_disables_autocommit: true
   
   # SQL 初始化配置（首次部署时使用，之后可注释掉）
   # sql:
@@ -42,6 +63,21 @@ spring:
   #     mode: always
   #     schema-locations: classpath:schema.sql
   #     continue-on-error: false
+  
+  # Redis 配置（Session 存储）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 10
+          min-idle: 5
+          max-wait: 3000
   
   servlet:
     multipart:
@@ -70,6 +106,22 @@ app:
   # false: 开发模式，sameSite=Lax, secure=false（localhost 不需要 HTTPS）
   cookie:
     secure-mode: false
+
+  # Redis 配置（可选，用于会话共享和热点数据缓存）
+  # 安装Redis后设为 true 启用
+  redis:
+    enabled: false
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 5000
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+        max-wait: 3000
   
   upload:
     path: ${UPLOAD_PATH:./uploads}
@@ -77,15 +129,12 @@ app:
     max-size: 52428800  # 50MB for images
     document-max-size: 5368709120  # 5GB for documents
   
-  # 存储配置
+  # 存储配置 — S3 密钥在 StorageConfig.java 中硬编码，不在 YAML 中暴露
   storage:
-    type: local  # local 或 s3
-    # 本地存储路径（绝对路径或相对路径）
-    local-path: ${UPLOAD_PATH:./uploads}
-    # 存储服务基础URL（用于生成文件访问URL）
-    # 使用相对路径，不绑定具体域名，前端通过同域代理或当前域名访问
-    # 图片实际访问路径: {base-url}/uploads/{filePath} -> /api/uploads/{filePath}
-    base-url: ${STORAGE_BASE_URL:/api}
+    type: s3
+    local-path: ./uploads
+    base-url: /api
+    presigned-url-expire: 604800
   
   # AI 配置（向量化 Embedding + 对话）
   # Coze API Token: 登录 https://www.coze.cn/ → 个人空间 → 设置 → 开发者令牌
@@ -94,31 +143,26 @@ app:
     api-key: ${AI_API_KEY:}
     base-url: ${AI_BASE_URL:https://api.coze.cn}
     model: doubao-seed-2-0-pro-260215
+
+  # Ollama 配置（自托管向量化 + AI对话）
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    # 向量化模型（用于文档切片的 Embedding）
+    embedding-model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
+    # 对话模型（用于 AI 对话/RAG 检索）
+    chat-model: ${OLLAMA_CHAT_MODEL:qwen3.6}
+    # 超时配置（毫秒）
+    timeout: ${OLLAMA_TIMEOUT:60000}
   
-  # MiniMax 配置（Embedding 向量化，保留）
+  # MiniMax 配置（已废弃，改用 Ollama，保留配置以兼容旧代码）
   minimax:
     api-key: ${MINIMAX_API_KEY:}
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com}
     model: ${MINIMAX_MODEL:MiniMax-M3}
-    # MiniMax Embedding 配置（向量维度 1536）
     embedding:
       base-url: ${MINIMAX_EMBEDDING_URL:https://api.minimaxi.com/v1/embeddings}
       model: ${MINIMAX_EMBEDDING_MODEL:embo-01}
       group-id: ${MINIMAX_GROUP_ID:}
-  
-  # DeepSeek 配置（AI对话，思考模式）
-  deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}
-    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
-    # 思考模式：enabled=开启思维链，disabled=关闭
-    thinking-enabled: ${DEEPSEEK_THINKING_ENABLED:true}
-    # 推理强度：high 或 max
-    reasoning-effort: ${DEEPSEEK_REASONING_EFFORT:high}
-    # 联网搜索：true=开启（DeepSeek会自动判断是否需要联网），false=关闭
-    web-search-enabled: ${DEEPSEEK_WEB_SEARCH_ENABLED:true}
-    # 联网搜索上下文大小：low/medium/high（影响搜索结果数量和token消耗）
-    web-search-context-size: ${DEEPSEEK_WEB_SEARCH_CONTEXT_SIZE:medium}
   
   # 去水印配置
   watermark:

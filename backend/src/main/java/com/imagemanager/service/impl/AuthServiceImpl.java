@@ -1,5 +1,6 @@
 package com.imagemanager.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.LoginRequest;
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.dto.RegisterRequest;
@@ -14,102 +15,65 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 认证服务实现类
- * 
+ * 认证服务实现类 — Redis Session 存储
+ *
+ * Session 存储结构：
+ *   session:{sessionId}  → Hash (userInfo JSON, createTime, expiresAt, rememberMe)
+ *   user:session:{userId} → String (当前有效的 sessionId，SSO 单点登录)
+ *
  * @author Image Manager Team
- * @version 2.0.0
+ * @version 3.0.0
  */
 @Slf4j
 @Service
 public class AuthServiceImpl implements AuthService {
-    
+
     @Autowired
     private UserRepository userRepository;
-    
+
     @Autowired
     private PasswordEncoder passwordEncoder;
-    
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
-    
-    // 内存缓存会话（启动时从数据库加载未过期会话）
-    // key: sessionId, value: SessionInfo
-    private final Map<String, SessionInfo> sessions = new ConcurrentHashMap<>();
-    
-    // 用户会话统计（用于限制每个用户的会话数量）
-    private final Map<String, AtomicInteger> userSessionCount = new ConcurrentHashMap<>();
-    
-    // 每个用户最大会话数
-    private static final int MAX_SESSIONS_PER_USER = 5;
-    
-    // Session 有效期（毫秒）
-    private static final long SESSION_TIMEOUT = 24 * 60 * 60 * 1000; // 24小时
-    private static final long SESSION_TIMEOUT_REMEMBER = 7 * 24 * 60 * 60 * 1000; // 7天
-    
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // ============ Redis Key 前缀 ============
+    private static final String SESSION_KEY_PREFIX = "session:";
+    private static final String USER_SESSION_KEY_PREFIX = "user:session:";
+
+    // ============ Session 过期时间 ============
+    private static final long SESSION_TIMEOUT_HOURS = 24;
+    private static final long SESSION_TIMEOUT_REMEMBER_HOURS = 7 * 24; // 7天
+
     // Session 续期阈值（剩余时间少于此值时自动续期）
-    private static final long SESSION_RENEWAL_THRESHOLD = 2 * 60 * 60 * 1000; // 2小时
-    
+    private static final long SESSION_RENEWAL_THRESHOLD_HOURS = 2;
+
     // 用户设置存储（生产环境应存储在数据库）
     private final Map<String, UserSettings> userSettingsMap = new HashMap<>();
-    
+
     /**
-     * Session 信息
-     */
-    private static class SessionInfo {
-        LoginResponse.UserInfo userInfo;
-        long createTime;
-        long lastAccessTime;
-        long expiresAt;
-        boolean rememberMe;
-        
-        SessionInfo() {
-        }
-        
-        SessionInfo(LoginResponse.UserInfo userInfo, boolean rememberMe) {
-            this.userInfo = userInfo;
-            this.createTime = System.currentTimeMillis();
-            this.lastAccessTime = this.createTime;
-            this.rememberMe = rememberMe;
-            this.expiresAt = this.createTime + (rememberMe ? SESSION_TIMEOUT_REMEMBER : SESSION_TIMEOUT);
-        }
-        
-        boolean isExpired() {
-            return System.currentTimeMillis() > expiresAt;
-        }
-        
-        void updateAccess() {
-            this.lastAccessTime = System.currentTimeMillis();
-        }
-        
-        boolean needsRenewal() {
-            return !isExpired() && (expiresAt - System.currentTimeMillis()) < SESSION_RENEWAL_THRESHOLD;
-        }
-        
-        void renew() {
-            long newExpiry = System.currentTimeMillis() + (rememberMe ? SESSION_TIMEOUT_REMEMBER : SESSION_TIMEOUT);
-            this.expiresAt = newExpiry;
-        }
-    }
-    
-    /**
-     * 初始化默认用户，并加载数据库中的有效会话
+     * 初始化默认用户
      */
     @PostConstruct
     public void initDefaultData() {
@@ -117,12 +81,11 @@ public class AuthServiceImpl implements AuthService {
             log.info("用户数据已存在，跳过初始化");
         } else {
             log.info("初始化默认用户...");
-            
-            // 创建管理员用户
+
             User adminUser = User.builder()
                     .id("admin-1")
                     .username("admin")
-                    .password(passwordEncoder.encode("Admin@123"))  // BCrypt 加密
+                    .password(passwordEncoder.encode("Admin@123"))
                     .email("admin@example.com")
                     .avatarUrl(null)
                     .nickname("Administrator")
@@ -131,18 +94,17 @@ public class AuthServiceImpl implements AuthService {
                     .role("admin")
                     .membership("premium")
                     .storageUsed(0L)
-                    .storageLimit(1024L * 1024 * 1024 * 100)  // 100GB
+                    .storageLimit(1024L * 1024 * 1024 * 100)
                     .createdAt(LocalDateTime.now())
                     .lastLoginAt(null)
                     .build();
             userRepository.save(adminUser);
             log.info("创建管理员用户: admin / Admin@123");
-            
-            // 创建普通用户
+
             User defaultUser = User.builder()
                     .id("user-1")
                     .username("user")
-                    .password(passwordEncoder.encode("User@123"))  // BCrypt 加密
+                    .password(passwordEncoder.encode("User@123"))
                     .email("user@example.com")
                     .avatarUrl(null)
                     .nickname("普通用户")
@@ -150,15 +112,14 @@ public class AuthServiceImpl implements AuthService {
                     .phone("13800138000")
                     .role("user")
                     .membership("pro")
-                    .storageUsed(1024L * 1024 * 1024 * 5)  // 5GB
-                    .storageLimit(1024L * 1024 * 1024 * 50)  // 50GB
+                    .storageUsed(1024L * 1024 * 1024 * 5L)
+                    .storageLimit(1024L * 1024 * 1024 * 50L)
                     .createdAt(LocalDateTime.now())
                     .lastLoginAt(null)
                     .build();
             userRepository.save(defaultUser);
             log.info("创建普通用户: user / User@123");
-            
-            // 初始化用户设置
+
             UserSettings settings = UserSettings.builder()
                     .theme("system")
                     .language("zh-CN")
@@ -175,54 +136,16 @@ public class AuthServiceImpl implements AuthService {
                     .defaultView("grid")
                     .build();
             userSettingsMap.put("user-1", settings);
-            
+
             log.info("默认用户初始化完成");
         }
-        
-        // 从数据库加载未过期的会话到内存缓存
-        loadSessionsFromDb();
     }
-    
-    /**
-     * 从数据库加载未过期的会话
-     */
-    private void loadSessionsFromDb() {
-        try {
-            String sql = "SELECT id, user_id, username, email, avatar_url, role, membership, company, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE expires_at > ?";
-            long now = System.currentTimeMillis();
-            jdbcTemplate.query(sql, (rs, rowNum) -> {
-                String sessionId = rs.getString("id");
-                LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
-                        .id(rs.getString("user_id"))
-                        .username(rs.getString("username"))
-                        .email(rs.getString("email"))
-                        .avatar(rs.getString("avatar_url"))
-                        .role(rs.getString("role"))
-                        .membership(rs.getString("membership"))
-                        .company(rs.getString("company"))
-                        .build();
-                boolean rememberMe = rs.getBoolean("remember_me");
-                SessionInfo sessionInfo = new SessionInfo(userInfo, rememberMe);
-                sessionInfo.createTime = rs.getLong("created_at");
-                sessionInfo.lastAccessTime = rs.getLong("last_access_at");
-                sessionInfo.expiresAt = rs.getLong("expires_at");
-                sessions.put(sessionId, sessionInfo);
-                
-                // 统计用户会话数
-                userSessionCount.computeIfAbsent(userInfo.getId(), k -> new AtomicInteger(0)).incrementAndGet();
-                return null;
-            }, now);
-            log.info("从数据库加载了 {} 个有效会话", sessions.size());
-        } catch (Exception e) {
-            log.warn("从数据库加载会话失败: {}", e.getMessage());
-        }
-    }
-    
+
     @Override
     public LoginResponse login(LoginRequest request) {
         log.info("用户登录：{}", request.getUsername());
-        
-        // 速率限制检查（仅当用户名存在时才检查）
+
+        // 速率限制检查
         if (request.getUsername() != null && !request.getUsername().isEmpty()) {
             String clientId = request.getUsername().toLowerCase();
             if (!RateLimiter.allow(clientId, RateLimiter.LimitType.LOGIN)) {
@@ -230,113 +153,84 @@ public class AuthServiceImpl implements AuthService {
                 throw new RateLimitException("登录尝试次数过多，请在 " + resetTime + " 秒后重试");
             }
         }
-        
+
         // 查找用户
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
-        
+
         // 验证密码
         boolean passwordValid = false;
         String storedPassword = user.getPassword();
-        
-        // 检测密码格式
+
         if (storedPassword != null && storedPassword.startsWith("$2")) {
-            // BCrypt 格式
             passwordValid = passwordEncoder.matches(request.getPassword(), storedPassword);
         } else {
-            // 明文格式（兼容旧数据）
             passwordValid = storedPassword != null && storedPassword.equals(request.getPassword());
             if (passwordValid) {
-                // 自动升级为 BCrypt
                 user.setPassword(passwordEncoder.encode(request.getPassword()));
                 userRepository.save(user);
                 log.info("密码已自动升级为 BCrypt 格式：{}", request.getUsername());
             }
         }
-        
+
         if (!passwordValid) {
             log.warn("密码错误：{}", request.getUsername());
             throw new RuntimeException("用户名或密码错误");
         }
-        
-        // 检查该用户的会话数量
-        AtomicInteger sessionCount = userSessionCount.computeIfAbsent(
-                user.getId(), k -> new AtomicInteger(0));
-        
-        // 如果超过最大会话数，删除最早的会话
-        if (sessionCount.get() >= MAX_SESSIONS_PER_USER) {
-            removeOldestSession(user.getId());
+
+        // ============ SSO: 踢掉同一用户的旧 session ============
+        String userId = user.getId();
+        String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+        String oldSessionId = redisTemplate.opsForValue().get(userSessionKey);
+        if (oldSessionId != null) {
+            // 删除旧 session
+            redisTemplate.delete(SESSION_KEY_PREFIX + oldSessionId);
+            log.info("SSO: 踢掉用户 {} 的旧会话 {}", request.getUsername(), oldSessionId.substring(0, Math.min(8, oldSessionId.length())));
         }
-        
-        // 创建会话
+
+        // ============ 创建新 session ============
         String sessionId = generateSecureSessionId();
-        // 标准化角色：保持数据库原始值
-        String normalizedRole = user.getRole();
-        // 公司绑定逻辑：如果用户已绑定公司，始终使用数据库值（不可更改）
-        // 如果用户未绑定公司，允许请求中传入公司（首次绑定）
         String effectiveCompany = user.getCompany();
         if (effectiveCompany == null || effectiveCompany.trim().isEmpty()) {
             effectiveCompany = request.getCompany();
         }
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
-                .id(user.getId())
+                .id(userId)
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .avatar(user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty() ? user.getAvatarUrl() : null)
-                .role(normalizedRole)
+                .role(user.getRole())
                 .membership(user.getMembership())
                 .company(effectiveCompany)
                 .build();
-        
+
         boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
-        SessionInfo sessionInfo = new SessionInfo(userInfo, rememberMe);
-        sessions.put(sessionId, sessionInfo);
-        
-        // 同时存入数据库持久化
-        try {
-            jdbcTemplate.update(
-                "INSERT INTO user_sessions (id, user_id, username, email, avatar_url, role, membership, company, remember_me, created_at, last_access_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                sessionId,
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getAvatarUrl(),
-                user.getRole(),
-                user.getMembership(),
-                effectiveCompany,
-                rememberMe,
-                sessionInfo.createTime,
-                sessionInfo.lastAccessTime,
-                sessionInfo.expiresAt
-            );
-        } catch (Exception e) {
-            log.warn("保存会话到数据库失败: {}", e.getMessage());
-        }
-        
-        // 增加用户会话计数
-        sessionCount.incrementAndGet();
-        
+        long timeoutHours = rememberMe ? SESSION_TIMEOUT_REMEMBER_HOURS : SESSION_TIMEOUT_HOURS;
+        long expiresAt = System.currentTimeMillis() + timeoutHours * 60 * 60 * 1000;
+
+        // 存入 Redis
+        saveSessionToRedis(sessionId, userInfo, rememberMe, expiresAt, timeoutHours);
+
+        // SSO: 记录用户当前 sessionId
+        redisTemplate.opsForValue().set(userSessionKey, sessionId, timeoutHours, TimeUnit.HOURS);
+
         // 更新最后登录时间
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
-        
-        log.info("用户登录成功：{}, 会话数: {}", request.getUsername(), sessionCount.get());
-        
+
+        log.info("用户登录成功：{}, SSO会话已建立", request.getUsername());
+
         return LoginResponse.builder()
                 .sessionId(sessionId)
                 .user(userInfo)
-                .expiresIn(rememberMe ? SESSION_TIMEOUT_REMEMBER : SESSION_TIMEOUT)
+                .expiresIn(timeoutHours * 60 * 60 * 1000)
                 .build();
     }
-    
-    /**
-     * 用户注册
-     */
+
     @Override
     public LoginResponse register(RegisterRequest request) {
         log.info("用户注册：username={}, company={}", request.getUsername(), request.getCompany());
-        
-        // 参数校验
+
         if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
             throw new RuntimeException("用户名不能为空");
         }
@@ -352,18 +246,14 @@ public class AuthServiceImpl implements AuthService {
         if (!"宝娜斯".equals(request.getCompany()) && !"盈云".equals(request.getCompany())) {
             throw new RuntimeException("公司只能选择宝娜斯或盈云");
         }
-        
-        // 检查用户名是否已存在
+
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new RuntimeException("用户名已存在");
         }
-        
-        // 检查邮箱是否已存在
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("邮箱已被注册");
         }
-        
-        // 创建用户
+
         String userId = UUID.randomUUID().toString();
         User newUser = User.builder()
                 .id(userId)
@@ -375,13 +265,13 @@ public class AuthServiceImpl implements AuthService {
                 .company(request.getCompany())
                 .membership("free")
                 .storageUsed(0L)
-                .storageLimit(1024L * 1024 * 1024 * 10)  // 10GB
+                .storageLimit(1024L * 1024 * 1024 * 10L)
                 .createdAt(LocalDateTime.now())
                 .build();
-        
+
         userRepository.save(newUser);
         log.info("用户注册成功：{}, 公司：{}", request.getUsername(), request.getCompany());
-        
+
         // 自动登录
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setUsername(request.getUsername());
@@ -390,239 +280,170 @@ public class AuthServiceImpl implements AuthService {
         return login(loginRequest);
     }
 
-    /**
-     * 生成安全的 Session ID
-     */
-    private String generateSecureSessionId() {
-        // 使用 UUID + 时间戳 + 随机数的组合，并进行 SHA-256 哈希
-        try {
-            String raw = UUID.randomUUID().toString() + System.currentTimeMillis() 
-                    + Double.toString(Math.random());
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
-            
-            // 转换为十六进制字符串
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 总是存在，如果失败则使用纯 UUID
-            log.error("SHA-256 算法不可用", e);
-            return UUID.randomUUID().toString();
-        }
-    }
-    
-    /**
-     * 删除最早的会话
-     */
-    private void removeOldestSession(String userId) {
-        SessionInfo oldest = null;
-        String oldestKey = null;
-        
-        for (Map.Entry<String, SessionInfo> entry : sessions.entrySet()) {
-            if (entry.getValue().userInfo.getId().equals(userId)) {
-                if (oldest == null || entry.getValue().createTime < oldest.createTime) {
-                    oldest = entry.getValue();
-                    oldestKey = entry.getKey();
-                }
-            }
-        }
-        
-        if (oldestKey != null) {
-            sessions.remove(oldestKey);
-            log.info("删除最早会话: userId={}, sessionCount={}", userId, 
-                    userSessionCount.get(userId).decrementAndGet());
-            // 同时删除数据库中的会话
-            try {
-                jdbcTemplate.update("DELETE FROM user_sessions WHERE id = ?", oldestKey);
-            } catch (Exception e) {
-                log.warn("删除数据库最早会话失败: {}", e.getMessage());
-            }
-        }
-    }
-    
     @Override
     public void logout(String sessionId) {
-        SessionInfo sessionInfo = sessions.remove(sessionId);
-        if (sessionInfo != null) {
-            AtomicInteger count = userSessionCount.get(sessionInfo.userInfo.getId());
-            if (count != null) {
-                count.decrementAndGet();
+        if (sessionId == null || sessionId.isEmpty()) return;
+
+        String sessionKey = SESSION_KEY_PREFIX + sessionId;
+        Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(sessionKey);
+
+        if (!sessionData.isEmpty()) {
+            String userId = (String) sessionData.get("userId");
+            String username = (String) sessionData.get("username");
+
+            // 删除 session
+            redisTemplate.delete(sessionKey);
+
+            // SSO: 清除用户当前 session 映射（仅当是当前 session 时才清除）
+            if (userId != null) {
+                String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+                String currentSessionId = redisTemplate.opsForValue().get(userSessionKey);
+                if (sessionId.equals(currentSessionId)) {
+                    redisTemplate.delete(userSessionKey);
+                }
             }
-            log.info("用户登出：{}", sessionInfo.userInfo.getUsername());
-        }
-        // 同时删除数据库中的会话
-        try {
-            jdbcTemplate.update("DELETE FROM user_sessions WHERE id = ?", sessionId);
-        } catch (Exception e) {
-            log.warn("删除数据库会话失败: {}", e.getMessage());
+
+            log.info("用户登出：{}", username);
         }
     }
-    
+
     @Override
     public LoginResponse.UserInfo validateSession(String sessionId) {
-        SessionInfo sessionInfo = sessions.get(sessionId);
-        
-        // 如果内存中没有，尝试从数据库加载
-        if (sessionInfo == null) {
-            sessionInfo = loadSessionFromDb(sessionId);
-            if (sessionInfo != null) {
-                sessions.put(sessionId, sessionInfo);
-                userSessionCount.computeIfAbsent(sessionInfo.userInfo.getId(), k -> new AtomicInteger(0)).incrementAndGet();
-            }
-        }
-        
-        if (sessionInfo == null) {
+        if (sessionId == null || sessionId.isEmpty()) return null;
+
+        String sessionKey = SESSION_KEY_PREFIX + sessionId;
+        Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(sessionKey);
+
+        if (sessionData.isEmpty()) {
             return null;
         }
-        
+
         // 检查是否过期
-        if (sessionInfo.isExpired()) {
-            sessions.remove(sessionId);
-            AtomicInteger count = userSessionCount.get(sessionInfo.userInfo.getId());
-            if (count != null) {
-                count.decrementAndGet();
+        long expiresAt = Long.parseLong((String) sessionData.getOrDefault("expiresAt", "0"));
+        if (System.currentTimeMillis() > expiresAt) {
+            // 已过期，清理
+            String userId = (String) sessionData.get("userId");
+            redisTemplate.delete(sessionKey);
+            if (userId != null) {
+                String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+                String currentSessionId = redisTemplate.opsForValue().get(userSessionKey);
+                if (sessionId.equals(currentSessionId)) {
+                    redisTemplate.delete(userSessionKey);
+                }
             }
-            // 同时删除数据库中的过期会话
-            try {
-                jdbcTemplate.update("DELETE FROM user_sessions WHERE id = ?", sessionId);
-            } catch (Exception e) {
-                log.warn("删除过期数据库会话失败: {}", e.getMessage());
-            }
-            log.info("会话已过期：{}", sessionId);
+            log.info("会话已过期：{}", sessionId.substring(0, Math.min(8, sessionId.length())));
             return null;
         }
-        
-        // 检查是否需要续期
-        if (sessionInfo.needsRenewal()) {
-            sessionInfo.renew();
-            log.debug("会话自动续期：{}", sessionId);
+
+        // SSO 校验：确保此 session 仍然是该用户的当前 session
+        String userId = (String) sessionData.get("userId");
+        if (userId != null) {
+            String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+            String currentSessionId = redisTemplate.opsForValue().get(userSessionKey);
+            if (!sessionId.equals(currentSessionId)) {
+                // 此 session 已被新登录踢掉，清理
+                redisTemplate.delete(sessionKey);
+                log.info("SSO: 会话已被新登录替换：{}", sessionId.substring(0, Math.min(8, sessionId.length())));
+                return null;
+            }
         }
-        
+
+        // 构造 UserInfo
+        LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
+                .id((String) sessionData.get("userId"))
+                .username((String) sessionData.get("username"))
+                .email((String) sessionData.get("email"))
+                .avatar((String) sessionData.get("avatar"))
+                .role((String) sessionData.get("role"))
+                .membership((String) sessionData.get("membership"))
+                .company((String) sessionData.get("company"))
+                .build();
+
+        // 续期逻辑：剩余时间不足 2 小时则自动续期
+        long remainingMs = expiresAt - System.currentTimeMillis();
+        long renewalThresholdMs = SESSION_RENEWAL_THRESHOLD_HOURS * 60 * 60 * 1000;
+        if (remainingMs < renewalThresholdMs && remainingMs > 0) {
+            boolean rememberMe = Boolean.parseBoolean((String) sessionData.getOrDefault("rememberMe", "false"));
+            long timeoutHours = rememberMe ? SESSION_TIMEOUT_REMEMBER_HOURS : SESSION_TIMEOUT_HOURS;
+            long newExpiresAt = System.currentTimeMillis() + timeoutHours * 60 * 60 * 1000;
+
+            // 更新 expiresAt
+            redisTemplate.opsForHash().put(sessionKey, "expiresAt", String.valueOf(newExpiresAt));
+
+            // 重设 TTL
+            redisTemplate.expire(sessionKey, timeoutHours, TimeUnit.HOURS);
+
+            // 同时更新 SSO mapping 的 TTL
+            if (userId != null) {
+                String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+                redisTemplate.expire(userSessionKey, timeoutHours, TimeUnit.HOURS);
+            }
+
+            log.debug("会话自动续期：{}", sessionId.substring(0, Math.min(8, sessionId.length())));
+        }
+
         // 更新最后访问时间
-        sessionInfo.updateAccess();
-        
-        // 异步更新数据库中的访问时间（不阻塞请求）
-        try {
-            jdbcTemplate.update(
-                "UPDATE user_sessions SET last_access_at = ?, expires_at = ? WHERE id = ?",
-                sessionInfo.lastAccessTime,
-                sessionInfo.expiresAt,
-                sessionId
-            );
-        } catch (Exception e) {
-            log.warn("更新数据库会话访问时间失败: {}", e.getMessage());
-        }
-        
-        return sessionInfo.userInfo;
+        redisTemplate.opsForHash().put(sessionKey, "lastAccessAt", String.valueOf(System.currentTimeMillis()));
+
+        return userInfo;
     }
-    
-    /**
-     * 从数据库加载单个会话
-     */
-    private SessionInfo loadSessionFromDb(String sessionId) {
-        try {
-            return jdbcTemplate.queryForObject(
-                "SELECT user_id, username, email, avatar_url, role, membership, company, remember_me, created_at, last_access_at, expires_at FROM user_sessions WHERE id = ? AND expires_at > ?",
-                (rs, rowNum) -> {
-                    LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
-                            .id(rs.getString("user_id"))
-                            .username(rs.getString("username"))
-                            .email(rs.getString("email"))
-                            .avatar(rs.getString("avatar_url"))
-                            .role(rs.getString("role"))
-                            .membership(rs.getString("membership"))
-                            .company(rs.getString("company"))
-                            .build();
-                    boolean rememberMe = rs.getBoolean("remember_me");
-                    SessionInfo info = new SessionInfo(userInfo, rememberMe);
-                    info.createTime = rs.getLong("created_at");
-                    info.lastAccessTime = rs.getLong("last_access_at");
-                    info.expiresAt = rs.getLong("expires_at");
-                    return info;
-                },
-                sessionId,
-                System.currentTimeMillis()
-            );
-        } catch (EmptyResultDataAccessException e) {
-            return null;
-        } catch (Exception e) {
-            log.warn("从数据库加载会话失败: {}", e.getMessage());
-            return null;
-        }
-    }
-    
+
     @Override
     public void updateProfile(String userId, UpdateProfileRequest request) {
         log.info("更新用户资料：{}", userId);
-        
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        
-        if (request.getUsername() != null) {
-            user.setUsername(request.getUsername());
-        }
-        if (request.getNickname() != null) {
-            user.setNickname(request.getNickname());
-        }
-        if (request.getEmail() != null) {
-            user.setEmail(request.getEmail());
-        }
-        if (request.getAvatar() != null) {
-            user.setAvatarUrl(request.getAvatar());
-        }
-        if (request.getBio() != null) {
-            user.setBio(request.getBio());
-        }
-        if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
-        }
-        
+
+        if (request.getUsername() != null) user.setUsername(request.getUsername());
+        if (request.getNickname() != null) user.setNickname(request.getNickname());
+        if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getAvatar() != null) user.setAvatarUrl(request.getAvatar());
+        if (request.getBio() != null) user.setBio(request.getBio());
+        if (request.getPhone() != null) user.setPhone(request.getPhone());
+
         userRepository.save(user);
+
+        // 同步更新 Redis 中所有该用户的 session 信息
+        syncUserInfoToRedis(userId, user);
     }
-    
+
     @Override
     public void changePassword(String userId, String currentPassword, String newPassword) {
         log.info("修改密码：{}", userId);
-        
-        // 速率限制检查
+
         if (!RateLimiter.allow(userId, RateLimiter.LimitType.PASSWORD_CHANGE)) {
             long resetTime = RateLimiter.getResetTime(userId, RateLimiter.LimitType.PASSWORD_CHANGE);
             throw new RateLimitException("密码修改尝试次数过多，请在 " + resetTime + " 秒后重试");
         }
-        
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        
-        // 验证当前密码（使用 BCrypt）
+
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             log.warn("修改密码失败，当前密码错误：{}", userId);
             throw new RuntimeException("当前密码错误");
         }
-        
-        // 验证新密码强度
+
         PasswordValidator.Strength strength = PasswordValidator.checkStrength(newPassword);
         if (strength.getLevel() < PasswordValidator.Strength.FAIR.getLevel()) {
             String desc = PasswordValidator.getStrengthDescription(newPassword);
             throw new WeakPasswordException(desc);
         }
-        
-        // 不能与当前密码相同
+
         if (passwordEncoder.matches(newPassword, user.getPassword())) {
             throw new RuntimeException("新密码不能与当前密码相同");
         }
-        
-        // 加密并保存新密码
+
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        
-        log.info("密码修改成功：{}", userId);
+
+        // 修改密码后踢掉所有 session，强制重新登录
+        forceLogoutUser(userId);
+
+        log.info("密码修改成功，已强制下线：{}", userId);
     }
-    
+
     @Override
     public UserSettings getUserSettings(String userId) {
         log.info("获取用户设置：{}", userId);
@@ -642,7 +463,7 @@ public class AuthServiceImpl implements AuthService {
                 .defaultView("grid")
                 .build());
     }
-    
+
     @Override
     public void updateUserSettings(String userId, UserSettings settings) {
         log.info("更新用户设置：{}", userId);
@@ -652,28 +473,17 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void deleteAllUserSessions(String userId) {
         log.info("删除用户所有会话：{}", userId);
-        AtomicInteger count = userSessionCount.get(userId);
-        sessions.entrySet().removeIf(entry -> {
-            if (entry.getValue().userInfo.getId().equals(userId)) {
-                if (count != null) {
-                    count.decrementAndGet();
-                }
-                return true;
-            }
-            return false;
-        });
+        forceLogoutUser(userId);
     }
 
     @Override
     @Transactional
     public boolean bindCompany(String userId, String company) {
-        // 查询用户当前公司
         String currentCompany = null;
         try {
             currentCompany = jdbcTemplate.queryForObject(
                 "SELECT company FROM users WHERE id = ?::uuid", String.class, userId);
         } catch (Exception e) {
-            // id 可能不是 uuid 格式，尝试 varchar
             try {
                 currentCompany = jdbcTemplate.queryForObject(
                     "SELECT company FROM users WHERE id = ?", String.class, userId);
@@ -688,7 +498,6 @@ public class AuthServiceImpl implements AuthService {
             return false;
         }
 
-        // 绑定公司
         int updated;
         try {
             updated = jdbcTemplate.update(
@@ -712,5 +521,89 @@ public class AuthServiceImpl implements AuthService {
             log.warn("公司绑定失败（可能已被其他请求绑定）: userId={}", userId);
             return false;
         }
+    }
+
+    // ============ 私有方法 ============
+
+    /**
+     * 生成安全的 Session ID
+     */
+    private String generateSecureSessionId() {
+        try {
+            String raw = UUID.randomUUID().toString() + System.currentTimeMillis()
+                    + Double.toString(Math.random());
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            log.error("SHA-256 算法不可用", e);
+            return UUID.randomUUID().toString();
+        }
+    }
+
+    /**
+     * 将 session 数据存入 Redis Hash
+     */
+    private void saveSessionToRedis(String sessionId, LoginResponse.UserInfo userInfo,
+                                     boolean rememberMe, long expiresAt, long timeoutHours) {
+        String sessionKey = SESSION_KEY_PREFIX + sessionId;
+        Map<String, String> sessionData = new HashMap<>();
+        sessionData.put("userId", userInfo.getId());
+        sessionData.put("username", userInfo.getUsername());
+        sessionData.put("email", userInfo.getEmail() != null ? userInfo.getEmail() : "");
+        sessionData.put("avatar", userInfo.getAvatar() != null ? userInfo.getAvatar() : "");
+        sessionData.put("role", userInfo.getRole());
+        sessionData.put("membership", userInfo.getMembership() != null ? userInfo.getMembership() : "");
+        sessionData.put("company", userInfo.getCompany() != null ? userInfo.getCompany() : "");
+        sessionData.put("rememberMe", String.valueOf(rememberMe));
+        sessionData.put("createTime", String.valueOf(System.currentTimeMillis()));
+        sessionData.put("lastAccessAt", String.valueOf(System.currentTimeMillis()));
+        sessionData.put("expiresAt", String.valueOf(expiresAt));
+
+        redisTemplate.opsForHash().putAll(sessionKey, sessionData);
+        // 设置 TTL（Redis 自动过期清理）
+        redisTemplate.expire(sessionKey, timeoutHours, TimeUnit.HOURS);
+    }
+
+    /**
+     * 用户信息变更后，同步更新 Redis 中的 session
+     */
+    private void syncUserInfoToRedis(String userId, User user) {
+        String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+        String sessionId = redisTemplate.opsForValue().get(userSessionKey);
+        if (sessionId == null) return;
+
+        String sessionKey = SESSION_KEY_PREFIX + sessionId;
+        Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(sessionKey);
+        if (sessionData.isEmpty()) return;
+
+        // 更新变更的字段
+        redisTemplate.opsForHash().put(sessionKey, "username", user.getUsername() != null ? user.getUsername() : "");
+        redisTemplate.opsForHash().put(sessionKey, "email", user.getEmail() != null ? user.getEmail() : "");
+        redisTemplate.opsForHash().put(sessionKey, "avatar", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
+
+        log.info("已同步用户信息到 Redis session: userId={}", userId);
+    }
+
+    /**
+     * 强制用户下线（删除所有 session）
+     */
+    private void forceLogoutUser(String userId) {
+        String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+        String sessionId = redisTemplate.opsForValue().get(userSessionKey);
+
+        if (sessionId != null) {
+            redisTemplate.delete(SESSION_KEY_PREFIX + sessionId);
+        }
+        redisTemplate.delete(userSessionKey);
+
+        log.info("已强制用户下线: userId={}", userId);
     }
 }

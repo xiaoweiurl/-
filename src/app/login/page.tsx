@@ -110,6 +110,12 @@ export default function LoginPage() {
         if (result.data.user?.username) {
           localStorage.setItem('username', result.data.user.username);
         }
+        if (result.data.user?.role) {
+          localStorage.setItem('user_role', result.data.user.role);
+          // 同时存入 cookie，确保降级模式也能获取
+          const roleExpiry = new Date(Date.now() + 7 * 24 * 3600 * 1000).toUTCString();
+          document.cookie = `user_role=${result.data.user.role}; path=/; expires=${roleExpiry}; SameSite=Lax`;
+        }
         setLoggedInUser(result.data);
         const userCompany = result.data.user?.company;
         if (userCompany && userCompany.trim() !== '') {
@@ -330,7 +336,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* 记住我 */}
+              {/* 记住我 + 忘记密码 */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center cursor-pointer group">
                   <div className={cn(
@@ -348,7 +354,13 @@ export default function LoginPage() {
                   <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only" />
                   <span className="ml-2 text-sm text-slate-500 group-hover:text-slate-700 transition-colors">记住我</span>
                 </label>
-                <span className="text-xs text-slate-400">7天免登录</span>
+                <button
+                  type="button"
+                  onClick={() => router.push('/forgot-password')}
+                  className="text-xs text-violet-500 hover:text-violet-700 font-medium transition-colors"
+                >
+                  忘记密码？
+                </button>
               </div>
 
               {/* 登录按钮 */}

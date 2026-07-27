@@ -44,6 +44,13 @@ function getSessionId(): string | null {
   return localStorage.getItem('session_id');
 }
 
+// 从 cookie 中读取值（SSR 安全）
+function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+
 // 判断 API 响应是否成功（兼容 { success: true } 和 { code: 200 } 格式）
 function isApiSuccess(result: Record<string, unknown>): boolean {
   return result.success === true || result.code === 200 || result.code === 201;
@@ -220,6 +227,7 @@ export default function Home() {
   const [brand, setBrand] = React.useState(BRANDS.yingyun);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
+  const [mounted, setMounted] = React.useState(false);
   const authCheckedRef = React.useRef(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [activeMenuItem, setActiveMenuItem] = React.useState('all');
@@ -840,11 +848,14 @@ export default function Home() {
           if (!cancelled) {
             const localUser = localStorage.getItem('user_id');
             const localUsername = localStorage.getItem('user_name');
+            // 优先从 localStorage 取，fallback 从 cookie 取
+            const cookieRole = document.cookie.split('; ').find(c => c.startsWith('user_role='))?.split('=')[1];
+            const localRole = localStorage.getItem('user_role') || cookieRole;
             setCurrentUser({
               id: localUser || 'local',
               username: localUsername || '本地用户',
               email: '',
-              role: 'user',
+              role: (localRole || 'user') as 'admin' | 'user',
             });
             authCheckedRef.current = true;
           }
@@ -894,6 +905,10 @@ export default function Home() {
 
           if (result.code === 200 && result.data) {
             if (!cancelled) {
+              // 同步 role 到 localStorage，确保降级模式也能获取
+              if (result.data.role) {
+                localStorage.setItem('user_role', result.data.role);
+              }
               setCurrentUser(result.data);
               authCheckedRef.current = true;
               await fetchAllImages();
@@ -915,7 +930,9 @@ export default function Home() {
           console.error('[Home] 检查登录状态失败:', error);
           // 网络错误时进入降级模式，不强制跳转登录页
           if (!cancelled) {
-            setCurrentUser({ id: 'local', username: '本地用户', email: '', role: 'user' });
+            const cookieRole = document.cookie.split('; ').find(c => c.startsWith('user_role='))?.split('=')[1];
+            const fallbackRole = (localStorage.getItem('user_role') || cookieRole || 'user') as 'admin' | 'user';
+            setCurrentUser({ id: 'local', username: localStorage.getItem('user_name') || '本地用户', email: '', role: fallbackRole });
             authCheckedRef.current = true;
           }
         }
@@ -923,11 +940,16 @@ export default function Home() {
         console.error('[Home] 登录检查异常:', error);
         // 异常时进入降级模式
         if (!cancelled) {
-          setCurrentUser({ id: 'local', username: '本地用户', email: '', role: 'user' });
+          const cookieRole2 = document.cookie.split('; ').find(c => c.startsWith('user_role='))?.split('=')[1];
+          const fallbackRole2 = (localStorage.getItem('user_role') || cookieRole2 || 'user') as 'admin' | 'user';
+          setCurrentUser({ id: 'local', username: localStorage.getItem('user_name') || '本地用户', email: '', role: fallbackRole2 });
           authCheckedRef.current = true;
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setMounted(true);
+        }
       }
     };
 
@@ -1787,6 +1809,18 @@ export default function Home() {
       todayFavorites: todayImages.filter(img => img.favorite).length,
     };
   }, [allImages, albums, currentUser?.id]);
+
+  // 等待客户端挂载完成，避免 hydration 不匹配
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f172a] to-[#0a1628] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-violet-500 animate-spin" />
+          <p className="text-slate-500">加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 加载中状态
   if (isLoading) {

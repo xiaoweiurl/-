@@ -63,7 +63,7 @@ async function proxyRequest(request: NextRequest, method: string) {
       const contentType = request.headers.get('content-type') || '';
       if (contentType.includes('multipart/form-data')) {
         fetchOptions.body = await request.arrayBuffer();
-        headers.delete('content-type');
+        // 保留原始 Content-Type（含 boundary），否则后端无法解析 multipart
       } else if (contentType.includes('application/json') || contentType.includes('text/')) {
         fetchOptions.body = await request.text();
       } else {

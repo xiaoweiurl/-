@@ -159,6 +159,8 @@ public class AuthInterceptor implements HandlerInterceptor {
     private boolean isPublicEndpoint(String path) {
         return path.startsWith("/auth/login") ||
                path.startsWith("/auth/session") ||
+               path.startsWith("/auth/forgot-password") ||
+               path.startsWith("/auth/register") ||
                path.startsWith("/share/access") ||  // 分享链接公开访问（context-path 已去掉 /api 前缀）
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||

@@ -705,7 +705,8 @@ export default function Sidebar({
     }
   };
 
-  const menuItems: MenuItem[] = [
+  // 管理员专属菜单：数据驾驶舱、AI能力中心、数据资产、数据模型、运维中心
+  const adminMenuItems: MenuItem[] = isAdmin ? [
     {
       id: 'dashboard',
       label: '数据驾驶舱',
@@ -731,6 +732,10 @@ export default function Sidebar({
       label: '运维中心',
       icon: Server,
     },
+  ] : [];
+
+  const menuItems: MenuItem[] = [
+    ...adminMenuItems,
     {
       id: 'all',
       label: '全部知识',

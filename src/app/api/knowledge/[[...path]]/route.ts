@@ -65,9 +65,8 @@ async function proxy(request: NextRequest, method: string) {
   if (method !== 'GET' && method !== 'HEAD') {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
-      // multipart/form-data: 读取为 ArrayBuffer，保留原始 boundary
+      // multipart/form-data: 读取为 ArrayBuffer，保留原始 Content-Type（含 boundary）
       fetchOptions.body = await request.arrayBuffer();
-      headers.delete('content-type');
     } else if (contentType.includes('application/json')) {
       fetchOptions.body = await request.text();
       headers.set('content-type', 'application/json');

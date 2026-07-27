@@ -690,14 +690,20 @@ public class ImageServiceImpl implements ImageService {
             // 创建图片记录
             Image image = Image.builder()
                     .id(UUID.randomUUID().toString())
+                    .name(title != null ? title : removeFileExtension(originalFilename))
                     .title(title != null ? title : removeFileExtension(originalFilename))
                     .originalName(originalFilename)  // 保存原始文件名
                     .url(imageUrl)
                     .thumbnailUrl(imageUrl)
                     .fileKey(fileKey)
-                    .size(file.getSize())
+                    .filePath(fileKey)  // 兼容数据库file_path字段
+                    .fileSize(file.getSize())
+                    .size(file.getSize())  // 兼容数据库size列
                     .sizeFormatted(formatFileSize(file.getSize()))
+                    .mimeType(file.getContentType())
+                    .format(getFileFormat(file.getContentType()))
                     .fileType(getFileType(file.getContentType()))
+                    .uploaderId(currentUserId)
                     .albumId(finalAlbumId)
                     .albumName(albumName)
                     .tags(finalTags != null ? new java.util.ArrayList<>(finalTags) : new java.util.ArrayList<>())
@@ -1560,12 +1566,16 @@ public class ImageServiceImpl implements ImageService {
             // 创建图片记录
             Image image = Image.builder()
                     .id(UUID.randomUUID().toString())
+                    .name(removeFileExtension(originalFilename))
                     .title(removeFileExtension(originalFilename))
                     .originalName(originalFilename)  // 保存原始文件名
                     .url(imageUrl)
                     .thumbnailUrl(imageUrl)
                     .fileKey(fileKey)
-                    .size(file.getSize())
+                    .filePath(fileKey)  // 兼容数据库file_path字段
+                    .fileSize(file.getSize())
+                    .mimeType(file.getContentType())
+                    .format(getFileFormat(file.getContentType()))
                     .sizeFormatted(formatFileSize(file.getSize()))
                     .fileType(getFileType(file.getContentType()))
                     .albumId(albumId)
@@ -1796,6 +1806,17 @@ public class ImageServiceImpl implements ImageService {
         if (mimeType.contains("gif")) return "gif";
         if (mimeType.contains("webp")) return "webp";
         return "jpg";
+    }
+    
+    private String getFileFormat(String mimeType) {
+        if (mimeType == null) return "JPEG";
+        if (mimeType.contains("png")) return "PNG";
+        if (mimeType.contains("gif")) return "GIF";
+        if (mimeType.contains("webp")) return "WEBP";
+        if (mimeType.contains("bmp")) return "BMP";
+        if (mimeType.contains("tiff")) return "TIFF";
+        if (mimeType.contains("svg")) return "SVG";
+        return "JPEG";
     }
     
     @Override
@@ -2080,7 +2101,7 @@ public class ImageServiceImpl implements ImageService {
                 // 从URL提取文件名（用于检查重复）
                 String urlFileName = null;
                 try {
-                    String path = new java.net.URL(imageUrl).getPath();
+                    String path = java.net.URI.create(imageUrl).getPath();
                     if (path != null && path.contains("/")) {
                         urlFileName = path.substring(path.lastIndexOf("/") + 1);
                     }
@@ -2120,7 +2141,8 @@ public class ImageServiceImpl implements ImageService {
                     }
                     
                     // 从URL下载图片
-                    java.net.URL url = new java.net.URL(imageUrl);
+                    java.net.URI uri = java.net.URI.create(imageUrl);
+                    java.net.URL url = uri.toURL();
                     java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
                     connection.setRequestMethod("GET");
                     connection.setConnectTimeout(10000);
@@ -2417,12 +2439,16 @@ public class ImageServiceImpl implements ImageService {
             // 创建图片记录
             Image image = Image.builder()
                     .id(UUID.randomUUID().toString())
+                    .name(removeFileExtension(originalFilename))
                     .title(removeFileExtension(originalFilename))
                     .originalName(originalFilename)
                     .url(imageUrl)
                     .thumbnailUrl(imageUrl)
                     .fileKey(fileKey)
-                    .size((long) file.getBytes().length)
+                    .filePath(fileKey)  // 兼容数据库file_path字段
+                    .fileSize((long) file.getBytes().length)
+                    .mimeType(file.getContentType())
+                    .format(getFileFormat(file.getContentType()))
                     .sizeFormatted(formatFileSize((long) file.getBytes().length))
                     .fileType(getFileType(file.getContentType()))
                     .albumId(finalAlbumId)
@@ -2463,7 +2489,8 @@ public class ImageServiceImpl implements ImageService {
     private String getFileExtensionFromUrl(String url) {
         if (url == null) return ".jpg";
         try {
-            java.net.URL urlObj = new java.net.URL(url);
+            java.net.URI uriObj = java.net.URI.create(url);
+            java.net.URL urlObj = uriObj.toURL();
 
             // 先从URL路径中提取扩展名
             String path = urlObj.getPath();
@@ -2784,108 +2811,143 @@ public class ImageServiceImpl implements ImageService {
      * @return 是否成功添加
      */
     private boolean addImageToZip(org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos, Image image, String folderName, String prefix, Integer detailIndex) {
-        byte[] imageData = null;
+        java.io.InputStream imageStream = null;
         
-        // 方式1：从本地存储读取（thumbnailUrl存储了完整URL或本地路径）
-        if (image.getThumbnailUrl() != null && !image.getThumbnailUrl().isEmpty()) {
-            try {
+        // 优先使用流式写入，避免大图片占内存
+        try {
+            // 方式1：从 S3/本地存储获取 InputStream
+            if (image.getThumbnailUrl() != null && !image.getThumbnailUrl().isEmpty()) {
                 String localPath = image.getThumbnailUrl();
                 
-                // 如果是完整URL（如 http://localhost:8080/api/uploads/images/xxx.jpg）
-                // 提取路径部分
+                // 如果是完整URL，提取路径部分
                 if (localPath.startsWith("http://") || localPath.startsWith("https://")) {
-                    java.net.URL url = new java.net.URL(localPath);
-                    localPath = url.getPath(); // 提取 /api/uploads/images/xxx.jpg
+                    // S3 URL 直接下载（不提取路径）
+                    if (localPath.contains("s3.") || localPath.contains("amazonaws") || localPath.contains("oss-") || localPath.contains("coze-")) {
+                        try {
+                            imageStream = downloadStreamFromUrl(localPath);
+                            log.debug("从S3 URL获取图片流：{}", localPath);
+                        } catch (Exception e) {
+                            log.warn("从S3 URL获取流失败：{} - {}", localPath, e.getMessage());
+                        }
+                    }
+                    
+                    if (imageStream == null) {
+                        try {
+                            java.net.URI uri = java.net.URI.create(localPath);
+                            localPath = uri.getPath();
+                        } catch (java.net.MalformedURLException e) {
+                            log.warn("URL解析失败，尝试直接作为路径使用：{} - {}", localPath, e.getMessage());
+                            // 不是有效URL，直接作为本地路径使用
+                        }
+                    }
                 }
                 
-                // 去掉开头的 /uploads/ 或 /api/uploads/ 前缀，获取相对路径
-                if (localPath.startsWith("/api/uploads/")) {
-                    localPath = localPath.substring("/api/uploads/".length());
-                } else if (localPath.startsWith("/uploads/")) {
-                    localPath = localPath.substring("/uploads/".length());
+                if (imageStream == null) {
+                    // 去掉前缀，获取相对路径
+                    if (localPath.startsWith("/api/uploads/")) {
+                        localPath = localPath.substring("/api/uploads/".length());
+                    } else if (localPath.startsWith("/uploads/")) {
+                        localPath = localPath.substring("/uploads/".length());
+                    }
+                    
+                    try {
+                        imageStream = fileStorageService.getFileInputStream(localPath);
+                        log.debug("从存储服务获取图片流：thumbnailUrl={}, 提取路径={}", image.getThumbnailUrl(), localPath);
+                    } catch (Exception e) {
+                        log.warn("从存储服务读取失败：{} - {}", image.getThumbnailUrl(), e.getMessage());
+                    }
                 }
-                
-                log.debug("尝试从本地存储读取图片：thumbnailUrl={}, 提取路径={}", image.getThumbnailUrl(), localPath);
-                java.io.InputStream inputStream = fileStorageService.getFileInputStream(localPath);
-                if (inputStream != null) {
-                    imageData = inputStream.readAllBytes();
-                    inputStream.close();
+            }
+            
+            // 方式2：从原始URL获取流
+            if (imageStream == null && image.getUrl() != null && !image.getUrl().isEmpty()) {
+                try {
+                    imageStream = downloadStreamFromUrl(image.getUrl());
+                    log.debug("从URL获取图片流：{}", image.getUrl());
+                } catch (Exception e) {
+                    log.error("从URL获取图片流失败：{} - {}", image.getUrl(), e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("从本地存储读取失败，尝试从URL下载：{} - {}", image.getThumbnailUrl(), e.getMessage());
             }
-        }
-        
-        // 方式2：从URL下载（如果本地存储失败）
-        if ((imageData == null || imageData.length == 0) && image.getUrl() != null && !image.getUrl().isEmpty()) {
-            try {
-                imageData = downloadImageFromUrl(image.getUrl());
-                log.debug("从URL下载图片成功：{}", image.getUrl());
-            } catch (Exception e) {
-                log.error("从URL下载图片失败：{} - {}", image.getUrl(), e.getMessage());
+            
+            if (imageStream == null) {
+                log.warn("无法获取图片数据流：id={}, url={}, thumbnailUrl={}", image.getId(), image.getUrl(), image.getThumbnailUrl());
+                return false;
             }
-        }
-        
-        // 检查是否成功获取图片数据
-        if (imageData == null || imageData.length == 0) {
-            log.warn("无法获取图片数据，跳过：{} (fileKey={}, url={})", 
-                image.getId(), image.getFileKey(), image.getUrl());
-            return false;
-        }
-        
-        // 获取文件扩展名
-        String originalName = image.getOriginalName();
-        String extension = ".jpg";
-        if (originalName != null && originalName.contains(".")) {
-            extension = originalName.substring(originalName.lastIndexOf("."));
-        } else if (image.getFileType() != null) {
-            extension = "." + image.getFileType().toLowerCase();
-        }
-        
-        // 获取原始文件名（去掉扩展名）
-        String baseName = "未命名";
-        if (originalName != null && originalName.contains(".")) {
-            baseName = originalName.substring(0, originalName.lastIndexOf("."));
-        } else if (image.getTitle() != null && !image.getTitle().isEmpty()) {
-            baseName = image.getTitle();
-        }
-        
-        // 构建文件名：主图_原始名称.png 或 详情图_1_原始名称.png
-        String fileName;
-        if (detailIndex != null) {
-            fileName = String.format("%s/详情图_%d_%s%s", folderName, detailIndex, baseName, extension);
-        } else {
-            fileName = String.format("%s/主图_%s%s", folderName, baseName, extension);
-        }
-        
-        // 使用 Apache Commons Compress 的 ZipArchiveEntry
-        org.apache.commons.compress.archivers.zip.ZipArchiveEntry entry = 
-            new org.apache.commons.compress.archivers.zip.ZipArchiveEntry(fileName);
-        entry.setSize(imageData.length);
-        // 设置压缩方法
-        entry.setMethod(org.apache.commons.compress.archivers.zip.ZipArchiveEntry.DEFLATED);
-        
-        try {
-            zos.putArchiveEntry(entry);
-            zos.write(imageData);
-            zos.closeArchiveEntry();
-            log.debug("添加图片到ZIP：{} ({} bytes)", fileName, imageData.length);
-            return true;
-        } catch (Exception e) {
-            log.error("添加图片到ZIP失败：{}", image.getId(), e);
-            // 尝试关闭当前条目以避免损坏ZIP
+            
+            // 构建文件名
+            String baseName = image.getTitle() != null ? image.getTitle() : image.getId().toString();
+            String extension = ".jpg";
+            if (image.getUrl() != null) {
+                String urlLower = image.getUrl().toLowerCase();
+                if (urlLower.contains(".png")) extension = ".png";
+                else if (urlLower.contains(".gif")) extension = ".gif";
+                else if (urlLower.contains(".webp")) extension = ".webp";
+                else if (urlLower.contains(".jpeg")) extension = ".jpeg";
+            }
+            
+            String fileName;
+            if (prefix != null) {
+                fileName = String.format("%s/%s_%s%s", folderName, prefix, baseName, extension);
+            } else if (detailIndex != null) {
+                fileName = String.format("%s/详情图_%d_%s%s", folderName, detailIndex, baseName, extension);
+            } else {
+                fileName = String.format("%s/主图_%s%s", folderName, baseName, extension);
+            }
+            
+            // 流式写入 ZIP（边读边写，不缓存到内存）
+            org.apache.commons.compress.archivers.zip.ZipArchiveEntry entry = 
+                new org.apache.commons.compress.archivers.zip.ZipArchiveEntry(fileName);
+            // 不设置 size（流式模式无法预知大小）
+            entry.setMethod(org.apache.commons.compress.archivers.zip.ZipArchiveEntry.DEFLATED);
+            
             try {
+                zos.putArchiveEntry(entry);
+                byte[] buffer = new byte[8192]; // 8KB buffer
+                int bytesRead;
+                long totalWritten = 0;
+                while ((bytesRead = imageStream.read(buffer)) != -1) {
+                    zos.write(buffer, 0, bytesRead);
+                    totalWritten += bytesRead;
+                }
                 zos.closeArchiveEntry();
-            } catch (Exception ignored) {}
-            return false;
+                log.debug("流式添加图片到ZIP：{} ({})", fileName, totalWritten > 1024*1024 ? String.format("%.1fMB", totalWritten/(1024.0*1024)) : String.format("%.0fKB", totalWritten/1024.0));
+                return true;
+            } catch (Exception e) {
+                log.error("流式写入ZIP失败：{}", image.getId(), e);
+                try { zos.closeArchiveEntry(); } catch (Exception ignored) {}
+                return false;
+            }
+        } finally {
+            if (imageStream != null) {
+                try { imageStream.close(); } catch (Exception ignored) {}
+            }
         }
     }
     
     /**
-     * 从URL下载图片数据
+     * 从URL获取InputStream（流式下载）
+     */
+    private java.io.InputStream downloadStreamFromUrl(String urlString) throws Exception {
+        java.net.URI uri = java.net.URI.create(urlString);
+        java.net.URL url = uri.toURL();
+        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(30000);
+        conn.setRequestProperty("User-Agent", "ImageManager/1.0");
+        int responseCode = conn.getResponseCode();
+        if (responseCode != 200) {
+            conn.disconnect();
+            throw new Exception("HTTP " + responseCode + " for " + urlString);
+        }
+        return conn.getInputStream();
+    }
+
+    /**
+     * 从URL下载图片数据（旧版本，仅用于兼容）
      */
     private byte[] downloadImageFromUrl(String imageUrl) throws Exception {
-        java.net.URL url = new java.net.URL(imageUrl);
+        java.net.URI uri = java.net.URI.create(imageUrl);
+        java.net.URL url = uri.toURL();
         java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(30000);

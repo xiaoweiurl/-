@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -23,8 +23,10 @@ public class MemorySearchResult {
     private UUID cardId;
     private String title;
     private String content;
-    private BigDecimal score;
+    private String chunkText;
+    private Double score;
     private String confidence;
     private String source;
     private UUID sourceDocId;
+    private LocalDateTime createdAt;
 }

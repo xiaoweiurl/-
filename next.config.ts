@@ -5,10 +5,24 @@ const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
   serverExternalPackages: ['pg'],
+  // 生产环境性能优化
+  compress: true,           // Gzip压缩响应
+  poweredByHeader: false,   // 移除X-Powered-By头
+  // 输出模式优化
+  ...(process.env.NODE_ENV === 'production' ? {
+    output: 'standalone' as const,  // 减少Docker镜像体积
+  } : {}),
   experimental: {
     serverActions: {
       bodySizeLimit: '512mb', // 支持最大 512MB 的请求体
     },
+  },
+  // HTTP缓存优化（静态资源）
+  onDemandEntries: {
+    // 页面在内存中缓存时间(ms)
+    maxInactiveAge: 60 * 1000,
+    // 同时保持的页面数
+    pagesBufferLength: 5,
   },
   images: {
     remotePatterns: [
@@ -63,6 +77,26 @@ const nextConfig: NextConfig = {
   // 图片代理通过 API Route 实现（/api/uploads/[[...path]]/route.ts）
   async headers() {
     return [
+      // 静态资源缓存（JS/CSS/图片）
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // 上传的图片缓存
+      {
+        source: '/api/uploads/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=3600',
+          },
+        ],
+      },
       {
         source: '/:path*',
         headers: [

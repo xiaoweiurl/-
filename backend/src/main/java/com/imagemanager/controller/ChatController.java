@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 智能对话控制器 - 双库检索(知识库+记忆库) + MiniMax流式对话
+ * 智能对话控制器 - 双库检索(知识库+记忆库) + Ollama流式对话
  * 前端 Next.js /chat 页面专用
  * 支持多对话管理，对话历史按 conversationId 隔离
  */

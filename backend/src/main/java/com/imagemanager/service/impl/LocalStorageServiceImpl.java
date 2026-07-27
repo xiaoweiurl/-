@@ -3,13 +3,11 @@ package com.imagemanager.service.impl;
 import com.imagemanager.config.StorageConfig;
 import com.imagemanager.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,16 +20,23 @@ import java.util.UUID;
  * @version 1.0.0
  */
 @Slf4j
-@Service
 public class LocalStorageServiceImpl implements FileStorageService {
     
-    @Autowired
     private StorageConfig storageConfig;
-    
     private Path uploadPath;
     private String baseUrl;
     
-    @PostConstruct
+    public LocalStorageServiceImpl() {
+    }
+    
+    public LocalStorageServiceImpl(StorageConfig storageConfig) {
+        this.storageConfig = storageConfig;
+    }
+    
+    public void setStorageConfig(StorageConfig storageConfig) {
+        this.storageConfig = storageConfig;
+    }
+    
     public void init() {
         this.uploadPath = Paths.get(storageConfig.getLocalPath()).toAbsolutePath().normalize();
         this.baseUrl = storageConfig.getBaseUrl();
@@ -58,7 +63,7 @@ public class LocalStorageServiceImpl implements FileStorageService {
                     : ".jpg";
             
             String fileName = UUID.randomUUID().toString() + extension;
-            String fullPath = path.isEmpty() ? fileName : path + "/" + fileName;
+            String fullPath = (path == null || path.isEmpty()) ? fileName : path + "/" + fileName;
             
             Path targetPath = uploadPath.resolve(fullPath);
             Files.createDirectories(targetPath.getParent());
@@ -93,7 +98,7 @@ public class LocalStorageServiceImpl implements FileStorageService {
     @Override
     public String getFileUrl(String fileKey) {
         // 如果已经是完整URL，直接返回
-        if (fileKey != null && fileKey.startsWith("http")) {
+        if (fileKey != null && (fileKey.startsWith("http://") || fileKey.startsWith("https://"))) {
             return fileKey;
         }
         // 如果是相对路径，拼接 baseUrl
@@ -112,18 +117,7 @@ public class LocalStorageServiceImpl implements FileStorageService {
     @Override
     public boolean deleteFile(String fileKey) {
         try {
-            String path = fileKey.startsWith(baseUrl + "/uploads/") 
-                    ? fileKey.substring((baseUrl + "/uploads/").length())
-                    : fileKey.startsWith("/uploads/") 
-                        ? fileKey.substring("/uploads/".length()) 
-                        : fileKey;
-            // 如果是完整URL，提取路径部分
-            if (path.startsWith("http")) {
-                int idx = path.indexOf("/uploads/");
-                if (idx >= 0) {
-                    path = path.substring(idx + "/uploads/".length());
-                }
-            }
+            String path = extractLocalPath(fileKey);
             Path targetPath = uploadPath.resolve(path);
             return Files.deleteIfExists(targetPath);
         } catch (IOException e) {
@@ -135,10 +129,10 @@ public class LocalStorageServiceImpl implements FileStorageService {
     @Override
     public String getStorageKey(String fileKey) {
         // 提取存储key（去掉baseUrl和/uploads前缀）
-        if (fileKey.startsWith(baseUrl + "/uploads/")) {
+        if (fileKey != null && fileKey.startsWith(baseUrl + "/uploads/")) {
             return fileKey.substring((baseUrl + "/uploads/").length());
         }
-        if (fileKey.startsWith("/uploads/")) {
+        if (fileKey != null && fileKey.startsWith("/uploads/")) {
             return fileKey.substring("/uploads/".length());
         }
         return fileKey;
@@ -146,18 +140,7 @@ public class LocalStorageServiceImpl implements FileStorageService {
     
     @Override
     public InputStream getFileInputStream(String fileKey) throws Exception {
-        String path = fileKey.startsWith(baseUrl + "/uploads/") 
-                ? fileKey.substring((baseUrl + "/uploads/").length())
-                : fileKey.startsWith("/uploads/") 
-                    ? fileKey.substring("/uploads/".length()) 
-                    : fileKey;
-        // 如果是完整URL，提取路径部分
-        if (path.startsWith("http")) {
-            int idx = path.indexOf("/uploads/");
-            if (idx >= 0) {
-                path = path.substring(idx + "/uploads/".length());
-            }
-        }
+        String path = extractLocalPath(fileKey);
         Path targetPath = uploadPath.resolve(path);
         if (!Files.exists(targetPath)) {
             throw new IOException("文件不存在: " + path);
@@ -168,23 +151,44 @@ public class LocalStorageServiceImpl implements FileStorageService {
     @Override
     public boolean fileExists(String fileKey) {
         try {
-            String path = fileKey.startsWith(baseUrl + "/uploads/") 
-                    ? fileKey.substring((baseUrl + "/uploads/").length())
-                    : fileKey.startsWith("/uploads/") 
-                        ? fileKey.substring("/uploads/".length()) 
-                        : fileKey;
-            // 如果是完整URL，提取路径部分
-            if (path.startsWith("http")) {
-                int idx = path.indexOf("/uploads/");
-                if (idx >= 0) {
-                    path = path.substring(idx + "/uploads/".length());
-                }
-            }
+            String path = extractLocalPath(fileKey);
             Path targetPath = uploadPath.resolve(path);
             return Files.exists(targetPath);
         } catch (Exception e) {
             log.error("检查文件存在性失败: {}", fileKey, e);
             return false;
         }
+    }
+    
+    /**
+     * 从fileKey中提取本地相对路径
+     * 处理各种格式：完整URL、带baseUrl前缀、带/uploads前缀、纯相对路径
+     */
+    private String extractLocalPath(String fileKey) {
+        if (fileKey == null) return "";
+        String path = fileKey;
+        
+        // 完整HTTP URL，提取路径部分
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            try {
+                URI uri = URI.create(path);
+                path = uri.getPath();
+            } catch (Exception e) {
+                log.warn("URL解析失败，尝试字符串截取: {}", fileKey);
+            }
+        }
+        
+        // 去掉前缀
+        if (path.startsWith(baseUrl + "/uploads/")) {
+            path = path.substring((baseUrl + "/uploads/").length());
+        } else if (path.startsWith("/api/uploads/")) {
+            path = path.substring("/api/uploads/".length());
+        } else if (path.startsWith("/uploads/")) {
+            path = path.substring("/uploads/".length());
+        } else if (path.startsWith("uploads/")) {
+            path = path.substring("uploads/".length());
+        }
+        
+        return path;
     }
 }

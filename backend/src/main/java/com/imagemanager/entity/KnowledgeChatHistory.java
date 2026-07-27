@@ -30,7 +30,7 @@ public class KnowledgeChatHistory {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "sources", columnDefinition = "JSONB")
+    @Column(name = "sources", columnDefinition = "TEXT")
     private String sources;
 
     @Column(name = "user_id", length = 100)

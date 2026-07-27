@@ -2,11 +2,8 @@ package com.imagemanager.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -53,9 +50,8 @@ public class KnowledgeBaseDoc {
     @Column(name = "embedding_status", length = 20)
     private String embeddingStatus = "PENDING";
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(columnDefinition = "text[]")
-    private List<String> tags;
+    @Column(columnDefinition = "TEXT")
+    private String tags;
 
     @Column(length = 20)
     private String company;

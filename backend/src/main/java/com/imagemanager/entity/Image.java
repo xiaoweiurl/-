@@ -8,13 +8,21 @@ import lombok.Builder;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 /**
  * 图片实体类
  * 
+ * 字段映射以 schema_complete.sql 中 images 表定义为准：
+ * - name (NOT NULL) → 图片名称
+ * - file_path (NOT NULL) → 文件存储路径
+ * - file_size (NOT NULL) → 文件大小
+ * - mime_type → MIME类型
+ * - format → 文件格式
+ * - uploader_id → 上传者ID
+ * - taken_at → 拍摄时间
+ * 
  * @author Image Manager Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Data
 @NoArgsConstructor
@@ -29,15 +37,18 @@ import java.util.Set;
 })
 public class Image {
     
-    /**
-     * 图片ID
-     */
     @Id
     @Column(length = 36)
     private String id;
     
     /**
-     * 图片标题
+     * 图片名称（数据库 NOT NULL 字段，值与 title 相同）
+     */
+    @Column(length = 500, nullable = false)
+    private String name;
+    
+    /**
+     * 图片标题（显示名称）
      */
     @Column(length = 255)
     private String title;
@@ -49,39 +60,77 @@ public class Image {
     private String description;
     
     /**
-     * 图片URL
+     * 原始文件名
      */
-    @Column(length = 500)
-    private String url;
+    @Column(name = "original_name", length = 500)
+    private String originalName;
     
     /**
-     * 图片原始URL（导入时的原始链接）
+     * 文件存储路径（NOT NULL，本地模式为本地路径，S3模式为 S3 key）
      */
-    @Column(length = 500)
-    private String originalUrl;
+    @Column(name = "file_path", length = 1000, nullable = false)
+    private String filePath;
+    
+    /**
+     * 文件存储Key（对象存储中的路径，与 filePath 值相同）
+     */
+    @Column(name = "file_key", length = 500)
+    private String fileKey;
+    
+    /**
+     * 图片URL（访问地址）
+     */
+    @Column(length = 1000)
+    private String url;
     
     /**
      * 图片缩略图URL
      */
-    @Column(length = 500)
+    @Column(name = "thumbnail_url", length = 1000)
     private String thumbnailUrl;
     
     /**
-     * 文件存储Key（对象存储中的路径）
+     * 图片原始URL（导入时的原始链接）
      */
-    @Column(length = 500)
-    private String fileKey;
+    @Column(name = "original_url", length = 1000)
+    private String originalUrl;
     
     /**
-     * 文件大小（字节）
+     * 文件大小（字节）- 映射数据库 file_size 列 (NOT NULL)
      */
-    private Long size;
+    @Column(name = "file_size", nullable = false)
+    private Long fileSize;
     
     /**
      * 文件大小（格式化字符串，如 "2.4 MB"）
      */
-    @Column(length = 20)
+    @Column(name = "size_formatted", length = 20)
     private String sizeFormatted;
+
+    /**
+     * 文件大小（兼容旧列，nullable）
+     * 数据库同时有 size(nullable) 和 file_size(NOT NULL)
+     */
+    @Column(name = "size")
+    private Long size;
+    
+    /**
+     * MIME类型（如 image/jpeg）
+     */
+    @Column(name = "mime_type", length = 100)
+    private String mimeType;
+    
+    /**
+     * 文件格式（如 JPEG、PNG）
+     */
+    @Column(length = 50)
+    private String format;
+    
+    /**
+     * 文件类型简写（jpg, png, gif等）- 兼容旧逻辑
+     */
+    @Column(name = "file_type", length = 10)
+    private String fileType;
     
     /**
      * 图片宽度（像素）
@@ -100,16 +149,16 @@ public class Image {
     private String resolution;
     
     /**
-     * 文件类型（jpg, png, gif等）
+     * 拍摄时间
      */
-    @Column(length = 10)
-    private String fileType;
+    @Column(name = "taken_at")
+    private LocalDateTime takenAt;
     
     /**
-     * 原始文件名
+     * 上传者ID
      */
-    @Column(length = 255)
-    private String originalName;
+    @Column(name = "uploader_id", length = 36)
+    private String uploaderId;
     
     /**
      * 所属相册ID
@@ -120,7 +169,7 @@ public class Image {
     /**
      * 相册名称
      */
-    @Column(length = 100)
+    @Column(name = "album_name", length = 100)
     private String albumName;
     
     /**
@@ -148,13 +197,44 @@ public class Image {
     /**
      * AI识别置信度（0-100）
      */
+    @Column(name = "ai_confidence")
     private Double aiConfidence;
     
     /**
      * 分类方法（filename-文件名匹配, llm-AI识别, user-用户指定）
      */
-    @Column(length = 20)
+    @Column(name = "classify_method", length = 20)
     private String classifyMethod;
+    
+    /**
+     * 所属公司（宝娜斯/盈云）
+     */
+    @Column(length = 50)
+    private String company;
+    
+    /**
+     * 图片来源：knowledge=知识图片，creative=二创AI图片，upload=上传
+     */
+    @Column(length = 20)
+    private String source;
+    
+    /**
+     * 上传用户ID
+     */
+    @Column(name = "user_id", length = 36)
+    private String userId;
+    
+    /**
+     * 是否已删除（回收站标记）
+     */
+    @Column(columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean deleted;
+    
+    /**
+     * 删除时间
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
     
     /**
      * 上传时间
@@ -169,43 +249,15 @@ public class Image {
     private LocalDateTime updatedAt;
     
     /**
-     * 上传用户ID
-     */
-    @Column(name = "user_id", length = 36)
-    private String userId;
-
-    /**
-     * 所属公司（宝娜斯/盈云）
-     */
-    @Column(length = 20)
-    private String company;
-
-    /**
-     * 图片来源：knowledge=知识图片，creative=二创AI图片
-     */
-    @Column(length = 20)
-    private String source;
-
-    /**
-     * 是否已删除（回收站标记）
-     */
-    @Column(columnDefinition = "BOOLEAN DEFAULT FALSE")
-    private Boolean deleted;
-    
-    /**
-     * 删除时间
-     */
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-    
-    /**
      * 浏览次数
      */
+    @Column(name = "view_count")
     private Integer viewCount;
     
     /**
      * 下载次数
      */
+    @Column(name = "download_count")
     private Integer downloadCount;
     
     /**
@@ -215,8 +267,19 @@ public class Image {
     private String productId;
     
     /**
+     * 是否为主图
+     */
+    @Column(name = "is_main_image", columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean isMainImage;
+    
+    /**
+     * 显示顺序（用于排序详情图）
+     */
+    @Column(name = "display_order")
+    private Integer displayOrder;
+    
+    /**
      * 来源表名（动态表方案中使用，不持久化）
-     * 用于记录图片来自哪张用户表（如 images_user_1）
      */
     @Transient
     private String sourceTable;
@@ -229,17 +292,6 @@ public class Image {
     public void setSourceTable(String sourceTable) {
         this.sourceTable = sourceTable;
     }
-    /**
-     * 是否为主图
-     */
-    @Column(name = "is_main_image", columnDefinition = "BOOLEAN DEFAULT FALSE")
-    private Boolean isMainImage;
-    
-    /**
-     * 显示顺序（用于排序详情图）
-     */
-    @Column(name = "display_order")
-    private Integer displayOrder;
 
     /**
      * 实体加载后自动处理 URL

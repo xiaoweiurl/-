@@ -1,0 +1,368 @@
+package com.imagemanager.service.impl;
+
+import com.imagemanager.config.StorageConfig;
+import com.imagemanager.service.FileStorageService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.net.URI;
+import java.time.Duration;
+import java.util.UUID;
+
+/**
+ * S3兼容对象存储实现
+ * 支持任何S3兼容的对象存储服务（MinIO、阿里云OSS、AWS S3等）
+ */
+@Slf4j
+public class S3StorageServiceImpl implements FileStorageService {
+
+    private final StorageConfig storageConfig;
+    private S3Client s3Client;
+    private S3Presigner s3Presigner;
+    private boolean initialized = false;
+
+    public S3StorageServiceImpl(StorageConfig storageConfig) {
+        this.storageConfig = storageConfig;
+        init();
+    }
+
+    /**
+     * 初始化S3客户端
+     */
+    public void init() {
+        if (!"s3".equalsIgnoreCase(storageConfig.getType())) {
+            log.info("[Storage] 存储类型为 local，跳过 S3 初始化");
+            return;
+        }
+
+        try {
+            AwsBasicCredentials credentials = AwsBasicCredentials.create(
+                    storageConfig.getS3AccessKey(),
+                    storageConfig.getS3SecretKey()
+            );
+
+            // 阿里云OSS S3兼容配置（官方文档要求）
+            S3Configuration s3Config = S3Configuration.builder()
+                    .pathStyleAccessEnabled(false)      // 虚拟托管风格：bucket名在域名中
+                    .chunkedEncodingEnabled(false)      // OSS不支持分块传输编码
+                    .build();
+
+            // S3 Client - 阿里云OSS使用 AWS_GLOBAL region
+            var clientBuilder = S3Client.builder()
+                    .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                    .region(Region.AWS_GLOBAL)
+                    .serviceConfiguration(s3Config);
+
+            // S3 Presigner - 同样使用 AWS_GLOBAL region
+            var presignerBuilder = S3Presigner.builder()
+                    .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                    .region(Region.AWS_GLOBAL)
+                    .serviceConfiguration(s3Config);
+
+            // 自定义端点（阿里云OSS）
+            String endpoint = storageConfig.getS3Endpoint();
+            if (endpoint != null && !endpoint.isEmpty()) {
+                URI endpointUri = URI.create(endpoint);
+                clientBuilder.endpointOverride(endpointUri);
+                presignerBuilder.endpointOverride(endpointUri);
+            }
+
+            this.s3Client = clientBuilder.build();
+            this.s3Presigner = presignerBuilder.build();
+
+            // 确保存储桶存在
+            ensureBucketExists();
+            this.initialized = true;
+
+            log.info("[Storage] S3 存储初始化成功 - endpoint: {}, bucket: {}",
+                    storageConfig.getS3Endpoint(), storageConfig.getS3BucketName());
+        } catch (Exception e) {
+            log.error("[Storage] S3 存储初始化失败", e);
+            this.initialized = false;
+        }
+    }
+
+    /**
+     * 测试S3连接是否可用
+     */
+    public void testConnection() {
+        if (!initialized) {
+            throw new RuntimeException("S3 客户端未初始化");
+        }
+        // 阿里云OSS的headBucket即使bucket存在也返回403，不能用headBucket测试连接
+        // 改用listObjectsV2限制1条来验证连接和bucket可访问性
+        String bucket = storageConfig.getS3BucketName();
+        try {
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .maxKeys(1)
+                    .build();
+            s3Client.listObjectsV2(listRequest);
+            log.info("[Storage] S3 连接测试成功 - bucket: {}", bucket);
+        } catch (S3Exception e) {
+            // 403可能是bucket存在但AccessKey权限不足（无oss:ListObjects权限）
+            // 但headBucket已确认bucket存在（ensureBucketExists通过），仍然可以写入
+            if (e.statusCode() == 403) {
+                log.warn("[Storage] listObjectsV2返回403（可能缺少ListObjects权限），但headBucket已确认bucket存在，继续使用S3存储");
+                // 不抛异常，允许继续使用（写入权限可能正常，只是读取列表权限受限）
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private void ensureBucketExists() {
+        String bucket = storageConfig.getS3BucketName();
+        try {
+            HeadBucketRequest headBucketRequest = HeadBucketRequest.builder()
+                    .bucket(bucket)
+                    .build();
+            s3Client.headBucket(headBucketRequest);
+            log.info("[Storage] 存储桶已存在: {}", bucket);
+        } catch (S3Exception e) {
+            if (e.statusCode() == 403 || e.statusCode() == 404) {
+                // 阿里云OSS: headBucket对已有bucket也可能返回403（S3兼容接口特性）
+                // 尝试createBucket来确认bucket是否存在
+                log.warn("[Storage] headBucket返回{}，尝试确认bucket: {}", e.statusCode(), bucket);
+                try {
+                    CreateBucketRequest createBucketRequest = CreateBucketRequest.builder()
+                            .bucket(bucket)
+                            .build();
+                    s3Client.createBucket(createBucketRequest);
+                    log.info("[Storage] 创建存储桶成功: {}", bucket);
+                } catch (S3Exception ce) {
+                    if (ce.statusCode() == 409) {
+                        // 409 = BucketAlreadyExistsException: bucket名全局已存在（可能是自己刚创建的）
+                        // 这说明bucket已可用，不需要再创建，直接继续
+                        log.info("[Storage] bucket '{}' 已存在(409 BucketAlreadyExists)，无需创建，继续使用", bucket);
+                    } else {
+                        log.error("[Storage] 创建存储桶失败({}): AccessKey可能无创建权限。请到阿里云控制台手动创建bucket '{}'",
+                                ce.statusCode(), bucket);
+                        throw ce;
+                    }
+                }
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    // ===== FileStorageService 接口实现 =====
+
+    @Override
+    public String uploadFile(MultipartFile file, String path) {
+        checkInitialized();
+        try {
+            String originalFilename = file.getOriginalFilename();
+            String extension = originalFilename != null && originalFilename.contains(".")
+                    ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                    : ".jpg";
+
+            String fileName = UUID.randomUUID().toString() + extension;
+            String key = (path == null || path.isEmpty()) ? "images/" + fileName
+                    : (path.startsWith("/") ? path.substring(1) : path) + "/" + fileName;
+
+            String bucket = storageConfig.getS3BucketName();
+
+            // 使用 byte[] 方式上传，避免 InputStream + contentLength 兼容性问题
+            byte[] data = file.getBytes();
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
+                    .contentLength((long) data.length)
+                    .build();
+
+            s3Client.putObject(putRequest, RequestBody.fromBytes(data));
+            log.info("[Storage] 文件已上传到 S3: bucket={}, key={}, size={}", bucket, key, data.length);
+
+            return getPublicUrl(key);
+        } catch (Exception e) {
+            log.error("[Storage] MultipartFile 上传失败", e);
+            throw new RuntimeException("文件上传到S3失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String uploadFile(byte[] data, String fileName, String contentType) {
+        checkInitialized();
+        try {
+            String key = "images/" + fileName;
+            String bucket = storageConfig.getS3BucketName();
+            long size = data.length;
+
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType != null ? contentType : "application/octet-stream")
+                    .contentLength(size)
+                    .build();
+
+            s3Client.putObject(putRequest, RequestBody.fromBytes(data));
+            log.info("[Storage] 文件已上传到 S3: bucket={}, key={}, size={}", bucket, key, size);
+
+            return getPublicUrl(key);
+        } catch (Exception e) {
+            log.error("[Storage] byte[] 上传失败", e);
+            throw new RuntimeException("文件上传到S3失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String getFileUrl(String fileKey) {
+        checkInitialized();
+        // 如果已经是完整HTTP URL，直接返回
+        if (fileKey != null && (fileKey.startsWith("http://") || fileKey.startsWith("https://"))) {
+            return fileKey;
+        }
+        String key = fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
+        return getPublicUrl(key);
+    }
+
+    @Override
+    public String generatePresignedUrl(String fileKey, int expireSeconds) {
+        checkInitialized();
+        if (s3Presigner == null) {
+            throw new RuntimeException("S3 Presigner 未初始化");
+        }
+
+        String key = fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
+        String bucket = storageConfig.getS3BucketName();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofSeconds(expireSeconds))
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .build())
+                .build();
+
+        String url = s3Presigner.presignGetObject(presignRequest).url().toString();
+        log.debug("[Storage] 生成预签名URL: key={}, expire={}s", key, expireSeconds);
+        return url;
+    }
+
+    @Override
+    public boolean deleteFile(String fileKey) {
+        checkInitialized();
+        try {
+            // 如果是完整URL，提取key
+            String key = extractKeyFromUrl(fileKey);
+            String bucket = storageConfig.getS3BucketName();
+
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+
+            s3Client.deleteObject(deleteRequest);
+            log.info("[Storage] 文件已从 S3 删除: bucket={}, key={}", bucket, key);
+            return true;
+        } catch (Exception e) {
+            log.error("[Storage] 删除文件失败: {}", fileKey, e);
+            return false;
+        }
+    }
+
+    @Override
+    public String getStorageKey(String fileKey) {
+        return extractKeyFromUrl(fileKey);
+    }
+
+    @Override
+    public InputStream getFileInputStream(String fileKey) throws Exception {
+        checkInitialized();
+        String key = extractKeyFromUrl(fileKey);
+        String bucket = storageConfig.getS3BucketName();
+
+        GetObjectRequest getRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+
+        return s3Client.getObject(getRequest);
+    }
+
+    @Override
+    public boolean fileExists(String fileKey) {
+        checkInitialized();
+        try {
+            String key = extractKeyFromUrl(fileKey);
+            String bucket = storageConfig.getS3BucketName();
+
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+
+            s3Client.headObject(headRequest);
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.error("[Storage] 检查文件存在性失败: {}", fileKey, e);
+            return false;
+        }
+    }
+
+    // ===== 辅助方法 =====
+
+    private void checkInitialized() {
+        if (!initialized || s3Client == null) {
+            throw new RuntimeException("S3 客户端未初始化，请检查 app.storage.type 和 S3 配置");
+        }
+    }
+
+    /**
+     * 从URL或路径中提取S3 key
+     */
+    private String extractKeyFromUrl(String fileKey) {
+        if (fileKey == null) return "";
+        // 如果是完整HTTP URL，提取路径部分作为对象key
+        if (fileKey.startsWith("http://") || fileKey.startsWith("https://")) {
+            try {
+                URI uri = URI.create(fileKey);
+                String path = uri.getPath();
+                // 虚拟托管风格: https://{bucket}.s3.oss-cn-hangzhou.aliyuncs.com/{key}
+                // 路径只有 /key，不含 bucket名
+                // 路径风格: https://s3.oss-cn-hangzhou.aliyuncs.com/{bucket}/{key}
+                // 路径含 /{bucket}/{key}
+                String bucket = storageConfig.getS3BucketName();
+                String bucketPrefix = "/" + bucket + "/";
+                if (path.startsWith(bucketPrefix)) {
+                    // 路径风格，去掉bucket前缀
+                    return path.substring(bucketPrefix.length());
+                }
+                // 虚拟托管风格或直接路径，去掉开头的 /
+                return path.startsWith("/") ? path.substring(1) : path;
+            } catch (Exception e) {
+                log.warn("[Storage] URL解析失败，直接作为key使用: {}", fileKey);
+                return fileKey;
+            }
+        }
+        return fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
+    }
+
+    /**
+     * 生成公网访问URL
+     * 阿里云 OSS 默认私有读，使用预签名URL确保公网可访问
+     * 如果桶设置了公共读权限，可直接拼接公网URL
+     */
+    private String getPublicUrl(String key) {
+        // 优先使用预签名URL（OSS 默认私有读，预签名可保证公网可访问）
+        int expireSeconds = storageConfig.getPresignedUrlExpire() != null
+                ? storageConfig.getPresignedUrlExpire() : 604800; // 默认7天
+        return generatePresignedUrl(key, expireSeconds);
+    }
+}
