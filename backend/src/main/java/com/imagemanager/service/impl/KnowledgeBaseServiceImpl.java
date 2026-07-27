@@ -478,11 +478,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // Step 2: 关键词SQL预过滤 — 先缩小候选集范围
             String keywordFilter = "";
             if (!keywords.isEmpty()) {
-                // 构建关键词LIKE条件：chunk_text 或 title 包含任一关键词
+                // 构建关键词LIKE条件：chunk_text / title / file_name / file_content 包含任一关键词
                 StringBuilder likeConditions = new StringBuilder();
                 for (int i = 0; i < keywords.size(); i++) {
                     if (i > 0) likeConditions.append(" OR ");
-                    likeConditions.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ?");
+                    likeConditions.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ? OR d.file_content ILIKE ?");
                 }
                 keywordFilter = " AND (" + likeConditions + ") ";
             }
@@ -570,6 +570,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 finalResults = finalResults.subList(0, limit);
             }
             
+            // Step 7: 向量搜索结果为空时，降级到纯关键词搜索
+            if (finalResults.isEmpty() && !keywords.isEmpty()) {
+                log.info("知识库搜索: 向量搜索结果为空, 降级到纯关键词搜索, keywords={}", keywords);
+                List<MemorySearchResult> keywordResults = keywordSearchFallback(keywords, company, limit);
+                if (!keywordResults.isEmpty()) {
+                    log.info("知识库搜索: 关键词搜索兜底返回{}条结果", keywordResults.size());
+                    return keywordResults;
+                }
+            }
+            
             log.info("知识库搜索: 最终返回{}条结果(混合检索+智能截断)", finalResults.size());
             return finalResults;
         } catch (Exception e) {
@@ -643,8 +653,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private List<MemorySearchResult> executeHybridSearch(String sql, List<String> keywords, 
             String company, double minScore, int candidateLimit) {
         try {
-            // 构建 PreparedStatement 参数：关键词出现3次（chunk_text, title, file_name）
-            int keywordParams = keywords.size() * 3;
+            // 构建 PreparedStatement 参数：关键词出现4次（chunk_text, title, file_name, file_content）
+            int keywordParams = keywords.size() * 4;
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, company);
@@ -654,6 +664,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     ps.setString(idx++, likePattern);  // chunk_text ILIKE
                     ps.setString(idx++, likePattern);  // title ILIKE
                     ps.setString(idx++, likePattern);  // file_name ILIKE
+                    ps.setString(idx++, likePattern);  // file_content ILIKE
                 }
                 ps.setDouble(idx++, minScore);
                 ps.setInt(idx++, candidateLimit);
@@ -710,14 +721,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     
     /**
      * 纯关键词搜索降级（Embedding失败时的兜底方案）
+     * 同时搜索 embeddings.chunk_text 和 docs.file_content，确保表格数据也能命中
      */
     private List<MemorySearchResult> keywordSearchFallback(List<String> keywords, String company, int limit) {
         if (keywords.isEmpty()) return Collections.emptyList();
+        
+        List<MemorySearchResult> results = new ArrayList<>();
+        Set<String> seenDocIds = new HashSet<>();
+        
+        // 第一轮：搜索 embeddings 表的 chunk_text
         try {
             StringBuilder whereClause = new StringBuilder();
             for (int i = 0; i < keywords.size(); i++) {
                 if (i > 0) whereClause.append(" OR ");
-                whereClause.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ?");
+                whereClause.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ? OR d.file_content ILIKE ?");
             }
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
                     "d.file_name, d.category, e.chunk_index, e.created_at " +
@@ -729,14 +746,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "AND (" + whereClause + ") " +
                     "ORDER BY e.created_at DESC LIMIT ?";
             
-            return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
+            List<MemorySearchResult> embeddingResults = jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, company);
                 ps.setString(idx++, company);
                 for (String kw : keywords) {
-                    ps.setString(idx++, "%" + kw + "%");
-                    ps.setString(idx++, "%" + kw + "%");
-                    ps.setString(idx++, "%" + kw + "%");
+                    String likePattern = "%" + kw + "%";
+                    ps.setString(idx++, likePattern);  // chunk_text
+                    ps.setString(idx++, likePattern);  // title
+                    ps.setString(idx++, likePattern);  // file_name
+                    ps.setString(idx++, likePattern);  // file_content
                 }
                 ps.setInt(idx++, limit);
             }, (rs, rowNum) -> MemorySearchResult.builder()
@@ -750,13 +769,72 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .createdAt(rs.getTimestamp("created_at") != null ?
                             rs.getTimestamp("created_at").toLocalDateTime() : null)
                     .chunkText(rs.getString("chunk_text"))
-                    .score(0.5) // 关键词搜索没有向量分数，给默认分数
+                    .score(0.5)
                     .build()
             );
+            
+            for (MemorySearchResult r : embeddingResults) {
+                results.add(r);
+                if (r.getContent() != null) {
+                    seenDocIds.add(r.getContent().hashCode() + "_" + r.getSource());
+                }
+            }
+            log.info("关键词搜索embeddings表返回{}条结果", embeddingResults.size());
         } catch (Exception e) {
-            log.error("关键词搜索降级失败: {}", e.getMessage());
-            return Collections.emptyList();
+            log.warn("关键词搜索embeddings表失败: {}", e.getMessage());
         }
+        
+        // 第二轮：直接搜索 docs 表的 file_content（兜底，当embeddings切片丢失信息时）
+        if (results.isEmpty()) {
+            try {
+                StringBuilder docWhereClause = new StringBuilder();
+                for (int i = 0; i < keywords.size(); i++) {
+                    if (i > 0) docWhereClause.append(" OR ");
+                    docWhereClause.append("d.file_content ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ?");
+                }
+                String docSql = "SELECT d.id, d.title, d.file_content, " +
+                        "d.file_name, d.category, d.created_at " +
+                        "FROM knowledge_base_docs d " +
+                        "WHERE (d.company = ? OR d.company IS NULL) " +
+                        "AND (" + docWhereClause + ") " +
+                        "ORDER BY d.created_at DESC LIMIT ?";
+                
+                results = jdbcTemplate.query(docSql, (PreparedStatement ps) -> {
+                    int idx = 1;
+                    ps.setString(idx++, company);
+                    for (String kw : keywords) {
+                        String likePattern = "%" + kw + "%";
+                        ps.setString(idx++, likePattern);  // file_content
+                        ps.setString(idx++, likePattern);  // title
+                        ps.setString(idx++, likePattern);  // file_name
+                    }
+                    ps.setInt(idx++, limit);
+                }, (rs, rowNum) -> {
+                    String fileContent = rs.getString("file_content");
+                    // 截取前1500字符作为内容（避免过长）
+                    String displayContent = fileContent != null && fileContent.length() > 1500 
+                            ? fileContent.substring(0, 1500) + "..." : fileContent;
+                    return MemorySearchResult.builder()
+                        .id(UUID.fromString(rs.getString("id")))
+                        .title(rs.getString("title"))
+                        .content(displayContent)
+                        .domainCode("knowledge_base")
+                        .domainName("知识库")
+                        .source(rs.getString("file_name") + " [分类:" + rs.getString("category") + "]")
+                        .confidence("low")
+                        .createdAt(rs.getTimestamp("created_at") != null ?
+                                rs.getTimestamp("created_at").toLocalDateTime() : null)
+                        .chunkText(displayContent)
+                        .score(0.3)  // 文档级搜索分数较低
+                        .build();
+                });
+                log.info("关键词搜索docs表兜底返回{}条结果", results.size());
+            } catch (Exception e) {
+                log.error("关键词搜索docs表兜底失败: {}", e.getMessage());
+            }
+        }
+        
+        return results;
     }
     
     /**
