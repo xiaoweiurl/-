@@ -179,20 +179,43 @@ public class Image {
     private Boolean favorite;
     
     /**
-     * 标签列表
+     * 标签列表（映射 image_tags 表，该表有 tag_id NOT NULL 列）
      */
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "image_tags", joinColumns = @JoinColumn(name = "image_id"))
-    @Column(name = "tag", length = 50)
-    private List<String> tags;
+    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "image_id")
+    @JsonIgnore
+    @Builder.Default
+    private List<ImageTag> tagEntities = new ArrayList<>();
     
     /**
-     * AI识别的标签
+     * AI识别的标签（映射 image_ai_tags 表，该表无 tag_id 列，使用 @ElementCollection）
      */
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "image_ai_tags", joinColumns = @JoinColumn(name = "image_id"))
-    @Column(name = "tag", length = 50)
-    private List<String> aiTags;
+    @Column(name = "tag")
+    @Builder.Default
+    private List<String> aiTags = new ArrayList<>();
+    
+    /**
+     * 便捷方法：获取标签名称列表
+     */
+    @Transient
+    public List<String> getTags() {
+        return tagEntities != null ? tagEntities.stream().map(ImageTag::getTag).collect(java.util.stream.Collectors.toList()) : new ArrayList<>();
+    }
+    
+    /**
+     * 便捷方法：设置标签
+     */
+    public void setTags(List<String> tags) {
+        if (tags == null) {
+            this.tagEntities = new ArrayList<>();
+            return;
+        }
+        this.tagEntities = tags.stream()
+            .map(tag -> ImageTag.builder().imageId(this.id).tag(tag).tagType("manual").build())
+            .collect(java.util.stream.Collectors.toList());
+    }
     
     /**
      * AI识别置信度（0-100）

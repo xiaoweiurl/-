@@ -706,7 +706,7 @@ public class ImageServiceImpl implements ImageService {
                     .uploaderId(currentUserId)
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tags(finalTags != null ? new java.util.ArrayList<>(finalTags) : new java.util.ArrayList<>())
+                    .tagEntities(finalTags != null ? finalTags.stream().map(t -> new com.imagemanager.entity.ImageTag(null, null, t, null, null)).collect(java.util.stream.Collectors.toList()) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .isMainImage(true)  // 单独上传的图片默认为主图
@@ -1581,7 +1581,6 @@ public class ImageServiceImpl implements ImageService {
                     .albumId(albumId)
                     .albumName(albumName)
                     .aiTags(tags != null ? new java.util.ArrayList<>(tags) : new java.util.ArrayList<>())
-                    .aiTags(tags) // AI识别的标签
                     .aiConfidence(result.getConfidence())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
@@ -2453,7 +2452,7 @@ public class ImageServiceImpl implements ImageService {
                     .fileType(getFileType(file.getContentType()))
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tags(finalTags != null ? new java.util.ArrayList<>(finalTags) : new java.util.ArrayList<>())
+                    .tagEntities(finalTags != null ? finalTags.stream().map(t -> ImageTag.builder().tag(t).build()).collect(java.util.stream.Collectors.toList()) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
