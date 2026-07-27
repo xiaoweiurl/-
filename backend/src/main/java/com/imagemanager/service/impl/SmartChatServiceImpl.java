@@ -117,9 +117,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
-                // 4. 双库检索（工厂模式只检索供应链数据，不检索知识库/记忆库/岗位卡片）
+                // 4. 双库检索（工厂模式也检索知识库向量文档，不检索岗位卡片/外部知识）
                 // 外部知识意图不再跳过向量检索：用户可能上传了相关PDF，先查知识库，知识库无结果时再走联网搜索
-                boolean skipVectorSearch = isFactory || (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
+                boolean skipVectorSearch = (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
 
                 // 4a. 岗位卡片向量检索（仅设计师模式）
                 List<Map<String, Object>> positionCardResults = Collections.emptyList();
@@ -158,7 +158,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.warn("知识库检索异常: {}", e.getMessage());
                     }
                 } else {
-                    String reason = isFactory ? "工厂模式" : (generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片"));
+                    String reason = generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片");
                     log.info("跳过知识库检索（原因: {}）", reason);
                 }
 
@@ -176,15 +176,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 3. 发送来源信息
                 List<Map<String, Object>> sources = new ArrayList<>();
 
-                // 知识库来源（仅设计师模式）
-                if (!isFactory) {
-                    for (Map<String, Object> r : knowledgeResults) {
+                // 知识库来源（设计师和工厂模式都可用）
+                for (Map<String, Object> r : knowledgeResults) {
                         sources.add(Map.of(
                                 "source", "knowledge",
                                 "content", r.getOrDefault("content", "").toString(),
                                 "score", r.getOrDefault("score", 0)
-                        ));
-                    }
+                    sources.add(Map.of(
+                            "source", "knowledge",
+                            "content", r.getOrDefault("content", "").toString(),
+                            "score", r.getOrDefault("score", 0)
+                    ));
                 }
 
                 // 供应链来源
