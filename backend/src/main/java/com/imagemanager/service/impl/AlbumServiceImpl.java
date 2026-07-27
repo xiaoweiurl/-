@@ -7,6 +7,7 @@ import com.imagemanager.service.AlbumService;
 import com.imagemanager.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -171,8 +172,19 @@ public class AlbumServiceImpl implements AlbumService {
                 .updatedAt(LocalDateTime.now())
                 .userId(userId)
                 .build();
-        child = albumRepository.save(child);
-        log.info("创建子相册: parentId={}, childName={}, fullName={}", parentId, childName, fullPath);
+        try {
+            child = albumRepository.save(child);
+            log.info("创建子相册: parentId={}, childName={}, fullName={}", parentId, childName, fullPath);
+        } catch (DataIntegrityViolationException e) {
+            // 并发情况下，另一个线程已创建了相同路径的相册，重新查询获取
+            log.info("子相册已被其他线程创建，重新获取：{}", fullPath);
+            Optional<Album> retry = albumRepository.findFirstByUserIdAndPath(userId, fullPath);
+            if (retry.isPresent()) {
+                child = retry.get();
+            } else {
+                throw new RuntimeException("子相册创建失败且无法获取已有相册: " + fullPath, e);
+            }
+        }
         return child;
     }
 
@@ -547,9 +559,21 @@ public class AlbumServiceImpl implements AlbumService {
                         .userId(userId)
                         .build();
                 
-                parent = albumRepository.save(album);
-                parentId = parent.getId();
-                log.info("创建相册：{}，路径：{}", part, currentPath);
+                try {
+                    parent = albumRepository.save(album);
+                    parentId = parent.getId();
+                    log.info("创建相册：{}，路径：{}", part, currentPath);
+                } catch (DataIntegrityViolationException e) {
+                    // 并发情况下，另一个线程已创建了相同路径的相册，重新查询获取
+                    log.info("相册已被其他线程创建，重新获取：{}", currentPath);
+                    Optional<Album> retry = albumRepository.findFirstByUserIdAndPath(userId, currentPath);
+                    if (retry.isPresent()) {
+                        parent = retry.get();
+                        parentId = parent.getId();
+                    } else {
+                        throw new RuntimeException("相册创建失败且无法获取已有相册: " + currentPath, e);
+                    }
+                }
             }
         }
         
