@@ -706,7 +706,7 @@ public class ImageServiceImpl implements ImageService {
                     .uploaderId(currentUserId)
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tagEntities(finalTags != null ? finalTags.stream().map(t -> new com.imagemanager.entity.ImageTag(null, null, t, null, null, null)).collect(java.util.stream.Collectors.toList()) : new java.util.ArrayList<>())
+                    .tagEntities(finalTags != null ? finalTags.stream().map(t -> com.imagemanager.entity.ImageTag.builder().tag(t).build()).collect(java.util.stream.Collectors.toList()) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .isMainImage(true)  // 单独上传的图片默认为主图

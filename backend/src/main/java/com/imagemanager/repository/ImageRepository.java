@@ -25,7 +25,7 @@ public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecif
     /**
      * 查询未删除的图片（立即加载tags）
      */
-    @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.tags WHERE i.deleted = false")
+    @Query("SELECT DISTINCT i FROM Image i LEFT JOIN FETCH i.tagEntities WHERE i.deleted = false")
     Page<Image> findByDeletedFalseWithTags(Pageable pageable);
 
     /**
@@ -204,13 +204,13 @@ public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecif
     /**
      * 按标签查询
      */
-    @Query("SELECT i FROM Image i WHERE i.deleted = false AND :tag MEMBER OF i.tags")
+    @Query("SELECT i FROM Image i WHERE i.deleted = false AND EXISTS (SELECT 1 FROM i.tagEntities t WHERE t.tag = :tag)")
     Page<Image> findByTag(@Param("tag") String tag, Pageable pageable);
     
     /**
      * 获取所有标签
      */
-    @Query("SELECT DISTINCT t FROM Image i JOIN i.tags t WHERE i.deleted = false")
+    @Query("SELECT DISTINCT t.tag FROM Image i JOIN i.tagEntities t WHERE i.deleted = false")
     List<String> findAllTags();
     
     /**
@@ -371,13 +371,13 @@ public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecif
     /**
      * 按多个标签查询（包含任意一个标签即可）
      */
-    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND EXISTS (SELECT t FROM i.tags t WHERE t IN :tags)")
+    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND EXISTS (SELECT 1 FROM i.tagEntities t WHERE t.tag IN :tags)")
     Page<Image> findByAnyTagIn(@Param("tags") List<String> tags, Pageable pageable);
     
     /**
      * 按多个标签查询（必须包含所有标签）
      */
-    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND (SELECT COUNT(t) FROM i.tags t WHERE t IN :tags) = :tagCount")
+    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND (SELECT COUNT(t) FROM i.tagEntities t WHERE t.tag IN :tags) = :tagCount")
     Page<Image> findByAllTagsIn(@Param("tags") List<String> tags, @Param("tagCount") Long tagCount, Pageable pageable);
     
     /**
@@ -395,7 +395,7 @@ public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecif
     /**
      * 按关键词和标签查询
      */
-    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND (LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(i.description) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND EXISTS (SELECT t FROM i.tags t WHERE t IN :tags)")
+    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND (LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(i.description) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND EXISTS (SELECT 1 FROM i.tagEntities t WHERE t.tag IN :tags)")
     Page<Image> searchByKeywordAndTags(@Param("keyword") String keyword, @Param("tags") List<String> tags, Pageable pageable);
     
     /**
@@ -425,7 +425,7 @@ public interface ImageRepository extends JpaRepository<Image, String>, JpaSpecif
     /**
      * 按标签列表查询
      */
-    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND EXISTS (SELECT t FROM i.tags t WHERE t IN :tags)")
+    @Query("SELECT DISTINCT i FROM Image i WHERE i.deleted = false AND EXISTS (SELECT 1 FROM i.tagEntities t WHERE t.tag IN :tags)")
     Page<Image> findByTagsIn(@Param("tags") List<String> tags, Pageable pageable);
     
     /**
