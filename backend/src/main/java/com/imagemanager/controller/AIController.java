@@ -99,7 +99,7 @@ public class AIController {
         // 更新图片分类
         if (result.getAlbumId() != null) {
             image.setAlbumId(result.getAlbumId());
-            image.setTags(result.getTags());
+            image.setAiTags(result.getTags());
             imageRepository.save(image);
         }
         

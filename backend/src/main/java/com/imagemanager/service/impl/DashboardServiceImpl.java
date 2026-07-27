@@ -122,20 +122,14 @@ public class DashboardServiceImpl implements DashboardService {
             .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
             .sum();
 
-        // 相册数量和标签数量
+        // 相册数量
         long totalAlbums = albumRepository.count();
-
-        // 从所有图片中提取标签
-        long totalTags = allImages.stream()
-            .flatMap(img -> img.getTags() != null ? img.getTags().stream() : java.util.stream.Stream.empty())
-            .distinct()
-            .count();
 
         return new DashboardStatsResponse.OverviewStats(
             totalImages,
             totalSize,
             totalAlbums,
-            totalTags,
+            0L,
             favoritesCount,
             (long) trashImages.size(),
             todayUploadsCount,
@@ -233,8 +227,8 @@ public class DashboardServiceImpl implements DashboardService {
         // 统计标签使用次数
         Map<String, Long> tagCounts = new HashMap<>();
         for (Image image : allImages) {
-            if (image.getTags() != null) {
-                for (String tag : image.getTags()) {
+            if (image.getAiTags() != null) {
+                for (String tag : image.getAiTags()) {
                     tagCounts.merge(tag, 1L, Long::sum);
                 }
             }

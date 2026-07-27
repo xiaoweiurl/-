@@ -596,7 +596,6 @@ public class ImageServiceImpl implements ImageService {
             // 自动分类
             String finalAlbumId = albumId;
             String finalAlbumName = null;
-            List<String> finalTags = tags;
             String classifyMethod = "user";
 
             // 1. 首先检查文件名是否包含层级目录（如 "松野湃-速干T恤"）
@@ -645,10 +644,6 @@ public class ImageServiceImpl implements ImageService {
                         }
                     }
 
-                    if (tags == null || tags.isEmpty()) {
-                        finalTags = result.getTags();
-                    }
-
                     // 如果没有设置分类方法，使用AI结果的方法
                     if ("user".equals(classifyMethod) && result.getMethod() != null) {
                         classifyMethod = result.getMethod();
@@ -695,7 +690,6 @@ public class ImageServiceImpl implements ImageService {
                     .uploaderId(currentUserId)
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tagEntities(finalTags != null ? finalTags.stream().map(t -> com.imagemanager.entity.ImageTag.builder().tag(t).build()).collect(java.util.stream.Collectors.toList()) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .isMainImage(true)  // 单独上传的图片默认为主图
@@ -728,7 +722,7 @@ public class ImageServiceImpl implements ImageService {
                 updateAlbumImageCount(finalAlbumId);
             }
             
-            log.info("图片上传成功，自动分类: {}, 标签: {}", albumName, finalTags);
+            log.info("图片上传成功，自动分类: {}", albumName);
             
             return image;
         } catch (Exception e) {
@@ -757,7 +751,6 @@ public class ImageServiceImpl implements ImageService {
                 image.setAlbumName(albumName);
             }
         }
-        if (tags != null) image.setTags(new java.util.ArrayList<>(tags));
         if (description != null) image.setDescription(description);
         image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
         
@@ -2352,7 +2345,6 @@ public class ImageServiceImpl implements ImageService {
             // 自动分类
             String finalAlbumId = albumId;
             String finalAlbumName = null;
-            List<String> finalTags = tags;
             String classifyMethod = "user";
 
             // 1. 首先检查文件名是否包含层级目录（如 "松野湃-速干T恤"）
@@ -2400,10 +2392,6 @@ public class ImageServiceImpl implements ImageService {
                         }
                     }
 
-                    if (tags == null || tags.isEmpty()) {
-                        finalTags = result.getTags();
-                    }
-
                     // 如果没有设置分类方法，使用AI结果的方法
                     if ("user".equals(classifyMethod) && result.getMethod() != null) {
                         classifyMethod = result.getMethod();
@@ -2442,7 +2430,6 @@ public class ImageServiceImpl implements ImageService {
                     .fileType(getFileType(file.getContentType()))
                     .albumId(finalAlbumId)
                     .albumName(albumName)
-                    .tagEntities(finalTags != null ? finalTags.stream().map(t -> ImageTag.builder().tag(t).build()).collect(java.util.stream.Collectors.toList()) : new java.util.ArrayList<>())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
                     .createdAt(LocalDateTime.now(BEIJING_ZONE))
@@ -2463,7 +2450,7 @@ public class ImageServiceImpl implements ImageService {
                 updateAlbumImageCount(finalAlbumId);
             }
             
-            log.info("图片上传成功，自动分类: {}, 标签: {}", albumName, finalTags);
+            log.info("图片上传成功，自动分类: {}", albumName);
             
             return image;
         } catch (Exception e) {

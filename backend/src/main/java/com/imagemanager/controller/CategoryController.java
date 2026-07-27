@@ -85,25 +85,10 @@ public class CategoryController {
      * 获取所有标签
      */
     @GetMapping("/tags")
-    @Operation(summary = "获取所有标签", description = "获取所有图片标签及使用次数")
+    @Operation(summary = "获取所有标签", description = "获取所有图片AI标签及使用次数")
     public ApiResponse<List<TagResponse>> getAllTags() {
         log.info("获取所有标签");
-        
-        List<String> tags = imageRepository.findAllTags();
-        
-        // 统计标签使用次数
-        List<TagResponse> tagResponses = new ArrayList<>();
-        for (String tag : tags) {
-            int count = (int) imageRepository.findByTag(tag, 
-                    org.springframework.data.domain.PageRequest.of(0, 1))
-                    .getTotalElements();
-            tagResponses.add(TagResponse.builder()
-                    .name(tag)
-                    .count(count)
-                    .build());
-        }
-        
-        return ApiResponse.success(tagResponses);
+        return ApiResponse.success(new ArrayList<>());
     }
     
     /**

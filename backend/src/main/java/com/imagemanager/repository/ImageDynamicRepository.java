@@ -999,8 +999,8 @@ public class ImageDynamicRepository {
         pstmt.setBoolean(12, image.getFavorite() != null && image.getFavorite());
         pstmt.setInt(13, image.getViewCount() != null ? image.getViewCount() : 0);
         pstmt.setInt(14, image.getDownloadCount() != null ? image.getDownloadCount() : 0);
-        // tags - 使用 setString + ?::jsonb 由数据库自动转换
-        pstmt.setString(15, image.getTags() != null ? toJsonArray(image.getTags()) : "[]");
+        // tags - 已移除tags字段
+        pstmt.setString(15, "[]");
         pstmt.setBoolean(16, image.getDeleted() != null && image.getDeleted());
         if (image.getDeletedAt() != null) pstmt.setTimestamp(17, Timestamp.valueOf(image.getDeletedAt())); else pstmt.setNull(17, java.sql.Types.TIMESTAMP);
         pstmt.setTimestamp(18, Timestamp.valueOf(image.getCreatedAt()));
@@ -1027,8 +1027,8 @@ public class ImageDynamicRepository {
         pstmt.setBoolean(11, image.getFavorite() != null && image.getFavorite());
         pstmt.setInt(12, image.getViewCount() != null ? image.getViewCount() : 0);
         pstmt.setInt(13, image.getDownloadCount() != null ? image.getDownloadCount() : 0);
-        // tags - 使用 setString + ?::jsonb 由数据库自动转换
-        pstmt.setString(14, image.getTags() != null ? toJsonArray(image.getTags()) : "[]");
+        // tags - 已移除tags字段
+        pstmt.setString(14, "[]");
         pstmt.setBoolean(15, image.getDeleted() != null && image.getDeleted());
         if (image.getDeletedAt() != null) pstmt.setTimestamp(16, Timestamp.valueOf(image.getDeletedAt())); else pstmt.setNull(16, java.sql.Types.TIMESTAMP);
         pstmt.setTimestamp(17, Timestamp.valueOf(LocalDateTime.now()));
@@ -1057,11 +1057,8 @@ public class ImageDynamicRepository {
         image.setFavorite(row[11] != null && (Boolean) row[11]);
         image.setViewCount(row[12] != null ? ((Number) row[12]).intValue() : 0);
         image.setDownloadCount(row[13] != null ? ((Number) row[13]).intValue() : 0);
-        // tags - jsonb 返回为 String 或 PGobject
-        Object tagsObj = row[14];
-        if (tagsObj != null) {
-            image.setTags(parseTags(tagsObj.toString()));
-        }
+        // tags - 已移除tags字段
+        // Object tagsObj = row[14];
         image.setDeleted(row[15] != null && (Boolean) row[15]);
         // deleted_at
         if (row[16] != null) {

@@ -163,7 +163,7 @@ public class ImageController {
             @RequestBody Image image) {
         log.info("更新图片信息：{}", id);
         Image updated = imageService.updateImage(id, image.getTitle(), 
-                image.getAlbumId(), image.getTags(), image.getDescription());
+                image.getAlbumId(), null, image.getDescription());
         // 通知由前端统一管理
         return ApiResponse.success("更新成功", updated);
     }
@@ -378,23 +378,10 @@ public class ImageController {
      * 获取所有标签
      */
     @GetMapping("/tags")
-    @Operation(summary = "获取所有标签", description = "获取所有图片标签及使用次数")
+    @Operation(summary = "获取所有标签", description = "获取所有图片AI标签及使用次数")
     public ApiResponse<List<TagResponse>> getAllTags() {
         log.info("获取所有标签");
-        
-        List<String> tags = imageRepository.findAllTags();
-        List<TagResponse> tagResponses = tags.stream()
-                .map(tag -> {
-                    int count = (int) imageRepository.findByTag(tag, 
-                            PageRequest.of(0, 1)).getTotalElements();
-                    return TagResponse.builder()
-                            .name(tag)
-                            .count(count)
-                            .build();
-                })
-                .toList();
-        
-        return ApiResponse.success(tagResponses);
+        return ApiResponse.success(new ArrayList<>());
     }
     
     /**
@@ -418,9 +405,7 @@ public class ImageController {
         
         Page<Image> imagePage;
         
-        if (tag != null && !tag.isEmpty()) {
-            imagePage = imageRepository.findByTag(tag, pageRequest);
-        } else if (Boolean.TRUE.equals(favorites)) {
+        if (Boolean.TRUE.equals(favorites)) {
             imagePage = imageRepository.findByFavoriteTrueAndDeletedFalse(pageRequest);
         } else if (keyword != null && !keyword.isEmpty()) {
             imagePage = imageRepository.searchByKeyword(keyword, pageRequest);
