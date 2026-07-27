@@ -46,8 +46,24 @@ export default function UploadDialog({
     if (!files) return;
 
     const validFiles: UploadingFile[] = [];
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
+    const documentTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
+      'text/markdown',
+      'text/csv',
+      'application/zip',
+      'application/x-rar-compressed',
+      'application/x-7z-compressed',
+    ];
+    const allowedTypes = [...imageTypes, ...documentTypes];
+    const maxSize = 50 * 1024 * 1024; // 50MB
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -114,9 +130,17 @@ export default function UploadDialog({
         const formData = new FormData();
         formData.append('file', uploadingFile.file); // 后端 @RequestParam("file")
 
-        // 通过 Next.js 代理上传
+        // 根据文件类型选择上传API
         const BACKEND_URL = '/api/proxy';
-        const response = await fetch(`${BACKEND_URL}/images/upload`, {
+        const file = uploadingFile.file;
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'tif'];
+        const isImage = imageExts.includes(ext) || file.type.startsWith('image/');
+        const uploadUrl = isImage
+          ? `${BACKEND_URL}/images/upload`
+          : `${BACKEND_URL}/documents/upload`;
+
+        const response = await fetch(uploadUrl, {
           method: 'POST',
           mode: 'cors',
           credentials: 'include',
@@ -226,7 +250,7 @@ export default function UploadDialog({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z"
               multiple
               className="hidden"
               onChange={e => handleFileSelect(e.target.files)}
@@ -244,7 +268,7 @@ export default function UploadDialog({
                 </p>
               </div>
               <p className="text-xs text-slate-400">
-                支持 JPG、PNG、GIF、WebP 格式，单张最大 10MB
+                支持 JPG/PNG/GIF/WebP 图片、PDF/Word/Excel/PPT/TXT 文档，单个最大 50MB
               </p>
             </div>
           </div>
