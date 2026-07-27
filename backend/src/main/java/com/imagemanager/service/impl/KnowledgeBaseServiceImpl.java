@@ -251,6 +251,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 return;
             }
 
+            log.info("知识库文档解析结果: docId={}, textLength={}, preview={}", 
+                docId, text.length(), text.substring(0, Math.min(text.length(), 200)).replace("\n", "\\n"));
+
             // 保存提取的文本
             // Update file content and status via direct SQL for reliability
             TransactionTemplate tx = new TransactionTemplate(transactionManager);
