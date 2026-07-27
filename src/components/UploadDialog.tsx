@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Upload, X, Image as ImageIcon, Loader2, CheckCircle2 } from 'lucide-react';
 import { getSessionId } from '@/lib/auth-client';
+import ExcelBatchUpload from '@/components/ExcelBatchUpload';
 
 // 后端 API 基础 URL
 const BACKEND_API_URL = '/api/proxy';
@@ -38,6 +39,7 @@ export default function UploadDialog({
   const [isDragging, setIsDragging] = React.useState(false);
   const [uploadingFiles, setUploadingFiles] = React.useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = React.useState(false);
+  const [showExcelUpload, setShowExcelUpload] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { addNotification } = useNotifications();
 
@@ -58,6 +60,12 @@ export default function UploadDialog({
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+
+      // 检测Excel文件，切换到ExcelBatchUpload组件
+      if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
+        setShowExcelUpload(true);
+        return;
+      }
 
       if (blockedExtensions.includes(ext)) {
         continue;
@@ -219,6 +227,7 @@ export default function UploadDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
@@ -245,7 +254,7 @@ export default function UploadDialog({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z"
+              accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.tiff,.ico,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z"
               multiple
               className="hidden"
               onChange={e => handleFileSelect(e.target.files)}
@@ -362,5 +371,15 @@ export default function UploadDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+      {/* Excel批量导入弹窗 */}
+      <ExcelBatchUpload
+        open={showExcelUpload}
+        onOpenChange={setShowExcelUpload}
+        onUploadSuccess={() => {
+          if (onUploadSuccess) onUploadSuccess();
+        }}
+      />
+    </>
   );
 }
