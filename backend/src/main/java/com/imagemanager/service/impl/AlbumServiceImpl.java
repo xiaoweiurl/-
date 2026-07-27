@@ -48,7 +48,7 @@ public class AlbumServiceImpl implements AlbumService {
      */
     @Override
     public Optional<Album> findByName(String name) {
-        return albumRepository.findByUserIdAndName("user-1", name);
+        return albumRepository.findFirstByUserIdAndName("user-1", name);
     }
     
     /**
@@ -64,7 +64,7 @@ public class AlbumServiceImpl implements AlbumService {
             parentOpt = albumRepository.findByUserIdAndFullName(userId, parentName);
             // 如果 fullName 匹配不到，再尝试 name 匹配
             if (parentOpt.isEmpty()) {
-                parentOpt = albumRepository.findByUserIdAndName(userId, parentName);
+                parentOpt = albumRepository.findFirstByUserIdAndName(userId, parentName);
             }
         } else {
             parentOpt = Optional.empty();
@@ -98,7 +98,7 @@ public class AlbumServiceImpl implements AlbumService {
         }
         
         // 2. 查找子相册（通过父相册ID精确匹配）
-        Optional<Album> childOpt = albumRepository.findByUserIdAndNameAndParentId(userId, childName, parent.getId());
+        Optional<Album> childOpt = albumRepository.findFirstByUserIdAndNameAndParentId(userId, childName, parent.getId());
         if (childOpt.isPresent()) {
             // 子相册已存在，直接返回
             log.info("找到已有子相册: {}/{}", parentName, childName);
@@ -133,9 +133,9 @@ public class AlbumServiceImpl implements AlbumService {
         // 1. 查找子相册（通过父相册ID精确匹配）
         Optional<Album> childOpt;
         if (parentId != null && !parentId.isEmpty()) {
-            childOpt = albumRepository.findByUserIdAndNameAndParentId(userId, childName, parentId);
+            childOpt = albumRepository.findFirstByUserIdAndNameAndParentId(userId, childName, parentId);
         } else {
-            childOpt = albumRepository.findByUserIdAndNameAndParentId(userId, childName, null);
+            childOpt = albumRepository.findFirstByUserIdAndNameAndParentId(userId, childName, null);
         }
 
         if (childOpt.isPresent()) {
@@ -445,7 +445,7 @@ public class AlbumServiceImpl implements AlbumService {
         }
         
         // 检查是否已存在
-        Optional<Album> existing = albumRepository.findByUserIdAndPath(userId, path);
+        Optional<Album> existing = albumRepository.findFirstByUserIdAndPath(userId, path);
         if (existing.isPresent()) {
             log.info("相册已存在：{}", path);
             return existing.get();
@@ -486,7 +486,7 @@ public class AlbumServiceImpl implements AlbumService {
         String userId = "user-1";
         
         // 检查是否已存在
-        Optional<Album> existing = albumRepository.findByUserIdAndPath(userId, fullPath);
+        Optional<Album> existing = albumRepository.findFirstByUserIdAndPath(userId, fullPath);
         if (existing.isPresent()) {
             return existing.get();
         }
@@ -497,14 +497,14 @@ public class AlbumServiceImpl implements AlbumService {
         
         if (!normalizedPath.equals(fullPath)) {
             // 尝试用规范化后的名称查找
-            Optional<Album> fuzzyMatch = albumRepository.findByUserIdAndPath(userId, normalizedPath);
+            Optional<Album> fuzzyMatch = albumRepository.findFirstByUserIdAndPath(userId, normalizedPath);
             if (fuzzyMatch.isPresent()) {
                 log.info("模糊匹配到已有相册：{} -> {}", fullPath, normalizedPath);
                 return fuzzyMatch.get();
             }
             
             // 尝试查找路径中包含该名称的相册
-            List<Album> matches = albumRepository.findByUserIdAndPathContaining(userId, normalizedPath);
+            List<Album> matches = albumRepository.findFirstByUserIdAndPathContaining(userId, normalizedPath);
             if (!matches.isEmpty()) {
                 log.info("从 {} 个匹配中找到相册：{}", matches.size(), matches.get(0).getPath());
                 return matches.get(0);
@@ -521,7 +521,7 @@ public class AlbumServiceImpl implements AlbumService {
             if (part.isEmpty()) continue;
             
             String currentPath = String.join("/", Arrays.copyOf(parts, i + 1));
-            Optional<Album> current = albumRepository.findByUserIdAndPath(userId, currentPath);
+            Optional<Album> current = albumRepository.findFirstByUserIdAndPath(userId, currentPath);
             
             if (current.isPresent()) {
                 parent = current.get();

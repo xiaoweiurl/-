@@ -41,7 +41,7 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     /**
      * 按用户和名称查询
      */
-    Optional<Album> findByUserIdAndName(String userId, String name);
+    Optional<Album> findFirstByUserIdAndName(String userId, String name);
     
     /**
      * 按用户和完整名称查询（精确匹配）
@@ -87,12 +87,12 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     /**
      * 根据路径查询相册
      */
-    Optional<Album> findByUserIdAndPath(String userId, String path);
+    Optional<Album> findFirstByUserIdAndPath(String userId, String path);
     
     /**
      * 根据路径前缀模糊查找相册（用于处理文件名包含父相册名称的情况）
      */
-    Optional<Album> findByUserIdAndPathStartingWith(String userId, String pathPrefix);
+    Optional<Album> findFirstByUserIdAndPathStartingWith(String userId, String pathPrefix);
     
     /**
      * 根据路径关键字模糊查找相册（用于处理文件名包含父相册名称的情况）
@@ -103,7 +103,7 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
      * 根据父相册名称+子相册名称精确查找相册
      * 用于判断导入时相册是否已存在
      */
-    Optional<Album> findByUserIdAndNameAndParentId(String userId, String name, String parentId);
+    Optional<Album> findFirstByUserIdAndNameAndParentId(String userId, String name, String parentId);
     
     /**
      * 查询所有子相册（包括深层级）
