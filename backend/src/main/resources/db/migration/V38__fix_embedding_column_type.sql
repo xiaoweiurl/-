@@ -15,9 +15,10 @@ BEGIN
     
     -- 如果是 ARRAY 类型（FLOAT8[]），需要转换为 vector
     IF col_type = 'ARRAY' THEN
-        -- 将 FLOAT8[] 的文本表示 {1.0,2.0,...} 转为 vector 格式 (1.0,2.0,...)
+        -- 将 FLOAT8[] 的文本表示 {1.0,2.0,...} 转为 pgvector 格式 [1.0,2.0,...]
+        -- pgvector 要求方括号格式，不是圆括号
         ALTER TABLE knowledge_embeddings ALTER COLUMN embedding TYPE vector(1024)
-        USING replace(replace(embedding::text, '{', '('), '}', ')')::vector;
+        USING replace(replace(embedding::text, '{', '['), '}', ']')::vector;
         RAISE NOTICE 'embedding 列已从 FLOAT8[] 转换为 vector(1024)';
     ELSE
         RAISE NOTICE 'embedding 列已经是 vector 类型，跳过转换';

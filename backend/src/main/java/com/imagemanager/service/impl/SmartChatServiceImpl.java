@@ -1123,13 +1123,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 return results;
             }
             // 将float[]转为PostgreSQL vector格式的字符串（使用BigDecimal避免科学计数法）
-            // pgvector格式: (0.1,0.2,...) 圆括号，不是[0.1,0.2,...]方括号
-            StringBuilder sb = new StringBuilder("(");
+            // pgvector格式: [0.1,0.2,...] 方括号
+            StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
                 sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
-            sb.append(")");
+            sb.append("]");
             String queryEmbedding = sb.toString();
 
             String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
@@ -1167,12 +1167,12 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (embeddingArray == null || embeddingArray.length == 0) {
                 return results;
             }
-            StringBuilder sb = new StringBuilder("(");
+            StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
                 sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
-            sb.append(")");
+            sb.append("]");
             String queryEmbedding = sb.toString();
 
             String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
@@ -1218,12 +1218,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                 return;
             }
 
-            StringBuilder sb = new StringBuilder("(");
+            StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
                 sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
-            sb.append(")");
+            sb.append("]");
             String embeddingStr = sb.toString();
 
             TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
