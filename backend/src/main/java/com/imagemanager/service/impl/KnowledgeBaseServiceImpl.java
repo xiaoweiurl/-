@@ -1000,14 +1000,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     private String arrayToVectorString(float[] array) {
-        StringBuilder sb = new StringBuilder("[");
+        StringBuilder sb = new StringBuilder("(");
         for (int i = 0; i < array.length; i++) {
             if (i > 0) sb.append(",");
             // 使用BigDecimal避免科学计数法（如3.4267126E-4），
             // PostgreSQL的::vector类型转换不支持科学计数法，必须是标准十进制小数
+            // pgvector格式: (0.1,0.2,...) 圆括号，不是[0.1,0.2,...]方括号
             sb.append(new java.math.BigDecimal(String.valueOf(array[i])).toPlainString());
         }
-        sb.append("]");
+        sb.append(")");
         return sb.toString();
     }
 }

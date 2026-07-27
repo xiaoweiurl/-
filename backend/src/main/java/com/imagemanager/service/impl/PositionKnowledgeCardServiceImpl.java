@@ -500,13 +500,14 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     }
 
     private String arrayToVectorString(float[] arr) {
-        StringBuilder sb = new StringBuilder("[");
+        StringBuilder sb = new StringBuilder("(");
         for (int i = 0; i < arr.length; i++) {
             if (i > 0) sb.append(",");
             // 使用BigDecimal避免科学计数法，PostgreSQL的::vector不支持科学计数法
+            // pgvector格式: (0.1,0.2,...) 圆括号，不是[0.1,0.2,...]方括号
             sb.append(new java.math.BigDecimal(String.valueOf(arr[i])).toPlainString());
         }
-        sb.append("]");
+        sb.append(")");
         return sb.toString();
     }
 }
