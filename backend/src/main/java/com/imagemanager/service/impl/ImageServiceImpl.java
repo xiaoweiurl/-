@@ -1880,24 +1880,31 @@ public class ImageServiceImpl implements ImageService {
             // 获取父相册名称（来自 Excel 文件名）
             String parentAlbumName = request.getParentAlbumName();
 
-            // 处理父相册名称
+            // 处理父相册名称：提取品牌名（去掉日期后缀和扩展名）
+            // 例如：松野湃_20260727150320171.xlsx → 松野湃
             String cleanParentName = null;
             if (parentAlbumName != null && !parentAlbumName.isEmpty()) {
-                // 移除文件名中的扩展名（如 .xlsx）
-                cleanParentName = parentAlbumName;
-                int dotIndex = cleanParentName.lastIndexOf('.');
+                String tempName = parentAlbumName;
+                // 移除扩展名（如 .xlsx）
+                int dotIndex = tempName.lastIndexOf('.');
                 if (dotIndex > 0) {
-                    cleanParentName = cleanParentName.substring(0, dotIndex);
+                    tempName = tempName.substring(0, dotIndex);
                 }
-                // 移除可能的 assets/ 或 assets\ 前缀
-                if (cleanParentName.startsWith("assets/") || cleanParentName.startsWith("assets\\")) {
-                    cleanParentName = cleanParentName.substring(7);
+                // 移除 assets/ 或 assets\ 前缀
+                if (tempName.startsWith("assets/") || tempName.startsWith("assets\\")) {
+                    tempName = tempName.substring(7);
                 }
-                // 处理父相册名称的 URL 编码
-                cleanParentName = CharsetUtil.convertToUtf8(cleanParentName);
+                // 移除日期后缀（格式：_YYYYMMDDHHmmssSSS 或 _YYYYMMDDHHmmss）
+                // 匹配模式：_后面紧跟13-17位纯数字（日期时间戳）
+                tempName = tempName.replaceAll("_\\d{10,17}$", "");
+                // 处理 URL 编码
+                tempName = CharsetUtil.convertToUtf8(tempName);
+                cleanParentName = tempName;
+                log.info("Excel导入 - 父相册名称处理: 原始='{}', 清理后='{}'", parentAlbumName, cleanParentName);
             }
 
-            // 如果指定了分类，查找或创建对应的相册（支持层级目录）
+            // 如果指定了分类，查找或创建对应的相册（层级用横杠拼接）
+            // 相册命名规则：文件名-类别层级，如 "松野湃-儿童专区"，"松野湃-儿童专区-户外速干衣"
             String albumId = null;
             String albumName = null;
             String category = item.getCategory();
@@ -1905,72 +1912,46 @@ public class ImageServiceImpl implements ImageService {
 
             // 只要有 category 或 subCategory 其中一个，就创建相册
             if ((category != null && !category.isEmpty()) || (subCategory != null && !subCategory.isEmpty())) {
-                // 尝试解析 URL 编码的中文字符（如 %CC%F9%C9%ED 格式）
+                // 尝试解析 URL 编码的中文字符
                 String decodedCategory = category != null ? CharsetUtil.convertToUtf8(category.trim()) : null;
+                String decodedSubCategory = subCategory != null ? CharsetUtil.convertToUtf8(subCategory.trim()) : null;
                 log.info("Excel导入 - 原始分类: '{}', 解码后: '{}'", category, decodedCategory);
-                log.info("Excel导入 - 原始子分类: '{}'", subCategory);
-                log.info("Excel导入 - 处理分类: {}, 父相册: {}", decodedCategory, parentAlbumName);
+                log.info("Excel导入 - 原始子分类: '{}', 解码后: '{}'", subCategory, decodedSubCategory);
 
-                // 使用新的方法：支持三级相册层级
-                // 分类格式: 羽绒服_女士专区_
-                // 第一层: 文件名 (X-BIONIC)
-                // 第二层: subCategory (女士专区) 或 category（只有单层时）
-                // 第三层: category (羽绒服)
                 try {
-                    String secondLevelName = null; // 第二层级名称
-                    String thirdLevelName = null;  // 第三层级名称
+                    String brandName = cleanParentName != null ? cleanParentName : "";
                     Album targetAlbum = null;
 
-                    // 统一处理分类层级逻辑
-                    if (decodedCategory != null && !decodedCategory.isEmpty()) {
-                        // 有第三层分类
-                        if (subCategory != null && !subCategory.isEmpty()) {
-                            // 三级分类：X-BIONIC -> subCategory -> category
-                            secondLevelName = subCategory;
-                            thirdLevelName = decodedCategory;
-                        } else {
-                            // 只有一层分类：X-BIONIC -> category（把category作为第二层）
-                            secondLevelName = decodedCategory;
-                            thirdLevelName = null;
-                        }
-                    } else if (subCategory != null && !subCategory.isEmpty()) {
-                        // 只有subCategory没有category：X-BIONIC -> subCategory
-                        secondLevelName = subCategory;
-                        thirdLevelName = null;
+                    // 构建层级相册名称（用横杠拼接）
+                    if (decodedCategory != null && !decodedCategory.isEmpty() && decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
+                        // 两层分类：父相册=品牌-子分类，子相册=品牌-子分类-分类
+                        // 例如：松野湃-儿童专区 → 松野湃-儿童专区-户外速干衣
+                        String parentAlbumPath = brandName + "-" + decodedSubCategory;
+                        String childAlbumPath = parentAlbumPath + "-" + decodedCategory;
+
+                        // 创建父相册（品牌-子分类）
+                        Album parentAlbum = albumService.getOrCreateAlbumByPath(parentAlbumPath);
+                        // 创建子相册（品牌-子分类-分类）
+                        targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                parentAlbum.getId(), childAlbumPath, "user-1");
+                        log.info("Excel导入 - 三级相册: 父={}, 子={}", parentAlbumPath, childAlbumPath);
+                    } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
+                        // 只有分类（无子分类）：品牌-分类
+                        // 例如：松野湃-儿童专区
+                        String albumPath = brandName.isEmpty() ? decodedCategory : brandName + "-" + decodedCategory;
+                        targetAlbum = albumService.getOrCreateAlbumByPath(albumPath);
+                        log.info("Excel导入 - 两级相册（只有分类）: {}", albumPath);
+                    } else if (decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
+                        // 只有子分类（无分类）：品牌-子分类
+                        // 例如：松野湃-儿童专区
+                        String albumPath = brandName.isEmpty() ? decodedSubCategory : brandName + "-" + decodedSubCategory;
+                        targetAlbum = albumService.getOrCreateAlbumByPath(albumPath);
+                        log.info("Excel导入 - 两级相册（只有子分类）: {}", albumPath);
                     }
 
-                    // 根据层级名称创建相册
-                    if (secondLevelName != null && !secondLevelName.isEmpty()) {
-                        if (thirdLevelName != null && !thirdLevelName.isEmpty()) {
-                            // 三级层级：X-BIONIC -> secondLevelName -> thirdLevelName
-                            Album secondLevelAlbum = albumService.getOrCreateAlbumByParentAndName(
-                                    cleanParentName != null ? cleanParentName : "",
-                                    secondLevelName,
-                                    "user-1"
-                            );
-                            // 使用父相册ID避免名称歧义
-                            targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                    secondLevelAlbum.getId(),
-                                    thirdLevelName,
-                                    "user-1"
-                            );
-                            log.info("Excel导入 - 三级相册: 第一层={}, 第二层={}, 第三层={}",
-                                    cleanParentName, secondLevelName, thirdLevelName);
-                        } else {
-                            // 两级层级：X-BIONIC -> secondLevelName（只有一层子分类）
-                            targetAlbum = albumService.getOrCreateAlbumByParentAndName(
-                                    cleanParentName != null ? cleanParentName : "",
-                                    secondLevelName,
-                                    "user-1"
-                            );
-                            log.info("Excel导入 - 两级相册: 第一层={}, 第二层={}", cleanParentName, secondLevelName);
-                        }
-                    }
-                    
                     if (targetAlbum != null) {
                         albumId = targetAlbum.getId();
                         albumName = targetAlbum.getFullName() != null ? targetAlbum.getFullName() : targetAlbum.getName();
-                        // 刷新相册列表
                         albums = albumService.getAllAlbums();
                         log.info("Excel导入 - 获取/创建相册成功: ID={}, 名称={}", albumId, albumName);
                     }
@@ -1979,7 +1960,7 @@ public class ImageServiceImpl implements ImageService {
                 }
             }
 
-            // 如果没有指定分类但有父相册名称，创建父相册（作为根相册）
+            // 如果没有指定分类但有父相册名称，创建纯品牌相册（作为根相册）
             if (albumId == null && parentAlbumName != null && !parentAlbumName.isEmpty()) {
                 try {
                     Album parentAlbum = albumService.getOrCreateAlbumByPath(cleanParentName);
@@ -1987,10 +1968,10 @@ public class ImageServiceImpl implements ImageService {
                         albumId = parentAlbum.getId();
                         albumName = parentAlbum.getFullName() != null ? parentAlbum.getFullName() : parentAlbum.getName();
                         albums = albumService.getAllAlbums();
-                        log.info("Excel导入 - 创建/获取父相册: ID={}, 名称={}", albumId, albumName);
+                        log.info("Excel导入 - 创建/获取品牌根相册: ID={}, 名称={}", albumId, albumName);
                     }
                 } catch (Exception e) {
-                    log.warn("Excel导入 - 创建父相册失败: {}", e.getMessage());
+                    log.warn("Excel导入 - 创建品牌根相册失败: {}", e.getMessage());
                 }
             }
 

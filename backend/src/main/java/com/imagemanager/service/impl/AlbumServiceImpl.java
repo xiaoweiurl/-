@@ -145,21 +145,14 @@ public class AlbumServiceImpl implements AlbumService {
         }
 
         // 2. 子相册不存在，创建新的
-        // 获取父相册信息
-        String parentName = "";
-        if (parentId != null && !parentId.isEmpty()) {
-            Optional<Album> parentOpt = albumRepository.findById(parentId);
-            if (parentOpt.isPresent()) {
-                parentName = parentOpt.get().getFullName();
-            }
-        }
-
+        // childName 在 Excel 批量导入场景下已经是完整的层级名称（如 "松野湃-儿童专区-户外速干衣"）
+        // 所以 fullName 和 path 直接使用 childName，不再拼接 parentName
         Album child = Album.builder()
                 .id("album-" + UUID.randomUUID().toString().substring(0, 8))
                 .name(childName)
-                .fullName(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .fullName(childName)
                 .parentId(parentId)
-                .path(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .path(childName)
                 .keywords(Arrays.asList(childName))
                 .isSystem(false)
                 .imageCount(0)
