@@ -130,6 +130,7 @@ public class AlbumServiceImpl implements AlbumService {
      * 根据父相册ID和子相册名称查找或创建相册（避免名称歧义）
      * 如果父相册+子相册组合已存在，直接返回；否则创建新的
      */
+    @Transactional
     public Album getOrCreateAlbumByParentIdAndName(String parentId, String childName, String userId) {
         // 1. 查找子相册（通过父相册ID精确匹配）
         Optional<Album> childOpt;
@@ -485,6 +486,7 @@ public class AlbumServiceImpl implements AlbumService {
     }
     
     @Override
+    @Transactional
     public Album getOrCreateAlbumByPath(String fullPath) {
         log.info("根据路径获取或创建相册：{}", fullPath);
         

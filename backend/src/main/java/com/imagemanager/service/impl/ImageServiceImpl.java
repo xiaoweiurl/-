@@ -1805,6 +1805,10 @@ public class ImageServiceImpl implements ImageService {
             com.imagemanager.dto.BatchDownloadRequest request) {
         log.info("批量下载网络图片，数量：{}", request.getImages().size());
         
+        // 相册缓存：避免同一批次中重复查询/创建相册
+        // key = "path:{path}" 或 "parentId_name:{parentId}_{name}"
+        java.util.Map<String, Album> albumCache = new java.util.HashMap<>();
+        
         List<com.imagemanager.dto.BatchDownloadResponse> results = new ArrayList<>();
         List<Album> albums = albumService.getAllAlbums();
         
@@ -1907,31 +1911,52 @@ public class ImageServiceImpl implements ImageService {
 
                     // 层级相册：品牌名(父) → subCategory(子) → category(孙)
                     // 每层只用类别名，不拼接上级名称
-                    // 父相册和子相册已存在则复用，不重复创建
+                    // 使用缓存避免重复查询/创建相册
                     if (!brandName.isEmpty()) {
-                        // 第1层：品牌名（如"松野湃"）
-                        Album brandAlbum = albumService.getOrCreateAlbumByPath(brandName);
+                        // 第1层：品牌名（如"松野湃"）- 带缓存
+                        String brandCacheKey = "path:" + brandName;
+                        Album brandAlbum = albumCache.get(brandCacheKey);
+                        if (brandAlbum == null) {
+                            brandAlbum = albumService.getOrCreateAlbumByPath(brandName);
+                            albumCache.put(brandCacheKey, brandAlbum);
+                            log.info("Excel导入 - 获取/创建品牌相册: {}", brandName);
+                        }
                         String currentParentId = brandAlbum.getId();
 
                         if (decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
-                            // 第2层：子分类（如"儿童专区"），挂在品牌下
-                            Album subCatAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                    currentParentId, decodedSubCategory, "user-1");
+                            // 第2层：子分类（如"儿童专区"），挂在品牌下 - 带缓存
+                            String subCatCacheKey = "parentId_name:" + currentParentId + "_" + decodedSubCategory;
+                            Album subCatAlbum = albumCache.get(subCatCacheKey);
+                            if (subCatAlbum == null) {
+                                subCatAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                        currentParentId, decodedSubCategory, "user-1");
+                                albumCache.put(subCatCacheKey, subCatAlbum);
+                            }
                             currentParentId = subCatAlbum.getId();
 
                             if (decodedCategory != null && !decodedCategory.isEmpty()) {
-                                // 第3层：分类（如"户外速干衣"），挂在子分类下
-                                targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                        currentParentId, decodedCategory, "user-1");
+                                // 第3层：分类（如"户外速干衣"），挂在子分类下 - 带缓存
+                                String catCacheKey = "parentId_name:" + currentParentId + "_" + decodedCategory;
+                                targetAlbum = albumCache.get(catCacheKey);
+                                if (targetAlbum == null) {
+                                    targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                            currentParentId, decodedCategory, "user-1");
+                                    albumCache.put(catCacheKey, targetAlbum);
+                                }
                                 log.info("Excel导入 - 三级相册: {} > {} > {}", brandName, decodedSubCategory, decodedCategory);
                             } else {
                                 targetAlbum = subCatAlbum;
                                 log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedSubCategory);
                             }
                         } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
-                            // 第2层：只有分类，挂在品牌下
-                            targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                    currentParentId, decodedCategory, "user-1");
+                            // 第2层：只有分类，挂在品牌下 - 带缓存
+                            String catCacheKey = "parentId_name:" + currentParentId + "_" + decodedCategory;
+                            targetAlbum = albumCache.get(catCacheKey);
+                            if (targetAlbum == null) {
+                                targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                        currentParentId, decodedCategory, "user-1");
+                                albumCache.put(catCacheKey, targetAlbum);
+                            }
                             log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedCategory);
                         } else {
                             // 只有品牌名，无分类
@@ -1941,20 +1966,40 @@ public class ImageServiceImpl implements ImageService {
                     } else {
                         // 无品牌名，只有分类
                         if (decodedSubCategory != null && !decodedSubCategory.isEmpty() && decodedCategory != null && !decodedCategory.isEmpty()) {
-                            Album parentAlbum = albumService.getOrCreateAlbumByPath(decodedSubCategory);
-                            targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                    parentAlbum.getId(), decodedCategory, "user-1");
+                            String subCatCacheKey = "path:" + decodedSubCategory;
+                            Album parentAlbum = albumCache.get(subCatCacheKey);
+                            if (parentAlbum == null) {
+                                parentAlbum = albumService.getOrCreateAlbumByPath(decodedSubCategory);
+                                albumCache.put(subCatCacheKey, parentAlbum);
+                            }
+                            String catCacheKey = "parentId_name:" + parentAlbum.getId() + "_" + decodedCategory;
+                            targetAlbum = albumCache.get(catCacheKey);
+                            if (targetAlbum == null) {
+                                targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                        parentAlbum.getId(), decodedCategory, "user-1");
+                                albumCache.put(catCacheKey, targetAlbum);
+                            }
                         } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
-                            targetAlbum = albumService.getOrCreateAlbumByPath(decodedCategory);
+                            String catCacheKey = "path:" + decodedCategory;
+                            targetAlbum = albumCache.get(catCacheKey);
+                            if (targetAlbum == null) {
+                                targetAlbum = albumService.getOrCreateAlbumByPath(decodedCategory);
+                                albumCache.put(catCacheKey, targetAlbum);
+                            }
                         } else if (decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
-                            targetAlbum = albumService.getOrCreateAlbumByPath(decodedSubCategory);
+                            String subCatCacheKey = "path:" + decodedSubCategory;
+                            targetAlbum = albumCache.get(subCatCacheKey);
+                            if (targetAlbum == null) {
+                                targetAlbum = albumService.getOrCreateAlbumByPath(decodedSubCategory);
+                                albumCache.put(subCatCacheKey, targetAlbum);
+                            }
                         }
                     }
 
                     if (targetAlbum != null) {
                         albumId = targetAlbum.getId();
                         albumName = targetAlbum.getFullName() != null ? targetAlbum.getFullName() : targetAlbum.getName();
-                        albums = albumService.getAllAlbums();
+                        // 不要每次都刷新整个相册列表，只在最后刷新一次
                         log.info("Excel导入 - 获取/创建相册成功: ID={}, 名称={}", albumId, albumName);
                     }
                 } catch (Exception e) {
@@ -2310,6 +2355,9 @@ public class ImageServiceImpl implements ImageService {
                 }
             }
         }
+        
+        // 批次结束后刷新相册列表缓存
+        albums = albumService.getAllAlbums();
         
         return results;
     }
