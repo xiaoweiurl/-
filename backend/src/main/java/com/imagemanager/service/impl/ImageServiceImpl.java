@@ -351,7 +351,6 @@ public class ImageServiceImpl implements ImageService {
         // 检查是否有高级搜索参数
         boolean hasAdvancedFilters = 
             (request.getKeyword() != null && !request.getKeyword().isEmpty()) ||
-            (request.getTags() != null && !request.getTags().isEmpty()) ||
             (request.getStartDate() != null && !request.getStartDate().isEmpty()) ||
             (request.getEndDate() != null && !request.getEndDate().isEmpty()) ||
             (request.getFileType() != null && !request.getFileType().isEmpty()) ||
@@ -417,13 +416,9 @@ public class ImageServiceImpl implements ImageService {
                 log.info("相册ID筛选（含所有子相册）: {}", albumIds);
             }
             
-            // 处理标签
-            List<String> tags = request.getTags();
-            
             // 使用 JPA Specification 进行动态条件查询
             final List<String> finalAlbumIds = albumIds;
             final List<String> finalFileTypes = fileTypes;
-            final List<String> finalTags = tags;
             final LocalDateTime finalStartDate = startDate;
             final LocalDateTime finalEndDate = endDate;
             final String finalKeyword = request.getKeyword();
@@ -505,12 +500,6 @@ public class ImageServiceImpl implements ImageService {
                 }
                 if (finalEndDate != null) {
                     predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), finalEndDate));
-                }
-                
-                // 标签筛选（支持多标签，包含任意一个即可）
-                if (finalTags != null && !finalTags.isEmpty()) {
-                    jakarta.persistence.criteria.Join<Object, Object> tagsJoin = root.join("tags");
-                    predicates.add(tagsJoin.in(finalTags));
                 }
                 
                 return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));

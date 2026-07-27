@@ -149,7 +149,11 @@ public class AlbumServiceImpl implements AlbumService {
         // 例如：父path="松野湃", childName="儿童专区" → fullName="松野湃/儿童专区"
         String parentPath = "";
         if (parentId != null && !parentId.isEmpty()) {
-            albumRepository.findById(parentId).ifPresent(p -> parentPath = p.getPath() != null ? p.getPath() : p.getName());
+            Optional<Album> parentOpt = albumRepository.findById(parentId);
+            if (parentOpt.isPresent()) {
+                Album parent = parentOpt.get();
+                parentPath = parent.getPath() != null ? parent.getPath() : parent.getName();
+            }
         }
         String fullPath = parentPath.isEmpty() ? childName : parentPath + "/" + childName;
 
