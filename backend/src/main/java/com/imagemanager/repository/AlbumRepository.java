@@ -97,7 +97,7 @@ public interface AlbumRepository extends JpaRepository<Album, String> {
     /**
      * 根据路径关键字模糊查找相册（用于处理文件名包含父相册名称的情况）
      */
-    List<Album> findByUserIdAndPathContaining(String userId, String pathKeyword);
+    Optional<Album> findFirstByUserIdAndPathContaining(String userId, String pathKeyword);
     
     /**
      * 根据父相册名称+子相册名称精确查找相册
