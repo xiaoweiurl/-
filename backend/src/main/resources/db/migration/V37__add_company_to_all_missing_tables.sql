@@ -353,7 +353,7 @@ CREATE TABLE IF NOT EXISTS knowledge_embeddings (
     card_id UUID,
     chunk_index INTEGER,
     chunk_text TEXT,
-    embedding FLOAT8[] NOT NULL,
+    embedding vector(1024) NOT NULL,
     embedding_model VARCHAR(100),
     source_type VARCHAR(20),
     source_doc_id VARCHAR(100),
