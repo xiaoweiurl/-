@@ -503,7 +503,8 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < arr.length; i++) {
             if (i > 0) sb.append(",");
-            sb.append(arr[i]);
+            // 使用BigDecimal避免科学计数法，PostgreSQL的::vector不支持科学计数法
+            sb.append(new java.math.BigDecimal(String.valueOf(arr[i])).toPlainString());
         }
         sb.append("]");
         return sb.toString();

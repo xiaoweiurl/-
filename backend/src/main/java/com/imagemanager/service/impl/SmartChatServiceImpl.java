@@ -1115,11 +1115,11 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (embeddingArray == null || embeddingArray.length == 0) {
                 return results;
             }
-            // 将float[]转为PostgreSQL vector格式的字符串
+            // 将float[]转为PostgreSQL vector格式的字符串（使用BigDecimal避免科学计数法）
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
-                sb.append(embeddingArray[i]);
+                sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
             sb.append("]");
             String queryEmbedding = sb.toString();
@@ -1162,7 +1162,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
-                sb.append(embeddingArray[i]);
+                sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
             sb.append("]");
             String queryEmbedding = sb.toString();
@@ -1213,7 +1213,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
-                sb.append(embeddingArray[i]);
+                sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
             sb.append("]");
             String embeddingStr = sb.toString();

@@ -593,13 +593,22 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             "哪个", "多少", "哪些", "请", "帮", "告诉我", "查询", "查", "看",
             "给", "让", "把", "被", "从", "到", "对", "为", "以", "于",
             "可以", "应该", "需要", "目前", "现在", "最新", "最近", "所有", "全部",
-            "比较", "分析", "统计", "列出", "展示", "显示", "计算", "得出"
+            "比较", "分析", "统计", "列出", "展示", "显示", "计算", "得出",
+            "帮我", "问下", "请问", "我想", "知道"
             // 注意：不包含业务关键词（面料/原料/供应商/采购/成本/价格/报价等）
         );
         
         List<String> allTokens = new ArrayList<>();
-        // 按空格、逗号、顿号等分隔
-        String[] parts = query.split("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}]+");
+        
+        // 先保留原始查询（去掉末尾标点）作为完整匹配关键词
+        String cleanedQuery = query.replaceAll("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}]+$", "");
+        if (cleanedQuery.length() >= 2 && !stopWords.contains(cleanedQuery)) {
+            allTokens.add(cleanedQuery);
+        }
+        
+        // 按空格、逗号、顿号、斜杠、连字符等分隔
+        // 注意：加入 / 和 - 让 "FAST/28G" 拆出 "FAST" 和 "28G"
+        String[] parts = query.split("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}/\\-_]+");
         for (String part : parts) {
             // 保留完整的词（不分拆），用于精确匹配
             if (part.length() >= 2 && !stopWords.contains(part)) {
@@ -896,7 +905,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < array.length; i++) {
             if (i > 0) sb.append(",");
-            sb.append(array[i]);
+            // 使用BigDecimal避免科学计数法（如3.4267126E-4），
+            // PostgreSQL的::vector类型转换不支持科学计数法，必须是标准十进制小数
+            sb.append(new java.math.BigDecimal(String.valueOf(array[i])).toPlainString());
         }
         sb.append("]");
         return sb.toString();
