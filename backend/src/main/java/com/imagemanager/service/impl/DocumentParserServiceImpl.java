@@ -2,7 +2,6 @@ package com.imagemanager.service.impl;
 
 import com.imagemanager.service.DocumentParserService;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.pdfbox.Loader;
@@ -87,7 +86,7 @@ public class DocumentParserServiceImpl implements DocumentParserService {
     }
 
     private String parseExcel(InputStream is) throws Exception {
-        try (Workbook workbook = new XSSFWorkbook(is)) {
+        try (Workbook workbook = WorkbookFactory.create(is)) {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
                 Sheet sheet = workbook.getSheetAt(i);
