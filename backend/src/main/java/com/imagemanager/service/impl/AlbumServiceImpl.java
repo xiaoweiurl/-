@@ -516,7 +516,7 @@ public class AlbumServiceImpl implements AlbumService {
             }
             
             // 尝试查找路径中包含该名称的相册
-            List<Album> matches = albumRepository.findFirstByUserIdAndPathContaining(userId, normalizedPath);
+            List<Album> matches = albumRepository.findByUserIdAndPathContaining(userId, normalizedPath);
             if (!matches.isEmpty()) {
                 log.info("从 {} 个匹配中找到相册：{}", matches.size(), matches.get(0).getPath());
                 return matches.get(0);
