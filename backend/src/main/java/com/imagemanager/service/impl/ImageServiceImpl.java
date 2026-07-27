@@ -1903,8 +1903,9 @@ public class ImageServiceImpl implements ImageService {
                 log.info("Excel导入 - 父相册名称处理: 原始='{}', 清理后='{}'", parentAlbumName, cleanParentName);
             }
 
-            // 如果指定了分类，查找或创建对应的相册（层级用横杠拼接）
-            // 相册命名规则：文件名-类别层级，如 "松野湃-儿童专区"，"松野湃-儿童专区-户外速干衣"
+            // 构建层级相册：父相册=品牌名，子相册=类别层级
+            // 结构示例：松野湃 → 儿童专区 → 户外速干衣
+            // 父相册只创建一次，子相册按类别层级嵌套
             String albumId = null;
             String albumName = null;
             String category = item.getCategory();
@@ -1922,31 +1923,50 @@ public class ImageServiceImpl implements ImageService {
                     String brandName = cleanParentName != null ? cleanParentName : "";
                     Album targetAlbum = null;
 
-                    // 构建层级相册名称（用横杠拼接）
-                    if (decodedCategory != null && !decodedCategory.isEmpty() && decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
-                        // 两层分类：父相册=品牌-子分类，子相册=品牌-子分类-分类
-                        // 例如：松野湃-儿童专区 → 松野湃-儿童专区-户外速干衣
-                        String parentAlbumPath = brandName + "-" + decodedSubCategory;
-                        String childAlbumPath = parentAlbumPath + "-" + decodedCategory;
+                    // 层级相册：品牌名(父) → subCategory(子) → category(孙)
+                    // 每层只用类别名，不拼接上级名称
+                    // 父相册和子相册已存在则复用，不重复创建
+                    if (!brandName.isEmpty()) {
+                        // 第1层：品牌名（如"松野湃"）
+                        Album brandAlbum = albumService.getOrCreateAlbumByPath(brandName);
+                        String currentParentId = brandAlbum.getId();
 
-                        // 创建父相册（品牌-子分类）
-                        Album parentAlbum = albumService.getOrCreateAlbumByPath(parentAlbumPath);
-                        // 创建子相册（品牌-子分类-分类）
-                        targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                parentAlbum.getId(), childAlbumPath, "user-1");
-                        log.info("Excel导入 - 三级相册: 父={}, 子={}", parentAlbumPath, childAlbumPath);
-                    } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
-                        // 只有分类（无子分类）：品牌-分类
-                        // 例如：松野湃-儿童专区
-                        String albumPath = brandName.isEmpty() ? decodedCategory : brandName + "-" + decodedCategory;
-                        targetAlbum = albumService.getOrCreateAlbumByPath(albumPath);
-                        log.info("Excel导入 - 两级相册（只有分类）: {}", albumPath);
-                    } else if (decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
-                        // 只有子分类（无分类）：品牌-子分类
-                        // 例如：松野湃-儿童专区
-                        String albumPath = brandName.isEmpty() ? decodedSubCategory : brandName + "-" + decodedSubCategory;
-                        targetAlbum = albumService.getOrCreateAlbumByPath(albumPath);
-                        log.info("Excel导入 - 两级相册（只有子分类）: {}", albumPath);
+                        if (decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
+                            // 第2层：子分类（如"儿童专区"），挂在品牌下
+                            Album subCatAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                    currentParentId, decodedSubCategory, "user-1");
+                            currentParentId = subCatAlbum.getId();
+
+                            if (decodedCategory != null && !decodedCategory.isEmpty()) {
+                                // 第3层：分类（如"户外速干衣"），挂在子分类下
+                                targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                        currentParentId, decodedCategory, "user-1");
+                                log.info("Excel导入 - 三级相册: {} > {} > {}", brandName, decodedSubCategory, decodedCategory);
+                            } else {
+                                targetAlbum = subCatAlbum;
+                                log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedSubCategory);
+                            }
+                        } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
+                            // 第2层：只有分类，挂在品牌下
+                            targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                    currentParentId, decodedCategory, "user-1");
+                            log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedCategory);
+                        } else {
+                            // 只有品牌名，无分类
+                            targetAlbum = brandAlbum;
+                            log.info("Excel导入 - 品牌根相册: {}", brandName);
+                        }
+                    } else {
+                        // 无品牌名，只有分类
+                        if (decodedSubCategory != null && !decodedSubCategory.isEmpty() && decodedCategory != null && !decodedCategory.isEmpty()) {
+                            Album parentAlbum = albumService.getOrCreateAlbumByPath(decodedSubCategory);
+                            targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
+                                    parentAlbum.getId(), decodedCategory, "user-1");
+                        } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
+                            targetAlbum = albumService.getOrCreateAlbumByPath(decodedCategory);
+                        } else if (decodedSubCategory != null && !decodedSubCategory.isEmpty()) {
+                            targetAlbum = albumService.getOrCreateAlbumByPath(decodedSubCategory);
+                        }
                     }
 
                     if (targetAlbum != null) {
@@ -1961,7 +1981,7 @@ public class ImageServiceImpl implements ImageService {
             }
 
             // 如果没有指定分类但有父相册名称，创建纯品牌相册（作为根相册）
-            if (albumId == null && parentAlbumName != null && !parentAlbumName.isEmpty()) {
+            if (albumId == null && cleanParentName != null && !cleanParentName.isEmpty()) {
                 try {
                     Album parentAlbum = albumService.getOrCreateAlbumByPath(cleanParentName);
                     if (parentAlbum != null) {

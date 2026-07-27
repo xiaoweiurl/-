@@ -145,14 +145,20 @@ public class AlbumServiceImpl implements AlbumService {
         }
 
         // 2. 子相册不存在，创建新的
-        // childName 在 Excel 批量导入场景下已经是完整的层级名称（如 "松野湃-儿童专区-户外速干衣"）
-        // 所以 fullName 和 path 直接使用 childName，不再拼接 parentName
+        // fullName 和 path 需要包含父级路径，形成层级路径
+        // 例如：父path="松野湃", childName="儿童专区" → fullName="松野湃/儿童专区"
+        String parentPath = "";
+        if (parentId != null && !parentId.isEmpty()) {
+            albumRepository.findById(parentId).ifPresent(p -> parentPath = p.getPath() != null ? p.getPath() : p.getName());
+        }
+        String fullPath = parentPath.isEmpty() ? childName : parentPath + "/" + childName;
+
         Album child = Album.builder()
                 .id("album-" + UUID.randomUUID().toString().substring(0, 8))
                 .name(childName)
-                .fullName(childName)
+                .fullName(fullPath)
                 .parentId(parentId)
-                .path(childName)
+                .path(fullPath)
                 .keywords(Arrays.asList(childName))
                 .isSystem(false)
                 .imageCount(0)
@@ -162,7 +168,7 @@ public class AlbumServiceImpl implements AlbumService {
                 .userId(userId)
                 .build();
         child = albumRepository.save(child);
-        log.info("创建子相册: parentId={}, childName={}, fullName={}", parentId, childName, child.getFullName());
+        log.info("创建子相册: parentId={}, childName={}, fullName={}", parentId, childName, fullPath);
         return child;
     }
 
