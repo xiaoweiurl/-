@@ -611,7 +611,7 @@ export default function FileUpload({
                   ref={imageInputRef}
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z"
                   onChange={(e) => e.target.files && handleFiles(e.target.files)}
                   className="hidden"
                 />
