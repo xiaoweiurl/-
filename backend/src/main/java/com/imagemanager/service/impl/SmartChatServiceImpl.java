@@ -94,6 +94,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 通用闲聊意图识别：当用户问的是闲聊/身份/通用常识类问题时，跳过所有知识库检索
                 boolean generalChatIntent = isGeneralChatIntent(message);
 
+                // 关键覆盖逻辑：当已识别到供应链意图或岗位意图时，即使关键词也命中闲聊模式，
+                // 也应优先按业务意图处理（如"帮我计算成本"包含"成本"→供应链意图优先）
+                if (generalChatIntent && (supplyChainIntent || positionIntent)) {
+                    generalChatIntent = false;
+                    log.info("闲聊意图被业务意图覆盖: supplyChainIntent={}, positionIntent={}", supplyChainIntent, positionIntent);
+                }
+
                 // 工厂模式判断（用于后续多处逻辑分支）
                 boolean isFactory = "factory".equals(mode);
 
@@ -1318,7 +1325,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             "讲个笑话", "说个笑话", "脑筋急转弯", "猜谜",
             // 通用常识/编程/数学（非企业内部）
             "写一段代码", "帮我写代码", "python", "java代码", "javascript",
-            "翻译一下", "翻译成", "算一下", "计算",
+            "翻译一下", "翻译成",
             "今天天气", "几号了", "几点了", "星期几",
             "推荐一部", "推荐一首", "推荐一本",
             // 纯感叹/无意义
