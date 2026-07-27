@@ -91,12 +91,47 @@ public class DocumentParserServiceImpl implements DocumentParserService {
             for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
                 Sheet sheet = workbook.getSheetAt(i);
                 sb.append("【工作表: ").append(sheet.getSheetName()).append("】\n");
-                for (Row row : sheet) {
-                    List<String> cells = new ArrayList<>();
-                    for (Cell cell : row) {
-                        cells.add(getCellValue(cell));
+
+                // 提取表头
+                List<String> headers = new ArrayList<>();
+                Row headerRow = sheet.getRow(0);
+                if (headerRow != null) {
+                    for (Cell cell : headerRow) {
+                        headers.add(getCellValue(cell).trim());
                     }
-                    sb.append(String.join(" | ", cells)).append("\n");
+                }
+
+                if (headers.isEmpty() || headers.stream().allMatch(String::isEmpty)) {
+                    // 无表头，退化为原始 | 分隔格式
+                    for (Row row : sheet) {
+                        List<String> cells = new ArrayList<>();
+                        for (Cell cell : row) {
+                            cells.add(getCellValue(cell));
+                        }
+                        sb.append(String.join(" | ", cells)).append("\n");
+                    }
+                } else {
+                    // 有表头：将每行数据转为自然语言描述句
+                    // 格式：列名1值1，列名2值2，列名3值3
+                    for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                        Row row = sheet.getRow(r);
+                        if (row == null) continue;
+
+                        List<String> parts = new ArrayList<>();
+                        boolean hasData = false;
+                        for (int c = 0; c < headers.size(); c++) {
+                            String header = headers.get(c);
+                            if (header.isEmpty()) continue;
+                            String value = getCellValue(row.getCell(c)).trim();
+                            if (!value.isEmpty()) {
+                                parts.add(header + value);
+                                hasData = true;
+                            }
+                        }
+                        if (hasData) {
+                            sb.append(String.join("，", parts)).append("\n");
+                        }
+                    }
                 }
                 sb.append("\n");
             }
