@@ -46,29 +46,24 @@ export default function UploadDialog({
     if (!files) return;
 
     const validFiles: UploadingFile[] = [];
-    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
-    const documentTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'text/markdown',
-      'text/csv',
-      'application/zip',
-      'application/x-rar-compressed',
-      'application/x-7z-compressed',
+    const allowedExtensions = [
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff', '.ico',
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+      '.txt', '.md', '.csv',
+      '.zip', '.rar', '.7z',
     ];
-    const allowedTypes = [...imageTypes, ...documentTypes];
+    const blockedExtensions = ['.exe', '.bat', '.sh', '.cmd', '.com', '.vbs', '.js'];
     const maxSize = 50 * 1024 * 1024; // 50MB
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
 
-      if (!allowedTypes.includes(file.type)) {
+      if (blockedExtensions.includes(ext)) {
+        continue;
+      }
+
+      if (!allowedExtensions.includes(ext)) {
         continue;
       }
 
