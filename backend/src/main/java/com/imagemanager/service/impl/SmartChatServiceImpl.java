@@ -285,9 +285,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                         Map<String, Object> r = knowledgeResults.get(i);
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
                         String content = r.getOrDefault("content", "").toString();
-                        if (content.length() > 300) content = content.substring(0, 300) + "...";
-                        knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%%)\n%s\n\n",
-                                i + 1, score * 100, content));
+                        String source = r.getOrDefault("source", "未知文档").toString();
+                        // 按相关度动态调整截断长度：高分保留更多内容
+                        int maxLen = score >= 0.7 ? 1200 : (score >= 0.5 ? 800 : 500);
+                        if (content.length() > maxLen) content = content.substring(0, maxLen) + "...";
+                        knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%% | 来源: %s)\n%s\n\n",
+                                i + 1, score * 100, source, content));
                     }
                 }
 
@@ -1229,7 +1232,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private List<Map<String, Object>> searchKnowledgeBase(String query, String company) {
         try {
-            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.15, 8, company);
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.12, 15, company);
 
             List<Map<String, Object>> results = new ArrayList<>();
             for (MemorySearchResult r : allResults) {

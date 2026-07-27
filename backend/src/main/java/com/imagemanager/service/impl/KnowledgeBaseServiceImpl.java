@@ -469,16 +469,34 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     public List<MemorySearchResult> search(String query, double minScore, int limit, String company) {
         try {
             log.info("知识库搜索: query='{}', minScore={}, limit={}, company='{}'", query, minScore, limit, company);
+            
+            // ====== 混合检索(Hybrid Search): 关键词预过滤 + 向量语义搜索 ======
+            // Step 1: 从查询中提取关键词（去除停用词、保留核心名词）
+            List<String> keywords = extractKeywords(query);
+            log.info("知识库搜索: 提取关键词={}", keywords);
+            
+            // Step 2: 关键词SQL预过滤 — 先缩小候选集范围
+            String keywordFilter = "";
+            if (!keywords.isEmpty()) {
+                // 构建关键词LIKE条件：chunk_text 或 title 包含任一关键词
+                StringBuilder likeConditions = new StringBuilder();
+                for (int i = 0; i < keywords.size(); i++) {
+                    if (i > 0) likeConditions.append(" OR ");
+                    likeConditions.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ?");
+                }
+                keywordFilter = " AND (" + likeConditions + ") ";
+            }
+            
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
-                log.warn("知识库搜索: 获取查询Embedding失败, 返回空结果");
-                return Collections.emptyList();
+                log.warn("知识库搜索: 获取查询Embedding失败, 尝试纯关键词搜索");
+                return keywordSearchFallback(keywords, company, limit);
             }
             log.info("知识库搜索: 获取查询Embedding成功, 维度={}", queryEmbedding.length);
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            // 诊断：检查 knowledge_embeddings 中是否有 KNOWLEDGE_BASE 类型的数据
+            // Step 3: 诊断信息
             try {
                 Integer totalEmbeddings = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE'", Integer.class);
@@ -491,30 +509,129 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 log.warn("知识库搜索诊断查询失败: {}", diagEx.getMessage());
             }
 
+            // Step 4: 混合检索SQL — 关键词预过滤 + 向量排序 + 增大limit
+            // 扩大候选集：即使有关键词过滤，也多取一些候选(3倍)再按向量排序取topN
+            int candidateLimit = Math.max(limit * 3, 30);
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                    "d.file_name, e.chunk_index, e.created_at, " +
+                    "d.file_name, d.category, e.chunk_index, e.created_at, " +
                     "1 - (e.embedding <=> '" + vectorStr + "'::vector) AS score " +
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
                     "AND (d.company = ? OR d.company IS NULL) " +
+                    keywordFilter +
                     "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
                     "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
                     "LIMIT ?";
 
+            // Step 5: 如果关键词过滤后结果太少，降级到纯向量搜索
+            List<MemorySearchResult> hybridResults = executeHybridSearch(sql, keywords, company, minScore, candidateLimit);
+            log.info("知识库搜索: 混合检索返回{}条结果", hybridResults.size());
+            
+            if (hybridResults.size() < 3 && !keywords.isEmpty()) {
+                // 关键词过滤太严格，降级为纯向量搜索（去掉关键词条件）
+                log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
+                String pureVectorSql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
+                        "d.file_name, d.category, e.chunk_index, e.created_at, " +
+                        "1 - (e.embedding <=> '" + vectorStr + "'::vector) AS score " +
+                        "FROM knowledge_embeddings e " +
+                        "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                        "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
+                        "AND (e.company = ? OR e.company IS NULL) " +
+                        "AND (d.company = ? OR d.company IS NULL) " +
+                        "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
+                        "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
+                        "LIMIT ?";
+                hybridResults = executePureVectorSearch(pureVectorSql, company, minScore, candidateLimit);
+            }
+            
+            // Step 6: 智能截断 — 按score分层，保留高质量结果
+        } catch (Exception e) {
+            log.error("知识库向量搜索失败: {}", e.getMessage());
+            // 最终降级：尝试纯关键词搜索
+            List<String> keywords = extractKeywords(query);
+            if (!keywords.isEmpty()) {
+                return keywordSearchFallback(keywords, company, limit);
+            }
+            return Collections.emptyList();
+        }
+    }
+    
+    /**
+     * 从查询中提取核心关键词（去除停用词、保留名词/品牌名/品类名）
+     */
+    private List<String> extractKeywords(String query) {
+        // 中文停用词列表
+        Set<String> stopWords = Set.of(
+            "的", "了", "是", "在", "有", "和", "与", "或", "不", "也", "都",
+            "就", "要", "会", "能", "这", "那", "什么", "怎么", "如何", "为什么",
+            "哪个", "多少", "哪些", "请", "帮", "告诉我", "查询", "查", "看",
+            "给", "让", "把", "被", "从", "到", "对", "为", "以", "于",
+            "可以", "应该", "需要", "目前", "现在", "最新", "最近", "所有", "全部",
+            "比较", "分析", "统计", "列出", "展示", "显示", "计算", "得出",
+            "面料", "原料", "产品", "供应商", "采购", "成本", "价格", "报价", "单价",
+            "最低", "最高", "平均", "总", "合计"
+        );
+        
+        // 分词：中文按字符+常见分隔符，英文按空格
+        List<String> allTokens = new ArrayList<>();
+        // 按空格、逗号、顿号等分隔
+        String[] parts = query.split("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}]+");
+        for (String part : parts) {
+            if (part.length() >= 2 && !stopWords.contains(part)) {
+                allTokens.add(part);
+            }
+            // 长词再拆分为2-4字的子词（中文分词简化）
+            if (part.length() >= 4) {
+                for (int len = 2; len <= Math.min(4, part.length() - 1); len++) {
+                    for (int i = 0; i <= part.length() - len; i++) {
+                        String sub = part.substring(i, i + len);
+                        if (!stopWords.contains(sub) && sub.length() >= 2) {
+                            allTokens.add(sub);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 去重并保留最长的词优先
+        Set<String> unique = new LinkedHashSet<>(allTokens);
+        List<String> result = new ArrayList<>(unique);
+        // 限制关键词数量（太多会导致SQL太复杂）
+        if (result.size() > 6) {
+            result = result.subList(0, 6);
+        }
+        return result;
+    }
+    
+    /**
+     * 执行混合检索SQL（关键词预过滤 + 向量排序）
+     */
+    private List<MemorySearchResult> executeHybridSearch(String sql, List<String> keywords, 
+            String company, double minScore, int candidateLimit) {
+        try {
+            // 构建 PreparedStatement 参数：关键词出现3次（chunk_text, title, file_name）
+            int keywordParams = keywords.size() * 3;
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
-                ps.setString(1, company);
-                ps.setString(2, company);
-                ps.setDouble(3, minScore);
-                ps.setInt(4, limit);
+                int idx = 1;
+                ps.setString(idx++, company);
+                ps.setString(idx++, company);
+                for (String kw : keywords) {
+                    String likePattern = "%" + kw + "%";
+                    ps.setString(idx++, likePattern);  // chunk_text ILIKE
+                    ps.setString(idx++, likePattern);  // title ILIKE
+                    ps.setString(idx++, likePattern);  // file_name ILIKE
+                }
+                ps.setDouble(idx++, minScore);
+                ps.setInt(idx++, candidateLimit);
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
                     .title(rs.getString("title"))
                     .content(rs.getString("chunk_text"))
                     .domainCode("knowledge_base")
                     .domainName("知识库")
-                    .source(rs.getString("file_name"))
+                    .source(rs.getString("file_name") + " [分类:" + rs.getString("category") + "]")
                     .confidence("high")
                     .createdAt(rs.getTimestamp("created_at") != null ?
                             rs.getTimestamp("created_at").toLocalDateTime() : null)
@@ -523,9 +640,127 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .build()
             );
         } catch (Exception e) {
-            log.error("知识库向量搜索失败: {}", e.getMessage());
+            log.warn("混合检索SQL执行失败: {}", e.getMessage());
             return Collections.emptyList();
         }
+    }
+    
+    /**
+     * 纯向量搜索（关键词过滤结果不足时降级）
+     */
+    private List<MemorySearchResult> executePureVectorSearch(String sql, 
+            String company, double minScore, int candidateLimit) {
+        try {
+            return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
+                ps.setString(1, company);
+                ps.setString(2, company);
+                ps.setDouble(3, minScore);
+                ps.setInt(4, candidateLimit);
+            }, (rs, rowNum) -> MemorySearchResult.builder()
+                    .id(UUID.fromString(rs.getString("id")))
+                    .title(rs.getString("title"))
+                    .content(rs.getString("chunk_text"))
+                    .domainCode("knowledge_base")
+                    .domainName("知识库")
+                    .source(rs.getString("file_name") + " [分类:" + rs.getString("category") + "]")
+                    .confidence("high")
+                    .createdAt(rs.getTimestamp("created_at") != null ?
+                            rs.getTimestamp("created_at").toLocalDateTime() : null)
+                    .chunkText(rs.getString("chunk_text"))
+                    .score(rs.getDouble("score"))
+                    .build()
+            );
+        } catch (Exception e) {
+            log.warn("纯向量搜索SQL执行失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+    
+    /**
+     * 纯关键词搜索降级（Embedding失败时的兜底方案）
+     */
+    private List<MemorySearchResult> keywordSearchFallback(List<String> keywords, String company, int limit) {
+        if (keywords.isEmpty()) return Collections.emptyList();
+        try {
+            StringBuilder whereClause = new StringBuilder();
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) whereClause.append(" OR ");
+                whereClause.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ?");
+            }
+            String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
+                    "d.file_name, d.category, e.chunk_index, e.created_at " +
+                    "FROM knowledge_embeddings e " +
+                    "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                    "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
+                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (d.company = ? OR d.company IS NULL) " +
+                    "AND (" + whereClause + ") " +
+                    "ORDER BY e.created_at DESC LIMIT ?";
+            
+            return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
+                int idx = 1;
+                ps.setString(idx++, company);
+                ps.setString(idx++, company);
+                for (String kw : keywords) {
+                    ps.setString(idx++, "%" + kw + "%");
+                    ps.setString(idx++, "%" + kw + "%");
+                    ps.setString(idx++, "%" + kw + "%");
+                }
+                ps.setInt(idx++, limit);
+            }, (rs, rowNum) -> MemorySearchResult.builder()
+                    .id(UUID.fromString(rs.getString("id")))
+                    .title(rs.getString("title"))
+                    .content(rs.getString("chunk_text"))
+                    .domainCode("knowledge_base")
+                    .domainName("知识库")
+                    .source(rs.getString("file_name") + " [分类:" + rs.getString("category") + "]")
+                    .confidence("medium")
+                    .createdAt(rs.getTimestamp("created_at") != null ?
+                            rs.getTimestamp("created_at").toLocalDateTime() : null)
+                    .chunkText(rs.getString("chunk_text"))
+                    .score(0.5) // 关键词搜索没有向量分数，给默认分数
+                    .build()
+            );
+        } catch (Exception e) {
+            log.error("关键词搜索降级失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+    
+    /**
+     * 智能截断 — 按score分层保留高质量结果
+     * 高分(>=0.7)全保留, 中分(0.5-0.7)最多5条, 低分(<0.5)最多3条
+     */
+    private List<MemorySearchResult> smartTruncate(List<MemorySearchResult> results, int limit) {
+        if (results.size() <= limit) return results;
+        
+        List<MemorySearchResult> highScore = new ArrayList<>();
+        List<MemorySearchResult> midScore = new ArrayList<>();
+        List<MemorySearchResult> lowScore = new ArrayList<>();
+        
+        for (MemorySearchResult r : results) {
+            double s = r.getScore() != null ? r.getScore() : 0;
+            if (s >= 0.7) highScore.add(r);
+            else if (s >= 0.5) midScore.add(r);
+            else lowScore.add(r);
+        }
+        
+        List<MemorySearchResult> finalResults = new ArrayList<>(highScore);
+        // 中分最多补5条
+        int midCount = Math.min(5, midScore.size());
+        finalResults.addAll(midScore.subList(0, midCount));
+        // 低分最多补3条
+        int lowCount = Math.min(3, lowScore.size());
+        finalResults.addAll(lowScore.subList(0, lowCount));
+        
+        // 最终不超过limit
+        if (finalResults.size() > limit) {
+            finalResults = finalResults.subList(0, limit);
+        }
+        
+        log.info("智能截断: 总{}条 → 高分{} 中分{} 低分{} → 最终{}条",
+                results.size(), highScore.size(), midScore.size(), lowScore.size(), finalResults.size());
+        return finalResults;
     }
 
     @Override
