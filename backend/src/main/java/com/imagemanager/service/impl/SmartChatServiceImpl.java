@@ -93,8 +93,15 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 通用闲聊意图识别：当用户问的是闲聊/身份/通用常识类问题时，跳过所有知识库检索
                 boolean generalChatIntent = isGeneralChatIntent(message);
-
-                // 关键覆盖逻辑：当已识别到供应链意图或岗位意图时，即使关键词也命中闲聊模式，
+                
+                // 关键覆盖逻辑1：工厂模式下任何问题都是业务问题，不应归为闲聊
+                // 工厂模式下用户问"帮我计算成本"、"机型产量是多少"等都应触发知识库检索
+                if (generalChatIntent && "factory".equals(mode)) {
+                    generalChatIntent = false;
+                    log.info("闲聊意图被工厂模式覆盖: mode={}", mode);
+                }
+                
+                // 关键覆盖逻辑2：当已识别到供应链意图或岗位意图时，即使关键词也命中闲聊模式，
                 // 也应优先按业务意图处理（如"帮我计算成本"包含"成本"→供应链意图优先）
                 if (generalChatIntent && (supplyChainIntent || positionIntent)) {
                     generalChatIntent = false;

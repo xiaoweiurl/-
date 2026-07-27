@@ -478,6 +478,23 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             List<String> keywords = extractKeywords(query);
             log.info("知识库搜索: 提取关键词={}", keywords);
             
+            // Step 1.5: 关键词诊断 — 直接用SQL检查数据是否存在
+            try {
+                for (String kw : keywords) {
+                    if (kw.length() >= 2 && kw.length() <= 10) {
+                        Integer cnt = jdbcTemplate.queryForObject(
+                            "SELECT COUNT(*) FROM knowledge_base_docs WHERE file_content ILIKE ?",
+                            Integer.class, "%" + kw + "%");
+                        Integer embCnt = jdbcTemplate.queryForObject(
+                            "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND chunk_text ILIKE ?",
+                            Integer.class, "%" + kw + "%");
+                        log.info("知识库搜索诊断: 关键词'{}' → docs表匹配{}, embeddings表匹配{}", kw, cnt, embCnt);
+                    }
+                }
+            } catch (Exception diagEx) {
+                log.warn("知识库搜索关键词诊断失败: {}", diagEx.getMessage());
+            }
+            
             // Step 2: 关键词SQL预过滤 — 先缩小候选集范围
             String keywordFilter = "";
             if (!keywords.isEmpty()) {
