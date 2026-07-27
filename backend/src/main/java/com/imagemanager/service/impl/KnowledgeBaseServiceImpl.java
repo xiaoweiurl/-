@@ -547,10 +547,34 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
             
             // Step 6: 智能截断 — 按score分层，保留高质量结果
+            List<MemorySearchResult> finalResults = new ArrayList<>();
+            for (MemorySearchResult result : hybridResults) {
+                double score = result.getScore();
+                String content = result.getContent();
+                int maxLen;
+                if (score >= 0.7) {
+                    maxLen = 2000;  // 高相关度：保留完整内容
+                } else if (score >= 0.5) {
+                    maxLen = 1200;  // 中等相关度：保留大部分
+                } else {
+                    maxLen = 600;   // 低相关度：精简摘要
+                }
+                if (content != null && content.length() > maxLen) {
+                    result.setContent(content.substring(0, maxLen) + "...");
+                }
+                finalResults.add(result);
+            }
+            
+            // 最终取topN结果（不超过请求的limit）
+            if (finalResults.size() > limit) {
+                finalResults = finalResults.subList(0, limit);
+            }
+            
+            log.info("知识库搜索: 最终返回{}条结果(混合检索+智能截断)", finalResults.size());
+            return finalResults;
         } catch (Exception e) {
             log.error("知识库向量搜索失败: {}", e.getMessage());
             // 最终降级：尝试纯关键词搜索
-            List<String> keywords = extractKeywords(query);
             if (!keywords.isEmpty()) {
                 return keywordSearchFallback(keywords, company, limit);
             }
@@ -562,29 +586,28 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * 从查询中提取核心关键词（去除停用词、保留名词/品牌名/品类名）
      */
     private List<String> extractKeywords(String query) {
-        // 中文停用词列表
+        // 中文停用词列表（只保留虚词/疑问词，保留业务关键词！）
         Set<String> stopWords = Set.of(
             "的", "了", "是", "在", "有", "和", "与", "或", "不", "也", "都",
             "就", "要", "会", "能", "这", "那", "什么", "怎么", "如何", "为什么",
             "哪个", "多少", "哪些", "请", "帮", "告诉我", "查询", "查", "看",
             "给", "让", "把", "被", "从", "到", "对", "为", "以", "于",
             "可以", "应该", "需要", "目前", "现在", "最新", "最近", "所有", "全部",
-            "比较", "分析", "统计", "列出", "展示", "显示", "计算", "得出",
-            "面料", "原料", "产品", "供应商", "采购", "成本", "价格", "报价", "单价",
-            "最低", "最高", "平均", "总", "合计"
+            "比较", "分析", "统计", "列出", "展示", "显示", "计算", "得出"
+            // 注意：不包含业务关键词（面料/原料/供应商/采购/成本/价格/报价等）
         );
         
-        // 分词：中文按字符+常见分隔符，英文按空格
         List<String> allTokens = new ArrayList<>();
         // 按空格、逗号、顿号等分隔
         String[] parts = query.split("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}]+");
         for (String part : parts) {
+            // 保留完整的词（不分拆），用于精确匹配
             if (part.length() >= 2 && !stopWords.contains(part)) {
                 allTokens.add(part);
             }
-            // 长词再拆分为2-4字的子词（中文分词简化）
+            // 长词再拆分为2-5字的子词（匹配知识库切片中的片段）
             if (part.length() >= 4) {
-                for (int len = 2; len <= Math.min(4, part.length() - 1); len++) {
+                for (int len = 2; len <= Math.min(5, part.length() - 1); len++) {
                     for (int i = 0; i <= part.length() - len; i++) {
                         String sub = part.substring(i, i + len);
                         if (!stopWords.contains(sub) && sub.length() >= 2) {
@@ -595,12 +618,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
         }
         
-        // 去重并保留最长的词优先
+        // 保留完整词优先 + 子词补充
         Set<String> unique = new LinkedHashSet<>(allTokens);
         List<String> result = new ArrayList<>(unique);
-        // 限制关键词数量（太多会导致SQL太复杂）
-        if (result.size() > 6) {
-            result = result.subList(0, 6);
+        // 限制关键词数量（太多会导致SQL太复杂），但增加到10个
+        if (result.size() > 10) {
+            result = result.subList(0, 10);
         }
         return result;
     }
