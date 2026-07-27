@@ -530,23 +530,23 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             // Step 4: 混合检索SQL — 关键词预过滤 + 向量排序 + 增大limit
-            // 扩大候选集：即使有关键词过滤，也多取一些候选(3倍)再按向量排序取topN
+            // 使用参数绑定传递向量，避免超长SQL导致JDBC解析失败
             int candidateLimit = Math.max(limit * 3, 30);
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
                     "d.file_name, d.category, e.chunk_index, e.created_at, " +
-                    "1 - (e.embedding <=> '" + vectorStr + "'::vector) AS score " +
+                    "1 - (e.embedding <=> ?::vector) AS score " +
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
                     "AND (d.company = ? OR d.company IS NULL) " +
                     keywordFilter +
-                    "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
-                    "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
+                    "AND 1 - (e.embedding <=> ?::vector) >= ? " +
+                    "ORDER BY e.embedding <=> ?::vector " +
                     "LIMIT ?";
 
             // Step 5: 如果关键词过滤后结果太少，降级到纯向量搜索
-            List<MemorySearchResult> hybridResults = executeHybridSearch(sql, keywords, company, minScore, candidateLimit);
+            List<MemorySearchResult> hybridResults = executeHybridSearch(sql, vectorStr, keywords, company, minScore, candidateLimit);
             log.info("知识库搜索: 混合检索返回{}条结果", hybridResults.size());
             
             if (hybridResults.size() < 3 && !keywords.isEmpty()) {
@@ -554,16 +554,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
                 String pureVectorSql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
                         "d.file_name, d.category, e.chunk_index, e.created_at, " +
-                        "1 - (e.embedding <=> '" + vectorStr + "'::vector) AS score " +
+                        "1 - (e.embedding <=> ?::vector) AS score " +
                         "FROM knowledge_embeddings e " +
                         "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                         "AND (e.company = ? OR e.company IS NULL) " +
                         "AND (d.company = ? OR d.company IS NULL) " +
-                        "AND 1 - (e.embedding <=> '" + vectorStr + "'::vector) >= ? " +
-                        "ORDER BY e.embedding <=> '" + vectorStr + "'::vector " +
+                        "AND 1 - (e.embedding <=> ?::vector) >= ? " +
+                        "ORDER BY e.embedding <=> ?::vector " +
                         "LIMIT ?";
-                hybridResults = executePureVectorSearch(pureVectorSql, company, minScore, candidateLimit);
+                hybridResults = executePureVectorSearch(pureVectorSql, vectorStr, company, minScore, candidateLimit);
             }
             
             // Step 6: 智能截断 — 按score分层，保留高质量结果
@@ -669,12 +669,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     
     /**
      * 执行混合检索SQL（关键词预过滤 + 向量排序）
+     * 向量通过参数绑定传递，避免超长SQL导致JDBC解析失败
      */
-    private List<MemorySearchResult> executeHybridSearch(String sql, List<String> keywords, 
+    private List<MemorySearchResult> executeHybridSearch(String sql, String vectorStr, List<String> keywords, 
             String company, double minScore, int candidateLimit) {
         try {
-            // 构建 PreparedStatement 参数：关键词出现4次（chunk_text, title, file_name, file_content）
-            int keywordParams = keywords.size() * 4;
+            // 构建 PreparedStatement 参数：
+            // SQL中?参数顺序：company×2, keywords×4, vector×3, minScore, candidateLimit
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, company);
@@ -686,7 +687,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     ps.setString(idx++, likePattern);  // file_name ILIKE
                     ps.setString(idx++, likePattern);  // file_content ILIKE
                 }
-                ps.setDouble(idx++, minScore);
+                ps.setString(idx++, vectorStr);   // SELECT score
+                ps.setDouble(idx++, minScore);     // WHERE score >= minScore
+                ps.setString(idx++, vectorStr);   // ORDER BY
                 ps.setInt(idx++, candidateLimit);
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
@@ -710,15 +713,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     
     /**
      * 纯向量搜索（关键词过滤结果不足时降级）
+     * 向量通过参数绑定传递，避免超长SQL导致JDBC解析失败
      */
-    private List<MemorySearchResult> executePureVectorSearch(String sql, 
+    private List<MemorySearchResult> executePureVectorSearch(String sql, String vectorStr,
             String company, double minScore, int candidateLimit) {
         try {
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
-                ps.setString(1, company);
-                ps.setString(2, company);
-                ps.setDouble(3, minScore);
-                ps.setInt(4, candidateLimit);
+                int idx = 1;
+                ps.setString(idx++, vectorStr);   // SELECT score
+                ps.setString(idx++, company);      // WHERE company
+                ps.setString(idx++, company);      // WHERE company
+                ps.setString(idx++, vectorStr);   // WHERE score >= minScore
+                ps.setDouble(idx++, minScore);     // minScore
+                ps.setString(idx++, vectorStr);   // ORDER BY
+                ps.setInt(idx++, candidateLimit);
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
                     .title(rs.getString("title"))
