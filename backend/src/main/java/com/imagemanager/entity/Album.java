@@ -85,8 +85,9 @@ public class Album {
     
     /**
      * 自动分类关键词（用于匹配图片分类）
+     * EAGER加载避免LazyInitializationException
      */
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "album_keywords", joinColumns = @JoinColumn(name = "album_id"))
     @Column(name = "keyword", length = 50)
     private List<String> keywords;
