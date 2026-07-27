@@ -178,10 +178,6 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 知识库来源（设计师和工厂模式都可用）
                 for (Map<String, Object> r : knowledgeResults) {
-                        sources.add(Map.of(
-                                "source", "knowledge",
-                                "content", r.getOrDefault("content", "").toString(),
-                                "score", r.getOrDefault("score", 0)
                     sources.add(Map.of(
                             "source", "knowledge",
                             "content", r.getOrDefault("content", "").toString(),
