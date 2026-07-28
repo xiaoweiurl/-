@@ -1885,6 +1885,15 @@ public class SmartChatServiceImpl implements SmartChatService {
         try {
             log.info("使用Ollama模型进行对话: {}", ollamaChatModel);
 
+            // 计算发送给模型的上下文大小
+            int totalChars = 0;
+            for (Map<String, Object> msg : messages) {
+                Object content = msg.get("content");
+                if (content instanceof String) totalChars += ((String) content).length();
+                else if (content != null) totalChars += content.toString().length();
+            }
+            log.info("Ollama请求上下文: messages={}, totalChars={} (~{}KB)", messages.size(), totalChars, totalChars / 1024);
+
             Map<String, Object> body = new HashMap<>();
             body.put("model", ollamaChatModel);
             body.put("stream", true);
@@ -2395,8 +2404,15 @@ public class SmartChatServiceImpl implements SmartChatService {
         BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
 
+        int lineCount = 0;
+        long startTime = System.currentTimeMillis();
         String line;
         while ((line = reader.readLine()) != null) {
+            lineCount++;
+            if (lineCount <= 3 || lineCount % 50 == 0) {
+                log.info("Ollama流式数据: line#{}, length={}, first50={}", lineCount, line.length(), 
+                    line.length() > 50 ? line.substring(0, 50) : line);
+            }
             if (line.isEmpty()) {
                 continue;
             }
@@ -2427,6 +2443,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         String content = messageNode.get("content").asText();
                         if (!content.isEmpty()) {
                             fullResponse.append(content);
+                            if (lineCount <= 3) {
+                                log.info("Ollama首段内容输出: length={}, content={}", content.length(), 
+                                    content.length() > 100 ? content.substring(0, 100) : content);
+                            }
                             emitter.send(SseEmitter.event().name("message").data(
                                     objectMapper.writeValueAsString(Map.of(
                                             "type", "content",
