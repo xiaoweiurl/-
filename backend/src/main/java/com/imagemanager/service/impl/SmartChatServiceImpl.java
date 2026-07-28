@@ -21,7 +21,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.*;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -389,27 +388,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +
                             "7. 回答时标注引用来源（供应链数据/产品图片/知识库文档/网络搜索）。" +
                             "8. 保持专业、简洁、有帮助的回答风格，重点关注成本控制、供应商管理、生产效率、工艺流程、质量标准等工厂核心议题。" +
-                            "\n\n【成本计算公式规则 - 当用户要求计算成本时必须严格按以下公式推导】\n" +
-                            "当数据库中提供了以下参数时，按公式逐步计算并展示每一步的推导过程和数值：\n" +
-                            "公式链（从上到下逐步推导）：\n" +
-                            "1. 日产量(双/天) = 24 × 3600 ÷ 下机时间(秒) × 利用率(% ÷ 100)\n" +
-                            "2. 织造成本(元/双) = 机台费(元/天) ÷ 日产量(双/天)\n" +
-                            "3. 染色成本(元/双) = 缝拼克重(克) × 染色单价(元/公斤) ÷ 1000\n" +
-                            "4. 原料合计(元/双) = Σ(每种原料用量(克) × 单价(元/公斤) ÷ 1000)\n" +
-                            "5. 原料金额(元/双) = 原料合计 × (2 - 原料利用率% ÷ 100)\n" +
-                            "6. 前道合计(元/双) = 织造成本 + 前道管理费用 + 染色成本 + 定型 + 其他工价 + 原料金额 + 缝制工价\n" +
-                            "7. 辅料合计(元/双) = Σ(每种辅料价格)\n" +
-                            "8. 辅料金额(元/双) = 辅料合计 × (2 - 辅料利用率% ÷ 100)\n" +
-                            "9. 后道合计(元/双) = 包装 + 后道管理费用 + 辅料金额\n" +
-                            "10. 净成本(元/双) = (织造成本 + 染色成本 + 定型 + 其他工价 + 原料金额 + 缝制工价 + 包装) × (2 - 正品率% ÷ 100) + 辅料金额 + 前道管理费用 + 后道管理费用\n" +
-                            "11. 论税金(元/双) = 净成本 × 0.08\n" +
-                            "12. 实际税金(元/双) = 理论税金（可手动修改）\n" +
-                            "13. 销售成本(元/双) = 净成本 + 运费 + 实际税金\n" +
-                            "注意事项：\n" +
-                            "- 利用率/正品率/原料利用率/辅料利用率是百分比值，计算时需除以100。例如利用率93%参与计算时用0.93\n" +
-                            "- 如果数据库中某些字段为空或为0，请明确标注该字段缺失，不要用0替代（除非该成本项确实为0）\n" +
-                            "- 计算时必须展示每一步的公式和代入的数值，让用户可以验证\n" +
-                            "- 最终结果保留4位小数\n" +
                             "8. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             (webSearchIntent ? "9. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
                 } else {
@@ -1682,11 +1660,10 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 按产品编码查询报价单 - 返回成本计算所需的全部参数（自然语言描述）
+     * 按产品编码查询报价单
      */
     private void searchQuotationByProductCode(String productCode, List<Map<String, Object>> results) {
         try {
-            // 查询所有公式所需的字段（包括新增的利用率、管理费用等）
             String sql = "SELECT id, product_code, production_code, document_no, period, customer, salesperson, " +
                 "product_category, approval_status, sales_type, " +
                 "raw_material_name1, material_usage1, material_unit_price1, " +
@@ -1699,141 +1676,49 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "weaving_seconds, daily_output, equipment_daily_cost, weaving_cost, " +
                 "yield_rate, sewing_weight, sewing_cost, " +
                 "dyeing_unit_price, dyeing_cost, setting_cost, packaging_cost, " +
-                "manufacturing_total, net_cost, sales_cost, tax_amount, " +
-                "machine_hourly_rate, single_machine_output_hourly, " +
-                // 新增公式所需字段（用COALESCE给默认值，字段可能尚未迁移）
-                "COALESCE(utilization_rate, 93) as utilization_rate, " +
-                "COALESCE(material_utilization_rate, 95) as material_utilization_rate, " +
-                "COALESCE(accessory_utilization_rate, 95) as accessory_utilization_rate, " +
-                "COALESCE(front_management_cost, 0) as front_management_cost, " +
-                "COALESCE(rear_management_cost, 0) as rear_management_cost, " +
-                "COALESCE(sewing_labor_cost, 0) as sewing_labor_cost, " +
-                "COALESCE(other_labor_cost, 0) as other_labor_cost, " +
-                "COALESCE(freight_cost, 0) as freight_cost " +
+                "manufacturing_total, net_cost, sales_cost, " +
+                "machine_hourly_rate, single_machine_output_hourly " +
                 "FROM product_quotation WHERE product_code = ? LIMIT 5";
-
             List<Map<String, Object>> rows = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
-                    // 用自然语言描述每个字段，方便大模型理解并代入公式
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("产品编码: ").append(rs.getString("product_code")).append("\n");
-                    String prodCode = rs.getString("production_code");
-                    if (prodCode != null) sb.append("生产编码: ").append(prodCode).append("\n");
-                    String customer = rs.getString("customer");
-                    if (customer != null) sb.append("客户: ").append(customer).append("\n");
-                    String salesperson = rs.getString("salesperson");
-                    if (salesperson != null) sb.append("业务员: ").append(salesperson).append("\n");
-
-                    // === 日产量计算所需参数 ===
-                    sb.append("\n【日产量计算参数】\n");
-                    BigDecimal weavingSec = rs.getBigDecimal("weaving_seconds");
-                    if (weavingSec != null) sb.append("下机时间(秒/双): ").append(weavingSec).append("\n");
-                    BigDecimal utilRate = rs.getBigDecimal("utilization_rate");
-                    sb.append("下机利用率(%): ").append(utilRate).append(" (即").append(utilRate.doubleValue()/100).append(")\n");
-                    Integer dailyOutput = rs.getObject("daily_output") != null ? rs.getInt("daily_output") : null;
-                    if (dailyOutput != null) sb.append("日产量(双/天) [数据库已有值]: ").append(dailyOutput).append("\n");
-
-                    // === 织造成本计算所需参数 ===
-                    sb.append("\n【织造成本计算参数】\n");
-                    BigDecimal equipDailyCost = rs.getBigDecimal("equipment_daily_cost");
-                    if (equipDailyCost != null) sb.append("机台费(元/天): ").append(equipDailyCost).append("\n");
-                    BigDecimal weavingCost = rs.getBigDecimal("weaving_cost");
-                    if (weavingCost != null) sb.append("织造成本(元/双) [数据库已有值]: ").append(weavingCost).append("\n");
-
-                    // === 染色成本计算所需参数 ===
-                    sb.append("\n【染色成本计算参数】\n");
-                    BigDecimal sewingWeight = rs.getBigDecimal("sewing_weight");
-                    if (sewingWeight != null) sb.append("缝拼克重(克/双): ").append(sewingWeight).append("\n");
-                    BigDecimal dyeingUnitPrice = rs.getBigDecimal("dyeing_unit_price");
-                    if (dyeingUnitPrice != null) sb.append("染色单价(元/公斤): ").append(dyeingUnitPrice).append("\n");
-                    BigDecimal dyeingCost = rs.getBigDecimal("dyeing_cost");
-                    if (dyeingCost != null) sb.append("染色成本(元/双) [数据库已有值]: ").append(dyeingCost).append("\n");
-
-                    // === 原料BOM明细 ===
-                    sb.append("\n【原料BOM明细】\n");
-                    BigDecimal materialTotal = BigDecimal.ZERO;
-                    for (int i = 1; i <= 6; i++) {
-                        String matName = rs.getString("raw_material_name" + i);
-                        BigDecimal matUsage = rs.getBigDecimal("material_usage" + i);
-                        BigDecimal matPrice = rs.getBigDecimal("material_unit_price" + i);
-                        if (matName != null && !matName.isEmpty() && matUsage != null && matPrice != null) {
-                            BigDecimal matCost = matUsage.multiply(matPrice).divide(BigDecimal.valueOf(1000), 6, RoundingMode.HALF_UP);
-                            sb.append("原料").append(i).append(": ").append(matName)
-                              .append(", 用量=").append(matUsage).append("克/双")
-                              .append(", 单价=").append(matPrice).append("元/公斤")
-                              .append(", 小计=").append(matCost.setScale(4, RoundingMode.HALF_UP)).append("元/双\n");
-                            materialTotal = materialTotal.add(matCost);
-                        }
-                    }
-                    sb.append("原料合计(元/双): ").append(materialTotal.setScale(4, RoundingMode.HALF_UP)).append("\n");
-                    BigDecimal matUtilRate = rs.getBigDecimal("material_utilization_rate");
-                    sb.append("原料利用率(%): ").append(matUtilRate).append(" (即").append(matUtilRate.doubleValue()/100).append(")\n");
-
-                    // === 辅料 ===
-                    sb.append("\n【辅料明细】\n");
-                    String accName = rs.getString("accessory_name");
-                    BigDecimal accPrice = rs.getBigDecimal("accessory_price");
-                    if (accName != null && !accName.isEmpty()) {
-                        sb.append("辅料: ").append(accName).append(", 价格=").append(accPrice).append("元/双\n");
-                    }
-                    BigDecimal accessoryTotal = accPrice != null ? accPrice : BigDecimal.ZERO;
-                    sb.append("辅料合计(元/双): ").append(accessoryTotal).append("\n");
-                    BigDecimal accUtilRate = rs.getBigDecimal("accessory_utilization_rate");
-                    sb.append("辅料利用率(%): ").append(accUtilRate).append(" (即").append(accUtilRate.doubleValue()/100).append(")\n");
-
-                    // === 其他成本项 ===
-                    sb.append("\n【其他成本项】\n");
-                    BigDecimal yieldRate = rs.getBigDecimal("yield_rate");
-                    if (yieldRate != null) sb.append("正品率(%): ").append(yieldRate).append(" (即").append(yieldRate.doubleValue()/100).append(")\n");
-                    BigDecimal settingCost = rs.getBigDecimal("setting_cost");
-                    if (settingCost != null) sb.append("定型(元/双): ").append(settingCost).append("\n");
-                    BigDecimal sewingLaborCost = rs.getBigDecimal("sewing_labor_cost");
-                    sb.append("缝制工价(元/双): ").append(sewingLaborCost).append("\n");
-                    BigDecimal otherLaborCost = rs.getBigDecimal("other_labor_cost");
-                    sb.append("其他工价(元/双): ").append(otherLaborCost).append("\n");
-                    BigDecimal packagingCost = rs.getBigDecimal("packaging_cost");
-                    if (packagingCost != null) sb.append("包装(元/双): ").append(packagingCost).append("\n");
-                    BigDecimal frontMgmtCost = rs.getBigDecimal("front_management_cost");
-                    sb.append("前道管理费用(元/双): ").append(frontMgmtCost).append("\n");
-                    BigDecimal rearMgmtCost = rs.getBigDecimal("rear_management_cost");
-                    sb.append("后道管理费用(元/双): ").append(rearMgmtCost).append("\n");
-                    BigDecimal freightCost = rs.getBigDecimal("freight_cost");
-                    sb.append("运费(元/双): ").append(freightCost).append("\n");
-
-                    // === 数据库已有的汇总值（供参考对照） ===
-                    sb.append("\n【数据库已有汇总值（仅供参考对照）】\n");
-                    BigDecimal mfgTotal = rs.getBigDecimal("manufacturing_total");
-                    if (mfgTotal != null) sb.append("制造合计: ").append(mfgTotal).append("元/双\n");
-                    BigDecimal netCost = rs.getBigDecimal("net_cost");
-                    if (netCost != null) sb.append("净成本: ").append(netCost).append("元/双\n");
-                    BigDecimal taxAmt = rs.getBigDecimal("tax_amount");
-                    if (taxAmt != null) sb.append("税金: ").append(taxAmt).append("元/双\n");
-                    BigDecimal salesCost = rs.getBigDecimal("sales_cost");
-                    if (salesCost != null) sb.append("销售成本: ").append(salesCost).append("元/双\n");
-
                     Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("costDetail", sb.toString());
                     row.put("productCode", rs.getString("product_code"));
-                    row.put("customer", customer);
-                    row.put("netCost", netCost);
-                    row.put("salesCost", salesCost);
+                    row.put("productionCode", rs.getString("production_code"));
+                    row.put("customer", rs.getString("customer"));
+                    row.put("salesperson", rs.getString("salesperson"));
+                    row.put("productCategory", rs.getString("product_category"));
+                    row.put("approvalStatus", rs.getString("approval_status"));
+                    row.put("salesType", rs.getString("sales_type"));
+                    // 原料明细
+                    row.put("rawMaterial1", rs.getString("raw_material_name1") + " 用量:" + rs.getBigDecimal("material_usage1") + " 单价:" + rs.getBigDecimal("material_unit_price1"));
+                    row.put("rawMaterial2", rs.getString("raw_material_name2") + " 用量:" + rs.getBigDecimal("material_usage2") + " 单价:" + rs.getBigDecimal("material_unit_price2"));
+                    row.put("rawMaterial3", rs.getString("raw_material_name3") + " 用量:" + rs.getBigDecimal("material_usage3") + " 单价:" + rs.getBigDecimal("material_unit_price3"));
+                    row.put("rawMaterial4", rs.getString("raw_material_name4") + " 用量:" + rs.getBigDecimal("material_usage4") + " 单价:" + rs.getBigDecimal("material_unit_price4"));
+                    row.put("rawMaterial5", rs.getString("raw_material_name5") + " 用量:" + rs.getBigDecimal("material_usage5") + " 单价:" + rs.getBigDecimal("material_unit_price5"));
+                    row.put("rawMaterial6", rs.getString("raw_material_name6") + " 用量:" + rs.getBigDecimal("material_usage6") + " 单价:" + rs.getBigDecimal("material_unit_price6"));
+                    row.put("accessoryName", rs.getString("accessory_name"));
+                    row.put("accessoryPrice", rs.getBigDecimal("accessory_price"));
+                    // 制造成本
+                    row.put("weavingCost", rs.getBigDecimal("weaving_cost"));
+                    row.put("yieldRate", rs.getBigDecimal("yield_rate"));
+                    row.put("dyeingCost", rs.getBigDecimal("dyeing_cost"));
+                    row.put("manufacturingTotal", rs.getBigDecimal("manufacturing_total"));
+                    row.put("netCost", rs.getBigDecimal("net_cost"));
+                    row.put("salesCost", rs.getBigDecimal("sales_cost"));
+                    row.put("machineHourlyRate", rs.getBigDecimal("machine_hourly_rate"));
+                    row.put("singleMachineOutputHourly", rs.getBigDecimal("single_machine_output_hourly"));
                     return row;
                 }, productCode);
-
             for (Map<String, Object> row : rows) {
                 Map<String, Object> result = new LinkedHashMap<>();
-                result.put("type", "产品报价-成本计算参数");
-                result.put("source", "product_quotation");
-                result.put("content", row.get("costDetail"));
-                result.put("summary", "产品编码: " + row.get("productCode") +
-                    " | 客户: " + row.get("customer") +
-                    " | 净成本: " + row.get("netCost") +
-                    " | 销售成本: " + row.get("salesCost"));
+                result.put("type", "产品报价");
+                result.put("summary", "产品编码: " + productCode + " | 客户: " + row.get("customer") +
+                    " | 净成本: " + row.get("netCost") + " | 销售成本: " + row.get("salesCost"));
                 result.put("data", row);
                 results.add(result);
             }
         } catch (Exception e) {
-            log.warn("查询产品报价失败: productCode={}, error={}", productCode, e.getMessage());
+            log.warn("查询产品报价失败: {}", e.getMessage());
         }
     }
 
