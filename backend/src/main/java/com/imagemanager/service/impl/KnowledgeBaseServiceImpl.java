@@ -533,10 +533,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 使用参数绑定传递向量，避免超长SQL导致JDBC解析失败
             int candidateLimit = Math.max(limit * 3, 30);
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                    "d.file_name, d.category, e.chunk_index, e.created_at, " +
+                    "d.file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
                     "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                    "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
                     "AND (d.company = ? OR d.company IS NULL) " +
@@ -553,10 +554,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 // 关键词过滤太严格，降级为纯向量搜索（去掉关键词条件）
                 log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
                 String pureVectorSql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                        "d.file_name, d.category, e.chunk_index, e.created_at, " +
+                        "d.file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
                         "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
                         "FROM knowledge_embeddings e " +
                         "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                        "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                         "AND (e.company = ? OR e.company IS NULL) " +
                         "AND (d.company = ? OR d.company IS NULL) " +
@@ -766,9 +768,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 whereClause.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ? OR d.file_content ILIKE ?");
             }
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                    "d.file_name, d.category, e.chunk_index, e.created_at " +
+                    "d.file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at " +
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                    "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
                     "AND (d.company = ? OR d.company IS NULL) " +
@@ -822,8 +825,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     docWhereClause.append("d.file_content ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ?");
                 }
                 String docSql = "SELECT d.id, d.title, d.file_content, " +
-                        "d.file_name, d.category, d.created_at " +
+                        "d.file_name, COALESCE(c.name,'') AS category, d.created_at " +
                         "FROM knowledge_base_docs d " +
+                        "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                         "WHERE (d.company = ? OR d.company IS NULL) " +
                         "AND (" + docWhereClause + ") " +
                         "ORDER BY d.created_at DESC LIMIT ?";
