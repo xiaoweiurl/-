@@ -1069,15 +1069,18 @@ export default function ChatPage() {
               </div>
             )}
             <div className="flex items-end gap-2">
-              {/* 附件上传按钮 */}
+              {/* 附件上传按钮 - 醒目样式 */}
               <input ref={chatFileInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleFileUpload} />
               <button
                 onClick={() => chatFileInputRef.current?.click()}
                 disabled={isChatting || chatAttachments.length >= 5}
-                className="shrink-0 w-11 h-11 rounded-xl border border-slate-700/50 bg-slate-800/50 text-slate-400 flex items-center justify-center hover:text-cyan-400 hover:border-cyan-500/30 hover:bg-slate-800 transition-all disabled:opacity-30"
+                className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all border
+                  ${isChatting || chatAttachments.length >= 5
+                    ? 'bg-slate-700/50 text-slate-500 border-slate-700/50 cursor-not-allowed'
+                    : 'bg-gradient-to-br from-blue-600/20 to-cyan-500/20 text-cyan-400 border-cyan-500/40 hover:border-cyan-400 hover:text-cyan-300 hover:from-blue-600/30 hover:to-cyan-500/30 shadow-sm shadow-cyan-500/10'}`}
                 title="上传图片或PDF文档(最多5个)"
               >
-                <Paperclip className="w-4 h-4" />
+                <Paperclip className="w-[18px] h-[18px]" />
               </button>
               <div className="flex-1 relative">
                 <textarea
@@ -1090,7 +1093,7 @@ export default function ChatPage() {
                       handleSend();
                     }
                   }}
-                  placeholder="输入您的问题，AI 将智能检索并回答..."
+                  placeholder="输入您的问题... 左侧按钮可上传图片或PDF"
                   rows={1}
                   className="w-full px-4 py-3 rounded-xl border border-slate-700/50
                     bg-slate-800/50 text-slate-200 text-[13px] resize-none

@@ -1211,10 +1211,13 @@ export default function SupplyChainPage() {
                     <button
                       onClick={() => chatFileInputRef.current?.click()}
                       disabled={chatLoading || chatAttachments.length >= 5}
-                      className="shrink-0 w-10 h-10 rounded-xl border border-slate-700/50 bg-slate-900/50 text-slate-400 flex items-center justify-center hover:text-cyan-400 hover:border-cyan-500/30 transition-all disabled:opacity-30"
+                      className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all border
+                        ${chatLoading || chatAttachments.length >= 5
+                          ? 'bg-slate-700/50 text-slate-500 border-slate-700/50 cursor-not-allowed'
+                          : 'bg-gradient-to-br from-blue-600/20 to-cyan-500/20 text-cyan-400 border-cyan-500/40 hover:border-cyan-400 hover:text-cyan-300 hover:from-blue-600/30 hover:to-cyan-500/30 shadow-sm shadow-cyan-500/10'}`}
                       title="上传图片或PDF文档(最多5个)"
                     >
-                      <Paperclip className="w-4 h-4" />
+                      <Paperclip className="w-[18px] h-[18px]" />
                     </button>
                     <textarea
                       value={chatInput}
