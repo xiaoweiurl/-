@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.SmartChatService;
+import com.imagemanager.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,9 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Autowired
     private KnowledgeBaseService knowledgeBaseService;
+
+    @Autowired
+    private FileStorageService fileStorageService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -1387,11 +1391,41 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     /**
      * 下载图片并转为Base64编码（供多模态模型使用）
-     * 限制：图片大小不超过5MB，最多等待10秒
+     * 优先通过FileStorageService从OSS直接读取（不依赖签名URL过期），
+     * 回退到HTTP下载签名URL
+     * 限制：图片大小不超过5MB
      */
     private String downloadImageAsBase64(String imageUrl) {
         try {
             if (imageUrl == null || imageUrl.isEmpty()) return null;
+
+            // 方式1：优先通过S3 SDK直接读取（不依赖签名URL，不会过期）
+            try {
+                String storageKey = fileStorageService.getStorageKey(imageUrl);
+                if (storageKey != null && !storageKey.isEmpty() && !storageKey.startsWith("http")) {
+                    try (InputStream is = fileStorageService.getFileInputStream(storageKey)) {
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        byte[] buffer = new byte[8192];
+                        int len;
+                        int totalRead = 0;
+                        while ((len = is.read(buffer)) != -1) {
+                            baos.write(buffer, 0, len);
+                            totalRead += len;
+                            if (totalRead > 5 * 1024 * 1024) {
+                                log.debug("OSS图片超过5MB限制: key={}", storageKey);
+                                return null;
+                            }
+                        }
+                        String base64 = Base64.getEncoder().encodeToString(baos.toByteArray());
+                        log.debug("从OSS直接读取图片成功: key={}, size={}", storageKey, totalRead);
+                        return base64;
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("从OSS直接读取失败，尝试HTTP下载: key={}, error={}", imageUrl, e.getMessage());
+            }
+
+            // 方式2：回退到HTTP下载签名URL
             HttpURLConnection conn = (HttpURLConnection) URI.create(imageUrl).toURL().openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(5000);

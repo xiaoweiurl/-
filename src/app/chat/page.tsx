@@ -6,7 +6,7 @@ import { backendFetch } from '@/lib/backend-proxy';
 import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
   Bot, User, BookOpen, Brain, Loader2, Sparkles,
-  Globe, ChevronRight, Lightbulb, Copy, Check, Zap
+  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, ImageIcon
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
@@ -37,6 +37,7 @@ interface ChatMessage {
     score: number;
   }>;
   images?: ChatImage[];
+  userImages?: string[]; // 用户上传的base64图片
   isStreaming?: boolean;
   isThinking?: boolean;
 }
@@ -122,6 +123,8 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
+  const chatImageInputRef = useRef<HTMLInputElement>(null);
+  const [chatImages, setChatImages] = useState<string[]>([]); // base64图片列表
 
   // 客户端挂载标记
   useEffect(() => {
@@ -274,6 +277,23 @@ export default function ChatPage() {
     scrollToBottom(messages.length > 0 && messages[messages.length - 1]?.isStreaming ? 'auto' : 'smooth');
   }, [messages, scrollToBottom]);
 
+  // 处理图片上传
+  const handleChatImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).slice(0, 3 - chatImages.length).forEach(file => {
+      if (file.size > 5 * 1024 * 1024) return; // 5MB限制
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        const base64 = result.split(',')[1]; // 去掉 data:image/...;base64, 前缀
+        if (base64) setChatImages(prev => [...prev, base64]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (chatImageInputRef.current) chatImageInputRef.current.value = '';
+  }, [chatImages.length]);
+
   // 发送消息
   const handleSend = useCallback(async () => {
     if (!input.trim() || isChatting) return;
@@ -281,9 +301,15 @@ export default function ChatPage() {
     // 用户发送新消息时，重置滚动状态，确保自动滚到底部
     isUserScrollingRef.current = false;
 
-    const userMsg: ChatMessage = { role: 'user', content: input.trim() };
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: input.trim(),
+      userImages: chatImages.length > 0 ? [...chatImages] : undefined,
+    };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    const currentImages = [...chatImages];
+    setChatImages([]);
     setIsChatting(true);
 
     const assistantMsg: ChatMessage = {
@@ -297,15 +323,30 @@ export default function ChatPage() {
 
     try {
       const loginSid = getLoginSessionId();
-      const params = new URLSearchParams({ message: input.trim(), mode: 'designer' });
-      if (activeSessionId) params.set('conversationId', activeSessionId);
+      const msg = input.trim();
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (loginSid) headers['X-Session-Id'] = loginSid;
 
-      const res = await fetch(`/api/chat/smart?${params}`, {
-        credentials: 'include',
-        headers,
-      });
+      let res: Response;
+      if (currentImages.length > 0) {
+        // 有图片时用POST方式发送（base64太大不能放URL）
+        const body: Record<string, unknown> = { message: msg, images: currentImages };
+        if (activeSessionId) body.conversationId = activeSessionId;
+        headers['Content-Type'] = 'application/json';
+        res = await fetch(`/api/chat/smart?mode=designer`, {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify(body),
+        });
+      } else {
+        const params = new URLSearchParams({ message: msg, mode: 'designer' });
+        if (activeSessionId) params.set('conversationId', activeSessionId);
+        res = await fetch(`/api/chat/smart?${params}`, {
+          credentials: 'include',
+          headers,
+        });
+      }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: '请求失败' }));
@@ -837,7 +878,16 @@ export default function ChatPage() {
                         : 'px-4 py-3 rounded-2xl rounded-tl-md bg-slate-800/80 border border-blue-500/20 text-slate-200 shadow-lg shadow-black/20'}`}
                     >
                       {msg.role === 'user' ? (
-                        <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
+                        <div>
+                          {msg.userImages && msg.userImages.length > 0 && (
+                            <div className="flex gap-1.5 mb-2 flex-wrap">
+                              {msg.userImages.map((img, i) => (
+                                <img key={i} src={`data:image/jpeg;base64,${img}`} alt="" className="w-16 h-16 rounded-lg object-cover opacity-90" />
+                              ))}
+                            </div>
+                          )}
+                          <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
+                        </div>
                       ) : (
                         <MarkdownRenderer content={msg.content || ''} darkMode />
                       )}
@@ -958,7 +1008,29 @@ export default function ChatPage() {
         {/* 输入框区域 */}
         <div className="border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-xl p-4 shrink-0">
           <div className="max-w-3xl mx-auto">
+            {chatImages.length > 0 && (
+              <div className="flex gap-2 mb-3 flex-wrap">
+                {chatImages.map((img, i) => (
+                  <div key={i} className="relative group">
+                    <img src={`data:image/jpeg;base64,${img}`} alt="" className="w-14 h-14 rounded-lg object-cover border border-slate-600 shadow-sm" />
+                    <button
+                      onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-3">
+              <input ref={chatImageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleChatImageUpload} />
+              <button
+                onClick={() => chatImageInputRef.current?.click()}
+                disabled={isChatting || chatImages.length >= 3}
+                className="shrink-0 w-11 h-11 rounded-xl border border-slate-700/50 bg-slate-800/50 text-slate-400 flex items-center justify-center hover:text-blue-400 hover:border-blue-500/30 transition-all disabled:opacity-30"
+                title="上传图片(最多3张)"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}

@@ -141,6 +141,7 @@ export default function SupplyChainPage() {
     isThinking?: boolean;
     isStreaming?: boolean;
     searchResults?: Array<{ title: string; url: string }>;
+    images?: string[]; // 用户上传的base64图片
   }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -1114,7 +1115,16 @@ export default function SupplyChainPage() {
                             : 'px-4 py-3 rounded-2xl rounded-tl-md bg-slate-800/50 border border-slate-700/50 text-slate-300 shadow-sm'}`}
                         >
                           {msg.role === 'user' ? (
-                            <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
+                            <div>
+                              {msg.images && msg.images.length > 0 && (
+                                <div className="flex gap-1.5 mb-2 flex-wrap">
+                                  {msg.images.map((img: string, i: number) => (
+                                    <img key={i} src={`data:image/jpeg;base64,${img}`} alt="" className="w-16 h-16 rounded-lg object-cover opacity-90" />
+                                  ))}
+                                </div>
+                              )}
+                              <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
+                            </div>
                           ) : msg.content ? (
                             <MarkdownRenderer content={msg.content || ''} darkMode />
                           ) : (
