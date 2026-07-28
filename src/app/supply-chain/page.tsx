@@ -419,6 +419,47 @@ export default function SupplyChainPage() {
           } catch { /* ignore parse errors */ }
         }
       }
+      // 处理buffer中残留的数据
+      if (buffer.trim()) {
+        const remainingLines = buffer.split('\n');
+        for (const line of remainingLines) {
+          if (!line.startsWith('data:')) continue;
+          const data = line.substring(5).trim();
+          if (!data || data === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === 'content' && parsed.content) {
+              setChatMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last.role === 'assistant') {
+                  updated[updated.length - 1] = { ...last, content: (last.content || '') + parsed.content, isThinking: false };
+                }
+                return updated;
+              });
+            } else if (parsed.type === 'done') {
+              setChatMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last.role === 'assistant') {
+                  updated[updated.length - 1] = { ...last, isThinking: false, isStreaming: false };
+                }
+                return updated;
+              });
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
+      // 确保最终状态正确（防止done事件丢失）
+      setChatMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last.role === 'assistant' && last.isStreaming) {
+          updated[updated.length - 1] = { ...last, isThinking: false, isStreaming: false };
+        }
+        return updated;
+      });
     } catch (err) {
       setChatMessages(prev => {
         const updated = [...prev];
@@ -1043,8 +1084,18 @@ export default function SupplyChainPage() {
                         >
                           {msg.role === 'user' ? (
                             <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
-                          ) : (
+                          ) : msg.content ? (
                             <MarkdownRenderer content={msg.content || ''} darkMode />
+                          ) : (
+                            /* AI 思考中加载动画 */
+                            <div className="flex items-center gap-3 py-1">
+                              <div className="flex gap-1">
+                                <span className="w-2 h-2 rounded-full bg-blue-400 animate-[bounce_1.4s_ease-in-out_infinite]" style={{animationDelay: '0s'}} />
+                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-[bounce_1.4s_ease-in-out_infinite]" style={{animationDelay: '0.2s'}} />
+                                <span className="w-2 h-2 rounded-full bg-violet-400 animate-[bounce_1.4s_ease-in-out_infinite]" style={{animationDelay: '0.4s'}} />
+                              </div>
+                              <span className="text-xs text-slate-500 animate-pulse">AI 正在检索知识库并思考...</span>
+                            </div>
                           )}
                           {msg.isStreaming && (
                             <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
