@@ -534,15 +534,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             int candidateLimit = Math.max(limit * 3, 30);
             String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
                     "d.file_name, d.category, e.chunk_index, e.created_at, " +
-                    "1 - (e.embedding <=> ?::vector) AS score " +
+                    "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
                     "FROM knowledge_embeddings e " +
                     "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
                     "AND (d.company = ? OR d.company IS NULL) " +
                     keywordFilter +
-                    "AND 1 - (e.embedding <=> ?::vector) >= ? " +
-                    "ORDER BY e.embedding <=> ?::vector " +
+                    "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
+                    "ORDER BY e.embedding <=> CAST(? AS vector) " +
                     "LIMIT ?";
 
             // Step 5: 如果关键词过滤后结果太少，降级到纯向量搜索
@@ -554,14 +554,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
                 String pureVectorSql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
                         "d.file_name, d.category, e.chunk_index, e.created_at, " +
-                        "1 - (e.embedding <=> ?::vector) AS score " +
+                        "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
                         "FROM knowledge_embeddings e " +
                         "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                         "AND (e.company = ? OR e.company IS NULL) " +
                         "AND (d.company = ? OR d.company IS NULL) " +
-                        "AND 1 - (e.embedding <=> ?::vector) >= ? " +
-                        "ORDER BY e.embedding <=> ?::vector " +
+                        "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
+                        "ORDER BY e.embedding <=> CAST(? AS vector) " +
                         "LIMIT ?";
                 hybridResults = executePureVectorSearch(pureVectorSql, vectorStr, company, minScore, candidateLimit);
             }
@@ -675,11 +675,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             String company, double minScore, int candidateLimit) {
         try {
             // 构建 PreparedStatement 参数：
-            // SQL中?参数顺序：company×2, keywords×4, vector×3, minScore, candidateLimit
+            // SQL中?参数顺序：vectorStr(SELECT), company×2, keywords×4, vectorStr(WHERE), minScore, vectorStr(ORDER BY), candidateLimit
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
-                ps.setString(idx++, company);
-                ps.setString(idx++, company);
+                ps.setString(idx++, vectorStr);   // 1: SELECT score
+                ps.setString(idx++, company);     // 2: e.company
+                ps.setString(idx++, company);     // 3: d.company
                 for (String kw : keywords) {
                     String likePattern = "%" + kw + "%";
                     ps.setString(idx++, likePattern);  // chunk_text ILIKE
@@ -687,10 +688,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     ps.setString(idx++, likePattern);  // file_name ILIKE
                     ps.setString(idx++, likePattern);  // file_content ILIKE
                 }
-                ps.setString(idx++, vectorStr);   // SELECT score
-                ps.setDouble(idx++, minScore);     // WHERE score >= minScore
-                ps.setString(idx++, vectorStr);   // ORDER BY
-                ps.setInt(idx++, candidateLimit);
+                ps.setString(idx++, vectorStr);   // 44: WHERE condition
+                ps.setDouble(idx++, minScore);     // 45: minScore
+                ps.setString(idx++, vectorStr);   // 46: ORDER BY
+                ps.setInt(idx++, candidateLimit); // 47: LIMIT
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
                     .title(rs.getString("title"))
@@ -706,7 +707,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .build()
             );
         } catch (Exception e) {
-            log.warn("混合检索SQL执行失败: {}", e.getMessage());
+            log.warn("混合检索SQL执行失败", e);
             return Collections.emptyList();
         }
     }
@@ -742,7 +743,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .build()
             );
         } catch (Exception e) {
-            log.warn("纯向量搜索SQL执行失败: {}", e.getMessage());
+            log.warn("纯向量搜索SQL执行失败", e);
             return Collections.emptyList();
         }
     }
@@ -809,7 +810,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
             log.info("关键词搜索embeddings表返回{}条结果", embeddingResults.size());
         } catch (Exception e) {
-            log.warn("关键词搜索embeddings表失败: {}", e.getMessage());
+            log.warn("关键词搜索embeddings表失败", e);
         }
         
         // 第二轮：直接搜索 docs 表的 file_content（兜底，当embeddings切片丢失信息时）
@@ -858,7 +859,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 });
                 log.info("关键词搜索docs表兜底返回{}条结果", results.size());
             } catch (Exception e) {
-                log.error("关键词搜索docs表兜底失败: {}", e.getMessage());
+                log.error("关键词搜索docs表兜底失败", e);
             }
         }
         
