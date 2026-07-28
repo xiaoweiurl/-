@@ -6,7 +6,7 @@ import { backendFetch } from '@/lib/backend-proxy';
 import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
   Bot, User, BookOpen, Brain, Loader2, Sparkles,
-  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, ImageIcon
+  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
@@ -24,6 +24,14 @@ interface ChatImage {
   albumName?: string;
 }
 
+// 用户上传的附件
+interface UploadedAttachment {
+  name: string;
+  type: 'image' | 'pdf' | 'document'; // 文件类型
+  base64: string; // base64编码内容
+  mimeType: string; // 原始MIME类型
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -37,7 +45,8 @@ interface ChatMessage {
     score: number;
   }>;
   images?: ChatImage[];
-  userImages?: string[]; // 用户上传的base64图片
+  userImages?: string[]; // 用户上传的base64图片（兼容旧逻辑）
+  attachments?: UploadedAttachment[]; // 用户上传的附件
   isStreaming?: boolean;
   isThinking?: boolean;
 }
@@ -123,8 +132,8 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
-  const chatImageInputRef = useRef<HTMLInputElement>(null);
-  const [chatImages, setChatImages] = useState<string[]>([]); // base64图片列表
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const [chatAttachments, setChatAttachments] = useState<UploadedAttachment[]>([]); // 上传的附件列表
 
   // 客户端挂载标记
   useEffect(() => {
@@ -277,22 +286,40 @@ export default function ChatPage() {
     scrollToBottom(messages.length > 0 && messages[messages.length - 1]?.isStreaming ? 'auto' : 'smooth');
   }, [messages, scrollToBottom]);
 
-  // 处理图片上传
-  const handleChatImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理文件上传（支持图片和PDF文档）
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).slice(0, 3 - chatImages.length).forEach(file => {
-      if (file.size > 5 * 1024 * 1024) return; // 5MB限制
+    const maxFiles = 5;
+    const maxImageSize = 5 * 1024 * 1024; // 图片5MB限制
+    const maxDocSize = 20 * 1024 * 1024; // 文档20MB限制
+
+    Array.from(files).slice(0, maxFiles - chatAttachments.length).forEach(file => {
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (!isImage && !isPdf) return; // 只接受图片和PDF
+
+      const maxSize = isImage ? maxImageSize : maxDocSize;
+      if (file.size > maxSize) return;
+
       const reader = new FileReader();
       reader.onload = (ev) => {
         const result = ev.target?.result as string;
-        const base64 = result.split(',')[1]; // 去掉 data:image/...;base64, 前缀
-        if (base64) setChatImages(prev => [...prev, base64]);
+        const base64 = result.split(',')[1]; // 去掉 data:xxx;base64, 前缀
+        if (base64) {
+          const attachment: UploadedAttachment = {
+            name: file.name,
+            type: isImage ? 'image' : (isPdf ? 'pdf' : 'document'),
+            base64,
+            mimeType: file.type,
+          };
+          setChatAttachments(prev => [...prev, attachment]);
+        }
       };
       reader.readAsDataURL(file);
     });
-    if (chatImageInputRef.current) chatImageInputRef.current.value = '';
-  }, [chatImages.length]);
+    if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+  }, [chatAttachments.length]);
 
   // 发送消息
   const handleSend = useCallback(async () => {
@@ -304,12 +331,12 @@ export default function ChatPage() {
     const userMsg: ChatMessage = {
       role: 'user',
       content: input.trim(),
-      userImages: chatImages.length > 0 ? [...chatImages] : undefined,
+      attachments: chatAttachments.length > 0 ? [...chatAttachments] : undefined,
     };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    const currentImages = [...chatImages];
-    setChatImages([]);
+    const currentAttachments = [...chatAttachments];
+    setChatAttachments([]);
     setIsChatting(true);
 
     const assistantMsg: ChatMessage = {
@@ -328,9 +355,13 @@ export default function ChatPage() {
       if (loginSid) headers['X-Session-Id'] = loginSid;
 
       let res: Response;
-      if (currentImages.length > 0) {
-        // 有图片时用POST方式发送（base64太大不能放URL）
-        const body: Record<string, unknown> = { message: msg, images: currentImages };
+      if (currentAttachments.length > 0) {
+        // 有附件时用POST方式发送
+        const images = currentAttachments.filter(a => a.type === 'image').map(a => a.base64);
+        const pdfs = currentAttachments.filter(a => a.type === 'pdf').map(a => ({ name: a.name, base64: a.base64 }));
+        const body: Record<string, unknown> = { message: msg };
+        if (images.length > 0) body.images = images;
+        if (pdfs.length > 0) body.pdfs = pdfs;
         if (activeSessionId) body.conversationId = activeSessionId;
         headers['Content-Type'] = 'application/json';
         res = await fetch(`/api/chat/smart?mode=designer`, {
@@ -879,10 +910,17 @@ export default function ChatPage() {
                     >
                       {msg.role === 'user' ? (
                         <div>
-                          {msg.userImages && msg.userImages.length > 0 && (
+                          {msg.attachments && msg.attachments.length > 0 && (
                             <div className="flex gap-1.5 mb-2 flex-wrap">
-                              {msg.userImages.map((img, i) => (
-                                <img key={i} src={`data:image/jpeg;base64,${img}`} alt="" className="w-16 h-16 rounded-lg object-cover opacity-90" />
+                              {msg.attachments.map((att, i) => (
+                                att.type === 'image' ? (
+                                  <img key={i} src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} className="w-16 h-16 rounded-lg object-cover opacity-90" />
+                                ) : (
+                                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 text-white/80 text-[11px]">
+                                    <FileText className="w-3.5 h-3.5 text-red-300" />
+                                    <span className="truncate max-w-[80px]">{att.name}</span>
+                                  </div>
+                                )
                               ))}
                             </div>
                           )}
@@ -1008,28 +1046,38 @@ export default function ChatPage() {
         {/* 输入框区域 */}
         <div className="border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-xl p-4 shrink-0">
           <div className="max-w-3xl mx-auto">
-            {chatImages.length > 0 && (
+            {/* 附件预览区 */}
+            {chatAttachments.length > 0 && (
               <div className="flex gap-2 mb-3 flex-wrap">
-                {chatImages.map((img, i) => (
+                {chatAttachments.map((att, i) => (
                   <div key={i} className="relative group">
-                    <img src={`data:image/jpeg;base64,${img}`} alt="" className="w-14 h-14 rounded-lg object-cover border border-slate-600 shadow-sm" />
+                    {att.type === 'image' ? (
+                      <img src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name}
+                        className="w-14 h-14 rounded-lg object-cover border border-slate-600 shadow-sm" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg border border-slate-600 bg-slate-800 flex flex-col items-center justify-center gap-0.5 shadow-sm">
+                        <FileText className="w-5 h-5 text-red-400" />
+                        <span className="text-[8px] text-slate-400 truncate max-w-[48px] px-0.5">{att.name.length > 8 ? att.name.slice(0, 8) + '…' : att.name}</span>
+                      </div>
+                    )}
                     <button
-                      onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                      onClick={() => setChatAttachments(prev => prev.filter((_, idx) => idx !== i))}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                    >×</button>
+                    ><X className="w-3 h-3" /></button>
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex items-end gap-3">
-              <input ref={chatImageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleChatImageUpload} />
+            <div className="flex items-end gap-2">
+              {/* 附件上传按钮 */}
+              <input ref={chatFileInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleFileUpload} />
               <button
-                onClick={() => chatImageInputRef.current?.click()}
-                disabled={isChatting || chatImages.length >= 3}
-                className="shrink-0 w-11 h-11 rounded-xl border border-slate-700/50 bg-slate-800/50 text-slate-400 flex items-center justify-center hover:text-blue-400 hover:border-blue-500/30 transition-all disabled:opacity-30"
-                title="上传图片(最多3张)"
+                onClick={() => chatFileInputRef.current?.click()}
+                disabled={isChatting || chatAttachments.length >= 5}
+                className="shrink-0 w-11 h-11 rounded-xl border border-slate-700/50 bg-slate-800/50 text-slate-400 flex items-center justify-center hover:text-cyan-400 hover:border-cyan-500/30 hover:bg-slate-800 transition-all disabled:opacity-30"
+                title="上传图片或PDF文档(最多5个)"
               >
-                <ImageIcon className="w-4 h-4" />
+                <Paperclip className="w-4 h-4" />
               </button>
               <div className="flex-1 relative">
                 <textarea

@@ -88,7 +88,7 @@ public class ChatController {
 
     /**
      * 智能对话 (SSE流式) - POST方式
-     * 支持传入图片base64（多模态）
+     * 支持传入图片base64（多模态）和PDF文档
      */
     @PostMapping(value = "/smart", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter smartChatPost(
@@ -99,6 +99,8 @@ public class ChatController {
         String conversationId = body.get("conversationId") != null ? body.get("conversationId").toString() : null;
         @SuppressWarnings("unchecked")
         List<String> images = body.get("images") != null ? (List<String>) body.get("images") : null;
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> pdfs = body.get("pdfs") != null ? (List<Map<String, String>>) body.get("pdfs") : null;
 
         if (message == null || message.isBlank()) {
             SseEmitter emitter = new SseEmitter(60000L);
@@ -112,7 +114,7 @@ public class ChatController {
             LoginResponse.UserInfo user = getCurrentUser(request);
             String userId = resolveUserId(user);
             String company = resolveCompany(user);
-            return smartChatService.smartChatWithImages(message, userId, company, conversationId, mode, images);
+            return smartChatService.smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs);
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {

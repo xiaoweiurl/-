@@ -7,6 +7,9 @@ import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.SmartChatService;
 import com.imagemanager.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -72,8 +75,15 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChatWithImages(String message, String userId, String company, String conversationId, String mode, List<String> userImages) {
-        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}', hasImages={}", 
-                message, userId, company, conversationId, mode, userImages != null && !userImages.isEmpty());
+        return smartChatWithAttachments(message, userId, company, conversationId, mode, userImages, null);
+    }
+
+    @Override
+    public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs) {
+        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}', hasImages={}, hasPdfs={}", 
+                message, userId, company, conversationId, mode, 
+                userImages != null && !userImages.isEmpty(),
+                userPdfs != null && !userPdfs.isEmpty());
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         new Thread(() -> {
@@ -487,6 +497,41 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (userImages != null && !userImages.isEmpty()) {
                     imageBase64List.addAll(0, userImages); // 用户上传的图片放在最前面
                     log.info("用户上传{}张图片传入多模态模型", userImages.size());
+                }
+
+                // 用户上传的PDF文档：提取文本作为上下文
+                StringBuilder pdfContext = new StringBuilder();
+                if (userPdfs != null && !userPdfs.isEmpty()) {
+                    for (Map<String, String> pdf : userPdfs) {
+                        String pdfName = pdf.getOrDefault("name", "未知文件");
+                        String pdfBase64 = pdf.get("base64");
+                        if (pdfBase64 != null && !pdfBase64.isEmpty()) {
+                            try {
+                                byte[] pdfBytes = Base64.getDecoder().decode(pdfBase64);
+                                String extractedText = extractTextFromPdf(pdfBytes);
+                                if (extractedText != null && !extractedText.trim().isEmpty()) {
+                                    pdfContext.append("\n\n--- 文档: ").append(pdfName).append(" ---\n");
+                                    // 截断过长内容（最多8000字符）
+                                    if (extractedText.length() > 8000) {
+                                        pdfContext.append(extractedText, 0, 8000).append("\n...[文档内容过长，已截断]");
+                                    } else {
+                                        pdfContext.append(extractedText);
+                                    }
+                                    log.info("PDF文档提取文本成功: name={}, textLen={}", pdfName, extractedText.length());
+                                } else {
+                                    pdfContext.append("\n\n--- 文档: ").append(pdfName).append(" ---\n[无法提取文本内容，可能是扫描件或图片PDF]");
+                                    log.warn("PDF文档提取文本为空: name={}", pdfName);
+                                }
+                            } catch (Exception e) {
+                                log.warn("PDF文档处理失败: name={}, error={}", pdfName, e.getMessage());
+                                pdfContext.append("\n\n--- 文档: ").append(pdfName).append(" ---\n[文档解析失败: ").append(e.getMessage()).append("]");
+                            }
+                        }
+                    }
+                    if (pdfContext.length() > 0) {
+                        userContent += "\n\n用户上传了以下文档，请基于文档内容回答问题：" + pdfContext;
+                        log.info("用户上传{}个PDF文档，提取文本作为上下文", userPdfs.size());
+                    }
                 }
                 Map<String, Object> userMessage = new HashMap<>();
                 userMessage.put("role", "user");
@@ -1389,6 +1434,21 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 1. 消息很短（<=10字）且不包含任何专业领域关键词
      * 2. 包含典型的闲聊/身份/问候/元问题关键词
      */
+
+    /**
+     * 从PDF字节数组中提取文本内容
+     */
+    private String extractTextFromPdf(byte[] pdfBytes) {
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            return stripper.getText(document);
+        } catch (Exception e) {
+            log.warn("PDF文本提取失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
     /**
      * 下载图片并转为Base64编码（供多模态模型使用）
      * 优先通过FileStorageService从OSS直接读取（不依赖签名URL过期），

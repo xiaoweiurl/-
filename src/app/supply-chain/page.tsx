@@ -10,7 +10,7 @@ import {
   ChevronDown, Check, AlertCircle, Info, Warehouse,
   ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud,
   ArrowLeft, MessageSquare, Send, Bot, User, X, Copy, CheckCircle, Globe,
-  Lightbulb, ImageIcon
+  Lightbulb, ImageIcon, Paperclip, FileText
 } from 'lucide-react';
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -119,14 +119,6 @@ function formatMoneyShort(val: number | string | null): string {
   return n.toFixed(4);
 }
 
-function FileText(props: React.SVGProps<SVGSVGElement> & { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
-    </svg>
-  );
-}
-
 // ============ 主组件 ============
 export default function SupplyChainPage() {
   const router = useRouter();
@@ -141,7 +133,7 @@ export default function SupplyChainPage() {
     isThinking?: boolean;
     isStreaming?: boolean;
     searchResults?: Array<{ title: string; url: string }>;
-    images?: string[]; // 用户上传的base64图片
+    attachments?: Array<{ name: string; type: string; base64: string; mimeType: string }>;
   }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -331,33 +323,54 @@ export default function SupplyChainPage() {
 
   // ============ 退出登录 ============
   // ============ AI对话 ============
-  const [chatImages, setChatImages] = useState<string[]>([]); // base64图片列表
-  const chatImageInputRef = useRef<HTMLInputElement>(null);
+  type UploadedAttachment = {
+    name: string;
+    type: 'image' | 'pdf' | 'document';
+    base64: string;
+    mimeType: string;
+  };
+  const [chatAttachments, setChatAttachments] = useState<UploadedAttachment[]>([]);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleChatImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).slice(0, 3 - chatImages.length).forEach(file => {
-      if (file.size > 5 * 1024 * 1024) return; // 5MB限制
+    const maxFiles = 5;
+    const maxImageSize = 5 * 1024 * 1024;
+    const maxDocSize = 20 * 1024 * 1024;
+    Array.from(files).slice(0, maxFiles - chatAttachments.length).forEach(file => {
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (!isImage && !isPdf) return;
+      const maxSize = isImage ? maxImageSize : maxDocSize;
+      if (file.size > maxSize) return;
       const reader = new FileReader();
       reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1]; // 去掉data:image/...;base64,前缀
-        setChatImages(prev => [...prev, base64]);
+        const base64 = (reader.result as string).split(',')[1];
+        if (base64) {
+          const attachment: UploadedAttachment = {
+            name: file.name,
+            type: isImage ? 'image' : (isPdf ? 'pdf' : 'document'),
+            base64,
+            mimeType: file.type,
+          };
+          setChatAttachments(prev => [...prev, attachment]);
+        }
       };
       reader.readAsDataURL(file);
     });
-    if (chatImageInputRef.current) chatImageInputRef.current.value = '';
-  }, [chatImages.length]);
+    if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+  }, [chatAttachments.length]);
 
   const handleFactoryChat = useCallback(async (message?: string) => {
     const msg = message || chatInput.trim();
     if (!msg || chatLoading) return;
 
-    const userMsg = { role: 'user' as const, content: msg, images: chatImages.length > 0 ? [...chatImages] : undefined };
+    const userMsg = { role: 'user' as const, content: msg, attachments: chatAttachments.length > 0 ? [...chatAttachments] : undefined };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
-    const currentImages = [...chatImages];
-    setChatImages([]); // 清空已上传的图片
+    const currentAttachments = [...chatAttachments];
+    setChatAttachments([]); // 清空已上传的附件
     setChatLoading(true);
     isUserScrollingRef.current = false;
 
@@ -380,14 +393,19 @@ export default function SupplyChainPage() {
       if (sid) headers['X-Session-Id'] = sid;
 
       const params = new URLSearchParams({ message: msg, mode: 'factory' });
-      // 如果有图片，用POST方式发送（图片base64太大不能放URL）
+      // 如果有附件，用POST方式发送
       let res: Response;
-      if (currentImages.length > 0) {
+      if (currentAttachments.length > 0) {
+        const images = currentAttachments.filter(a => a.type === 'image').map(a => a.base64);
+        const pdfs = currentAttachments.filter(a => a.type === 'pdf').map(a => ({ name: a.name, base64: a.base64 }));
+        const body: Record<string, unknown> = { message: msg };
+        if (images.length > 0) body.images = images;
+        if (pdfs.length > 0) body.pdfs = pdfs;
         res = await fetch(`/api/chat/smart?mode=factory`, {
           method: 'POST',
           credentials: 'include',
           headers,
-          body: JSON.stringify({ message: msg, images: currentImages }),
+          body: JSON.stringify(body),
         });
       } else {
         res = await fetch(`/api/chat/smart?${params}`, {
@@ -1116,10 +1134,17 @@ export default function SupplyChainPage() {
                         >
                           {msg.role === 'user' ? (
                             <div>
-                              {msg.images && msg.images.length > 0 && (
+                              {msg.attachments && msg.attachments.length > 0 && (
                                 <div className="flex gap-1.5 mb-2 flex-wrap">
-                                  {msg.images.map((img: string, i: number) => (
-                                    <img key={i} src={`data:image/jpeg;base64,${img}`} alt="" className="w-16 h-16 rounded-lg object-cover opacity-90" />
+                                  {msg.attachments.map((att, i) => (
+                                    att.type === 'image' ? (
+                                      <img key={i} src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} className="w-16 h-16 rounded-lg object-cover opacity-90" />
+                                    ) : (
+                                      <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 text-white/80 text-[11px]">
+                                        <FileText className="w-3.5 h-3.5 text-red-300" />
+                                        <span className="truncate max-w-[80px]">{att.name}</span>
+                                      </div>
+                                    )
                                   ))}
                                 </div>
                               )}
@@ -1161,28 +1186,35 @@ export default function SupplyChainPage() {
                 </div>
                 {/* 输入区 */}
                 <div className="border-t border-slate-700/50 px-4 py-3 bg-slate-800/50">
-                  {chatImages.length > 0 && (
+                  {chatAttachments.length > 0 && (
                     <div className="flex gap-2 mb-2 flex-wrap">
-                      {chatImages.map((img, i) => (
+                      {chatAttachments.map((att, i) => (
                         <div key={i} className="relative group">
-                          <img src={`data:image/jpeg;base64,${img}`} alt="" className="w-12 h-12 rounded-lg object-cover border border-slate-600" />
+                          {att.type === 'image' ? (
+                            <img src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} className="w-12 h-12 rounded-lg object-cover border border-slate-600" />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg border border-slate-600 bg-slate-900 flex flex-col items-center justify-center gap-0.5">
+                              <FileText className="w-4 h-4 text-red-400" />
+                              <span className="text-[7px] text-slate-400 truncate max-w-[40px] px-0.5">{att.name.length > 6 ? att.name.slice(0, 6) + '...' : att.name}</span>
+                            </div>
+                          )}
                           <button
-                            onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                            onClick={() => setChatAttachments(prev => prev.filter((_, idx) => idx !== i))}
                             className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          >×</button>
+                          ><X className="w-2.5 h-2.5" /></button>
                         </div>
                       ))}
                     </div>
                   )}
                   <div className="flex gap-2 items-end">
-                    <input ref={chatImageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleChatImageUpload} />
+                    <input ref={chatFileInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleFileUpload} />
                     <button
-                      onClick={() => chatImageInputRef.current?.click()}
-                      disabled={chatLoading || chatImages.length >= 3}
-                      className="shrink-0 w-10 h-10 rounded-xl border border-slate-700/50 bg-slate-900/50 text-slate-400 flex items-center justify-center hover:text-blue-400 hover:border-blue-500/30 transition-all disabled:opacity-30"
-                      title="上传图片(最多3张)"
+                      onClick={() => chatFileInputRef.current?.click()}
+                      disabled={chatLoading || chatAttachments.length >= 5}
+                      className="shrink-0 w-10 h-10 rounded-xl border border-slate-700/50 bg-slate-900/50 text-slate-400 flex items-center justify-center hover:text-cyan-400 hover:border-cyan-500/30 transition-all disabled:opacity-30"
+                      title="上传图片或PDF文档(最多5个)"
                     >
-                      <ImageIcon className="w-4 h-4" />
+                      <Paperclip className="w-4 h-4" />
                     </button>
                     <textarea
                       value={chatInput}

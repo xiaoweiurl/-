@@ -29,6 +29,13 @@ public interface SmartChatService {
     SseEmitter smartChatWithImages(String message, String userId, String company, String conversationId, String mode, List<String> images);
 
     /**
+     * 智能对话 (SSE流式) - 支持图片和PDF文档
+     * @param images 图片base64列表（传给多模态模型）
+     * @param pdfs PDF文档列表，每项包含 name 和 base64
+     */
+    SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> images, List<Map<String, String>> pdfs);
+
+    /**
      * 智能对话 (SSE流式) - 兼容旧接口(无mode)
      */
     default SseEmitter smartChat(String message, String userId, String company, String conversationId) {
