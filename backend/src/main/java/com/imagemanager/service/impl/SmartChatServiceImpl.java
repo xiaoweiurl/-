@@ -1900,7 +1900,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             body.put("messages", messages);
             Map<String, Object> options = new HashMap<>();
             options.put("temperature", 0.7);
-            options.put("num_predict", 8192);
+            options.put("num_predict", -1); // -1=无限输出，直到模型生成停止符
             body.put("options", options);
 
             String endpointUrl = ollamaBaseUrl + "/api/chat";
