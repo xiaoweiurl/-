@@ -15,9 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.math.BigDecimal;
 
 import java.net.HttpURLConnection;
@@ -63,8 +61,15 @@ public class SmartChatServiceImpl implements SmartChatService {
     private int ollamaTimeout;
 
     @Override
+    @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode) {
-        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}'", message, userId, company, conversationId, mode);
+        return smartChatWithImages(message, userId, company, conversationId, mode, null);
+    }
+
+    @Override
+    public SseEmitter smartChatWithImages(String message, String userId, String company, String conversationId, String mode, List<String> userImages) {
+        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}', hasImages={}", 
+                message, userId, company, conversationId, mode, userImages != null && !userImages.isEmpty());
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         new Thread(() -> {
@@ -429,7 +434,71 @@ public class SmartChatServiceImpl implements SmartChatService {
                 } else {
                     userContent = message;
                 }
-                messages.add(Map.of("role", "user", "content", userContent));
+                // 收集知识库检索结果中的图片URL，传给多模态模型
+                List<String> imageBase64List = new ArrayList<>();
+                for (Map<String, Object> r : knowledgeResults) {
+                    String source = r.getOrDefault("source", "").toString();
+                    String content = r.getOrDefault("content", "").toString();
+                    // 检查来源文件名是否是图片格式
+                    if (source.matches("(?i).*\\.(jpg|jpeg|png|gif|webp|bmp)$")) {
+                        String imageUrl = r.getOrDefault("url", "").toString();
+                        if (!imageUrl.isEmpty()) {
+                            try {
+                                String base64 = downloadImageAsBase64(imageUrl);
+                                if (base64 != null) {
+                                    imageBase64List.add(base64);
+                                    log.info("知识库图片传入多模态: source={}, url={}", source, imageUrl);
+                                }
+                            } catch (Exception ex) {
+                                log.warn("下载知识库图片失败: url={}, error={}", imageUrl, ex.getMessage());
+                            }
+                        }
+                    }
+                }
+                // 也检查图片库搜索结果
+                if (!imageResults.isEmpty()) {
+                    for (Map<String, Object> product : imageResults) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> mainImage = (Map<String, Object>) product.get("mainImage");
+                        if (mainImage != null) {
+                            String imageUrl = mainImage.getOrDefault("url", "").toString();
+                            if (!imageUrl.isEmpty() && imageBase64List.size() < 5) {
+                                try {
+                                    String base64 = downloadImageAsBase64(imageUrl);
+                                    if (base64 != null) {
+                                        imageBase64List.add(base64);
+                                        log.info("产品图片传入多模态: product={}, url={}", 
+                                                product.getOrDefault("productName", ""), imageUrl);
+                                    }
+                                } catch (Exception ex) {
+                                    log.warn("下载产品图片失败: url={}, error={}", imageUrl, ex.getMessage());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 构建用户消息（支持多模态）
+                // 用户上传的图片优先加入
+                if (userImages != null && !userImages.isEmpty()) {
+                    imageBase64List.addAll(0, userImages); // 用户上传的图片放在最前面
+                    log.info("用户上传{}张图片传入多模态模型", userImages.size());
+                }
+                Map<String, Object> userMessage = new HashMap<>();
+                userMessage.put("role", "user");
+                userMessage.put("content", userContent);
+                if (!imageBase64List.isEmpty()) {
+                    // Ollama images字段最多传5张图片
+                    List<String> limitedImages = imageBase64List.size() > 5 ? imageBase64List.subList(0, 5) : imageBase64List;
+                    userMessage.put("images", limitedImages);
+                    userContent += String.format("\n\n[已传入%d张图片，请结合图片内容回答]", limitedImages.size());
+                    userMessage.put("content", userContent);
+                    log.info("传入多模态模型: 共{}张图片(用户上传{}, 知识库/产品{})", 
+                            limitedImages.size(), 
+                            userImages != null ? Math.min(userImages.size(), 5) : 0,
+                            Math.max(0, limitedImages.size() - (userImages != null ? Math.min(userImages.size(), 5) : 0)));
+                }
+                messages.add(userMessage);
 
                 // 6. 保存用户消息
                 saveChatMessage(userId, convId, "user", message, company, null, mode);
@@ -1316,6 +1385,41 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 1. 消息很短（<=10字）且不包含任何专业领域关键词
      * 2. 包含典型的闲聊/身份/问候/元问题关键词
      */
+    /**
+     * 下载图片并转为Base64编码（供多模态模型使用）
+     * 限制：图片大小不超过5MB，最多等待10秒
+     */
+    private String downloadImageAsBase64(String imageUrl) {
+        try {
+            if (imageUrl == null || imageUrl.isEmpty()) return null;
+            HttpURLConnection conn = (HttpURLConnection) URI.create(imageUrl).toURL().openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(10000);
+            int code = conn.getResponseCode();
+            if (code != 200) return null;
+            String contentType = conn.getContentType();
+            if (contentType != null && !contentType.startsWith("image/")) return null;
+            int contentLength = conn.getContentLength();
+            if (contentLength > 5 * 1024 * 1024) return null; // 超过5MB跳过
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (InputStream is = conn.getInputStream()) {
+                byte[] buffer = new byte[8192];
+                int len;
+                int totalRead = 0;
+                while ((len = is.read(buffer)) != -1) {
+                    baos.write(buffer, 0, len);
+                    totalRead += len;
+                    if (totalRead > 5 * 1024 * 1024) return null; // 安全限制
+                }
+            }
+            return Base64.getEncoder().encodeToString(baos.toByteArray());
+        } catch (Exception e) {
+            log.debug("下载图片失败: url={}, error={}", imageUrl, e.getMessage());
+            return null;
+        }
+    }
+
     private boolean isGeneralChatIntent(String message) {
         String lower = message.toLowerCase().trim();
         

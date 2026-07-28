@@ -86,6 +86,43 @@ public class ChatController {
         }
     }
 
+    /**
+     * 智能对话 (SSE流式) - POST方式
+     * 支持传入图片base64（多模态）
+     */
+    @PostMapping(value = "/smart", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter smartChatPost(
+            @RequestParam(required = false) String mode,
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest request) {
+        String message = body.get("message") != null ? body.get("message").toString() : null;
+        String conversationId = body.get("conversationId") != null ? body.get("conversationId").toString() : null;
+        @SuppressWarnings("unchecked")
+        List<String> images = body.get("images") != null ? (List<String>) body.get("images") : null;
+
+        if (message == null || message.isBlank()) {
+            SseEmitter emitter = new SseEmitter(60000L);
+            try {
+                emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            String userId = resolveUserId(user);
+            String company = resolveCompany(user);
+            return smartChatService.smartChatWithImages(message, userId, company, conversationId, mode, images);
+        } catch (Exception e) {
+            SseEmitter emitter = new SseEmitter(60000L);
+            try {
+                emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
+    }
+
     // ====== 对话管理 ======
 
     /**

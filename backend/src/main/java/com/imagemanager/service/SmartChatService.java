@@ -24,6 +24,11 @@ public interface SmartChatService {
     SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode);
 
     /**
+     * 智能对话 (SSE流式) - 支持图片（多模态）
+     */
+    SseEmitter smartChatWithImages(String message, String userId, String company, String conversationId, String mode, List<String> images);
+
+    /**
      * 智能对话 (SSE流式) - 兼容旧接口(无mode)
      */
     default SseEmitter smartChat(String message, String userId, String company, String conversationId) {

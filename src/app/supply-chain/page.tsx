@@ -10,7 +10,7 @@ import {
   ChevronDown, Check, AlertCircle, Info, Warehouse,
   ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud,
   ArrowLeft, MessageSquare, Send, Bot, User, X, Copy, CheckCircle, Globe,
-  Lightbulb
+  Lightbulb, ImageIcon
 } from 'lucide-react';
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -330,13 +330,33 @@ export default function SupplyChainPage() {
 
   // ============ 退出登录 ============
   // ============ AI对话 ============
+  const [chatImages, setChatImages] = useState<string[]>([]); // base64图片列表
+  const chatImageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleChatImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).slice(0, 3 - chatImages.length).forEach(file => {
+      if (file.size > 5 * 1024 * 1024) return; // 5MB限制
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1]; // 去掉data:image/...;base64,前缀
+        setChatImages(prev => [...prev, base64]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (chatImageInputRef.current) chatImageInputRef.current.value = '';
+  }, [chatImages.length]);
+
   const handleFactoryChat = useCallback(async (message?: string) => {
     const msg = message || chatInput.trim();
     if (!msg || chatLoading) return;
 
-    const userMsg = { role: 'user' as const, content: msg };
+    const userMsg = { role: 'user' as const, content: msg, images: chatImages.length > 0 ? [...chatImages] : undefined };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
+    const currentImages = [...chatImages];
+    setChatImages([]); // 清空已上传的图片
     setChatLoading(true);
     isUserScrollingRef.current = false;
 
@@ -359,10 +379,21 @@ export default function SupplyChainPage() {
       if (sid) headers['X-Session-Id'] = sid;
 
       const params = new URLSearchParams({ message: msg, mode: 'factory' });
-      const res = await fetch(`/api/chat/smart?${params}`, {
-        credentials: 'include',
-        headers,
-      });
+      // 如果有图片，用POST方式发送（图片base64太大不能放URL）
+      let res: Response;
+      if (currentImages.length > 0) {
+        res = await fetch(`/api/chat/smart?mode=factory`, {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ message: msg, images: currentImages }),
+        });
+      } else {
+        res = await fetch(`/api/chat/smart?${params}`, {
+          credentials: 'include',
+          headers,
+        });
+      }
 
       if (!res.ok) throw new Error('请求失败');
 
@@ -1120,7 +1151,29 @@ export default function SupplyChainPage() {
                 </div>
                 {/* 输入区 */}
                 <div className="border-t border-slate-700/50 px-4 py-3 bg-slate-800/50">
+                  {chatImages.length > 0 && (
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {chatImages.map((img, i) => (
+                        <div key={i} className="relative group">
+                          <img src={`data:image/jpeg;base64,${img}`} alt="" className="w-12 h-12 rounded-lg object-cover border border-slate-600" />
+                          <button
+                            onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2 items-end">
+                    <input ref={chatImageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleChatImageUpload} />
+                    <button
+                      onClick={() => chatImageInputRef.current?.click()}
+                      disabled={chatLoading || chatImages.length >= 3}
+                      className="shrink-0 w-10 h-10 rounded-xl border border-slate-700/50 bg-slate-900/50 text-slate-400 flex items-center justify-center hover:text-blue-400 hover:border-blue-500/30 transition-all disabled:opacity-30"
+                      title="上传图片(最多3张)"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                    </button>
                     <textarea
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
