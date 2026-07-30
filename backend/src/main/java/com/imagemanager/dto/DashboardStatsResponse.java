@@ -48,6 +48,16 @@ public class DashboardStatsResponse {
     private List<FileTypeStat> fileTypeStats;
 
     /**
+     * 供应链统计
+     */
+    private SupplyChainStats supplyChain;
+
+    /**
+     * AI 能力统计
+     */
+    private AIStats aiStats;
+
+    /**
      * 概览统计数据
      */
     @Data
@@ -76,7 +86,9 @@ public class DashboardStatsResponse {
         private Long todayViews;
         /** 今日下载次数 */
         private Long todayDownloads;
-        /**
+    }
+
+    /**
      * 供应链统计数据
      */
     @Data
@@ -121,7 +133,6 @@ public class DashboardStatsResponse {
         /** AI生图调用次数 */
         private Long imageGenerationCalls;
     }
-}
 
     /**
      * 趋势数据
@@ -222,16 +233,6 @@ public class DashboardStatsResponse {
         /** 封面图URL */
         private String coverUrl;
     }
-
-    /**
-     * 供应链统计
-     */
-    private SupplyChainStats supplyChain;
-
-    /**
-     * AI 能力统计
-     */
-    private AIStats aiStats;
 
     /**
      * 活跃度统计
