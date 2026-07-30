@@ -197,18 +197,15 @@ function ActivityItem({ icon: Icon, text, time, color = 'text-blue-400' }: {
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [supplyChainStats, setSupplyChainStats] = useState({
-    totalProducts: 156,
-    pendingQuotes: 23,
-    activeSuppliers: 48,
-    monthlyOrders: 89,
-  });
-  const [aiStats, setAiStats] = useState({
-    totalCalls: 12847,
-    todayCalls: 342,
-    successRate: 98.7,
-    avgResponseTime: 1.2,
-  });
+  const [supplyChainStats, setSupplyChainStats] = useState<{
+    totalProducts: number; pendingQuotations: number; activeSuppliers: number;
+    monthlyPurchases: number; totalRawMaterials: number; productionPlans: number;
+  } | null>(null);
+  const [aiStats, setAiStats] = useState<{
+    totalChatCalls: number; todayChatCalls: number; knowledgeDocs: number;
+    knowledgeCards: number; memoryDocs: number; embeddingCompleted: number;
+    embeddingProcessing: number; imageGenerationCalls: number;
+  } | null>(null);
 
   // 更新时钟
   useEffect(() => {
@@ -223,33 +220,15 @@ export default function DashboardPage() {
         const res = await fetch('/api/dashboard/stats');
         if (res.ok) {
           const data = await res.json();
-          setStats(data);
+          // 兼容 {success: true, data: ...} 和直接返回对象两种格式
+          const payload = data?.data || data;
+          setStats(payload);
+          // 从API获取供应链和AI统计
+          if (payload?.supplyChain) setSupplyChainStats(payload.supplyChain);
+          if (payload?.aiStats) setAiStats(payload.aiStats);
         }
       } catch {
-        // 使用模拟数据
-        setStats({
-          overview: {
-            totalImages: 2847,
-            totalSize: 15600000000,
-            totalAlbums: 34,
-            totalTags: 128,
-            favoritesCount: 456,
-            trashCount: 23,
-            recentUploads7d: 87,
-            recentUploads30d: 342,
-          },
-          uploadTrend: Array.from({ length: 30 }, (_, i) => ({
-            date: new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10),
-            count: Math.floor(Math.random() * 20) + 5,
-          })),
-          albumDistribution: [
-            { name: '产品图片', count: 1200, percentage: 42 },
-            { name: '设计素材', count: 650, percentage: 23 },
-            { name: '营销素材', count: 480, percentage: 17 },
-            { name: '工厂资料', count: 320, percentage: 11 },
-            { name: '其他', count: 197, percentage: 7 },
-          ],
-        });
+        // 后端不可用时不显示假数据，保持 null
       }
     };
     fetchStats();
@@ -307,11 +286,11 @@ export default function DashboardPage() {
             icon={HardDrive} color="from-cyan-600 to-cyan-400" trend="使用率 68%" delay={0.05} />
           <MetricCard title="分类目录" value={stats?.overview ? stats.overview.totalAlbums : 34} unit="个"
             icon={Layers} color="from-emerald-600 to-emerald-400" trend="+3 本月" trendUp delay={0.1} />
-          <MetricCard title="AI调用" value={formatNum(aiStats.totalCalls)} unit="次"
-            icon={Cpu} color="from-purple-600 to-purple-400" trend={`今日 ${aiStats.todayCalls}`} trendUp delay={0.15} />
-          <MetricCard title="产品数量" value={supplyChainStats.totalProducts} unit="款"
-            icon={Package} color="from-yellow-600 to-yellow-400" trend="活跃供应商 48" delay={0.2} />
-          <MetricCard title="待处理报价" value={supplyChainStats.pendingQuotes} unit="条"
+          <MetricCard title="AI调用" value={formatNum(aiStats?.totalChatCalls ?? 0)} unit="次"
+            icon={Cpu} color="from-purple-600 to-purple-400" trend={`今日 ${aiStats?.todayChatCalls ?? 0}`} trendUp delay={0.15} />
+          <MetricCard title="产品数量" value={supplyChainStats?.totalProducts ?? 0} unit="款"
+            icon={Package} color="from-yellow-600 to-yellow-400" trend={`活跃供应商 ${supplyChainStats?.activeSuppliers ?? 0}`} delay={0.2} />
+          <MetricCard title="待处理报价" value={supplyChainStats?.pendingQuotations ?? 0} unit="条"
             icon={DollarSign} color="from-orange-600 to-orange-400" trend="需及时处理" trendUp={false} delay={0.25} />
         </div>
 
@@ -323,23 +302,23 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-blue-400 font-mono">{aiStats.successRate}%</div>
-                  <div className="text-xs text-slate-500 mt-1">调用成功率</div>
+                  <div className="text-lg font-bold text-blue-400 font-mono">{aiStats?.knowledgeDocs ?? 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">知识库文档</div>
                 </div>
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-cyan-400 font-mono">{aiStats.avgResponseTime}s</div>
-                  <div className="text-xs text-slate-500 mt-1">平均响应</div>
+                  <div className="text-lg font-bold text-cyan-400 font-mono">{aiStats?.knowledgeCards ?? 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">知识卡片</div>
                 </div>
               </div>
               <div className="space-y-2">
-                <ProgressBar label="DeepSeek 对话" value={8420} max={10000} color="blue" />
-                <ProgressBar label="AI 图片识别" value={2340} max={10000} color="purple" />
-                <ProgressBar label="AI 图片生成" value={1280} max={5000} color="cyan" />
-                <ProgressBar label="向量化处理" value={807} max={5000} color="green" />
+                <ProgressBar label="知识库文档" value={aiStats?.knowledgeDocs ?? 0} max={Math.max(aiStats?.knowledgeDocs ?? 1, 1)} color="blue" />
+                <ProgressBar label="记忆库文档" value={aiStats?.memoryDocs ?? 0} max={Math.max(aiStats?.memoryDocs ?? 1, 1)} color="purple" />
+                <ProgressBar label="向量化完成" value={aiStats?.embeddingCompleted ?? 0} max={Math.max(aiStats?.knowledgeDocs ?? 1, 1)} color="green" />
+                <ProgressBar label="向量化处理中" value={aiStats?.embeddingProcessing ?? 0} max={Math.max(aiStats?.knowledgeDocs ?? 1, 1)} color="cyan" />
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
                 <Activity className="w-3 h-3" />
-                <span>最近1小时调用 <span className="text-blue-400 font-mono">47</span> 次</span>
+                <span>知识库文档 <span className="text-blue-400 font-mono">{aiStats?.knowledgeDocs ?? 0}</span> · 记忆库 <span className="text-purple-400 font-mono">{aiStats?.memoryDocs ?? 0}</span></span>
               </div>
             </div>
           </DataPanel>
@@ -349,23 +328,23 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-yellow-400 font-mono">{supplyChainStats.activeSuppliers}</div>
+                  <div className="text-lg font-bold text-yellow-400 font-mono">{supplyChainStats?.activeSuppliers ?? 0}</div>
                   <div className="text-xs text-slate-500 mt-1">活跃供应商</div>
                 </div>
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-emerald-400 font-mono">{supplyChainStats.monthlyOrders}</div>
-                  <div className="text-xs text-slate-500 mt-1">本月订单</div>
+                  <div className="text-lg font-bold text-emerald-400 font-mono">{supplyChainStats?.monthlyPurchases ?? 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">采购单数</div>
                 </div>
               </div>
               <div className="space-y-2">
-                <ProgressBar label="原料采购完成率" value={78} max={100} color="green" />
-                <ProgressBar label="生产计划执行率" value={65} max={100} color="yellow" />
-                <ProgressBar label="辅料采购完成率" value={92} max={100} color="blue" />
-                <ProgressBar label="成本核算覆盖率" value={45} max={100} color="purple" />
+                <ProgressBar label="原料入库" value={supplyChainStats?.totalRawMaterials ?? 0} max={Math.max(supplyChainStats?.totalRawMaterials ?? 1, 1)} color="green" />
+                <ProgressBar label="生产计划" value={supplyChainStats?.productionPlans ?? 0} max={Math.max(supplyChainStats?.productionPlans ?? 1, 1)} color="yellow" />
+                <ProgressBar label="产品报价" value={supplyChainStats?.pendingQuotations ?? 0} max={Math.max(supplyChainStats?.pendingQuotations ?? 1, 1)} color="blue" />
+                <ProgressBar label="供应商覆盖" value={supplyChainStats?.activeSuppliers ?? 0} max={Math.max(supplyChainStats?.activeSuppliers ?? 1, 1)} color="purple" />
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
                 <ShoppingCart className="w-3 h-3" />
-                <span>待处理采购单 <span className="text-yellow-400 font-mono">7</span> 条</span>
+                <span>采购单 <span className="text-yellow-400 font-mono">{supplyChainStats?.monthlyPurchases ?? 0}</span> 条</span>
               </div>
             </div>
           </DataPanel>

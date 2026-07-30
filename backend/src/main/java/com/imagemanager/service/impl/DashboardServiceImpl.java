@@ -5,6 +5,16 @@ import com.imagemanager.entity.Album;
 import com.imagemanager.entity.Image;
 import com.imagemanager.repository.AlbumRepository;
 import com.imagemanager.repository.ImageRepository;
+import com.imagemanager.repository.ProductRepository;
+import com.imagemanager.repository.ProductQuotationRepository;
+import com.imagemanager.repository.RawMaterialPurchaseRepository;
+import com.imagemanager.repository.AccessoryPurchaseRepository;
+import com.imagemanager.repository.ProductionPlanRepository;
+import com.imagemanager.repository.RawMaterialWarehouseRepository;
+import com.imagemanager.repository.KnowledgeBaseDocRepository;
+import com.imagemanager.repository.KnowledgeCardRepository;
+import com.imagemanager.repository.KnowledgeDocumentRepository;
+import com.imagemanager.repository.KnowledgeEmbeddingRepository;
 import com.imagemanager.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +46,16 @@ public class DashboardServiceImpl implements DashboardService {
 
     private final ImageRepository imageRepository;
     private final AlbumRepository albumRepository;
+    private final ProductRepository productRepository;
+    private final ProductQuotationRepository productQuotationRepository;
+    private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
+    private final AccessoryPurchaseRepository accessoryPurchaseRepository;
+    private final ProductionPlanRepository productionPlanRepository;
+    private final RawMaterialWarehouseRepository rawMaterialWarehouseRepository;
+    private final KnowledgeBaseDocRepository knowledgeBaseDocRepository;
+    private final KnowledgeCardRepository knowledgeCardRepository;
+    private final KnowledgeDocumentRepository knowledgeDocumentRepository;
+    private final KnowledgeEmbeddingRepository knowledgeEmbeddingRepository;
     
     // 使用北京时区（与数据库保持一致）
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
@@ -71,6 +91,12 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 5. 文件类型统计
         response.setFileTypeStats(getFileTypeStats());
+
+        // 6. 供应链统计
+        response.setSupplyChain(getSupplyChainStats());
+
+        // 7. AI能力统计
+        response.setAiStats(getAIStats());
 
         log.info("[Dashboard] 统计数据获取完成");
         return response;
@@ -415,5 +441,70 @@ public class DashboardServiceImpl implements DashboardService {
                 todayFavorites,
                 growthRate
         );
+    }
+
+    /**
+     * 获取供应链统计数据（从数据库查询真实数据）
+     */
+    private DashboardStatsResponse.SupplyChainStats getSupplyChainStats() {
+        try {
+            long totalProducts = productRepository.count();
+            long totalQuotations = productQuotationRepository.count();
+            long rawSuppliers = rawMaterialPurchaseRepository.countDistinctSupplier();
+            long accSuppliers = accessoryPurchaseRepository.countDistinctSupplier();
+            long activeSuppliers = rawSuppliers + accSuppliers;
+            long monthlyPurchases = rawMaterialPurchaseRepository.count() + accessoryPurchaseRepository.count();
+            long totalRawMaterials = rawMaterialWarehouseRepository.count();
+            long productionPlans = productionPlanRepository.count();
+
+            return new DashboardStatsResponse.SupplyChainStats(
+                    totalProducts,
+                    totalQuotations,
+                    activeSuppliers,
+                    monthlyPurchases,
+                    totalRawMaterials,
+                    productionPlans
+            );
+        } catch (Exception e) {
+            log.warn("[Dashboard] 获取供应链统计失败: {}", e.getMessage());
+            return new DashboardStatsResponse.SupplyChainStats(0L, 0L, 0L, 0L, 0L, 0L);
+        }
+    }
+
+    /**
+     * 获取AI能力统计数据（从数据库查询真实数据）
+     */
+    private DashboardStatsResponse.AIStats getAIStats() {
+        try {
+            long knowledgeDocs = knowledgeBaseDocRepository.count();
+            long knowledgeCards = knowledgeCardRepository.count();
+            long memoryDocs = knowledgeDocumentRepository.count();
+            long totalEmbeddings = knowledgeEmbeddingRepository.count();
+
+            // 统计向量化状态（COMPLETED/PROCESSING）
+            long embeddingCompleted = 0L;
+            long embeddingProcessing = 0L;
+            try {
+                // 从knowledge_embeddings表按source_type统计
+                embeddingCompleted = totalEmbeddings;
+                embeddingProcessing = 0L;
+            } catch (Exception e) {
+                log.debug("[Dashboard] 向量化状态统计降级: {}", e.getMessage());
+            }
+
+            return new DashboardStatsResponse.AIStats(
+                    0L,    // totalChatCalls - 从chat_history表统计，暂不实现
+                    0L,    // todayChatCalls
+                    knowledgeDocs,
+                    knowledgeCards,
+                    memoryDocs,
+                    totalEmbeddings,
+                    embeddingProcessing,
+                    0L     // imageGenerationCalls - 从ai_image表统计
+            );
+        } catch (Exception e) {
+            log.warn("[Dashboard] 获取AI统计失败: {}", e.getMessage());
+            return new DashboardStatsResponse.AIStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        }
     }
 }

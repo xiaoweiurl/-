@@ -76,7 +76,52 @@ public class DashboardStatsResponse {
         private Long todayViews;
         /** 今日下载次数 */
         private Long todayDownloads;
+        /**
+     * 供应链统计数据
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SupplyChainStats {
+        /** 产品总数 */
+        private Long totalProducts;
+        /** 待报价数 */
+        private Long pendingQuotations;
+        /** 活跃供应商数 */
+        private Long activeSuppliers;
+        /** 本月采购单数 */
+        private Long monthlyPurchases;
+        /** 原料总数 */
+        private Long totalRawMaterials;
+        /** 生产计划数 */
+        private Long productionPlans;
     }
+
+    /**
+     * AI能力统计数据
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AIStats {
+        /** AI对话总调用次数 */
+        private Long totalChatCalls;
+        /** 今日对话调用次数 */
+        private Long todayChatCalls;
+        /** 知识库文档数 */
+        private Long knowledgeDocs;
+        /** 知识卡片数 */
+        private Long knowledgeCards;
+        /** 记忆库文档数 */
+        private Long memoryDocs;
+        /** 向量化完成数 */
+        private Long embeddingCompleted;
+        /** 向量化处理中 */
+        private Long embeddingProcessing;
+        /** AI生图调用次数 */
+        private Long imageGenerationCalls;
+    }
+}
 
     /**
      * 趋势数据
@@ -177,6 +222,16 @@ public class DashboardStatsResponse {
         /** 封面图URL */
         private String coverUrl;
     }
+
+    /**
+     * 供应链统计
+     */
+    private SupplyChainStats supplyChain;
+
+    /**
+     * AI 能力统计
+     */
+    private AIStats aiStats;
 
     /**
      * 活跃度统计
