@@ -149,6 +149,18 @@
             <artifactId>s3</artifactId>
             <version>2.29.45</version>
         </dependency>
+
+        <!-- LangChain4j for AI orchestration (Text-to-SQL, RAG, Tool Calling) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-spring-boot-starter</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama-spring-boot-starter</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -55,6 +55,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired(required = false)
+    private com.imagemanager.tools.SupplyChainAssistant supplyChainAssistant;
+
+    @Autowired(required = false)
+    private com.imagemanager.tools.SupplyChainTools supplyChainTools;
+
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
@@ -143,7 +149,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 List<Map<String, Object>> supplyChainResults = Collections.emptyList();
                 if (supplyChainIntent && !generalChatIntent) {
                     try {
-                        supplyChainResults = searchSupplyChain(message);
+                        supplyChainResults = searchSupplyChain(message, company);
                         log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
                     } catch (Exception e) {
                         log.warn("供应链数据检索异常: {}", e.getMessage());
@@ -1604,9 +1610,47 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 供应链数据检索 - 根据用户意图查询相关业务数据
+     * 供应链数据检索 - 优先使用LangChain4j Text-to-SQL，降级到关键词搜索
      */
-    private List<Map<String, Object>> searchSupplyChain(String query) {
+    private List<Map<String, Object>> searchSupplyChain(String query, String company) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            // 优先尝试 LangChain4j Text-to-SQL
+            if (supplyChainAssistant != null && supplyChainTools != null) {
+                try {
+                    // 设置当前公司到 ThreadLocal，供 SQL 注入使用
+                    supplyChainTools.setCurrentCompany(company != null ? company : "");
+                    log.info("[LangChain4j] 尝试Text-to-SQL查询: query='{}', company='{}'", query, company);
+                    String sqlResult = supplyChainAssistant.chat(query, company != null ? company : "");
+                    supplyChainTools.clearCurrentCompany();
+                    if (sqlResult != null && !sqlResult.isEmpty() && !sqlResult.contains("查询结果为空") && !sqlResult.contains("SQL执行失败") && !sqlResult.contains("错误：")) {
+                        Map<String, Object> langChainResult = new LinkedHashMap<>();
+                        langChainResult.put("type", "Text-to-SQL动态查询");
+                        langChainResult.put("summary", "大模型生成的SQL查询结果");
+                        langChainResult.put("data", Map.of("查询结果", sqlResult));
+                        results.add(langChainResult);
+                        log.info("[LangChain4j] Text-to-SQL成功，返回 {} 字符结果", sqlResult.length());
+                        return results;
+                    }
+                    log.warn("[LangChain4j] Text-to-SQL无有效结果，降级到关键词搜索");
+                } catch (Exception e) {
+                    log.warn("[LangChain4j] Text-to-SQL异常，降级到关键词搜索: {}", e.getMessage());
+                }
+            }
+
+            // 降级：现有关键词搜索逻辑
+            results = searchSupplyChainByKeywords(query);
+
+        } catch (Exception e) {
+            log.error("供应链数据检索失败", e);
+        }
+        return results;
+    }
+
+    /**
+     * 供应链数据检索 - 关键词搜索（降级方案）
+     */
+    private List<Map<String, Object>> searchSupplyChainByKeywords(String query) {
         List<Map<String, Object>> results = new ArrayList<>();
         try {
             // 提取产品编码关键词
@@ -1640,7 +1684,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
 
         } catch (Exception e) {
-            log.error("供应链数据检索失败", e);
+            log.error("供应链关键词搜索失败", e);
         }
         return results;
     }
