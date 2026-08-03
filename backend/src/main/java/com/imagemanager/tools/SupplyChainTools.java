@@ -1,5 +1,7 @@
 package com.imagemanager.tools;
 
+import com.imagemanager.dto.MemorySearchResult;
+import com.imagemanager.service.KnowledgeBaseService;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,8 +15,9 @@ import java.util.regex.Pattern;
  * 供应链 AI 工具集
  * 
  * 通过 LangChain4j @Tool 注解暴露给大模型自动调用：
- * 1. queryDatabase - Text-to-SQL：大模型根据用户问题自动生成 SQL 查询数据库
- * 2. searchSupplyChainByKeyword - 关键词搜索（降级方案，现有逻辑）
+ * 1. searchByVector - 向量语义检索：用 embedding 相似度搜索 knowledge_embeddings 表的 chunk_text
+ * 2. queryDatabase - Text-to-SQL：大模型生成 SQL 查询 knowledge_base_docs 表的文本字段
+ * 大模型会根据问题类型自动选择工具（可两个都调用）
  * 
  * 安全策略：
  * - 只允许 SELECT 语句
@@ -28,6 +31,7 @@ import java.util.regex.Pattern;
 public class SupplyChainTools {
 
     private final JdbcTemplate jdbcTemplate;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     /**
      * 供应链核心表的 Schema 元数据
@@ -91,12 +95,58 @@ public class SupplyChainTools {
     );
 
     /**
+     * 向量语义检索工具：用 embedding 向量做相似度搜索
+     * 
+     * 当用户问题涉及具体业务数据（如"克重175克的机型"、"最便宜的原料"）时，
+     * 向量检索比SQL更精准——它能匹配语义相似度而非字面关键词。
+     * 系统会自动把查询文本转为向量，与 knowledge_embeddings.embedding 列做余弦距离比较。
+     */
+    @Tool("向量语义搜索：根据用户问题的语义相似度检索知识库文档。适合查询具体业务数据，如产品报价、原料采购、生产计划等。传入用户的问题或关键词。")
+    public String searchByVector(String query) {
+        String company = currentCompany.get();
+        log.info("[向量检索] query='{}', company='{}'", query, company);
+        try {
+            var results = knowledgeBaseService.search(query, 0.25f, 10, company);
+            if (results == null || results.isEmpty()) {
+                log.warn("[向量检索] 无结果");
+                return "向量检索无结果，请尝试用queryDatabase工具做关键词搜索。";
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("向量检索到 ").append(results.size()).append(" 条相关结果：\n\n");
+            for (int i = 0; i < results.size(); i++) {
+                var r = results.get(i);
+                sb.append("--- 结果 ").append(i + 1).append(" (相似度:");
+                if (r.getScore() != null) {
+                    sb.append(String.format("%.4f", r.getScore()));
+                } else {
+                    sb.append("N/A");
+                }
+                sb.append(") ---\n");
+                if (r.getChunkText() != null && !r.getChunkText().isEmpty()) {
+                    sb.append(r.getChunkText());
+                } else if (r.getContent() != null) {
+                    sb.append(r.getContent());
+                }
+                if (r.getTitle() != null) {
+                    sb.append("\n[来源: ").append(r.getTitle()).append("]");
+                }
+                sb.append("\n\n");
+            }
+            log.info("[向量检索] 返回 {} 条结果", results.size());
+            return sb.toString();
+        } catch (Exception e) {
+            log.error("[向量检索] 失败: {}", e.getMessage(), e);
+            return "向量检索失败: " + e.getMessage() + "，请尝试用queryDatabase工具做SQL查询。";
+        }
+    }
+
+    /**
      * Text-to-SQL 工具：大模型自动生成 SQL 并执行查询
      * 
      * 调用方式：大模型会传入完整的 SQL 语句，此方法负责安全校验和执行
      * 注意：company 参数由 SmartChatServiceImpl 通过 ThreadLocal 或上下文传入
      */
-    @Tool("执行SQL查询数据库获取供应链数据。传入完整的SELECT语句。只能查询，禁止修改数据。SQL中用 'COMPANY_PLACEHOLDER' 代替公司名，系统会自动替换。")
+    @Tool("执行SQL查询数据库获取知识库文档的元数据和文本内容。传入完整的SELECT语句。只能查询，禁止修改数据。SQL中用 'COMPANY_PLACEHOLDER' 代替公司名，系统会自动替换。")
     public String queryDatabase(String sql) {
         log.info("[Text-to-SQL] 接收到SQL: {}", sql);
 
