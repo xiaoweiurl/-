@@ -61,6 +61,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Autowired(required = false)
     private com.imagemanager.tools.SupplyChainTools supplyChainTools;
 
+    @Autowired(required = false)
+    private com.imagemanager.enhance.RagPipeline ragPipeline;
+
+    @Autowired(required = false)
+    private com.imagemanager.enhance.ChatMemoryManager chatMemoryManager;
+
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
@@ -73,7 +79,6 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.ollama.timeout:60000}")
     private int ollamaTimeout;
 
-    @Override
     @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode) {
         return smartChatWithImages(message, userId, company, conversationId, mode, null);
@@ -104,8 +109,32 @@ public class SmartChatServiceImpl implements SmartChatService {
                 final String finalConvId = convId;
                 emitter.send(SseEmitter.event().name("conversation").data(finalConvId));
 
-                // 2. 加载历史对话（按conversationId）
-                List<Map<String, Object>> history = getChatHistory(userId, company, convId);
+                // 2. 加载历史对话（按conversationId），优先用ChatMemory缓存，无缓存时查DB
+                List<Map<String, Object>> history;
+                List<ChatMemoryManager.ChatMessage> memoryMsgs = chatMemoryManager.getMessages(convId);
+                if (!memoryMsgs.isEmpty()) {
+                    history = new ArrayList<>();
+                    for (ChatMemoryManager.ChatMessage msg : memoryMsgs) {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("role", msg.role);
+                        m.put("content", msg.content);
+                        history.add(m);
+                    }
+                } else {
+                    history = getChatHistory(userId, company, convId);
+                    // 回填到内存缓存
+                    for (Map<String, Object> msg : history) {
+                        String role = (String) msg.get("role");
+                        String content = (String) msg.get("content");
+                        if (role != null && content != null) {
+                            if ("user".equals(role)) {
+                                chatMemoryManager.addUserMessage(convId, content);
+                            } else {
+                                chatMemoryManager.addAssistantMessage(convId, content);
+                            }
+                        }
+                    }
+                }
 
                 // 2. 意图识别：供应链意图仅在工厂模式下生效
                 boolean supplyChainIntent = "factory".equals(mode) && isSupplyChainIntent(message);
@@ -557,6 +586,8 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 6. 保存用户消息
                 saveChatMessage(userId, convId, "user", message, company, null, mode);
+                // 6b. 更新ChatMemory（内存级多轮对话记忆，LangChain4j ChatMemory）
+                chatMemoryManager.addUserMessage(convId, message);
 
                 // 7. 流式调用DeepSeek V4 Pro
                 // 联网搜索策略：
@@ -579,6 +610,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                     if (fullResponse.length() > 0) {
                         String reasoning = fullReasoning.length() > 0 ? fullReasoning.toString() : null;
                         saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode);
+                        // 同步更新ChatMemory
+                        chatMemoryManager.addAssistantMessage(convId, fullResponse.toString());
                         
                         // 8b. 异步向量化Q&A对（用户问题+AI回答拼接后向量化，供后续RAG检索）
                         // 仅在非闲聊场景下向量化，避免存入无价值对话
@@ -1615,7 +1648,23 @@ public class SmartChatServiceImpl implements SmartChatService {
     private List<Map<String, Object>> searchSupplyChain(String query, String company) {
         List<Map<String, Object>> results = new ArrayList<>();
         try {
-            // 优先尝试 LangChain4j Text-to-SQL
+            // 优先尝试 RAG Pipeline（查询增强→多路向量召回→去重→Rerank）
+            if (ragPipeline != null) {
+                try {
+                    log.info("[RAG Pipeline] 启动增强检索: query='{}', company='{}'", query, company);
+                    List<Map<String, Object>> ragResults = ragPipeline.enhancedSearchAsMap(query, company);
+                    if (ragResults != null && !ragResults.isEmpty()) {
+                        results.addAll(ragResults);
+                        log.info("[RAG Pipeline] 增强检索成功，返回 {} 条结果", ragResults.size());
+                        return results;
+                    }
+                    log.warn("[RAG Pipeline] 增强检索无有效结果，降级到Text-to-SQL");
+                } catch (Exception e) {
+                    log.warn("[RAG Pipeline] 增强检索异常，降级到Text-to-SQL: {}", e.getMessage());
+                }
+            }
+
+            // 次选：LangChain4j Text-to-SQL
             if (supplyChainAssistant != null && supplyChainTools != null) {
                 try {
                     // 设置当前公司到 ThreadLocal，供 SQL 注入使用
