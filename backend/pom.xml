@@ -151,15 +151,16 @@
         </dependency>
 
         <!-- LangChain4j for AI orchestration (Text-to-SQL, RAG, Tool Calling) -->
+        <!-- 1.2.0 是 langchain4j 和 langchain4j-ollama 都有稳定版的第一个版本 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j</artifactId>
-            <version>1.0.1</version>
+            <version>1.2.0</version>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-ollama</artifactId>
-            <version>1.0.1</version>
+            <version>1.2.0</version>
         </dependency>
     </dependencies>
 
