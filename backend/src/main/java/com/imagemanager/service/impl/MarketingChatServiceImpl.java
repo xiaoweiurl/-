@@ -24,7 +24,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
-    @Value("${app.ollama.chat-model:qwen3.6}")
+    @Value("${app.ollama.chat-model:qwen3.6:35b}")
     private String ollamaChatModel;
 
     private final JdbcTemplate jdbcTemplate;

@@ -4,7 +4,6 @@ import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.service.KnowledgeBaseService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -34,12 +33,6 @@ public class RagPipeline {
     @Autowired
     private KnowledgeBaseService knowledgeBaseService;
 
-    @Value("${app.ollama.url:http://localhost:11434}")
-    private String ollamaUrl;
-
-    @Value("${app.ollama.model:qwen3:32b}")
-    private String ollamaModel;
-
     /**
      * 完整RAG增强检索
      * 
@@ -53,13 +46,15 @@ public class RagPipeline {
         log.info("[RagPipeline] 开始增强检索, query='{}', company='{}', topK={}", query, company, topK);
 
         // ========== Step 1: 查询增强 ==========
-        List<String> enhancedQueries = queryEnhancer.enhanceQuery(query, ollamaUrl, ollamaModel);
+        List<String> enhancedQueries = queryEnhancer.enhance(query);
         log.info("[RagPipeline] 查询增强生成 {} 个变体: {}", enhancedQueries.size(), enhancedQueries);
 
         // ========== Step 2: 多路向量召回 ==========
         List<MemorySearchResult> allResults = new ArrayList<>();
-        // 原始查询也要检索
-        enhancedQueries.add(0, query);
+        // ensure原始查询在列表首位
+        if (!enhancedQueries.contains(query)) {
+            enhancedQueries.add(0, query);
+        }
 
         for (String q : enhancedQueries) {
             try {
@@ -95,7 +90,7 @@ public class RagPipeline {
         log.info("[RagPipeline] 去重后 {} 条", deduped.size());
 
         // ========== Step 4: Reranker重排序 ==========
-        List<MemorySearchResult> reranked = reranker.rerank(query, deduped, ollamaUrl, ollamaModel, topK);
+        List<MemorySearchResult> reranked = reranker.rerank(query, deduped, topK);
         log.info("[RagPipeline] Rerank后保留 {} 条", reranked.size());
 
         long elapsed = System.currentTimeMillis() - startTime;

@@ -22,10 +22,10 @@ import java.util.List;
 @Component
 public class QueryEnhancer {
 
-    @Value("${app.ollama.url:http://localhost:11434}")
+    @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaUrl;
 
-    @Value("${app.ollama.model:qwen3:32b}")
+    @Value("${app.ollama.chat-model:qwen3.6:35b}")
     private String ollamaModel;
 
     private final HttpClient httpClient = HttpClient.newBuilder()

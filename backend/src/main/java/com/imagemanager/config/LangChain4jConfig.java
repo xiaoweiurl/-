@@ -22,7 +22,7 @@ public class LangChain4jConfig {
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
-    @Value("${app.ollama.chat-model:qwen3.6}")
+    @Value("${app.ollama.chat-model:qwen3.6:35b}")
     private String chatModel;
 
     @Value("${app.ollama.timeout:60000}")

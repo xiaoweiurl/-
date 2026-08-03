@@ -73,7 +73,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.ollama.embedding-model:bge-m3}")
     private String ollamaEmbeddingModel;
 
-    @Value("${app.ollama.chat-model:qwen3.6}")
+    @Value("${app.ollama.chat-model:qwen3.6:35b}")
     private String ollamaChatModel;
 
     @Value("${app.ollama.timeout:60000}")
