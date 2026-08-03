@@ -34,93 +34,54 @@ public class SupplyChainTools {
      * 大模型基于此生成正确的 SQL
      */
     private static final String SCHEMA_CONTEXT = """
-            ## 供应链数据库表结构（PostgreSQL）
+            ## 知识库数据库表结构（PostgreSQL）
+            
+            注意：所有业务数据（供应链报价、采购、生产计划等）都已上传为文档并自动向量化存储。
+            请基于以下两张表查询数据，不要查询其他不存在的表。
 
-            ### 1. products - 产品表
-            - id (VARCHAR, 主键, 产品编码如 HT01-S)
-            - name (产品名称)
-            - category (分类)
-            - company (公司, 多租户隔离字段)
+            ### 1. knowledge_base_docs - 知识库文档表
+            存储上传的文档元数据和提取的文本内容。
+            - id (VARCHAR, 主键, 文档ID)
+            - title (VARCHAR, 文档标题)
+            - content (TEXT, 提取的完整文本内容)
+            - file_content (TEXT, 原始文本内容备份)
+            - file_type (VARCHAR, 文件类型: pdf/word/excel/txt/markdown)
+            - category_id (VARCHAR, 分类ID)
+            - company (VARCHAR, 公司名, 多租户隔离)
+            - chunk_count (INTEGER, 切片数量)
+            - embedding_status (VARCHAR, 向量化状态: COMPLETED/PROCESSING/PENDING/FAILED)
+            - keywords (VARCHAR, 关键词)
+            - status (INTEGER, 状态: 0=正常 1=已删除)
+            - created_at (TIMESTAMP, 创建时间)
+            - updated_at (TIMESTAMP, 更新时间)
 
-            ### 2. product_quotation - 产品报价单
-            - id (SERIAL, 主键)
-            - product_code (VARCHAR, 产品编码, 关联 products.id)
-            - production_code (生产编码)
-            - document_no (单据编号)
-            - period (期间)
-            - customer (客户)
-            - salesperson (业务员)
-            - product_category (产品类别)
-            - approval_status (审批状态)
-            - sales_type (销售类型)
-            - raw_material_name1~6 (原料名称1-6)
-            - material_usage1~6 (用量1-6, DECIMAL)
-            - material_unit_price1~6 (单价1-6, DECIMAL)
-            - accessory_name (辅料名称)
-            - accessory_price (辅料价格, DECIMAL)
-            - weaving_seconds (织造秒数, DECIMAL)
-            - daily_output (日产量, INTEGER)
-            - equipment_daily_cost (设备日成本, DECIMAL)
-            - weaving_cost (织造成本, DECIMAL)
-            - yield_rate (良品率, DECIMAL)
-            - sewing_weight (缝纫克重, DECIMAL)
-            - sewing_cost (缝纫成本, DECIMAL)
-            - dyeing_unit_price (染色单价, DECIMAL)
-            - dyeing_cost (染色成本, DECIMAL)
-            - setting_cost (定型成本, DECIMAL)
-            - packaging_cost (包装成本, DECIMAL)
-            - manufacturing_total (制造费用合计, DECIMAL)
-            - net_cost (净成本, DECIMAL)
-            - sales_cost (销售成本, DECIMAL)
-            - tax_amount (税额, DECIMAL)
-            - machine_hourly_rate (机台时薪, DECIMAL)
-            - single_machine_output_hourly (单机时产量, DECIMAL)
-            - company (公司, 多租户隔离字段)
+            ### 2. knowledge_embeddings - 向量嵌入表
+            存储文档切片的向量嵌入和文本片段，每行是一个文档切片。
+            - id (UUID, 主键)
+            - card_id (UUID, 关联知识卡片ID，可为空)
+            - source_type (VARCHAR, 来源类型: KNOWLEDGE_BASE=知识库 MEMORY=记忆库)
+            - source_doc_id (VARCHAR, 源文档ID, 关联 knowledge_base_docs.id)
+            - chunk_index (INTEGER, 切片序号, 从0开始)
+            - chunk_text (TEXT, 切片文本内容, 约800字/片)
+            - embedding (vector(1024), 向量嵌入, 不要在SQL中SELECT此字段)
+            - embedding_model (VARCHAR, 向量模型名)
+            - company (VARCHAR, 公司名, 多租户隔离)
+            - created_at (TIMESTAMP, 创建时间)
 
-            ### 3. raw_material_purchase - 原料采购表
-            - id (SERIAL, 主键)
-            - material_code (原料编码)
-            - unit (单位)
-            - supplier (供应商)
-            - batch_no (批号)
-            - unit_price (单价, DECIMAL)
-            - company (公司)
+            ### 3. knowledge_base_categories - 知识库分类表
+            - id (VARCHAR, 主键)
+            - name (VARCHAR, 分类名称)
+            - description (TEXT, 分类描述)
+            - company (VARCHAR, 公司名)
+            - created_at (TIMESTAMP, 创建时间)
 
-            ### 4. raw_material_warehouse - 原料入库表
-            - id (SERIAL, 主键)
-            - product_code (产品编码)
-            - color (颜色)
-            - batch_no (批号)
-            - unit (单位)
-            - unit_price (单价, DECIMAL)
-            - company (公司)
-
-            ### 5. production_plan - 生产计划表
-            - id (SERIAL, 主键)
-            - semi_product_code (半成品编码)
-            - product_code (产品编码)
-            - sewing_weight (缝纫克重, DECIMAL)
-            - machine_type (机型)
-            - needle_count (针数)
-            - seconds (秒数, DECIMAL)
-            - machine_count (机台数, INTEGER)
-            - single_machine_output (单机产量, DECIMAL)
-            - company (公司)
-
-            ### 6. accessory_purchase - 辅料采购表
-            - id (SERIAL, 主键)
-            - accessory_name (辅料名称)
-            - accessory_category (辅料类别)
-            - unit (单位)
-            - supplier (供应商)
-            - accessory_unit_price (辅料单价, DECIMAL)
-            - company (公司)
-
-            ## 关键说明
-            - 所有金额字段为 DECIMAL 类型，单位为元
-            - material_usage 为用料量，material_unit_price 为对应单价
-            - 原料成本 = 用量 x 单价（6组原料分别计算后求和）
-            - 查询时必须加 WHERE company = ? 条件做数据隔离
+            ## 查询规则
+            1. 查询时必须加 WHERE company = 'COMPANY_PLACEHOLDER' 条件做数据隔离
+            2. 查询 knowledge_embeddings 时不要 SELECT embedding 字段（向量数据无法展示）
+            3. 要获取文档内容：SELECT title, content FROM knowledge_base_docs WHERE ...
+            4. 要搜索关键词：SELECT chunk_text, source_doc_id FROM knowledge_embeddings WHERE chunk_text ILIKE '%关键词%' AND source_type = 'KNOWLEDGE_BASE' AND company = 'COMPANY_PLACEHOLDER'
+            5. 要关联文档信息：SELECT e.chunk_text, d.title FROM knowledge_embeddings e JOIN knowledge_base_docs d ON e.source_doc_id::text = d.id WHERE e.chunk_text ILIKE '%关键词%' AND e.company = 'COMPANY_PLACEHOLDER'
+            6. 文档内容包含：产品报价、原料采购、原料入库、生产计划、辅料采购等业务数据（以自然语言描述句格式存储）
             """;
 
     /** 危险 SQL 关键词 */
@@ -148,6 +109,15 @@ public class SupplyChainTools {
         
         if (DANGEROUS_SQL.matcher(trimmedSql).find()) {
             return "错误：检测到危险SQL操作，已拒绝执行";
+        }
+
+        // 防止查询向量字段（embedding 列数据量巨大，会导致输出爆炸）
+        if (trimmedSql.toUpperCase().matches(".*\\bSELECT\\s+\\*\\b.*") && 
+            trimmedSql.toUpperCase().contains("KNOWLEDGE_EMBEDDINGS")) {
+            return "错误：禁止对 knowledge_embeddings 表使用 SELECT *（包含向量字段），请明确指定要查询的列名（如 chunk_text, source_doc_id, source_type 等），不要查询 embedding 列。";
+        }
+        if (trimmedSql.toUpperCase().matches(".*\\bSELECT\\s+[^,]*\\bEMBEDDING\\b[^,]*.*")) {
+            return "错误：禁止查询 embedding 向量字段，请改为查询 chunk_text 等文本字段。";
         }
 
         // 替换公司占位符
