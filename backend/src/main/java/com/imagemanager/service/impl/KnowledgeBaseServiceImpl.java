@@ -260,7 +260,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
             tx.execute(status -> {
                 jdbcTemplate.update("UPDATE knowledge_base_docs SET file_content = ?, embedding_status = 'PROCESSING', updated_at = NOW() WHERE id = ?::uuid",
-                        text.substring(0, Math.min(text.length(), 50000)), docId.toString());
+                        text, docId.toString());
                 return null;
             });
 

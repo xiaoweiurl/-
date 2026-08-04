@@ -177,31 +177,90 @@ public class DocumentParserServiceImpl implements DocumentParserService {
         List<String> chunks = new ArrayList<>();
         if (text == null || text.isBlank()) return chunks;
 
-        // 按段落分割
-        String[] paragraphs = text.split("\n+");
-        StringBuilder currentChunk = new StringBuilder();
-
+        // 1. 预处理：按段落（双换行）分割为段落块
+        String[] paragraphs = text.split("\n\\s*\n");
+        List<String> normalizedParas = new ArrayList<>();
         for (String para : paragraphs) {
-            if (para.isBlank()) continue;
+            String trimmed = para.trim();
+            if (trimmed.isEmpty()) continue;
+            // 如果单个段落超过 chunkSize，按句号/换行进一步切分
+            if (trimmed.length() > chunkSize) {
+                normalizedParas.addAll(splitLongParagraph(trimmed, chunkSize));
+            } else {
+                normalizedParas.add(trimmed);
+            }
+        }
 
+        // 2. 滑动窗口组装 chunks
+        StringBuilder currentChunk = new StringBuilder();
+        for (String para : normalizedParas) {
             if (currentChunk.length() + para.length() + 1 > chunkSize && currentChunk.length() > 0) {
+                // 当前 chunk 已满，保存
                 chunks.add(currentChunk.toString().trim());
-                // overlap: 保留最后一段
-                String lastPart = currentChunk.toString();
-                int lastNewline = lastPart.lastIndexOf("\n");
-                if (lastNewline > 0 && lastPart.length() - lastNewline <= overlap) {
-                    currentChunk = new StringBuilder(lastPart.substring(lastNewline + 1));
+
+                // overlap: 保留当前 chunk 最后 overlap 个字符的内容
+                String chunkStr = currentChunk.toString();
+                if (overlap > 0 && chunkStr.length() > overlap) {
+                    // 从最后一个换行符开始保留，但不超过 overlap
+                    int startIdx = chunkStr.length() - overlap;
+                    int newlineIdx = chunkStr.lastIndexOf("\n", startIdx);
+                    if (newlineIdx >= 0 && chunkStr.length() - newlineIdx <= overlap * 2) {
+                        currentChunk = new StringBuilder(chunkStr.substring(newlineIdx + 1));
+                    } else {
+                        currentChunk = new StringBuilder(chunkStr.substring(startIdx));
+                    }
                 } else {
                     currentChunk = new StringBuilder();
                 }
             }
-            currentChunk.append(para).append("\n");
+            if (currentChunk.length() > 0) {
+                currentChunk.append("\n");
+            }
+            currentChunk.append(para);
         }
 
         if (currentChunk.length() > 0) {
-            chunks.add(currentChunk.toString().trim());
+            String lastChunk = currentChunk.toString().trim();
+            if (!lastChunk.isEmpty()) {
+                chunks.add(lastChunk);
+            }
+        }
+
+        log.info("文档切片完成: 总长度={}, 切片数={}, chunkSize={}, overlap={}", 
+            text.length(), chunks.size(), chunkSize, overlap);
+        for (int i = 0; i < Math.min(chunks.size(), 3); i++) {
+            log.info("  切片[{}] 长度={} 预览: {}", i, chunks.get(i).length(), 
+                chunks.get(i).substring(0, Math.min(chunks.get(i).length(), 100)).replace("\n", "\\n"));
         }
 
         return chunks;
+    }
+
+    /**
+     * 切分超长段落：按句号、换行符进一步切分
+     */
+    private List<String> splitLongParagraph(String para, int chunkSize) {
+        List<String> parts = new ArrayList<>();
+        // 按句号、问号、感叹号、换行切分
+        String[] sentences = para.split("(?<=[。！？.!?\n])");
+        StringBuilder current = new StringBuilder();
+        for (String sentence : sentences) {
+            if (sentence.isBlank()) continue;
+            if (current.length() + sentence.length() > chunkSize && current.length() > 0) {
+                parts.add(current.toString().trim());
+                current = new StringBuilder();
+            }
+            current.append(sentence);
+        }
+        if (current.length() > 0) {
+            parts.add(current.toString().trim());
+        }
+        // 如果句子本身超长，强制按 chunkSize 硬切
+        if (parts.isEmpty()) {
+            for (int i = 0; i < para.length(); i += chunkSize) {
+                parts.add(para.substring(i, Math.min(i + chunkSize, para.length())));
+            }
+        }
+        return parts;
     }
 }
