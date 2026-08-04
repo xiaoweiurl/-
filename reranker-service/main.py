@@ -1,5 +1,5 @@
 """
-Reranker Service - 基于 FlagEmbedding 的文档重排序服务
+Reranker Service - 基于 Sentence-Transformers 的文档重排序服务
 使用 bge-reranker-v2-m3 模型，支持多语言（中英文）
 """
 
@@ -33,16 +33,16 @@ MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 async def lifespan(app: FastAPI):
     """应用生命周期管理：启动时加载模型"""
     global reranker
-    logger.info(f"正在加载 Reranker 模型: {MODEL_NAME}")
+    logger.info(f"正在加载 Reranker 模型：{MODEL_NAME}")
     try:
-        from FlagEmbedding import FlagReranker
-        reranker = FlagReranker(MODEL_NAME, use_fp16=True)
+        from sentence_transformers import CrossEncoder
+        reranker = CrossEncoder(MODEL_NAME)
         logger.info("Reranker 模型加载成功")
     except ImportError:
-        logger.error("请安装 FlagEmbedding: pip install FlagEmbedding")
+        logger.error("请安装 sentence-transformers: pip install sentence-transformers")
         raise
     except Exception as e:
-        logger.error(f"模型加载失败: {e}")
+        logger.error(f"模型加载失败：{e}")
         raise
     yield
     logger.info("Reranker 服务关闭")
@@ -50,9 +50,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Reranker Service",
-    description="基于 BGE-Reranker 的文档重排序服务",
+    description="基于 bge-reranker-v2-m3 的文档重排序服务",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS 配置
@@ -67,124 +67,96 @@ app.add_middleware(
 
 class RerankRequest(BaseModel):
     """重排序请求"""
-    query: str = Field(..., description="查询文本")
-    documents: List[str] = Field(..., description="待排序的文档列表")
+    query: str = Field(..., description="查询文本", min_length=1)
+    documents: List[str] = Field(..., description="待排序文档列表", min_items=1)
     top_k: Optional[int] = Field(None, description="返回前 K 个结果", ge=1)
-    normalize: bool = Field(True, description="是否将分数归一化到 0-1 范围")
 
 
 class RerankResult(BaseModel):
     """单个重排序结果"""
     index: int = Field(..., description="原始索引")
-    document: str = Field(..., description="文档内容")
-    score: float = Field(..., description="相关性分数")
+    text: str = Field(..., description="文档内容")
+    score: float = Field(..., description="相关性分数（0-1）")
 
 
 class RerankResponse(BaseModel):
     """重排序响应"""
-    results: List[RerankResult] = Field(..., description="排序后的结果列表")
-    query: str = Field(..., description="原始查询")
+    query: str = Field(..., description="查询文本")
+    results: List[RerankResult] = Field(..., description="排序结果")
 
 
-class HealthResponse(BaseModel):
-    """健康检查响应"""
-    status: str
-    model: str
-    loaded: bool
-
-
-@app.get("/health", response_model=HealthResponse, tags="系统")
-async def health_check():
-    """健康检查接口"""
-    return HealthResponse(
-        status="healthy" if reranker is not None else "unhealthy",
-        model=MODEL_NAME,
-        loaded=reranker is not None
-    )
-
-
-@app.post("/rerank", response_model=RerankResponse, tags="重排序")
-async def rerank(request: RerankRequest):
+@app.post("/rerank", response_model=RerankResponse)
+async def rerank_documents(request: RerankRequest):
     """
-    文档重排序接口
+    对文档列表进行重排序
     
-    接收查询文本和文档列表，返回按相关性排序的结果。
-    
-    - **query**: 查询文本
-    - **documents**: 待排序的文档列表
-    - **top_k**: 返回前 K 个结果（可选，默认返回全部）
-    - **normalize**: 是否将分数归一化到 0-1 范围（默认 true）
+    使用 bge-reranker-v2-m3 模型对查询和文档的相关性进行打分，
+    返回按相关性降序排列的结果。
     """
     if reranker is None:
-        raise HTTPException(status_code=503, detail="Reranker 模型未加载")
-    
-    if not request.documents:
-        return RerankResponse(results=[], query=request.query)
+        raise HTTPException(status_code=503, detail="模型未加载")
     
     try:
-        # 构建 query-document 对
-        pairs = [[request.query, doc] for doc in request.documents]
+        # 构建 (query, document) 对
+        pairs = [(request.query, doc) for doc in request.documents]
         
         # 计算相关性分数
-        scores = reranker.compute_score(pairs, normalize=request.normalize)
+        scores = reranker.predict(pairs)
         
-        # 如果只有一个文档，scores 是单个值而不是列表
-        if isinstance(scores, (int, float)):
-            scores = [scores]
+        # 归一化分数到 0-1 范围（使用 sigmoid）
+        import numpy as np
+        normalized_scores = 1 / (1 + np.exp(-scores))
         
-        # 构建结果
-        results = [
-            RerankResult(
-                index=i,
-                document=doc,
-                score=float(score)
-            )
-            for i, (doc, score) in enumerate(zip(request.documents, scores))
-        ]
+        # 组合结果
+        results = []
+        for idx, (doc, score) in enumerate(zip(request.documents, normalized_scores)):
+            results.append({
+                "index": idx,
+                "text": doc,
+                "score": float(score)
+            })
         
         # 按分数降序排序
-        results.sort(key=lambda x: x.score, reverse=True)
+        results.sort(key=lambda x: x["score"], reverse=True)
         
-        # 如果指定了 top_k，截取前 K 个
-        if request.top_k is not None:
+        # 截取 top_k
+        if request.top_k:
             results = results[:request.top_k]
         
-        logger.info(f"重排序完成: query='{request.query[:50]}...', docs={len(request.documents)}, top_k={request.top_k}")
+        logger.info(f"重排序完成：{len(results)} 个文档")
         
-        return RerankResponse(results=results, query=request.query)
+        return RerankResponse(
+            query=request.query,
+            results=[RerankResult(**r) for r in results]
+        )
         
     except Exception as e:
-        logger.error(f"重排序失败: {e}")
-        raise HTTPException(status_code=500, detail=f"重排序失败: {str(e)}")
+        logger.error(f"重排序失败：{e}")
+        raise HTTPException(status_code=500, detail=f"重排序失败：{str(e)}")
 
 
-@app.post("/rerank/batch", tags="重排序")
+@app.post("/rerank/batch")
 async def rerank_batch(requests: List[RerankRequest]):
-    """
-    批量重排序接口
-    
-    同时处理多个重排序请求，提高效率。
-    """
-    if reranker is None:
-        raise HTTPException(status_code=503, detail="Reranker 模型未加载")
-    
+    """批量重排序"""
     results = []
     for req in requests:
         try:
-            response = await rerank(req)
-            results.append(response)
+            result = await rerank_documents(req)
+            results.append(result)
         except Exception as e:
-            logger.error(f"批量重排序中单个请求失败: {e}")
-            results.append(RerankResponse(results=[], query=req.query))
-    
+            results.append({"error": str(e)})
     return results
 
 
+@app.get("/health")
+async def health_check():
+    """健康检查"""
+    return {
+        "status": "ok",
+        "model": MODEL_NAME,
+        "loaded": reranker is not None
+    }
+
+
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8001,
-        reload=False,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8001)
