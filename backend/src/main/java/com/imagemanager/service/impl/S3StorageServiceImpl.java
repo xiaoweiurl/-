@@ -58,16 +58,20 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .chunkedEncodingEnabled(false)      // OSS不支持分块传输编码
                     .build();
 
-            // S3 Client - 阿里云OSS使用 AWS_GLOBAL region
+            // 解析 Region：优先从配置读取，其次从 endpoint 推导，最后降级到 AWS_GLOBAL
+            Region region = resolveRegion();
+            log.info("[Storage] 使用 Region: {}", region.id());
+
+            // S3 Client
             var clientBuilder = S3Client.builder()
                     .credentialsProvider(StaticCredentialsProvider.create(credentials))
-                    .region(Region.AWS_GLOBAL)
+                    .region(region)
                     .serviceConfiguration(s3Config);
 
-            // S3 Presigner - 同样使用 AWS_GLOBAL region
+            // S3 Presigner - 必须与 Client 使用相同 Region，否则签名 URL 的 credential scope 不匹配导致 403
             var presignerBuilder = S3Presigner.builder()
                     .credentialsProvider(StaticCredentialsProvider.create(credentials))
-                    .region(Region.AWS_GLOBAL)
+                    .region(region)
                     .serviceConfiguration(s3Config);
 
             // 自定义端点（阿里云OSS）
@@ -85,12 +89,46 @@ public class S3StorageServiceImpl implements FileStorageService {
             ensureBucketExists();
             this.initialized = true;
 
-            log.info("[Storage] S3 存储初始化成功 - endpoint: {}, bucket: {}",
-                    storageConfig.getS3Endpoint(), storageConfig.getS3BucketName());
+            log.info("[Storage] S3 存储初始化成功 - endpoint: {}, bucket: {}, region: {}",
+                    storageConfig.getS3Endpoint(), storageConfig.getS3BucketName(), region.id());
         } catch (Exception e) {
             log.error("[Storage] S3 存储初始化失败", e);
             this.initialized = false;
         }
+    }
+
+    /**
+     * 解析 S3 Region
+     * 优先级：配置 > endpoint推导 > AWS_GLOBAL降级
+     * 
+     * 阿里云OSS的endpoint格式：https://s3.oss-cn-hangzhou.aliyuncs.com
+     * 从中提取 cn-hangzhou 作为 region
+     */
+    private Region resolveRegion() {
+        // 1. 优先从配置读取
+        String configuredRegion = storageConfig.getS3Region();
+        if (configuredRegion != null && !configuredRegion.isBlank()) {
+            log.info("[Storage] Region 来自配置: {}", configuredRegion);
+            return Region.of(configuredRegion);
+        }
+
+        // 2. 从 endpoint URL 推导（阿里云OSS: oss-cn-hangzhou.aliyuncs.com → cn-hangzhou）
+        String endpoint = storageConfig.getS3Endpoint();
+        if (endpoint != null && !endpoint.isBlank()) {
+            // 匹配 oss-{region}. 格式，提取 region（如 cn-hangzhou, us-east-1, ap-southeast-1）
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("oss-([^.]+)")
+                    .matcher(endpoint);
+            if (matcher.find()) {
+                String derivedRegion = matcher.group(1);
+                log.info("[Storage] Region 从endpoint推导: {} → {}", endpoint, derivedRegion);
+                return Region.of(derivedRegion);
+            }
+        }
+
+        // 3. 降级到 AWS_GLOBAL
+        log.warn("[Storage] Region 未配置且无法从endpoint推导，使用 AWS_GLOBAL 降级");
+        return Region.AWS_GLOBAL;
     }
 
     /**
