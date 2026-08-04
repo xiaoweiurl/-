@@ -1404,10 +1404,51 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 知识库检索 - 查询知识库独立的向量表(knowledge_embeddings, source_type='KNOWLEDGE_BASE')
      */
     private List<Map<String, Object>> searchKnowledgeBase(String query, String company) {
-        try {
-            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.12, 15, company);
+        long startTime = System.currentTimeMillis();
+        log.info("===== 知识库检索开始 =====");
+        log.info("[知识库] 查询: \"{}\" | company: {}", query, company);
 
+        try {
+            // 1. 优先使用 RagPipeline（包含查询增强 + 多路召回 + Reranker 重排序）
             List<Map<String, Object>> results = new ArrayList<>();
+
+            if (ragPipeline != null) {
+                try {
+                    log.info("[知识库] 使用 RagPipeline 增强检索（查询增强 + 多路召回 + Reranker 重排序）");
+                    List<Map<String, Object>> ragResults = ragPipeline.enhancedSearchAsMap(query, company);
+
+                    if (ragResults != null && !ragResults.isEmpty()) {
+                        log.info("[知识库] RagPipeline 返回 {} 条结果", ragResults.size());
+                        for (int i = 0; i < ragResults.size(); i++) {
+                            Map<String, Object> item = ragResults.get(i);
+                            // 补充 source 字段
+                            item.putIfAbsent("source", "knowledge_base_rag");
+                            // 补充 title/domain 字段
+                            item.putIfAbsent("title", "");
+                            item.putIfAbsent("domain", "知识库");
+                            results.add(item);
+                            log.info("[知识库] RAG结果 #{}: score={}, content={}...", i + 1,
+                                item.get("score"),
+                                item.get("content") != null ? item.get("content").toString().substring(0, Math.min(80, item.get("content").toString().length())) : "");
+                        }
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        log.info("===== 知识库检索完成（RagPipeline）: {} 条结果, 耗时 {}ms =====", results.size(), elapsed);
+                        return results;
+                    } else {
+                        log.warn("[知识库] RagPipeline 返回空结果，降级为直接向量检索");
+                    }
+                } catch (Exception e) {
+                    log.warn("[知识库] RagPipeline 检索失败: {}，降级为直接向量检索", e.getMessage());
+                }
+            } else {
+                log.warn("[知识库] RagPipeline 未注入，使用直接向量检索");
+            }
+
+            // 2. 降级：直接向量检索（不经过 RagPipeline）
+            log.info("[知识库] 使用直接向量检索（knowledgeBaseService.search）");
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.12, 15, company);
+            log.info("[知识库] 直接检索返回 {} 条结果", allResults != null ? allResults.size() : 0);
+
             for (MemorySearchResult r : allResults) {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("content", r.getContent() != null ? r.getContent() : "");
@@ -1418,9 +1459,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("source", "knowledge_base");
                 results.add(item);
             }
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("===== 知识库检索完成（直接检索）: {} 条结果, 耗时 {}ms =====", results.size(), elapsed);
             return results;
         } catch (Exception e) {
-            log.warn("知识库检索异常: {}", e.getMessage());
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.error("[知识库] 检索异常, 耗时 {}ms: {}", elapsed, e.getMessage(), e);
             return Collections.emptyList();
         }
     }
