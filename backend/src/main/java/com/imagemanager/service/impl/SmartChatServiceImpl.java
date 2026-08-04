@@ -1409,9 +1409,27 @@ public class SmartChatServiceImpl implements SmartChatService {
         log.info("[知识库] 查询: \"{}\" | company: {}", query, company);
 
         try {
-            // 1. 优先使用 RagPipeline（包含查询增强 + 多路召回 + Reranker 重排序）
             List<Map<String, Object>> results = new ArrayList<>();
 
+            // 0. 优先：直接关键词搜索（绕过RagPipeline和向量检索，避免Ollama超时）
+            String productCode = extractProductCode(query);
+            if (productCode != null && !productCode.isEmpty()) {
+                try {
+                    log.info("[知识库] 检测到产品编码 '{}'，优先直接搜索knowledge_embeddings表", productCode);
+                    List<Map<String, Object>> directResults = searchKnowledgeEmbeddingsDirect(productCode, company);
+                    if (directResults != null && !directResults.isEmpty()) {
+                        log.info("[知识库] 直接搜索成功！返回 {} 条结果", directResults.size());
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        log.info("===== 知识库检索完成（直接搜索）: {} 条结果, 耗时 {}ms =====", directResults.size(), elapsed);
+                        return directResults;
+                    }
+                    log.warn("[知识库] 直接搜索无结果，降级到RagPipeline");
+                } catch (Exception e) {
+                    log.warn("[知识库] 直接搜索异常，降级到RagPipeline: {}", e.getMessage());
+                }
+            }
+
+            // 1. 次选：RagPipeline（包含查询增强 + 多路召回 + Reranker 重排序）
             if (ragPipeline != null) {
                 try {
                     log.info("[知识库] 使用 RagPipeline 增强检索（查询增强 + 多路召回 + Reranker 重排序）");
@@ -1705,7 +1723,28 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
             }
 
-            // 优先尝试 RAG Pipeline（查询增强→多路向量召回→去重→Rerank）
+            // 优先尝试直接关键词搜索（绕过RagPipeline的Ollama调用，避免超时）
+            // 当查询中包含产品编码时，直接查knowledge_embeddings表
+            String productCode = extractProductCode(query);
+            if (productCode != null && !productCode.isEmpty()) {
+                try {
+                    log.info("[直接搜索] 检测到产品编码 '{}'，尝试直接搜索knowledge_embeddings表", productCode);
+                    List<Map<String, Object>> directResults = searchKnowledgeEmbeddingsDirect(productCode, company);
+                    if (directResults != null && !directResults.isEmpty()) {
+                        results.addAll(directResults);
+                        log.info("[直接搜索] 成功！返回 {} 条结果", directResults.size());
+                        if (llmCacheService != null && userId != null) {
+                            llmCacheService.putCachedRagResult(userId, query, results);
+                        }
+                        return results;
+                    }
+                    log.warn("[直接搜索] 无结果，降级到RAG Pipeline");
+                } catch (Exception e) {
+                    log.warn("[直接搜索] 异常，降级到RAG Pipeline: {}", e.getMessage());
+                }
+            }
+
+            // 次选：RAG Pipeline（查询增强→多路向量召回→去重→Rerank）
             if (ragPipeline != null) {
                 try {
                     log.info("[RAG Pipeline] 启动增强检索: query='{}', company='{}'", query, company);
@@ -1760,6 +1799,36 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
+     * 直接搜索knowledge_embeddings表（绕过RagPipeline，避免Ollama超时）
+     * 当查询中包含产品编码时，直接用ILIKE匹配chunk_text
+     */
+    private List<Map<String, Object>> searchKnowledgeEmbeddingsDirect(String productCode, String company) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            String sql = "SELECT id, chunk_text, source_doc_id, chunk_index, company, created_at " +
+                    "FROM knowledge_embeddings " +
+                    "WHERE source_type = 'KNOWLEDGE_BASE' " +
+                    "AND (company = ? OR company IS NULL OR company = '') " +
+                    "AND chunk_text ILIKE ? " +
+                    "ORDER BY created_at DESC LIMIT 10";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, "%" + productCode + "%");
+            log.info("[直接搜索] SQL执行完成，返回 {} 条记录 (productCode={}, company={})", rows.size(), productCode, company);
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("content", row.get("chunk_text"));
+                item.put("source", "知识库直接搜索");
+                item.put("score", 0.8);
+                item.put("sourceDocId", row.get("source_doc_id"));
+                item.put("chunkIndex", row.get("chunk_index"));
+                results.add(item);
+            }
+        } catch (Exception e) {
+            log.error("[直接搜索] SQL执行失败: {}", e.getMessage(), e);
+        }
+        return results;
+    }
+
+    /**
      * 供应链数据检索 - 关键词搜索（降级方案）
      */
     private List<Map<String, Object>> searchSupplyChainByKeywords(String query) {
@@ -1805,12 +1874,29 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 从用户消息中提取产品编码
      */
     private String extractProductCode(String query) {
-        // 匹配常见产品编码格式: HT01-S, HT01-M, HT01-L, AB12C 等
-        // 移除可能的中文前缀干扰，如"产品HT01-S"
-        Pattern pattern = Pattern.compile("(HT\\d+[-][A-Z]+|[A-Z]{2}\\d+[-]?[A-Z]?)");
+        // 匹配常见产品编码格式: HT01-S, AB12C, M1TT403, 275F391A 等
+        // 规则: 字母数字混合串，长度>=4，必须同时包含字母和数字
+        Pattern pattern = Pattern.compile(
+            "(HT\\d+[-][A-Z]+|" +           // HT01-S
+            "[A-Za-z0-9]{4,})"               // M1TT403, 275F391A, AB12C 等(字母数字混合, 至少4个字符)
+        );
         Matcher matcher = pattern.matcher(query);
-        if (matcher.find()) {
-            return matcher.group(1);
+        while (matcher.find()) {
+            String candidate = matcher.group(1);
+            // 必须同时包含字母和数字才算是产品编码
+            if (candidate.matches(".*[A-Za-z].*") && candidate.matches(".*[0-9].*") && candidate.length() >= 4) {
+                // 排除常见非货号词
+                String lower = candidate.toLowerCase();
+                if (!lower.equals("the") && !lower.equals("and") && !lower.equals("for")
+                    && !lower.equals("mes") && !lower.equals("erp") && !lower.equals("bom")
+                    && !lower.equals("kg") && !lower.equals("smv") && !lower.equals("aql")
+                    && !lower.equals("pic") && !lower.equals("ipc") && !lower.equals("ipqc")
+                    && !lower.equals("iqc") && !lower.equals("html") && !lower.equals("http")
+                    && !lower.equals("2026") && !lower.equals("2025") && !lower.equals("2024")) {
+                    log.info("[产品编码提取] 从查询中提取到编码: {}", candidate);
+                    return candidate;
+                }
+            }
         }
         return null;
     }

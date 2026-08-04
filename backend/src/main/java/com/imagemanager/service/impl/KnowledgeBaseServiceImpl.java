@@ -506,12 +506,27 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
             if (!productCodes.isEmpty()) {
                 log.info("知识库搜索: 检测到货号关键词{}, 优先执行关键词精确搜索", productCodes);
-                List<MemorySearchResult> keywordResults = keywordSearchFallback(productCodes, company, limit);
-                if (!keywordResults.isEmpty()) {
-                    log.info("知识库搜索: 货号关键词搜索成功, 返回{}条结果", keywordResults.size());
-                    return keywordResults;
+                try {
+                    List<MemorySearchResult> keywordResults = keywordSearchFallback(productCodes, company, limit);
+                    if (!keywordResults.isEmpty()) {
+                        log.info("知识库搜索: 货号关键词搜索成功, 返回{}条结果", keywordResults.size());
+                        return keywordResults;
+                    }
+                    log.info("知识库搜索: 货号关键词搜索无结果, 尝试直接SQL搜索");
+                } catch (Exception kwEx) {
+                    log.error("知识库搜索: 货号关键词搜索异常: {}", kwEx.getMessage(), kwEx);
                 }
-                log.info("知识库搜索: 货号关键词搜索无结果, 继续向量检索");
+                // 兜底：直接查 knowledge_embeddings 表，不加任何JOIN，确保能找到数据
+                try {
+                    List<MemorySearchResult> directResults = directKeywordSearch(productCodes, company, limit);
+                    if (!directResults.isEmpty()) {
+                        log.info("知识库搜索: 直接SQL搜索成功, 返回{}条结果", directResults.size());
+                        return directResults;
+                    }
+                    log.info("知识库搜索: 直接SQL搜索也无结果");
+                } catch (Exception directEx) {
+                    log.error("知识库搜索: 直接SQL搜索异常: {}", directEx.getMessage(), directEx);
+                }
             }
             
             // Step 2: 关键词SQL预过滤 — 先缩小候选集范围
@@ -620,6 +635,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     log.info("知识库搜索: 关键词搜索兜底返回{}条结果", keywordResults.size());
                     return keywordResults;
                 }
+                // Step 7.1: 最终兜底 — 零JOIN直接搜索
+                log.warn("知识库搜索: 关键词搜索也为空, 启用直接SQL兜底搜索");
+                List<MemorySearchResult> directResults = directKeywordSearch(keywords, company, limit);
+                if (!directResults.isEmpty()) {
+                    log.info("知识库搜索: 直接SQL兜底返回{}条结果", directResults.size());
+                    return directResults;
+                }
             }
             
             log.info("知识库搜索: 最终返回{}条结果(混合检索+智能截断)", finalResults.size());
@@ -628,7 +650,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.error("知识库向量搜索失败: {}", e.getMessage());
             // 最终降级：尝试纯关键词搜索
             if (!keywords.isEmpty()) {
-                return keywordSearchFallback(keywords, company, limit);
+                List<MemorySearchResult> kwResults = keywordSearchFallback(keywords, company, limit);
+                if (!kwResults.isEmpty()) return kwResults;
+                // 最终兜底
+                List<MemorySearchResult> directResults = directKeywordSearch(keywords, company, limit);
+                if (!directResults.isEmpty()) return directResults;
             }
             return Collections.emptyList();
         }
@@ -654,13 +680,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         
         // ====== 优先提取：货号/产品编码（字母+数字混合，如 M1TT403, M19F020, FAST/28G）======
         // 匹配模式：连续的字母数字组合，长度>=4，至少包含1个字母和1个数字
-        java.util.regex.Pattern productCodePattern = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9]{2,}");
+        // 注意：不以字母开头也能匹配，如 "275F391A" 以数字开头
+        java.util.regex.Pattern productCodePattern = java.util.regex.Pattern.compile("[A-Za-z0-9]{4,}");
         java.util.regex.Matcher m = productCodePattern.matcher(query);
         Set<String> productCodes = new LinkedHashSet<>();
         while (m.find()) {
             String code = m.group();
-            // 确保至少包含1个数字（纯字母不视为货号）
-            if (code.matches(".*\\d.*") && code.length() >= 4) {
+            // 确保至少包含1个字母和1个数字（纯数字或纯字母不视为货号）
+            if (code.matches(".*[A-Za-z].*") && code.matches(".*\\d.*") && code.length() >= 4) {
                 productCodes.add(code);
                 log.info("[关键词提取] 提取到货号/编码: {}", code);
             }
@@ -788,6 +815,79 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
     
+    /**
+     * 直接SQL搜索（零JOIN兜底方案）
+     * 只查 knowledge_embeddings 表，不加任何JOIN，确保数据能被找到
+     */
+    private List<MemorySearchResult> directKeywordSearch(List<String> keywords, String company, int limit) {
+        if (keywords.isEmpty()) return Collections.emptyList();
+        
+        List<MemorySearchResult> results = new ArrayList<>();
+        
+        try {
+            StringBuilder sql = new StringBuilder();
+            sql.append("SELECT id, chunk_text, source_doc_id, chunk_index, created_at ");
+            sql.append("FROM knowledge_embeddings ");
+            sql.append("WHERE source_type = 'KNOWLEDGE_BASE' ");
+            
+            List<Object> params = new ArrayList<>();
+            
+            // company过滤：有company就精确匹配+NULL兼容，无company就不过滤
+            if (company != null && !company.trim().isEmpty()) {
+                sql.append("AND (company = ? OR company IS NULL OR company = '') ");
+                params.add(company);
+            }
+            
+            // 关键词ILIKE
+            sql.append("AND (");
+            for (int i = 0; i < keywords.size(); i++) {
+                if (i > 0) sql.append(" OR ");
+                sql.append("chunk_text ILIKE ?");
+                params.add("%" + keywords.get(i) + "%");
+            }
+            sql.append(") ");
+            
+            sql.append("ORDER BY created_at DESC LIMIT ?");
+            params.add(limit);
+            
+            log.info("直接SQL搜索: SQL={}, params={}", sql.toString(), params);
+            
+            results = jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
+                MemorySearchResult r = new MemorySearchResult();
+                String idStr = rs.getString("id");
+                if (idStr != null) {
+                    r.setId(UUID.fromString(idStr));
+                }
+                r.setContent(rs.getString("chunk_text"));
+                r.setChunkText(rs.getString("chunk_text"));
+                String docIdStr = rs.getString("source_doc_id");
+                if (docIdStr != null) {
+                    try {
+                        r.setSourceDocId(UUID.fromString(docIdStr));
+                    } catch (IllegalArgumentException e) {
+                        // source_doc_id 不是标准UUID格式，跳过
+                    }
+                }
+                r.setScore(0.8); // 关键词精确匹配，给高分
+                r.setSource("KNOWLEDGE_BASE");
+                r.setDomainCode("knowledge_base");
+                r.setDomainName("知识库");
+                r.setConfidence("high");
+                Timestamp ts = rs.getTimestamp("created_at");
+                if (ts != null) {
+                    r.setCreatedAt(ts.toLocalDateTime());
+                }
+                return r;
+            }, params.toArray());
+            
+            log.info("直接SQL搜索: 找到{}条结果", results.size());
+        } catch (Exception e) {
+            log.error("直接SQL搜索异常: {}", e.getMessage(), e);
+        }
+        
+        return results;
+    }
+
     /**
      * 纯关键词搜索降级（Embedding失败时的兜底方案）
      * 同时搜索 embeddings.chunk_text 和 docs.file_content，确保表格数据也能命中
