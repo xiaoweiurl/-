@@ -17,8 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * LLM 两级缓存服务（基于 Redis，按用户 ID 物理隔离）
  *
  * 缓存层级：
- *   L1 - SQL 生成缓存：相同问题→相同SQL，避免重复调用 LLM 生成 SQL
- *   L2 - DB 查询结果缓存：相同SQL→相同结果，避免重复查询数据库
+ *   L1  - SQL 生成缓存：相同问题→相同SQL，避免重复调用 LLM 生成 SQL（5分钟TTL）
+ *   L1.5 - RAG 检索结果缓存：相同问题→相同RAG结果，避免重复向量检索（5分钟TTL）
+ *   L2  - DB 查询结果缓存：相同SQL→相同结果，避免重复查询数据库（2分钟TTL）
  *
  * 隔离策略：
  *   - 所有缓存 Key 拼接用户唯一标识 userId，不同用户缓存条目物理隔离
@@ -26,8 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   - Redis 不可用时自动降级为本地 ConcurrentHashMap（线程安全）
  *
  * Key 格式：
- *   L1: llm:cache:sql:{userId}:{md5(question)}
- *   L2: llm:cache:db:{userId}:{md5(sql)}
+ *   L1:   llm:cache:sql:{userId}:{md5(question)}
+ *   L1.5: llm:cache:rag:{userId}:{md5(query)}
+ *   L2:   llm:cache:db:{userId}:{md5(sql)}
  *   用户索引: llm:cache:user:{userId} (Set，存储该用户所有缓存Key)
  */
 @Slf4j
@@ -74,6 +76,44 @@ public class LlmCacheService {
     public void putCachedSql(String userId, String question, String sql) {
         String key = buildSqlCacheKey(userId, question);
         put(key, sql, SQL_CACHE_TTL, userId);
+    }
+
+    // ======================== L1.5: RAG 检索结果缓存 ========================
+
+    /**
+     * 获取 RAG 检索结果缓存
+     * @param userId 用户ID
+     * @param query 用户问题
+     * @return 缓存的检索结果列表，不存在返回 null
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getCachedRagResult(String userId, String query) {
+        String key = buildRagCacheKey(userId, query);
+        String json = get(key, String.class);
+        if (json == null) return null;
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            log.warn("[LlmCache] RAG结果反序列化失败, key={}", key);
+            return null;
+        }
+    }
+
+    /**
+     * 写入 RAG 检索结果缓存
+     */
+    public void putCachedRagResult(String userId, String query, List<Map<String, Object>> results) {
+        String key = buildRagCacheKey(userId, query);
+        try {
+            String json = objectMapper.writeValueAsString(results);
+            put(key, json, SQL_CACHE_TTL, userId);
+        } catch (Exception e) {
+            log.warn("[LlmCache] RAG结果序列化失败: {}", e.getMessage());
+        }
+    }
+
+    private String buildRagCacheKey(String userId, String query) {
+        return "llm:cache:rag:" + safeUserId(userId) + ":" + md5(query);
     }
 
     // ======================== L2: DB 查询结果缓存 ========================

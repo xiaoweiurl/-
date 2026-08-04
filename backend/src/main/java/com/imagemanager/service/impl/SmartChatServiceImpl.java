@@ -1653,9 +1653,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         try {
             // L1 缓存：检查 RAG 检索结果缓存（按用户隔离）
             if (llmCacheService != null && userId != null && !userId.isEmpty()) {
-                String cacheKey = "rag:" + userId + ":" + query.hashCode();
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> cached = llmCacheService.getCachedSql(userId, "rag:" + query);
+                List<Map<String, Object>> cached = llmCacheService.getCachedRagResult(userId, query);
                 if (cached != null) {
                     log.info("[L1缓存] RAG检索结果命中, userId={}", userId);
                     return cached;
@@ -1672,7 +1670,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.info("[RAG Pipeline] 增强检索成功，返回 {} 条结果", ragResults.size());
                         // 写入 L1 缓存
                         if (llmCacheService != null && userId != null) {
-                            llmCacheService.putCachedSql(userId, "rag:" + query, "HIT");
+                            llmCacheService.putCachedRagResult(userId, query, results);
                         }
                         return results;
                     }
