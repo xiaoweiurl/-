@@ -1,5 +1,6 @@
 package com.imagemanager.service.impl;
 
+import com.imagemanager.config.StorageConfig;
 import com.imagemanager.dto.BatchDownloadRequest;
 import com.imagemanager.dto.BatchDownloadResponse;
 import com.imagemanager.dto.ImageQueryRequest;
@@ -67,6 +68,9 @@ public class ImageServiceImpl implements ImageService {
     
     @Autowired(required = false)
     private FileStorageService fileStorageService;
+    
+    @Autowired(required = false)
+    private StorageConfig storageConfig;
     
     @Autowired
     private AIRecognitionService aiRecognitionService;
@@ -580,7 +584,7 @@ public class ImageServiceImpl implements ImageService {
      * 检测URL是否为当前存储桶的签名URL，如果是则重新生成
      */
     private void refreshImagePresignedUrls(List<Image> images) {
-        if (fileStorageService == null || images == null || images.isEmpty()) return;
+        if (images == null || images.isEmpty()) return;
         
         try {
             for (Image image : images) {
@@ -588,17 +592,43 @@ public class ImageServiceImpl implements ImageService {
                 String refreshedUrl = refreshSingleUrl(image.getUrl(), image.getFileKey(), image.getFilePath());
                 if (refreshedUrl != null) {
                     image.setUrl(refreshedUrl);
+                } else if (isExpiredPresignedUrl(image.getUrl()) && isValidExternalUrl(image.getOriginalUrl())) {
+                    // 签名URL过期且无法重新生成时，降级使用originalUrl（外部CDN链接）
+                    image.setUrl(image.getOriginalUrl());
+                    log.debug("图片URL降级使用originalUrl: id={}, originalUrl={}", image.getId(), image.getOriginalUrl());
                 }
                 // 刷新缩略图URL
                 String refreshedThumb = refreshSingleUrl(image.getThumbnailUrl(), image.getFileKey(), image.getFilePath());
                 if (refreshedThumb != null) {
                     image.setThumbnailUrl(refreshedThumb);
+                } else if (isExpiredPresignedUrl(image.getThumbnailUrl()) && isValidExternalUrl(image.getOriginalUrl())) {
+                    image.setThumbnailUrl(image.getOriginalUrl());
                 }
             }
             log.debug("已刷新 {} 张图片的签名URL", images.size());
         } catch (Exception e) {
             log.warn("刷新签名URL失败，使用原始URL: {}", e.getMessage());
         }
+    }
+    
+    /**
+     * 检测URL是否为过期的签名URL（包含签名参数且可能是旧region生成的）
+     */
+    private boolean isExpiredPresignedUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        return url.contains("X-Amz-Signature") || url.contains("Signature=") || url.contains("OSSAccessKeyId");
+    }
+    
+    /**
+     * 检测URL是否为有效的外部URL（非本存储桶的公开链接）
+     */
+    private boolean isValidExternalUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
+        // 排除本存储桶的签名URL
+        String bucketDomain = storageConfig != null ? storageConfig.getS3Bucket() : null;
+        if (bucketDomain != null && url.contains(bucketDomain)) return false;
+        return true;
     }
     
     /**
