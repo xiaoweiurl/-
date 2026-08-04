@@ -6,6 +6,7 @@ import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.SmartChatService;
 import com.imagemanager.service.FileStorageService;
+import com.imagemanager.util.KeywordExtractor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -1897,31 +1898,8 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 从用户消息中提取产品编码
      */
     private String extractProductCode(String query) {
-        // 匹配常见产品编码格式: HT01-S, AB12C, M1TT403, 275F391A 等
-        // 规则: 字母数字混合串，长度>=4，必须同时包含字母和数字
-        Pattern pattern = Pattern.compile(
-            "(HT\\d+[-][A-Z]+|" +           // HT01-S
-            "[A-Za-z0-9]{4,})"               // M1TT403, 275F391A, AB12C 等(字母数字混合, 至少4个字符)
-        );
-        Matcher matcher = pattern.matcher(query);
-        while (matcher.find()) {
-            String candidate = matcher.group(1);
-            // 必须同时包含字母和数字才算是产品编码
-            if (candidate.matches(".*[A-Za-z].*") && candidate.matches(".*[0-9].*") && candidate.length() >= 4) {
-                // 排除常见非货号词
-                String lower = candidate.toLowerCase();
-                if (!lower.equals("the") && !lower.equals("and") && !lower.equals("for")
-                    && !lower.equals("mes") && !lower.equals("erp") && !lower.equals("bom")
-                    && !lower.equals("kg") && !lower.equals("smv") && !lower.equals("aql")
-                    && !lower.equals("pic") && !lower.equals("ipc") && !lower.equals("ipqc")
-                    && !lower.equals("iqc") && !lower.equals("html") && !lower.equals("http")
-                    && !lower.equals("2026") && !lower.equals("2025") && !lower.equals("2024")) {
-                    log.info("[产品编码提取] 从查询中提取到编码: {}", candidate);
-                    return candidate;
-                }
-            }
-        }
-        return null;
+        // 委托给统一的关键词提取器
+        return KeywordExtractor.extractProductCode(query);
     }
 
     /**
@@ -1992,15 +1970,8 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void searchQuotationByKeyword(String query, List<Map<String, Object>> results) {
         try {
-            // 提取关键词
-            String[] terms = query.split("[\\s,，。！？?]+");
-            List<String> keywords = new ArrayList<>();
-            for (String term : terms) {
-                String t = term.trim();
-                if (t.length() >= 2 && t.length() <= 10 && !isStopWord(t)) {
-                    keywords.add(t);
-                }
-            }
+            // 使用统一的关键词提取器（内置行业词典 + 智能分词）
+            List<String> keywords = KeywordExtractor.extractKeywords(query);
             if (keywords.isEmpty()) return;
 
             StringBuilder sql = new StringBuilder();
@@ -2051,14 +2022,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void searchRawMaterialPurchase(String query, List<Map<String, Object>> results) {
         try {
-            String[] terms = query.split("[\\s,，。！？?]+");
-            List<String> keywords = new ArrayList<>();
-            for (String term : terms) {
-                String t = term.trim();
-                if (t.length() >= 2 && t.length() <= 20 && !isStopWord(t)) {
-                    keywords.add(t);
-                }
-            }
+            List<String> keywords = KeywordExtractor.extractKeywords(query);
             if (keywords.isEmpty()) return;
 
             StringBuilder sql = new StringBuilder();
@@ -2104,14 +2068,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void searchRawMaterialWarehouse(String query, List<Map<String, Object>> results) {
         try {
-            String[] terms = query.split("[\\s,，。！？?]+");
-            List<String> keywords = new ArrayList<>();
-            for (String term : terms) {
-                String t = term.trim();
-                if (t.length() >= 2 && t.length() <= 20 && !isStopWord(t)) {
-                    keywords.add(t);
-                }
-            }
+            List<String> keywords = KeywordExtractor.extractKeywords(query);
             if (keywords.isEmpty()) return;
 
             StringBuilder sql = new StringBuilder();
@@ -2192,14 +2149,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void searchAccessoryPurchase(String query, List<Map<String, Object>> results) {
         try {
-            String[] terms = query.split("[\\s,，。！？?]+");
-            List<String> keywords = new ArrayList<>();
-            for (String term : terms) {
-                String t = term.trim();
-                if (t.length() >= 2 && t.length() <= 20 && !isStopWord(t)) {
-                    keywords.add(t);
-                }
-            }
+            List<String> keywords = KeywordExtractor.extractKeywords(query);
             if (keywords.isEmpty()) return;
 
             StringBuilder sql = new StringBuilder();

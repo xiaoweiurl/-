@@ -10,6 +10,7 @@ import com.imagemanager.repository.KnowledgeBaseDocRepository;
 import com.imagemanager.service.DocumentParserService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
+import com.imagemanager.util.KeywordExtractor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -664,74 +665,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * 从查询中提取核心关键词（去除停用词、保留名词/品牌名/品类名）
      */
     private List<String> extractKeywords(String query) {
-        // 中文停用词列表（只保留虚词/疑问词，保留业务关键词！）
-        Set<String> stopWords = Set.of(
-            "的", "了", "是", "在", "有", "和", "与", "或", "不", "也", "都",
-            "就", "要", "会", "能", "这", "那", "什么", "怎么", "如何", "为什么",
-            "哪个", "多少", "哪些", "请", "帮", "告诉我", "查询", "查", "看",
-            "给", "让", "把", "被", "从", "到", "对", "为", "以", "于",
-            "可以", "应该", "需要", "目前", "现在", "最新", "最近", "所有", "全部",
-            "比较", "分析", "统计", "列出", "展示", "显示", "计算", "得出",
-            "帮我", "问下", "请问", "我想", "知道"
-            // 注意：不包含业务关键词（面料/原料/供应商/采购/成本/价格/报价等）
-        );
-        
-        List<String> allTokens = new ArrayList<>();
-        
-        // ====== 优先提取：货号/产品编码（字母+数字混合，如 M1TT403, M19F020, FAST/28G）======
-        // 匹配模式：连续的字母数字组合，长度>=4，至少包含1个字母和1个数字
-        // 注意：不以字母开头也能匹配，如 "275F391A" 以数字开头
-        java.util.regex.Pattern productCodePattern = java.util.regex.Pattern.compile("[A-Za-z0-9]{4,}");
-        java.util.regex.Matcher m = productCodePattern.matcher(query);
-        Set<String> productCodes = new LinkedHashSet<>();
-        while (m.find()) {
-            String code = m.group();
-            // 确保至少包含1个字母和1个数字（纯数字或纯字母不视为货号）
-            if (code.matches(".*[A-Za-z].*") && code.matches(".*\\d.*") && code.length() >= 4) {
-                productCodes.add(code);
-                log.info("[关键词提取] 提取到货号/编码: {}", code);
-            }
-        }
-        // 货号优先加入关键词列表（最高优先级）
-        allTokens.addAll(productCodes);
-        
-        // 先保留原始查询（去掉末尾标点）作为完整匹配关键词
-        String cleanedQuery = query.replaceAll("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}]+$", "");
-        if (cleanedQuery.length() >= 2 && !stopWords.contains(cleanedQuery)) {
-            allTokens.add(cleanedQuery);
-        }
-        
-        // 按空格、逗号、顿号、斜杠、连字符等分隔
-        // 注意：加入 / 和 - 让 "FAST/28G" 拆出 "FAST" 和 "28G"
-        String[] parts = query.split("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}/\\-_]+");
-        for (String part : parts) {
-            // 保留完整的词（不分拆），用于精确匹配
-            if (part.length() >= 2 && !stopWords.contains(part)) {
-                allTokens.add(part);
-            }
-            // 长词再拆分为2-5字的子词（匹配知识库切片中的片段）
-            if (part.length() >= 4) {
-                for (int len = 2; len <= Math.min(5, part.length() - 1); len++) {
-                    for (int i = 0; i <= part.length() - len; i++) {
-                        String sub = part.substring(i, i + len);
-                        if (!stopWords.contains(sub) && sub.length() >= 2) {
-                            allTokens.add(sub);
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 保留完整词优先 + 子词补充
-        // 货号已经在列表最前面，这里去重时保持货号优先
-        Set<String> unique = new LinkedHashSet<>(allTokens);
-        List<String> result = new ArrayList<>(unique);
-        // 限制关键词数量（太多会导致SQL太复杂），但增加到12个
-        if (result.size() > 12) {
-            result = result.subList(0, 12);
-        }
-        log.info("[关键词提取] query='{}', 最终关键词={}", query, result);
-        return result;
+        // 委托给统一的关键词提取器（内置行业词典 + 正向最大匹配分词）
+        return KeywordExtractor.extractKeywords(query);
     }
     
     /**
