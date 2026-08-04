@@ -1,5 +1,5 @@
 """
-Reranker Service - 基于 Sentence-Transformers 的文档重排序服务
+Reranker Service - 基于 FlagEmbedding 的文档重排序服务
 使用 bge-reranker-v2-m3 模型，支持多语言（中英文）
 """
 
@@ -35,11 +35,11 @@ async def lifespan(app: FastAPI):
     global reranker
     logger.info(f"正在加载 Reranker 模型：{MODEL_NAME}")
     try:
-        from sentence_transformers import CrossEncoder
-        reranker = CrossEncoder(MODEL_NAME)
+        from FlagEmbedding import FlagReranker
+        reranker = FlagReranker(MODEL_NAME, use_fp16=True)
         logger.info("Reranker 模型加载成功")
     except ImportError:
-        logger.error("请安装 sentence-transformers: pip install sentence-transformers")
+        logger.error("请安装 FlagEmbedding: pip install FlagEmbedding")
         raise
     except Exception as e:
         logger.error(f"模型加载失败：{e}")
@@ -100,20 +100,30 @@ async def rerank_documents(request: RerankRequest):
         # 构建 (query, document) 对
         pairs = [(request.query, doc) for doc in request.documents]
         
-        # 计算相关性分数
-        scores = reranker.predict(pairs)
+        # 计算相关性分数（FlagEmbedding 使用 compute_score）
+        scores = []
+        for pair in pairs:
+            score = reranker.compute_score(pair)
+            scores.append(score)
         
-        # 归一化分数到 0-1 范围（使用 sigmoid）
+        # FlagEmbedding 返回的已经是相关性分数，无需归一化
+        # 如果是原始 logits，可以手动 sigmoid
         import numpy as np
-        normalized_scores = 1 / (1 + np.exp(-scores))
         
         # 组合结果
         results = []
-        for idx, (doc, score) in enumerate(zip(request.documents, normalized_scores)):
+        for idx, (doc, score) in enumerate(zip(request.documents, scores)):
+            # 如果分数是 logits，转换为概率
+            if isinstance(score, (list, np.ndarray)):
+                score = 1 / (1 + np.exp(-np.array(score)))
+                score = float(score)
+            else:
+                score = float(score)
+            
             results.append({
                 "index": idx,
                 "text": doc,
-                "score": float(score)
+                "score": score
             })
         
         # 按分数降序排序
