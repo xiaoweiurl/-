@@ -481,7 +481,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // Step 1.5: 关键词诊断 — 直接用SQL检查数据是否存在
             try {
                 for (String kw : keywords) {
-                    if (kw.length() >= 2 && kw.length() <= 10) {
+                    if (kw.length() >= 2 && kw.length() <= 15) {
                         Integer cnt = jdbcTemplate.queryForObject(
                             "SELECT COUNT(*) FROM knowledge_base_docs WHERE file_content ILIKE ?",
                             Integer.class, "%" + kw + "%");
@@ -493,6 +493,25 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
             } catch (Exception diagEx) {
                 log.warn("知识库搜索关键词诊断失败: {}", diagEx.getMessage());
+            }
+            
+            // ====== Step 1.6: 货号优先检索 ======
+            // 当查询中包含货号/产品编码（字母+数字混合，如M1TT403）时，直接用关键词精确搜索
+            // 这样即使向量相似度很低，也能通过货号关键词找到对应数据
+            List<String> productCodes = new ArrayList<>();
+            for (String kw : keywords) {
+                if (kw.matches("[A-Za-z][A-Za-z0-9]{2,}") && kw.matches(".*\\d.*") && kw.length() >= 4) {
+                    productCodes.add(kw);
+                }
+            }
+            if (!productCodes.isEmpty()) {
+                log.info("知识库搜索: 检测到货号关键词{}, 优先执行关键词精确搜索", productCodes);
+                List<MemorySearchResult> keywordResults = keywordSearchFallback(productCodes, company, limit);
+                if (!keywordResults.isEmpty()) {
+                    log.info("知识库搜索: 货号关键词搜索成功, 返回{}条结果", keywordResults.size());
+                    return keywordResults;
+                }
+                log.info("知识库搜索: 货号关键词搜索无结果, 继续向量检索");
             }
             
             // Step 2: 关键词SQL预过滤 — 先缩小候选集范围
@@ -531,12 +550,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             // Step 4: 混合检索SQL — 关键词预过滤 + 向量排序 + 增大limit
             // 使用参数绑定传递向量，避免超长SQL导致JDBC解析失败
+            // 【重要】使用 LEFT JOIN 而非 INNER JOIN，避免 knowledge_base_docs 记录缺失时向量数据被过滤
             int candidateLimit = Math.max(limit * 3, 30);
-            String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                    "d.file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
+            String sql = "SELECT e.id, COALESCE(d.title, '') AS title, e.chunk_text, e.source_doc_id, " +
+                    "COALESCE(d.file_name, '') AS file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
                     "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
                     "FROM knowledge_embeddings e " +
-                    "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                    "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
@@ -553,11 +573,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             if (hybridResults.size() < 3 && !keywords.isEmpty()) {
                 // 关键词过滤太严格，降级为纯向量搜索（去掉关键词条件）
                 log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
-                String pureVectorSql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                        "d.file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
+                String pureVectorSql = "SELECT e.id, COALESCE(d.title, '') AS title, e.chunk_text, e.source_doc_id, " +
+                        "COALESCE(d.file_name, '') AS file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
                         "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
                         "FROM knowledge_embeddings e " +
-                        "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                        "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                         "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                         "AND (e.company = ? OR e.company IS NULL) " +
@@ -632,6 +652,22 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         
         List<String> allTokens = new ArrayList<>();
         
+        // ====== 优先提取：货号/产品编码（字母+数字混合，如 M1TT403, M19F020, FAST/28G）======
+        // 匹配模式：连续的字母数字组合，长度>=4，至少包含1个字母和1个数字
+        java.util.regex.Pattern productCodePattern = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9]{2,}");
+        java.util.regex.Matcher m = productCodePattern.matcher(query);
+        Set<String> productCodes = new LinkedHashSet<>();
+        while (m.find()) {
+            String code = m.group();
+            // 确保至少包含1个数字（纯字母不视为货号）
+            if (code.matches(".*\\d.*") && code.length() >= 4) {
+                productCodes.add(code);
+                log.info("[关键词提取] 提取到货号/编码: {}", code);
+            }
+        }
+        // 货号优先加入关键词列表（最高优先级）
+        allTokens.addAll(productCodes);
+        
         // 先保留原始查询（去掉末尾标点）作为完整匹配关键词
         String cleanedQuery = query.replaceAll("[\\s,，、；;！!？?。.：:\"\"''（）()\\[\\]\\{\\}]+$", "");
         if (cleanedQuery.length() >= 2 && !stopWords.contains(cleanedQuery)) {
@@ -660,12 +696,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
         
         // 保留完整词优先 + 子词补充
+        // 货号已经在列表最前面，这里去重时保持货号优先
         Set<String> unique = new LinkedHashSet<>(allTokens);
         List<String> result = new ArrayList<>(unique);
-        // 限制关键词数量（太多会导致SQL太复杂），但增加到10个
-        if (result.size() > 10) {
-            result = result.subList(0, 10);
+        // 限制关键词数量（太多会导致SQL太复杂），但增加到12个
+        if (result.size() > 12) {
+            result = result.subList(0, 12);
         }
+        log.info("[关键词提取] query='{}', 最终关键词={}", query, result);
         return result;
     }
     
@@ -767,10 +805,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 if (i > 0) whereClause.append(" OR ");
                 whereClause.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ? OR d.file_content ILIKE ?");
             }
-            String sql = "SELECT e.id, d.title, e.chunk_text, e.source_doc_id, " +
-                    "d.file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at " +
+            String sql = "SELECT e.id, COALESCE(d.title, '') AS title, e.chunk_text, e.source_doc_id, " +
+                    "COALESCE(d.file_name, '') AS file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at " +
                     "FROM knowledge_embeddings e " +
-                    "JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
+                    "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +

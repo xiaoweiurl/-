@@ -70,7 +70,7 @@ public class RagPipeline {
         for (String q : enhancedQueries) {
             CompletableFuture<List<MemorySearchResult>> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    List<MemorySearchResult> results = knowledgeBaseService.search(q, 0.20f, 10, company);
+                    List<MemorySearchResult> results = knowledgeBaseService.search(q, 0.10f, 10, company);
                     log.info("[RagPipeline] 查询'{}' 召回 {} 条", q, results != null ? results.size() : 0);
                     return results != null ? results : Collections.<MemorySearchResult>emptyList();
                 } catch (Exception e) {
@@ -110,9 +110,9 @@ public class RagPipeline {
 
         if (allResults.isEmpty()) {
             // 降级：降低相似度阈值重试
-            log.info("[RagPipeline] 召回为空，降低阈值到0.15重试");
+            log.info("[RagPipeline] 召回为空，降低阈值到0.08重试");
             try {
-                allResults = knowledgeBaseService.search(query, 0.15f, 15, company);
+                allResults = knowledgeBaseService.search(query, 0.08f, 15, company);
                 if (allResults == null) allResults = new ArrayList<>();
             } catch (Exception e) {
                 log.warn("[RagPipeline] 降级检索也失败: {}", e.getMessage());
