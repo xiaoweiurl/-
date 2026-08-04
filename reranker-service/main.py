@@ -68,7 +68,7 @@ app.add_middleware(
 class RerankRequest(BaseModel):
     """重排序请求"""
     query: str = Field(..., description="查询文本", min_length=1)
-    documents: List[str] = Field(..., description="待排序文档列表", min_items=1)
+    documents: List[str] = Field(..., description="待排序文档列表", min_length=1)
     top_k: Optional[int] = Field(None, description="返回前 K 个结果", ge=1)
 
 
