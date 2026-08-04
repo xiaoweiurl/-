@@ -583,7 +583,8 @@ public class ImageServiceImpl implements ImageService {
      * 刷新图片列表中的签名URL（防止7天过期导致403）
      * 检测URL是否为当前存储桶的签名URL，如果是则重新生成
      */
-    private void refreshImagePresignedUrls(List<Image> images) {
+    @Override
+    public void refreshImagePresignedUrls(List<Image> images) {
         if (images == null || images.isEmpty()) return;
         
         try {

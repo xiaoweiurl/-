@@ -129,8 +129,12 @@ public class ProductController {
             }
         }
 
+        // 刷新签名URL
+        List<Image> content = result.getContent();
+        imageService.refreshImagePresignedUrls(content);
+
         PageResponse<Image> response = PageResponse.of(
-            result.getContent(),
+            content,
             result.getTotalElements(),
             result.getNumber() + 1,
             result.getSize()
@@ -154,7 +158,7 @@ public class ProductController {
         }
 
         // 获取商品的所有图片
-        List<Image> images = imageRepository.findByProductIdAndDeleted(productId, false);
+        List<Image> images = imageService.getImagesByProductId(productId);
 
         ProductDetailResponse response = new ProductDetailResponse();
         response.setProduct(product);
@@ -178,7 +182,7 @@ public class ProductController {
             @Parameter(description = "商品ID") @PathVariable String productId) {
         log.info("获取商品所有图片，商品ID: {}", productId);
 
-        List<Image> images = imageRepository.findByProductIdAndDeletedOrderByDisplayOrderAsc(productId, false);
+        List<Image> images = imageService.getImagesByProductId(productId);
 
         return ApiResponse.success(images);
     }

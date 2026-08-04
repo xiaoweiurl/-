@@ -189,5 +189,12 @@ public interface ImageService {
      * @param albumIds 相册ID列表
      * @param zos ZipArchiveOutputStream，由调用者创建和关闭
      */
-    void exportMultipleAlbums(List<String> albumIds, org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos) throws Exception;    
+    void exportMultipleAlbums(List<String> albumIds, org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos) throws Exception;
+
+    /**
+     * 刷新图片列表中的签名URL
+     * 检测过期的签名URL并从fileKey/filePath重新生成，或降级使用originalUrl
+     * @param images 图片列表
+     */
+    void refreshImagePresignedUrls(List<Image> images);
 }
