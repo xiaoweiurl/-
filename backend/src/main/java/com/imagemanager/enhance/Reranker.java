@@ -16,22 +16,27 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 文档重排序器：用大模型对向量检索结果做二次评分排序。
- * 向量相似度高 ≠ 回答相关，Reranker用LLM判断每个chunk与问题的相关性。
- * 基于PDF教程中的Reranker实现。
+ * 文档重排序器：调用独立的 Reranker 服务对向量检索结果做二次评分排序。
+ * 向量相似度高 ≠ 回答相关，Reranker 判断每个 chunk 与问题的实际相关性。
+ * 
+ * 依赖服务：reranker-service（基于 FlagEmbedding + bge-reranker-v2-m3）
+ * 服务地址：通过 app.reranker.base-url 配置
  */
 @Slf4j
 @Component
 public class Reranker {
 
-    @Value("${app.ollama.base-url:http://localhost:11434}")
-    private String ollamaUrl;
+    @Value("${app.reranker.base-url:http://localhost:8001}")
+    private String rerankerBaseUrl;
 
-    @Value("${app.ollama.chat-model:qwen3.6:35b}")
-    private String ollamaModel;
+    @Value("${app.reranker.timeout:5000}")
+    private int timeoutMs;
+
+    @Value("${app.reranker.enabled:true}")
+    private boolean enabled;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(5))
             .build();
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -48,123 +53,125 @@ public class Reranker {
             return results;
         }
 
-        if (results.size() <= topN) {
-            // 结果数量不超过topN，仍尝试重排序以提升质量
-            return rerankInternal(query, results, results.size());
+        // 如果禁用 reranker，直接返回原始结果
+        if (!enabled) {
+            log.debug("[Reranker] 已禁用，返回原始排序");
+            return results.stream().limit(topN).collect(Collectors.toList());
         }
 
+        // 结果数量少于等于 topN，仍尝试重排序以提升质量
         return rerankInternal(query, results, topN);
     }
 
     /**
-     * 调用大模型对每个chunk打分
+     * 调用 Reranker 服务进行重排序
      */
     private List<MemorySearchResult> rerankInternal(String query, List<MemorySearchResult> results, int topN) {
         try {
-            // 构建文档列表（截断每个chunk避免prompt过长）
-            StringBuilder docList = new StringBuilder();
-            Map<Integer, MemorySearchResult> indexMap = new LinkedHashMap<>();
-            int idx = 0;
-            for (MemorySearchResult r : results) {
-                String content = r.getContent();
-                if (content != null && !content.isEmpty()) {
-                    // 截断到300字符避免prompt过长
-                    String truncated = content.length() > 300 ? content.substring(0, 300) + "..." : content;
-                    docList.append(String.format("[%d] %s\n", idx, truncated));
-                    indexMap.put(idx, r);
-                    idx++;
-                }
-            }
+            // 提取文档内容
+            List<String> documents = results.stream()
+                    .map(r -> r.getContent() != null ? r.getContent() : "")
+                    .collect(Collectors.toList());
 
-            if (indexMap.isEmpty()) {
+            if (documents.isEmpty()) {
                 return results.stream().limit(topN).collect(Collectors.toList());
             }
 
-            String prompt = String.format("""
-                你是文档相关性评估助手。请评估以下文档片段与用户问题的相关性。
-                对每个文档片段打分（0-10分），10分表示完全相关，0分表示完全无关。
+            // 构建请求体
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("query", query);
+            requestBody.put("documents", documents);
+            requestBody.put("top_k", topN);
+            requestBody.put("normalize", true);
 
-                用户问题：%s
+            String requestJson = mapper.writeValueAsString(requestBody);
 
-                文档片段：
-                %s
-
-                请直接返回JSON数组格式，如：[{"id":0,"score":8},{"id":1,"score":3}]
-                不要包含其他内容。
-                """, query, docList.toString());
-
-            String requestBody = mapper.writeValueAsString(new HashMap<String, Object>() {{
-                put("model", ollamaModel);
-                put("prompt", prompt);
-                put("stream", false);
-                put("options", new HashMap<String, Object>() {{
-                    put("temperature", 0.1);
-                    put("num_predict", 500);
-                }});
-            }});
-
+            // 发送请求
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(ollamaUrl + "/api/generate"))
+                    .uri(URI.create(rerankerBaseUrl + "/rerank"))
                     .header("Content-Type", "application/json")
-                    .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofMillis(timeoutMs))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestJson))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                log.warn("[Reranker] Ollama返回状态码: {}, 跳过重排序", response.statusCode());
+                log.warn("[Reranker] 服务返回状态码: {}, 使用原始排序", response.statusCode());
                 return results.stream().limit(topN).collect(Collectors.toList());
             }
 
+            // 解析响应
             JsonNode root = mapper.readTree(response.body());
-            String responseText = root.path("response").asText("").trim();
+            JsonNode resultsNode = root.path("results");
 
-            // 解析打分结果
-            Map<Integer, Double> scores = parseScores(responseText, indexMap.size());
+            if (!resultsNode.isArray()) {
+                log.warn("[Reranker] 响应格式错误，使用原始排序");
+                return results.stream().limit(topN).collect(Collectors.toList());
+            }
 
-            // 按分数排序
-            List<MemorySearchResult> reranked = indexMap.entrySet().stream()
-                    .sorted((a, b) -> {
-                        double scoreA = scores.getOrDefault(a.getKey(), a.getValue().getScore());
-                        double scoreB = scores.getOrDefault(b.getKey(), b.getValue().getScore());
-                        return Double.compare(scoreB, scoreA); // 降序
-                    })
-                    .limit(topN)
-                    .map(Map.Entry::getValue)
-                    .collect(Collectors.toList());
+            // 构建重排序后的结果
+            List<MemorySearchResult> reranked = new ArrayList<>();
+            for (JsonNode item : resultsNode) {
+                int index = item.path("index").asInt(-1);
+                double score = item.path("score").asDouble(0.0);
 
-            log.info("[Reranker] 重排序完成: {} 条 -> {} 条", results.size(), reranked.size());
+                if (index >= 0 && index < results.size()) {
+                    MemorySearchResult original = results.get(index);
+                    // 使用 Builder 创建新结果，更新分数
+                    MemorySearchResult rerankedResult = MemorySearchResult.builder()
+                            .id(original.getId())
+                            .domainId(original.getDomainId())
+                            .domainName(original.getDomainName())
+                            .domainCode(original.getDomainCode())
+                            .cardId(original.getCardId())
+                            .title(original.getTitle())
+                            .content(original.getContent())
+                            .chunkText(original.getChunkText())
+                            .score(score)  // 使用 reranker 的分数
+                            .confidence(original.getConfidence())
+                            .source(original.getSource())
+                            .sourceDocId(original.getSourceDocId())
+                            .createdAt(original.getCreatedAt())
+                            .build();
+                    reranked.add(rerankedResult);
+                }
+            }
+
+            log.info("[Reranker] 重排序完成: {} 条 -> {} 条, 最高分: {}", 
+                    results.size(), reranked.size(),
+                    reranked.isEmpty() ? "N/A" : String.format("%.4f", reranked.get(0).getScore()));
+
             return reranked;
 
         } catch (Exception e) {
-            log.warn("[Reranker] 重排序失败，使用原始排序: {}", e.getMessage());
+            log.warn("[Reranker] 调用失败，使用原始排序: {}", e.getMessage());
             return results.stream().limit(topN).collect(Collectors.toList());
         }
     }
 
     /**
-     * 解析大模型返回的打分JSON
+     * 检查 Reranker 服务是否可用
      */
-    private Map<Integer, Double> parseScores(String text, int expectedCount) {
-        Map<Integer, Double> scores = new HashMap<>();
+    public boolean isAvailable() {
+        if (!enabled) {
+            return false;
+        }
         try {
-            int start = text.indexOf('[');
-            int end = text.lastIndexOf(']');
-            if (start >= 0 && end > start) {
-                String jsonStr = text.substring(start, end + 1);
-                JsonNode array = mapper.readTree(jsonStr);
-                for (JsonNode node : array) {
-                    int id = node.path("id").asInt(-1);
-                    double score = node.path("score").asDouble(0);
-                    if (id >= 0) {
-                        scores.put(id, score);
-                    }
-                }
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(rerankerBaseUrl + "/health"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = mapper.readTree(response.body());
+                return root.path("loaded").asBoolean(false);
             }
         } catch (Exception e) {
-            log.warn("[Reranker] 解析打分JSON失败: {}", e.getMessage());
+            log.debug("[Reranker] 服务不可用: {}", e.getMessage());
         }
-        return scores;
+        return false;
     }
 }

@@ -153,6 +153,16 @@ app:
     chat-model: ${OLLAMA_CHAT_MODEL:qwen3.6}
     # 超时配置（毫秒）
     timeout: ${OLLAMA_TIMEOUT:60000}
+
+  # Reranker 服务配置（独立部署的文档重排序服务）
+  # 基于 FlagEmbedding + bge-reranker-v2-m3，提供高精度的相关性评分
+  reranker:
+    # 是否启用 reranker（false 时跳过重排序，直接使用向量检索结果）
+    enabled: ${RERANKER_ENABLED:true}
+    # Reranker 服务地址
+    base-url: ${RERANKER_BASE_URL:http://localhost:8001}
+    # 请求超时（毫秒）
+    timeout: ${RERANKER_TIMEOUT:5000}
   
   # MiniMax 配置（已废弃，改用 Ollama，保留配置以兼容旧代码）
   minimax:
