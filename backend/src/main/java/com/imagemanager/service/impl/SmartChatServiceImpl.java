@@ -469,6 +469,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                     boolean hasSupplyChain = !supplyChainResults.isEmpty();
                     boolean hasPositionCards = !positionCardResults.isEmpty();
                     boolean hasKnowledge = !knowledgeResults.isEmpty();
+                    // 打印发送给LLM的上下文摘要（便于调试数据传递链路）
+                    log.info("[LLM上下文] knowledgeContext总长度={}字符, hasSupplyChain={}, hasKnowledge={}, hasPositionCards={}",
+                        knowledgeContext.length(), hasSupplyChain, hasKnowledge, hasPositionCards);
+                    if (hasSupplyChain) {
+                        log.info("[LLM上下文] 供应链数据条数={}, 上下文前200字: {}",
+                            supplyChainResults.size(),
+                            knowledgeContext.length() > 200 ? knowledgeContext.substring(0, 200) : knowledgeContext.toString());
+                    }
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
                     if (isFactory && hasSupplyChain) {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答。";
@@ -1814,13 +1822,28 @@ public class SmartChatServiceImpl implements SmartChatService {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, "%" + productCode + "%");
             log.info("[直接搜索] SQL执行完成，返回 {} 条记录 (productCode={}, company={})", rows.size(), productCode, company);
             for (Map<String, Object> row : rows) {
-                Map<String, Object> item = new HashMap<>();
-                item.put("content", row.get("chunk_text"));
-                item.put("source", "知识库直接搜索");
-                item.put("score", 0.8);
-                item.put("sourceDocId", row.get("source_doc_id"));
+                String chunkText = row.get("chunk_text") != null ? row.get("chunk_text").toString() : "";
+                String sourceDocId = row.get("source_doc_id") != null ? row.get("source_doc_id").toString() : "未知文档";
+
+                // 构建兼容供应链上下文构建器的格式 (type/summary/data)
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("type", "知识库文档(直接搜索)");
+                item.put("summary", chunkText.length() > 100 ? chunkText.substring(0, 100) + "..." : chunkText);
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("完整内容", chunkText);
+                data.put("来源文档ID", sourceDocId);
+                data.put("匹配货号", productCode);
+                data.put("相关度", "精确匹配(ILIKE)");
+                item.put("data", data);
+                item.put("score", 0.9);
+                // 同时保留兼容知识库上下文构建器的字段 (content/source)
+                item.put("content", chunkText);
+                item.put("source", "知识库直接搜索:" + productCode);
+                item.put("sourceDocId", sourceDocId);
                 item.put("chunkIndex", row.get("chunk_index"));
                 results.add(item);
+                log.info("[直接搜索] 结果: chunkText前80字={}, sourceDocId={}",
+                    chunkText.length() > 80 ? chunkText.substring(0, 80) + "..." : chunkText, sourceDocId);
             }
         } catch (Exception e) {
             log.error("[直接搜索] SQL执行失败: {}", e.getMessage(), e);
