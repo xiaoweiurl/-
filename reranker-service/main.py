@@ -3,6 +3,7 @@ Reranker Service - 基于 FlagEmbedding 的文档重排序服务
 使用 bge-reranker-v2-m3 模型，支持多语言（中英文）
 """
 
+import os
 import logging
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -11,6 +12,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
+
+# 设置 HuggingFace 国内镜像（解决下载超时问题）
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 # 配置日志
 logging.basicConfig(
