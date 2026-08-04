@@ -265,6 +265,7 @@ public class ImageServiceImpl implements ImageService {
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryMyImages(request, currentUsername);
                     log.info("我的知识库查询结果: {} 张", result.getTotal());
+                    refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
                     log.warn("动态表查询失败，返回空数据: {}", e.getMessage());
@@ -278,6 +279,7 @@ public class ImageServiceImpl implements ImageService {
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryOtherUsersImages(request, currentUsername);
                     log.info("二创中心查询结果: {} 张", result.getTotal());
+                    refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
                     log.warn("动态表查询失败，返回空数据: {}", e.getMessage());
@@ -291,6 +293,7 @@ public class ImageServiceImpl implements ImageService {
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryFavorites(request, currentUsername);
                     log.info("收藏夹查询结果: {} 张", result.getTotal());
+                    refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
                     log.warn("动态表查询失败，返回空数据: {}", e.getMessage());
@@ -304,6 +307,7 @@ public class ImageServiceImpl implements ImageService {
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryTrash(request, currentUsername);
                     log.info("回收站查询结果: {} 张", result.getTotal());
+                    refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
                     log.warn("动态表查询失败，返回空数据: {}", e.getMessage());
@@ -560,6 +564,9 @@ public class ImageServiceImpl implements ImageService {
         log.info("查询完成，返回 {} 条记录，总计 {} 条", 
             imagePage.getContent().size(), imagePage.getTotalElements());
         
+        // 刷新签名URL（防止过期导致403）
+        refreshImagePresignedUrls(imagePage.getContent());
+        
         return PageResponse.of(
                 imagePage.getContent(),
                 imagePage.getTotalElements(),
@@ -568,11 +575,89 @@ public class ImageServiceImpl implements ImageService {
         );
     }
     
+    /**
+     * 刷新图片列表中的签名URL（防止7天过期导致403）
+     * 检测URL是否为当前存储桶的签名URL，如果是则重新生成
+     */
+    private void refreshImagePresignedUrls(List<Image> images) {
+        if (fileStorageService == null || images == null || images.isEmpty()) return;
+        
+        try {
+            for (Image image : images) {
+                // 刷新主图URL
+                String refreshedUrl = refreshSingleUrl(image.getUrl(), image.getFileKey(), image.getFilePath());
+                if (refreshedUrl != null) {
+                    image.setUrl(refreshedUrl);
+                }
+                // 刷新缩略图URL
+                String refreshedThumb = refreshSingleUrl(image.getThumbnailUrl(), image.getFileKey(), image.getFilePath());
+                if (refreshedThumb != null) {
+                    image.setThumbnailUrl(refreshedThumb);
+                }
+            }
+            log.debug("已刷新 {} 张图片的签名URL", images.size());
+        } catch (Exception e) {
+            log.warn("刷新签名URL失败，使用原始URL: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * 刷新PageResponse中图片的签名URL
+     */
+    private void refreshPageResponseUrls(PageResponse<Image> response) {
+        if (response != null && response.getList() != null) {
+            refreshImagePresignedUrls(response.getList());
+        }
+    }
+    
+    /**
+     * 刷新单个URL：如果是当前存储桶的签名URL则重新生成，否则返回null（保持原值）
+     */
+    private String refreshSingleUrl(String url, String fileKey, String filePath) {
+        if (url == null || url.isEmpty()) return null;
+        
+        // 非HTTP URL（本地路径等）不处理
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return null;
+        
+        // 检测是否为签名URL（包含签名参数）
+        boolean isPresigned = url.contains("X-Amz-Signature") || url.contains("Signature=") || url.contains("OSSAccessKeyId");
+        
+        // 确定可用的存储key：优先fileKey，其次filePath
+        String key = (fileKey != null && !fileKey.isEmpty()) ? fileKey : filePath;
+        if (key == null || key.isEmpty()) {
+            // 尝试从URL中提取key
+            try {
+                key = fileStorageService.getStorageKey(url);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        
+        if (key == null || key.isEmpty()) return null;
+        
+        // 如果是签名URL，或者URL包含存储桶域名，重新生成签名URL
+        if (isPresigned) {
+            try {
+                String newUrl = fileStorageService.generatePresignedUrl(key, 604800); // 7天
+                if (newUrl != null && !newUrl.isEmpty()) {
+                    return newUrl;
+                }
+            } catch (Exception e) {
+                log.debug("重新生成签名URL失败，key={}: {}", key, e.getMessage());
+            }
+        }
+        
+        return null; // 不刷新，保持原值
+    }
+    
     @Override
     public Image getImageById(String id) {
         log.info("获取图片详情，ID：{}", id);
-        return imageRepository.findById(id)
+        Image image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
+        // 刷新签名URL
+        refreshImagePresignedUrls(Collections.singletonList(image));
+        return image;
     }
     
     @Override
@@ -1239,6 +1324,7 @@ public class ImageServiceImpl implements ImageService {
         for (String id : ids) {
             imageRepository.findById(id).ifPresent(images::add);
         }
+        refreshImagePresignedUrls(images);
         return images;
     }
     
@@ -1247,7 +1333,9 @@ public class ImageServiceImpl implements ImageService {
         if (productId == null || productId.isEmpty()) {
             return Collections.emptyList();
         }
-        return imageRepository.findByProductIdAndDeletedOrderByDisplayOrderAsc(productId, false);
+        List<Image> images = imageRepository.findByProductIdAndDeletedOrderByDisplayOrderAsc(productId, false);
+        refreshImagePresignedUrls(images);
+        return images;
     }
     
     @Override
@@ -1318,7 +1406,9 @@ public class ImageServiceImpl implements ImageService {
                 request.setPageSize(pageSize);
                 // 不限制 onlyMainImage，动态表中所有收藏的图片都应显示
                 request.setUserId(currentUserId);
-                return imageDynamicRepository.queryFavorites(request, currentUsername);
+                PageResponse<Image> result = imageDynamicRepository.queryFavorites(request, currentUsername);
+                refreshPageResponseUrls(result);
+                return result;
             } catch (Exception e) {
                 log.warn("动态表查询收藏夹失败，降级到JPA: {}", e.getMessage());
             }
@@ -1329,6 +1419,8 @@ public class ImageServiceImpl implements ImageService {
         
         Page<Image> imagePage = imageRepository.findByFavoriteTrueAndDeletedFalseAndIsMainImageTrue(pageable);
         
+        // 刷新签名URL
+        refreshImagePresignedUrls(imagePage.getContent());        
         return PageResponse.of(
                 imagePage.getContent(),
                 imagePage.getTotalElements(),
@@ -1357,7 +1449,9 @@ public class ImageServiceImpl implements ImageService {
                 }
                 // 不限制 onlyMainImage，动态表中所有删除的图片都应显示
                 request.setUserId(currentUserId);
-                return imageDynamicRepository.queryTrash(request, currentUsername);
+                PageResponse<Image> result = imageDynamicRepository.queryTrash(request, currentUsername);
+                refreshPageResponseUrls(result);
+                return result;
             } catch (Exception e) {
                 log.warn("动态表查询回收站失败，降级到JPA: {}", e.getMessage());
             }
@@ -1367,6 +1461,9 @@ public class ImageServiceImpl implements ImageService {
                 Sort.by("deletedAt").descending());
         
         Page<Image> imagePage = imageRepository.findByDeletedTrueAndIsMainImageTrue(pageable);
+        
+        // 刷新签名URL
+        refreshImagePresignedUrls(imagePage.getContent());
         
         return PageResponse.of(
                 imagePage.getContent(),
@@ -1396,7 +1493,9 @@ public class ImageServiceImpl implements ImageService {
                 request.setSortBy("created_at");
                 request.setSortOrder("desc");
                 request.setUserId(currentUserId);
-                return imageDynamicRepository.queryMyImages(request, currentUsername);
+                PageResponse<Image> result = imageDynamicRepository.queryMyImages(request, currentUsername);
+                refreshPageResponseUrls(result);
+                return result;
             } catch (Exception e) {
                 log.warn("动态表查询最近图片失败，降级到JPA: {}", e.getMessage());
             }
@@ -1409,6 +1508,9 @@ public class ImageServiceImpl implements ImageService {
                 Sort.by("createdAt").descending());
         
         Page<Image> imagePage = imageRepository.findByCreatedAtAfterAndDeletedFalseAndIsMainImageTrue(sevenDaysAgo, pageable);
+        
+        // 刷新签名URL
+        refreshImagePresignedUrls(imagePage.getContent());
         
         return PageResponse.of(
                 imagePage.getContent(),
