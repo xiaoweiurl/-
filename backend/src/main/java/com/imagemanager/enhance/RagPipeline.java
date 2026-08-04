@@ -7,15 +7,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
- * RAG增强流水线：整合查询增强 + 多路向量召回 + 去重 + Reranker重排序。
+ * RAG增强流水线：整合查询增强 + 多路向量并行召回 + 去重 + Reranker重排序。
  * 对应PDF教程中的完整RAG Pipeline。
- * 
+ *
  * 流程：
  * 1. QueryEnhancer 生成原始查询的3-5个变体
- * 2. 对每个变体查询并行执行向量检索（KnowledgeBaseService.search）
+ * 2. 对每个变体并行执行向量检索（CompletableFuture + 1秒超时熔断）
  * 3. 合并所有结果，按chunk_text去重
  * 4. Reranker 对去重后的结果做二次打分排序
  * 5. 返回Top-N最相关的文档片段
@@ -33,9 +34,19 @@ public class RagPipeline {
     @Autowired
     private KnowledgeBaseService knowledgeBaseService;
 
+    /** 并行检索线程池 */
+    private final ExecutorService retrievalExecutor = Executors.newFixedThreadPool(4, r -> {
+        Thread t = new Thread(r, "rag-retrieval");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** 单路向量检索超时时间（毫秒） */
+    private static final long RETRIEVAL_TIMEOUT_MS = 1000;
+
     /**
      * 完整RAG增强检索
-     * 
+     *
      * @param query 用户原始问题
      * @param company 租户
      * @param topK 最终返回的文档数量
@@ -49,22 +60,50 @@ public class RagPipeline {
         List<String> enhancedQueries = queryEnhancer.enhance(query);
         log.info("[RagPipeline] 查询增强生成 {} 个变体: {}", enhancedQueries.size(), enhancedQueries);
 
-        // ========== Step 2: 多路向量召回 ==========
-        List<MemorySearchResult> allResults = new ArrayList<>();
+        // ========== Step 2: 多路向量并行召回 ==========
         // ensure原始查询在列表首位
         if (!enhancedQueries.contains(query)) {
             enhancedQueries.add(0, query);
         }
 
+        List<CompletableFuture<List<MemorySearchResult>>> futures = new ArrayList<>();
         for (String q : enhancedQueries) {
-            try {
-                List<MemorySearchResult> results = knowledgeBaseService.search(q, 0.20f, 10, company);
-                if (results != null && !results.isEmpty()) {
-                    log.info("[RagPipeline] 查询'{}' 召回 {} 条", q, results.size());
-                    allResults.addAll(results);
+            CompletableFuture<List<MemorySearchResult>> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    List<MemorySearchResult> results = knowledgeBaseService.search(q, 0.20f, 10, company);
+                    log.info("[RagPipeline] 查询'{}' 召回 {} 条", q, results != null ? results.size() : 0);
+                    return results != null ? results : Collections.<MemorySearchResult>emptyList();
+                } catch (Exception e) {
+                    log.warn("[RagPipeline] 查询'{}' 检索失败: {}", q, e.getMessage());
+                    return Collections.<MemorySearchResult>emptyList();
                 }
-            } catch (Exception e) {
-                log.warn("[RagPipeline] 查询'{}' 检索失败: {}", q, e.getMessage());
+            }, retrievalExecutor);
+
+            // 1秒超时熔断：超时返回空列表，不阻塞其他路
+            futures.add(future.orTimeout(RETRIEVAL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                    .exceptionally(ex -> {
+                        log.warn("[RagPipeline] 查询'{}' 超时熔断({}ms)", q, RETRIEVAL_TIMEOUT_MS);
+                        return Collections.emptyList();
+                    }));
+        }
+
+        // 等待所有路召回完成（整体最多 1.5 秒）
+        List<MemorySearchResult> allResults = new ArrayList<>();
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .get(1500, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.warn("[RagPipeline] 整体召回超时(1.5s)，使用已返回的结果");
+        } catch (Exception e) {
+            log.warn("[RagPipeline] 并行召回异常: {}", e.getMessage());
+        }
+
+        for (CompletableFuture<List<MemorySearchResult>> f : futures) {
+            if (f.isDone() && !f.isCompletedExceptionally()) {
+                try {
+                    List<MemorySearchResult> r = f.getNow(Collections.emptyList());
+                    allResults.addAll(r);
+                } catch (Exception ignored) {}
             }
         }
         log.info("[RagPipeline] 多路召回总计 {} 条", allResults.size());

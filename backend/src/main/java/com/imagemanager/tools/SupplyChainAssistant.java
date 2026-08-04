@@ -44,6 +44,17 @@ public interface SupplyChainAssistant {
             SQL 中公司过滤条件用 COMPANY_PLACEHOLDER 代替，例如: WHERE company = COMPANY_PLACEHOLDER
             只能生成 SELECT 语句，搜索内容用 ILIKE 模糊匹配。
 
+            ## 【强制性能硬性规则，违反则输出无效SQL】
+            1. 禁止使用 SELECT *，必须只写出用户问题明确需要的字段
+            2. 必须携带 WHERE 过滤条件，禁止无过滤全表查询
+            3. LIKE/ILIKE 模糊查询仅允许后缀匹配（关键词%），禁止前后全模糊（%关键词%）
+            4. 所有 SQL 强制携带 LIMIT，取值范围 5~10，最大不超过 20
+            5. 禁止嵌套子查询、超过 2 张表 JOIN 关联
+            6. 无排序需求禁止写 ORDER BY，排序仅允许索引字段
+            7. 聚合 COUNT/SUM 必须搭配 WHERE 过滤，禁止统计全表
+            8. 禁止函数包裹索引列（例：WHERE UPPER(name)=? 会失效索引）
+            9. 优先等值匹配查询，减少模糊检索使用
+
             ## 推荐策略
             - 大多数业务查询（产品参数、报价、成本等）优先用 searchByVector
             - 如果向量检索结果不够，再用 queryDatabase 补充 SQL 关键词搜索
@@ -68,7 +79,10 @@ public interface SupplyChainAssistant {
             → 调用 searchByVector("原料采购 最低价格 供应商")
 
             用户：知识库中有哪些文档？
-            → 调用 queryDatabase("SELECT id, title, file_type, embedding_status FROM knowledge_base_docs WHERE status = 0 AND company = COMPANY_PLACEHOLDER ORDER BY created_at DESC LIMIT 50")
+            → 调用 queryDatabase("SELECT id, title, file_type, embedding_status FROM knowledge_base_docs WHERE status = 0 AND company = COMPANY_PLACEHOLDER ORDER BY created_at DESC LIMIT 10")
+
+            用户：面料的文档有哪些？
+            → 调用 queryDatabase("SELECT id, title FROM knowledge_base_docs WHERE title ILIKE '面料%' AND company = COMPANY_PLACEHOLDER LIMIT 10")
             """)
     String chat(@UserMessage String userMessage, @V("company") String company);
 }

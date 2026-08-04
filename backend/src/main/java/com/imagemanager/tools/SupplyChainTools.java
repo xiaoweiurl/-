@@ -1,5 +1,6 @@
 package com.imagemanager.tools;
 
+import com.imagemanager.cache.LlmCacheService;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.service.KnowledgeBaseService;
 import dev.langchain4j.agent.tool.Tool;
@@ -32,6 +33,10 @@ public class SupplyChainTools {
 
     private final JdbcTemplate jdbcTemplate;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final LlmCacheService llmCacheService;
+
+    /** ThreadLocal 存储当前请求的 userId，用于缓存隔离 */
+    private static final ThreadLocal<String> currentUserId = new ThreadLocal<>();
 
     /**
      * 供应链核心表的 Schema 元数据
@@ -152,8 +157,9 @@ public class SupplyChainTools {
 
         // 安全校验
         String trimmedSql = sql.trim().replaceAll(";\\s*$", "");
+        String upperSql = trimmedSql.toUpperCase();
         
-        if (!trimmedSql.toUpperCase().startsWith("SELECT")) {
+        if (!upperSql.startsWith("SELECT")) {
             return "错误：只允许SELECT查询语句";
         }
         
@@ -161,12 +167,26 @@ public class SupplyChainTools {
             return "错误：检测到危险SQL操作，已拒绝执行";
         }
 
-        // 防止查询向量字段（embedding 列数据量巨大，会导致输出爆炸）
-        if (trimmedSql.toUpperCase().matches(".*\\bSELECT\\s+\\*\\b.*") && 
-            trimmedSql.toUpperCase().contains("KNOWLEDGE_EMBEDDINGS")) {
-            return "错误：禁止对 knowledge_embeddings 表使用 SELECT *（包含向量字段），请明确指定要查询的列名（如 chunk_text, source_doc_id, source_type 等），不要查询 embedding 列。";
+        // ======== 性能拦截规则 ========
+        // 禁止 SELECT * 全字段查询
+        if (upperSql.matches(".*\\bSELECT\\s+\\*\\b.*")) {
+            return "错误：禁止 SELECT *，请明确指定需要查询的字段名";
         }
-        if (trimmedSql.toUpperCase().matches(".*\\bSELECT\\s+[^,]*\\bEMBEDDING\\b[^,]*.*")) {
+        // 禁止无 WHERE 条件全表扫描
+        if (!upperSql.contains("WHERE")) {
+            return "错误：SQL 必须包含 WHERE 过滤条件，禁止全表扫描";
+        }
+        // 禁止前后全包模糊匹配 %keyword%
+        if (upperSql.matches(".*LIKE\\s+'%[^']+%[^']*'.*")) {
+            return "错误：禁止前后全模糊匹配 %关键词%，请使用后缀匹配 关键词%";
+        }
+        // 禁止超过 2 表 JOIN
+        if (upperSql.split("(?i)JOIN").length > 2) {
+            return "错误：禁止超过 2 张表 JOIN 关联";
+        }
+
+        // 防止查询向量字段（embedding 列数据量巨大，会导致输出爆炸）
+        if (upperSql.contains("KNOWLEDGE_EMBEDDINGS") && upperSql.matches(".*\\bSELECT\\s+[^,]*\\bEMBEDDING\\b[^,]*.*")) {
             return "错误：禁止查询 embedding 向量字段，请改为查询 chunk_text 等文本字段。";
         }
 
@@ -177,17 +197,43 @@ public class SupplyChainTools {
         }
         trimmedSql = trimmedSql.replace("COMPANY_PLACEHOLDER", "'" + company.replace("'", "''") + "'");
 
-        // 自动注入 LIMIT（如果没有的话）
-        if (!trimmedSql.toUpperCase().contains("LIMIT")) {
-            trimmedSql = trimmedSql + " LIMIT 100";
+        // 自动注入 LIMIT（如果没有的话，限制为 10）
+        if (!upperSql.contains("LIMIT")) {
+            trimmedSql = trimmedSql + " LIMIT 10";
         }
 
         try {
+            // L2 缓存：检查 DB 查询结果缓存（按用户隔离）
+            String userId = currentUserId.get();
+            if (llmCacheService != null && userId != null) {
+                List<Map<String, Object>> cached = llmCacheService.getCachedDbResult(userId, trimmedSql);
+                if (cached != null) {
+                    log.info("[Text-to-SQL] L2缓存命中, userId={}, 返回 {} 行", userId, cached.size());
+                    if (cached.isEmpty()) {
+                        return "查询结果为空，数据库中没有匹配的数据。";
+                    }
+                    return formatAsMarkdownTable(cached);
+                }
+            }
+
+            long sqlStart = System.currentTimeMillis();
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(trimmedSql);
-            log.info("[Text-to-SQL] 查询返回 {} 行", rows.size());
+            long sqlElapsed = System.currentTimeMillis() - sqlStart;
+
+            // 慢 SQL 监控（超过 500ms 告警）
+            if (sqlElapsed > 500) {
+                log.warn("[慢SQL告警] 耗时 {}ms, SQL: {}", sqlElapsed, trimmedSql);
+            } else {
+                log.info("[Text-to-SQL] SQL执行耗时 {}ms, 返回 {} 行", sqlElapsed, rows.size());
+            }
 
             if (rows.isEmpty()) {
                 return "查询结果为空，数据库中没有匹配的数据。";
+            }
+
+            // 写入 L2 缓存
+            if (llmCacheService != null && userId != null) {
+                llmCacheService.putCachedDbResult(userId, trimmedSql, rows);
             }
 
             // 格式化为 Markdown 表格，方便大模型理解
@@ -210,10 +256,18 @@ public class SupplyChainTools {
     }
 
     /**
+     * 设置当前请求的 userId（由 SmartChatServiceImpl 调用，用于缓存隔离）
+     */
+    public void setCurrentUserId(String userId) {
+        currentUserId.set(userId);
+    }
+
+    /**
      * 清理 ThreadLocal（请求结束后调用）
      */
     public void clearCurrentCompany() {
         currentCompany.remove();
+        currentUserId.remove();
     }
 
     /**

@@ -67,6 +67,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Autowired(required = false)
     private com.imagemanager.enhance.ChatMemoryManager chatMemoryManager;
 
+    @Autowired(required = false)
+    private com.imagemanager.cache.LlmCacheService llmCacheService;
+
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
@@ -178,7 +181,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 List<Map<String, Object>> supplyChainResults = Collections.emptyList();
                 if (supplyChainIntent && !generalChatIntent) {
                     try {
-                        supplyChainResults = searchSupplyChain(message, company);
+                        supplyChainResults = searchSupplyChain(message, company, userId);
                         log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
                     } catch (Exception e) {
                         log.warn("供应链数据检索异常: {}", e.getMessage());
@@ -1645,9 +1648,20 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 供应链数据检索 - 优先使用LangChain4j Text-to-SQL，降级到关键词搜索
      */
-    private List<Map<String, Object>> searchSupplyChain(String query, String company) {
+    private List<Map<String, Object>> searchSupplyChain(String query, String company, String userId) {
         List<Map<String, Object>> results = new ArrayList<>();
         try {
+            // L1 缓存：检查 RAG 检索结果缓存（按用户隔离）
+            if (llmCacheService != null && userId != null && !userId.isEmpty()) {
+                String cacheKey = "rag:" + userId + ":" + query.hashCode();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> cached = llmCacheService.getCachedSql(userId, "rag:" + query);
+                if (cached != null) {
+                    log.info("[L1缓存] RAG检索结果命中, userId={}", userId);
+                    return cached;
+                }
+            }
+
             // 优先尝试 RAG Pipeline（查询增强→多路向量召回→去重→Rerank）
             if (ragPipeline != null) {
                 try {
@@ -1656,6 +1670,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                     if (ragResults != null && !ragResults.isEmpty()) {
                         results.addAll(ragResults);
                         log.info("[RAG Pipeline] 增强检索成功，返回 {} 条结果", ragResults.size());
+                        // 写入 L1 缓存
+                        if (llmCacheService != null && userId != null) {
+                            llmCacheService.putCachedSql(userId, "rag:" + query, "HIT");
+                        }
                         return results;
                     }
                     log.warn("[RAG Pipeline] 增强检索无有效结果，降级到Text-to-SQL");
@@ -1667,9 +1685,10 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 次选：LangChain4j Text-to-SQL
             if (supplyChainAssistant != null && supplyChainTools != null) {
                 try {
-                    // 设置当前公司到 ThreadLocal，供 SQL 注入使用
+                    // 设置当前公司和userId到 ThreadLocal
                     supplyChainTools.setCurrentCompany(company != null ? company : "");
-                    log.info("[LangChain4j] 尝试Text-to-SQL查询: query='{}', company='{}'", query, company);
+                    supplyChainTools.setCurrentUserId(userId != null ? userId : "");
+                    log.info("[LangChain4j] 尝试Text-to-SQL查询: query='{}', company='{}', userId='{}'", query, company, userId);
                     String sqlResult = supplyChainAssistant.chat(query, company != null ? company : "");
                     supplyChainTools.clearCurrentCompany();
                     if (sqlResult != null && !sqlResult.isEmpty() && !sqlResult.contains("查询结果为空") && !sqlResult.contains("SQL执行失败") && !sqlResult.contains("错误：")) {
@@ -1683,6 +1702,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                     log.warn("[LangChain4j] Text-to-SQL无有效结果，降级到关键词搜索");
                 } catch (Exception e) {
+                    supplyChainTools.clearCurrentCompany();
                     log.warn("[LangChain4j] Text-to-SQL异常，降级到关键词搜索: {}", e.getMessage());
                 }
             }

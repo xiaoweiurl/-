@@ -56,6 +56,9 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    @Autowired(required = false)
+    private com.imagemanager.cache.LlmCacheService llmCacheService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ============ Redis Key 前缀 ============
@@ -304,6 +307,15 @@ public class AuthServiceImpl implements AuthService {
             }
 
             log.info("用户登出：{}", username);
+
+            // 清理用户 LLM 缓存（权限变更/登出场景）
+            if (userId != null) {
+                try {
+                    llmCacheService.clearUserCache(userId);
+                } catch (Exception e) {
+                    log.warn("清理用户LLM缓存失败: {}", e.getMessage());
+                }
+            }
         }
     }
 
