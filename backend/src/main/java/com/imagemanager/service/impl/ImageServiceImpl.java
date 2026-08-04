@@ -626,7 +626,7 @@ public class ImageServiceImpl implements ImageService {
         if (url == null || url.isEmpty()) return false;
         if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
         // 排除本存储桶的签名URL
-        String bucketDomain = storageConfig != null ? storageConfig.getS3Bucket() : null;
+        String bucketDomain = storageConfig != null ? storageConfig.getS3BucketName() : null;
         if (bucketDomain != null && url.contains(bucketDomain)) return false;
         return true;
     }
