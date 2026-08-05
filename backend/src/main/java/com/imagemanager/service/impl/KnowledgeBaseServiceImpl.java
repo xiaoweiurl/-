@@ -479,17 +479,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             List<String> keywords = extractKeywords(query);
             log.info("知识库搜索: 提取关键词={}", keywords);
             
-            // Step 1.5: 关键词诊断 — 直接用SQL检查数据是否存在
+            // Step 1.5: 关键词诊断 — 用 EXISTS 代替 COUNT(*)，避免全表扫描
             try {
                 for (String kw : keywords) {
                     if (kw.length() >= 2 && kw.length() <= 15) {
-                        Integer cnt = jdbcTemplate.queryForObject(
-                            "SELECT COUNT(*) FROM knowledge_base_docs WHERE file_content ILIKE ?",
-                            Integer.class, "%" + kw + "%");
-                        Integer embCnt = jdbcTemplate.queryForObject(
-                            "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND chunk_text ILIKE ?",
-                            Integer.class, "%" + kw + "%");
-                        log.info("知识库搜索诊断: 关键词'{}' → docs表匹配{}, embeddings表匹配{}", kw, cnt, embCnt);
+                        Boolean embExists = jdbcTemplate.queryForObject(
+                            "SELECT EXISTS(SELECT 1 FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND chunk_text ILIKE ? LIMIT 1)",
+                            Boolean.class, "%" + kw + "%");
+                        log.info("知识库搜索诊断: 关键词'{}' → embeddings表{}数据", kw, Boolean.TRUE.equals(embExists) ? "有" : "无");
                     }
                 }
             } catch (Exception diagEx) {
@@ -530,16 +527,18 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
             }
             
-            // Step 2: 关键词SQL预过滤 — 先缩小候选集范围
+            // Step 2: 关键词SQL预过滤 — 使用 tsvector 全文搜索代替 ILIKE（有索引时快100倍+）
             String keywordFilter = "";
             if (!keywords.isEmpty()) {
-                // 构建关键词LIKE条件：chunk_text / title / file_name / file_content 包含任一关键词
-                StringBuilder likeConditions = new StringBuilder();
+                // 构建 tsquery 全文搜索条件（利用 GIN 索引）
+                // 同时保留 ILIKE 作为 fallback（兼容 search_vector 列未填充的旧数据）
+                StringBuilder ftsConditions = new StringBuilder();
                 for (int i = 0; i < keywords.size(); i++) {
-                    if (i > 0) likeConditions.append(" OR ");
-                    likeConditions.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ? OR d.file_content ILIKE ?");
+                    if (i > 0) ftsConditions.append(" OR ");
+                    // 优先用 tsvector 全文搜索（有索引），fallback 到 ILIKE（兼容旧数据）
+                    ftsConditions.append("(e.search_vector @@ plainto_tsquery('simple', ?) OR e.chunk_text ILIKE ?)");
                 }
-                keywordFilter = " AND (" + likeConditions + ") ";
+                keywordFilter = " AND (" + ftsConditions + ") ";
             }
             
             float[] queryEmbedding = getEmbedding(query);
@@ -551,36 +550,37 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
-            // Step 3: 诊断信息
+            // Step 3: 诊断信息（轻量级，只查一次）
             try {
                 Integer totalEmbeddings = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE'", Integer.class);
-                Integer matchingCompany = jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND (company = ? OR company IS NULL)",
-                        Integer.class, company);
-                log.info("知识库搜索诊断: 总KNOWLEDGE_BASE记录={}, 匹配company='{}'的={}",
-                        totalEmbeddings, company, matchingCompany);
+                log.info("知识库搜索诊断: KNOWLEDGE_BASE总记录={}", totalEmbeddings);
             } catch (Exception diagEx) {
                 log.warn("知识库搜索诊断查询失败: {}", diagEx.getMessage());
             }
 
-            // Step 4: 混合检索SQL — 关键词预过滤 + 向量排序 + 增大limit
-            // 使用参数绑定传递向量，避免超长SQL导致JDBC解析失败
+            // Step 4: 混合检索SQL — CTE先过滤关键词候选集，再计算向量距离
+            // 【优化】使用CTE分两步：1) 关键词过滤缩小候选集 2) 只对候选集计算向量距离
             // 【重要】使用 LEFT JOIN 而非 INNER JOIN，避免 knowledge_base_docs 记录缺失时向量数据被过滤
             int candidateLimit = Math.max(limit * 3, 30);
-            String sql = "SELECT e.id, COALESCE(d.title, '') AS title, e.chunk_text, e.source_doc_id, " +
-                    "COALESCE(d.file_name, '') AS file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
-                    "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
+            String sql = "WITH candidates AS (" +
+                    "SELECT e.id, e.chunk_text, e.source_doc_id, e.chunk_index, e.created_at, " +
+                    "e.embedding <=> CAST(? AS vector) AS distance " +
                     "FROM knowledge_embeddings e " +
-                    "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
-                    "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
-                    "AND (d.company = ? OR d.company IS NULL) " +
                     keywordFilter +
                     "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
-                    "ORDER BY e.embedding <=> CAST(? AS vector) " +
-                    "LIMIT ?";
+                    "ORDER BY distance " +
+                    "LIMIT ?" +
+                    ") " +
+                    "SELECT c.id, COALESCE(d.title, '') AS title, c.chunk_text, c.source_doc_id, " +
+                    "COALESCE(d.file_name, '') AS file_name, COALESCE(cat.name,'') AS category, c.chunk_index, c.created_at, " +
+                    "1 - c.distance AS score " +
+                    "FROM candidates c " +
+                    "LEFT JOIN knowledge_base_docs d ON c.source_doc_id = d.id::text " +
+                    "LEFT JOIN knowledge_base_categories cat ON d.category_id = cat.id " +
+                    "ORDER BY c.distance";
 
             // Step 5: 如果关键词过滤后结果太少，降级到纯向量搜索
             List<MemorySearchResult> hybridResults = executeHybridSearch(sql, vectorStr, keywords, company, minScore, candidateLimit);
@@ -589,18 +589,23 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             if (hybridResults.size() < 3 && !keywords.isEmpty()) {
                 // 关键词过滤太严格，降级为纯向量搜索（去掉关键词条件）
                 log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
-                String pureVectorSql = "SELECT e.id, COALESCE(d.title, '') AS title, e.chunk_text, e.source_doc_id, " +
-                        "COALESCE(d.file_name, '') AS file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at, " +
-                        "1 - (e.embedding <=> CAST(? AS vector)) AS score " +
+                String pureVectorSql = "WITH candidates AS (" +
+                        "SELECT e.id, e.chunk_text, e.source_doc_id, e.chunk_index, e.created_at, " +
+                        "e.embedding <=> CAST(? AS vector) AS distance " +
                         "FROM knowledge_embeddings e " +
-                        "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
-                        "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                         "AND (e.company = ? OR e.company IS NULL) " +
-                        "AND (d.company = ? OR d.company IS NULL) " +
                         "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
-                        "ORDER BY e.embedding <=> CAST(? AS vector) " +
-                        "LIMIT ?";
+                        "ORDER BY distance " +
+                        "LIMIT ?" +
+                        ") " +
+                        "SELECT c.id, COALESCE(d.title, '') AS title, c.chunk_text, c.source_doc_id, " +
+                        "COALESCE(d.file_name, '') AS file_name, COALESCE(cat.name,'') AS category, c.chunk_index, c.created_at, " +
+                        "1 - c.distance AS score " +
+                        "FROM candidates c " +
+                        "LEFT JOIN knowledge_base_docs d ON c.source_doc_id = d.id::text " +
+                        "LEFT JOIN knowledge_base_categories cat ON d.category_id = cat.id " +
+                        "ORDER BY c.distance";
                 hybridResults = executePureVectorSearch(pureVectorSql, vectorStr, company, minScore, candidateLimit);
             }
             
@@ -670,30 +675,25 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
     
     /**
-     * 执行混合检索SQL（关键词预过滤 + 向量排序）
+     * 执行混合检索SQL（CTE关键词预过滤 + 向量排序）
      * 向量通过参数绑定传递，避免超长SQL导致JDBC解析失败
      */
     private List<MemorySearchResult> executeHybridSearch(String sql, String vectorStr, List<String> keywords, 
             String company, double minScore, int candidateLimit) {
         try {
-            // 构建 PreparedStatement 参数：
-            // SQL中?参数顺序：vectorStr(SELECT), company×2, keywords×4, vectorStr(WHERE), minScore, vectorStr(ORDER BY), candidateLimit
+            // CTE SQL 参数顺序：
+            // CTE内: vectorStr(distance), company, keywords×2(tsquery+ILIKE), vectorStr(WHERE score), minScore, candidateLimit
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
-                ps.setString(idx++, vectorStr);   // 1: SELECT score
-                ps.setString(idx++, company);     // 2: e.company
-                ps.setString(idx++, company);     // 3: d.company
+                ps.setString(idx++, vectorStr);   // 1: CTE SELECT distance
+                ps.setString(idx++, company);     // 2: CTE e.company
                 for (String kw : keywords) {
-                    String likePattern = "%" + kw + "%";
-                    ps.setString(idx++, likePattern);  // chunk_text ILIKE
-                    ps.setString(idx++, likePattern);  // title ILIKE
-                    ps.setString(idx++, likePattern);  // file_name ILIKE
-                    ps.setString(idx++, likePattern);  // file_content ILIKE
+                    ps.setString(idx++, kw);           // tsquery 全文搜索（plainto_tsquery 接受原始文本）
+                    ps.setString(idx++, "%" + kw + "%"); // ILIKE fallback
                 }
-                ps.setString(idx++, vectorStr);   // 44: WHERE condition
-                ps.setDouble(idx++, minScore);     // 45: minScore
-                ps.setString(idx++, vectorStr);   // 46: ORDER BY
-                ps.setInt(idx++, candidateLimit); // 47: LIMIT
+                ps.setString(idx++, vectorStr);   // CTE WHERE score condition
+                ps.setDouble(idx++, minScore);     // minScore threshold
+                ps.setInt(idx++, candidateLimit); // LIMIT
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
                     .title(rs.getString("title"))
@@ -716,20 +716,19 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     
     /**
      * 纯向量搜索（关键词过滤结果不足时降级）
-     * 向量通过参数绑定传递，避免超长SQL导致JDBC解析失败
+     * 使用CTE优化：先计算向量距离+过滤，再JOIN获取元数据
      */
     private List<MemorySearchResult> executePureVectorSearch(String sql, String vectorStr,
             String company, double minScore, int candidateLimit) {
         try {
+            // CTE SQL 参数顺序：vectorStr(distance), company, vectorStr(WHERE score), minScore, candidateLimit
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
-                ps.setString(idx++, vectorStr);   // SELECT score
-                ps.setString(idx++, company);      // WHERE company
-                ps.setString(idx++, company);      // WHERE company
-                ps.setString(idx++, vectorStr);   // WHERE score >= minScore
-                ps.setDouble(idx++, minScore);     // minScore
-                ps.setString(idx++, vectorStr);   // ORDER BY
-                ps.setInt(idx++, candidateLimit);
+                ps.setString(idx++, vectorStr);   // CTE: distance calculation
+                ps.setString(idx++, company);      // CTE: company filter
+                ps.setString(idx++, vectorStr);   // CTE: WHERE score >= minScore
+                ps.setDouble(idx++, minScore);     // minScore threshold
+                ps.setInt(idx++, candidateLimit); // LIMIT
             }, (rs, rowNum) -> MemorySearchResult.builder()
                     .id(UUID.fromString(rs.getString("id")))
                     .title(rs.getString("title"))
@@ -773,11 +772,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 params.add(company);
             }
             
-            // 关键词ILIKE
+            // 关键词搜索：优先 tsvector 全文搜索（有GIN索引），fallback 到 ILIKE
             sql.append("AND (");
             for (int i = 0; i < keywords.size(); i++) {
                 if (i > 0) sql.append(" OR ");
-                sql.append("chunk_text ILIKE ?");
+                sql.append("search_vector @@ plainto_tsquery('simple', ?) OR chunk_text ILIKE ?");
+                params.add(keywords.get(i));
                 params.add("%" + keywords.get(i) + "%");
             }
             sql.append(") ");
@@ -833,12 +833,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         List<MemorySearchResult> results = new ArrayList<>();
         Set<String> seenDocIds = new HashSet<>();
         
-        // 第一轮：搜索 embeddings 表的 chunk_text
+        // 第一轮：搜索 embeddings 表的 chunk_text（使用 tsvector 全文搜索 + ILIKE fallback）
         try {
             StringBuilder whereClause = new StringBuilder();
             for (int i = 0; i < keywords.size(); i++) {
                 if (i > 0) whereClause.append(" OR ");
-                whereClause.append("e.chunk_text ILIKE ? OR d.title ILIKE ? OR d.file_name ILIKE ? OR d.file_content ILIKE ?");
+                whereClause.append("e.search_vector @@ plainto_tsquery('simple', ?) OR e.chunk_text ILIKE ?");
             }
             String sql = "SELECT e.id, COALESCE(d.title, '') AS title, e.chunk_text, e.source_doc_id, " +
                     "COALESCE(d.file_name, '') AS file_name, COALESCE(c.name,'') AS category, e.chunk_index, e.created_at " +
@@ -847,20 +847,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
                     "AND (e.company = ? OR e.company IS NULL) " +
-                    "AND (d.company = ? OR d.company IS NULL) " +
                     "AND (" + whereClause + ") " +
                     "ORDER BY e.created_at DESC LIMIT ?";
             
             List<MemorySearchResult> embeddingResults = jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, company);
-                ps.setString(idx++, company);
                 for (String kw : keywords) {
-                    String likePattern = "%" + kw + "%";
-                    ps.setString(idx++, likePattern);  // chunk_text
-                    ps.setString(idx++, likePattern);  // title
-                    ps.setString(idx++, likePattern);  // file_name
-                    ps.setString(idx++, likePattern);  // file_content
+                    ps.setString(idx++, kw);              // tsquery 全文搜索
+                    ps.setString(idx++, "%" + kw + "%");  // ILIKE fallback
                 }
                 ps.setInt(idx++, limit);
             }, (rs, rowNum) -> MemorySearchResult.builder()

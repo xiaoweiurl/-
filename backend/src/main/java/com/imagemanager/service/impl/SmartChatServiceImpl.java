@@ -1818,9 +1818,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "FROM knowledge_embeddings " +
                     "WHERE source_type = 'KNOWLEDGE_BASE' " +
                     "AND (company = ? OR company IS NULL OR company = '') " +
-                    "AND chunk_text ILIKE ? " +
+                    "AND (search_vector @@ plainto_tsquery('simple', ?) OR chunk_text ILIKE ?) " +
                     "ORDER BY created_at DESC LIMIT 10";
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, "%" + productCode + "%");
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, productCode, "%" + productCode + "%");
             log.info("[直接搜索] SQL执行完成，返回 {} 条记录 (productCode={}, company={})", rows.size(), productCode, company);
             for (Map<String, Object> row : rows) {
                 String chunkText = row.get("chunk_text") != null ? row.get("chunk_text").toString() : "";
