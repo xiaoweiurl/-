@@ -7,12 +7,11 @@
 **前端**：Next.js 16 (App Router) + React 19 + TypeScript + shadcn/ui + Tailwind CSS 4
 **后端**：Java Spring Boot（独立服务，前端通过 API 代理调用）
 **数据库**：PostgreSQL + pgvector（向量存储）+ pg_trgm（模糊搜索加速）
-**AI 模型**：
-- 主对话：DeepSeek V4 Pro（SSE 流式）
+**AI 模型**（全部本地部署）：
+- 主对话 + 图片识别：qwen3.6:35b（多模态，SSE 流式，同时承担对话和图片理解）
 - 查询增强：Ollama (qwen3.6:35b)
 - 文档重排序：bge-reranker-v2-m3（独立部署，HTTP 接口）
-- 文本向量化：MiniMax Embedding API
-- 图片识别：豆包 Vision API
+- 文本向量化：bge-m3（本地部署）
 
 **存储**：S3 兼容对象存储（coze-coding-dev-sdk）
 **认证**：Session-based + RBAC（自研，非 Spring Security）
@@ -130,7 +129,7 @@ LEFT JOIN knowledge_base_categories c2 ON ...
 - **双模式运行**：前端自动检测后端可用性，后端不可用时降级到 Mock 数据，开发时不依赖后端服务
 - **SSE 流式对话**：前端通过 EventSource 接收流式响应，支持打字机效果渲染
 - **Q&A 异步向量化**：对话完成后异步将 Q+A 文本向量化存入 knowledge_embeddings，后续对话可检索历史问答
-- **图片 AI 分类**：上传时调用豆包 Vision API 自动识别图片内容并分类到对应相册
+- **图片 AI 分类**：上传时通过 qwen3.6:35b 多模态能力自动识别图片内容并分类到对应相册
 - **速率限制**：登录 5 分钟 5 次、改密 1 小时 3 次、上传 1 分钟 20 次
 
 ## 项目局限 & 待优化
@@ -313,7 +312,7 @@ backend/src/main/resources/
 | POSITION_CARD | 岗位知识卡片切片 |
 | SMART_CHAT | 历史 Q&A 向量化 |
 
-切片规则：800 字符/片，100 字符重叠，使用 MiniMax Embedding API 向量化。
+切片规则：800 字符/片，100 字符重叠，使用 bge-m3 本地模型向量化。
 
 ### 搜索性能索引（V39）
 

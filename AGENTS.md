@@ -14,7 +14,7 @@
 - **认证**: 基于 Session 的用户认证
 - **权限**: 基于角色的访问控制 (RBAC)
 - **对象存储**: S3 兼容存储 (通过 coze-coding-dev-sdk)
-- **AI 识别**: 豆包 Vision 模型 (通过 coze-coding-dev-sdk)
+- **AI 识别**: qwen3.6:35b 多模态能力 (本地部署)
 
 ### 后端 API 集成
 本项目支持双模式运行：
@@ -38,7 +38,7 @@
 6. **批量操作**: 多选、移动、下载、删除、收藏
 7. **用户认证**: 登录/登出、Session 管理
 8. **权限管理**: 管理员/普通用户角色，差异化权限控制
-9. **AI 知识识别**: 使用豆包 Vision API 自动分类和标签
+9. **AI 知识识别**: 使用 qwen3.6:35b 多模态能力自动分类和标签
 10. **批量上传**: 支持一次上传多条知识，自动分类
 11. **图片编辑**: 使用 TUI Image Editor 实现独立的图片编辑页面，支持裁剪、旋转、翻转、滤镜、绘图、文字、形状、水印等操作
 12. **文档中心**: 支持 PDF、Word、Excel、PPT、压缩包等文档的上传、分类管理和预览
@@ -270,7 +270,7 @@ npx tsc --noEmit          # TypeScript 类型检查
 | `knowledge_domains` | 知识域（如"时尚知识库"） |
 | `knowledge_cards` | 知识卡片（手动创建 + 文档自动切片生成） |
 | `knowledge_documents` | 上传的原始文档元数据 |
-| `knowledge_embeddings` | 文档切片的向量嵌入（MiniMax Embedding） |
+| `knowledge_embeddings` | 文档切片的向量嵌入（bge-m3 本地模型） |
 
 #### 知识库（KnowledgeBase）表
 数据库迁移脚本：`backend/src/main/resources/db/migration/V18__create_knowledge_base.sql`
@@ -298,7 +298,7 @@ npx tsc --noEmit          # TypeScript 类型检查
 **向量化流程**：
 1. 上传文本类文件（PDF/Word/Excel/TXT/Markdown）
 2. 后台异步提取文本、切片（800字符/片，100字符重叠）
-3. 调用 MiniMax Embedding API 获取向量
+3. 调用 bge-m3 本地模型获取向量
 4. 存入 `knowledge_embeddings`（source_type='KNOWLEDGE_BASE'）
 5. 前端文档列表显示向量化状态标签
 
@@ -401,7 +401,7 @@ export const ROLE_PERMISSIONS = {
 - `DELETE /api/images` - 批量删除知识
 - `POST /api/images/upload` - 上传知识（支持批量、AI分类）
   - 参数: `files[]`, `enableAI`, `album`
-  - AI 分类使用豆包 Vision API
+  - AI 分类使用 qwen3.6:35b 多模态能力
 - `POST /api/images/batch` - 批量操作（删除、收藏、移动）
 - `POST /api/images/batch-download` - 批量下载网络图片
 - `GET /api/images/tags` - 获取所有标签列表
@@ -503,7 +503,7 @@ export const ROLE_PERMISSIONS = {
 
 #### AI 识别
 - `POST /api/ai/recognize` - AI 识别图片
-  - 支持关键词匹配和视觉识别（豆包Vision模型）
+  - 支持关键词匹配和视觉识别（qwen3.6:35b 多模态）
 
 #### 系统设置
 - `GET /api/settings` - 获取系统设置
