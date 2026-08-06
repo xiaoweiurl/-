@@ -1,52 +1,23 @@
-# 企业数智中台系统
+# 盈云产品智能中台
 
-企业级知识管理与智能中台系统，支持多品牌（宝娜斯/盈云）、知识库管理、岗位知识卡片、AI 智能对话、供应链管理、智能报价等核心功能。
+面向服装/纺织行业的数据智能平台。解决的核心问题：企业内部知识库文档（PDF/Word/Excel）和供应链业务数据（报价/采购/库存/生产计划）分散在多个系统，需要一个统一的 AI 对话入口来检索和查询。
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| **前端框架** | Next.js 16 (App Router) + React 19 |
-| **语言** | TypeScript 5 |
-| **UI 组件** | shadcn/ui (Radix UI) |
-| **样式** | Tailwind CSS 4 |
-| **图标** | Lucide React |
-| **后端框架** | Spring Boot 3 + Java 17 |
-| **数据库** | PostgreSQL + pgvector (向量扩展) |
-| **认证** | 基于 Session 的用户认证 + RBAC 权限 |
-| **对象存储** | S3 兼容存储 |
-| **AI 模型** | 豆包 Vision (图像识别) + MiniMax Embedding (向量化) |
-| **包管理** | pnpm (前端) + Maven (后端) |
+**前端**：Next.js 16 (App Router) + React 19 + TypeScript + shadcn/ui + Tailwind CSS 4
+**后端**：Java Spring Boot（独立服务，前端通过 API 代理调用）
+**数据库**：PostgreSQL + pgvector（向量存储）+ pg_trgm（模糊搜索加速）
+**AI 模型**：
+- 主对话：DeepSeek V4 Pro（SSE 流式）
+- 查询增强：Ollama (qwen3.6:35b)
+- 文档重排序：bge-reranker-v2-m3（独立部署，HTTP 接口）
+- 文本向量化：MiniMax Embedding API
+- 图片识别：豆包 Vision API
 
-## 快速开始
+**存储**：S3 兼容对象存储（coze-coding-dev-sdk）
+**认证**：Session-based + RBAC（自研，非 Spring Security）
 
-### 前端开发
-
-```bash
-pnpm install          # 安装依赖
-pnpm run dev          # 启动开发服务器 (端口 5000)
-```
-
-### 后端开发
-
-```bash
-cd backend
-./mvnw spring-boot:run   # 启动 Spring Boot (端口 8080)
-```
-
-### 环境变量
-
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `NEXT_PUBLIC_BACKEND_API_URL` | 后端 API 地址 | `http://localhost:8080` |
-| `DEPLOY_RUN_PORT` | 服务监听端口 | `5000` |
-| `COZE_PROJECT_DOMAIN_DEFAULT` | 对外访问域名 | `https://xxx.coze.site` |
-
-### 降级模式
-
-当后端服务不可用时，前端自动切换到降级模式：
-- 登录：任意用户名密码可登录
-- 数据：使用前端内置 Mock 数据展示
+前端和后端是独立仓库，前端通过 `NEXT_PUBLIC_BACKEND_API_URL` 环境变量配置后端地址，后端不可用时自动降级到 Mock 数据。
 
 ## 系统架构
 
@@ -77,96 +48,123 @@ cd backend
 └─────────────────────────────────────────────────────┘
 ```
 
-## 核心功能
+## 核心实现与难点
 
-### 1. 多品牌体系
+### 1. RAG 多策略检索管线
 
-系统支持双品牌独立运营，登录时绑定公司后不可更改：
+用户提问后，系统需要从两个数据源检索：知识库文档（上传的 PDF/Word 切片后的向量）和供应链业务表（结构化的报价/采购/库存数据）。
 
-| 品牌 | 主色调 | 侧边栏色 | 图标 |
-|------|--------|----------|------|
-| 盈云 | 紫色 (violet) | 紫色系 | Cloud |
-| 宝娜斯 | 玫红 (rose) | 玫红系 | Scissors |
+**问题**：纯向量检索对精确货号（如 M1TT403）召回率很低。embedding 相似度经常低于阈值，导致明明数据库有数据但检索返回空。QueryEnhancer 用 Ollama 生成查询变体时会把货号改写为"该型号产品"，丢失精确匹配能力。
 
-- 品牌配置：`src/lib/brand.ts`
-- 公司绑定后不可更改，后端校验 `WHERE company IS NULL OR company = ''`
-- 团队/部门按公司区分展示（如"产品开发(盈云)"、"针织技术(宝娜斯)"）
+**方案**：4 层降级策略，按优先级依次尝试：
 
-### 2. 知识库管理
+1. **直接 SQL 关键词匹配**：用 KeywordExtractor 提取货号，`ILIKE '%M1TT403%'` 精确命中。零超时风险，绕过所有向量计算。
+2. **RagPipeline 向量检索**：Ollama 生成 3 个查询变体 → 4 路并行向量召回（单路 1s 超时）→ 去重 → bge-reranker 重排序取 top-5。适合模糊语义问题。
+3. **LangChain4j Text-to-SQL**：让 LLM 根据用户问题生成 SQL 查询业务表。适合"哪些供应商做染色加工"这类结构化查询。
+4. **业务表关键词兜底**：对产品报价、原料采购、原料入库、生产计划、辅料采购 5 张表做关键词搜索。
 
-- **文档上传**：支持 PDF、Word、Excel、TXT、Markdown 文件上传
-- **自动分类**：上传时根据文件扩展名自动归类
-- **向量化检索**：文本自动切片 (800字符/片) + MiniMax Embedding 向量化
-- **公司隔离**：数据按公司隔离，同公司用户共享数据
-- **分类管理**：支持多级分类创建和管理
+上下文构建器按优先级拼接结果（供应链数据 > 岗位卡片 > 知识库片段 > 历史 QA > 图片搜索），根据意图标签自动追加不同指令后缀，通过 SSE 流式返回。
 
-### 3. 岗位知识卡片
+**取舍**：RagPipeline 的超时设置（单路 1s，整体 1.5s）是实测后的折中值。Ollama 查询增强本身可能超过 1s，所以第一层直接 SQL 搜索是必要的快速通道。
 
-按标准化模板录入岗位信息，8 大模块全部必填：
+### 2. 向量搜索 SQL 性能优化
 
-| 模块 | 字段 |
-|------|------|
-| 岗位基本信息 | 岗位名称、人员姓名、工号、所属部门、所属团队、岗位性质 |
-| 岗位职责 | 核心职责、日常工作频率 |
-| 关键产出物 | 关键产出物、交付标准 |
-| 能力要求 | 硬技能、软技能 |
-| 协作关系 | 上游输入方、下游输出方 |
-| 当前状态 | 已完成工作、进行中工作、瓶颈与困难、需要的支持 |
-| 改进计划 | 改进方向、流程优化建议、工具/资源需求 |
-| 补充说明 | 补充信息 |
+知识库文档量增长后，主搜索 SQL 出现性能问题。
 
-- **自动向量化**：创建/更新卡片时自动向量化，状态标签实时显示（已向量化/向量化失败/处理中/待向量化）
-- **AI 对话检索**：岗位意图自动识别，优先检索岗位卡片数据
+**问题**：
+- 向量距离 `1 - (e.embedding <=> ?)` 在 SELECT、WHERE、ORDER BY 中重复计算 3 次
+- `ILIKE '%keyword%'` 在 chunk_text、title、file_name、file_content 4 个字段上做全表扫描
+- LEFT JOIN knowledge_base_docs 和 knowledge_base_categories 在所有行上执行，而不是只在候选集上
 
-### 4. AI 智能对话
+**方案**：
 
-多源智能检索，SSE 流式输出，Markdown 渲染：
+改用 CTE 分两步执行：
+```sql
+WITH candidates AS (
+    -- 第一步：关键词过滤 + 向量距离计算（只算 1 次）
+    SELECT e.id, e.chunk_text, 1-(e.embedding <=> ?) AS score, ...
+    FROM knowledge_embeddings e
+    WHERE source_type = 'KNOWLEDGE_BASE'
+    AND (search_vector @@ plainto_tsquery(?) OR chunk_text ILIKE ?)
+    AND 1-(e.embedding <=> ?) >= ?
+    ORDER BY e.embedding <=> ? LIMIT ?
+)
+-- 第二步：只对候选集做 JOIN
+SELECT c.*, d.title, d.file_name, c2.name AS category_name
+FROM candidates c
+LEFT JOIN knowledge_base_docs d ON ...
+LEFT JOIN knowledge_base_categories c2 ON ...
+```
 
-**检索优先级**：
-1. 供应链精确数据（产品报价、原料采购等）
-2. 岗位知识卡片（向量语义检索）
-3. 记忆库（向量语义检索）
-4. 知识库 PDF 文档（向量语义检索）
+新增 V39 迁移脚本：
+- `pg_trgm` GIN 索引：加速 ILIKE 查询
+- `search_vector` tsvector 预计算列 + GIN 索引：全文搜索替代多字段 ILIKE
+- `source_type + company` 复合索引：最常用的 WHERE 条件
+- 触发器自动维护 search_vector（INSERT/UPDATE 时更新）
 
-**意图识别**：
-- **供应链意图**：检测报价/成本/采购等关键词 → 精确查询业务表，跳过向量检索
-- **岗位意图**：检测岗位/职责/入职等关键词 → 优先岗位卡片，有结果时跳过 PDF 检索
-- **通用意图**：全源检索，综合回答
+关键词参数从每个词 4 个精简为 2 个（tsquery + ILIKE fallback）。诊断查询从 `COUNT(*)` 改为 `EXISTS`。
 
-### 5. 供应链管理
+### 3. 行业关键词提取器（KeywordExtractor）
 
-| 模块 | 功能 |
-|------|------|
-| 产品报价 | 产品成本、建议报价管理 |
-| 原料入库 | 原料库存、入库记录 |
-| 原料采购 | 采购订单、供应商管理 |
-| 生产计划 | 生产排期、进度跟踪 |
-| 辅料采购 | 辅料采购管理 |
-| 供应商对比 | 按原料编码汇总供应商报价，展示最低价/最高价/节省比例 |
+**问题**：原有分词逻辑按空格/标点简单拆分。"棉质面料"被拆成"棉质"和"面料"，"FAST/28G"被拆散，整句"棉质面料的洗涤注意事项"塞进 ILIKE 匹配不到任何记录。
 
-**智能报价**：基于原料用量 × 采购最低价自动计算总成本和建议报价。
+**方案**：
+- 内置 150+ 纺织/服装/供应链行业复合词典（棉质面料、原料采购、成本核算、生产计划等）
+- 正向最大匹配（FMM）分词，保持复合词完整
+- 分层优先级：产品编码 > 行业复合词 > 行业单词 > 普通词
+- 停用词 100+（含时间词"最近/目前"、操作词"帮我/请"、程度词"非常/比较"）
+- 限制最多 8 个关键词，避免 SQL 过于复杂
 
-### 6. 营销 AI
+统一替换了 SmartChatServiceImpl 和 KnowledgeBaseServiceImpl 中 6 处分散的关键词提取逻辑。
 
-独立的营销 AI 对话模块，支持 SSE 流式输出和 Markdown 渲染，对话历史按公司隔离持久化到数据库。
+### 4. 数据格式不匹配排查
 
-### 7. 用户认证与权限
+**现象**：日志显示 SQL 查询成功找到 M1TT403 的数据，但 AI 仍回答"暂无数据"。
 
-| 角色 | 权限 |
-|------|------|
-| 管理员 (admin) | 全部权限，含用户管理、系统配置 |
-| 普通用户 (user) | 基础权限，管理自己的知识和分类 |
+**排查过程**：追踪数据从 SQL 结果 → 上下文构建器 → LLM prompt 的完整链路。发现 `searchKnowledgeEmbeddingsDirect` 返回的字段是 `content/source/score`，但供应链上下文构建器读取的是 `type/summary/data`（Map 类型）。字段名不匹配导致构建出的上下文是空的 `### []`，LLM 看到的就是空数据。
 
-**预置账号**：
+**修复**：让直接搜索方法同时输出两种格式的字段，兼容供应链上下文构建器（type/summary/data）和知识库上下文构建器（content/score/source）。加了调试日志打印发送给 LLM 的上下文摘要，方便后续排查。
+
+### 5. 其他工程细节
+
+- **双模式运行**：前端自动检测后端可用性，后端不可用时降级到 Mock 数据，开发时不依赖后端服务
+- **SSE 流式对话**：前端通过 EventSource 接收流式响应，支持打字机效果渲染
+- **Q&A 异步向量化**：对话完成后异步将 Q+A 文本向量化存入 knowledge_embeddings，后续对话可检索历史问答
+- **图片 AI 分类**：上传时调用豆包 Vision API 自动识别图片内容并分类到对应相册
+- **速率限制**：登录 5 分钟 5 次、改密 1 小时 3 次、上传 1 分钟 20 次
+
+## 项目局限 & 待优化
+
+1. **Reranker 服务单点**：bge-reranker-v2-m3 部署在 localhost:8001，没有做高可用和负载均衡。服务挂掉时降级到原始排序，但重排序质量下降明显。
+2. **QueryEnhancer 丢失关键词**：Ollama 生成查询变体时可能丢失货号等精确关键词。目前靠第一层直接 SQL 搜索兜底，但根本解决方案是在 QueryEnhancer 中强制保留提取到的产品编码。
+3. **Text-to-SQL 不稳定**：LangChain4j 的 Text-to-SQL 依赖 LLM 生成 SQL，复杂查询容易出错。目前作为第三层降级使用，没有做 SQL 校验和沙箱执行。
+4. **向量检索阈值硬编码**：minScore 阈值（0.10/0.08/0.12）是实测后的经验值，没有做动态调整。不同文档类型的最佳阈值可能不同。
+5. **前端状态管理**：没有用 Redux/Zustand，全靠 React useState + props 传递，组件层级深时 props drilling 明显。
+6. **缺少自动化测试**：后端没有单元测试，前端没有 E2E 测试。RAG 管线的 4 层降级策略全靠手动测试验证。
+7. **知识库文档切片策略**：固定 800 字符/片、100 字符重叠，没有根据文档类型（PDF vs Word vs Excel）做差异化切片。表格类文档切片后语义断裂严重。
+
+## 快速启动
+
+```bash
+# 前端
+pnpm install
+pnpm run dev  # http://localhost:5000
+
+# 后端（独立仓库）
+cd backend && ./mvnw spring-boot:run
+
+# 环境变量
+NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8080
+```
+
+后端不可用时前端自动降级到 Mock 数据，可独立开发前端。
+
+## 预置账号
 
 | 用户名 | 密码 | 角色 |
 |--------|------|------|
-| admin | Admin@123 | ADMIN |
-| user | User@123 | user |
-
-### 8. 文档中心
-
-支持 PDF、Word、Excel、PPT、压缩包等文档的上传、分类管理和预览，上传时自动根据扩展名分类。
+| admin | Admin@123 | 管理员 |
+| user | User@123 | 普通用户 |
 
 ## 项目结构
 
@@ -242,6 +240,10 @@ backend/src/main/java/com/imagemanager/
 │   ├── UserController.java             # 用户管理
 │   ├── AIController.java               # AI 识别
 │   └── ProductController.java          # 商品管理
+├── enhance/                             # RAG 增强模块
+│   ├── RagPipeline.java                # RAG 管线（查询增强 + 多路召回 + Reranker）
+│   ├── QueryEnhancer.java              # 查询增强器（Ollama 生成变体）
+│   └── Reranker.java                   # 文档重排序（bge-reranker-v2-m3）
 ├── entity/                              # JPA 实体
 │   ├── User.java                       # 用户
 │   ├── PositionKnowledgeCard.java      # 岗位知识卡片
@@ -262,6 +264,7 @@ backend/src/main/java/com/imagemanager/
 │   └── ...
 ├── repository/                          # JPA Repository
 └── util/                                # 工具类
+    ├── KeywordExtractor.java           # 行业关键词提取器（FMM + 词典）
     ├── RateLimiter.java                # 速率限制
     └── PasswordValidator.java          # 密码强度验证
 
@@ -271,7 +274,8 @@ backend/src/main/resources/
     ├── V21__create_user_sessions.sql   # 用户会话表
     ├── V22__add_company_field.sql      # 公司字段
     ├── V28__create_position_knowledge_cards.sql  # 岗位知识卡片表
-    └── V29__add_position_card_embedding_status.sql  # 向量化状态字段
+    ├── V29__add_position_card_embedding_status.sql  # 向量化状态字段
+    └── V39__search_performance_indexes.sql  # 搜索性能优化索引
 ```
 
 ## 数据库设计
@@ -307,8 +311,19 @@ backend/src/main/resources/
 | MEMORY | 记忆库文档切片 |
 | KNOWLEDGE_BASE | 知识库文档切片 |
 | POSITION_CARD | 岗位知识卡片切片 |
+| SMART_CHAT | 历史 Q&A 向量化 |
 
 切片规则：800 字符/片，100 字符重叠，使用 MiniMax Embedding API 向量化。
+
+### 搜索性能索引（V39）
+
+| 索引 | 类型 | 作用 |
+|------|------|------|
+| `idx_ke_search_vector` | GIN (tsvector) | 全文搜索替代多字段 ILIKE |
+| `idx_ke_chunk_text_trgm` | GIN (pg_trgm) | 加速 ILIKE 模糊查询 |
+| `idx_ke_source_type_company` | B-tree | 最常用的 WHERE 条件组合 |
+| `idx_ke_source_doc_id` | B-tree | 加速 LEFT JOIN |
+| `idx_ke_created_at_desc` | B-tree | 加速 ORDER BY created_at DESC |
 
 ## 安全特性
 
