@@ -43,6 +43,7 @@ interface UserInfo {
   bio?: string;
   role: string;
   membership: string;
+  company?: string;
   createdAt: string;
   lastLoginAt?: string;
 }
@@ -55,6 +56,7 @@ interface FormData {
   phone: string;
   role: string;
   membership: string;
+  company: string;
 }
 
 const initialFormData: FormData = {
@@ -65,6 +67,7 @@ const initialFormData: FormData = {
   phone: '',
   role: 'user',
   membership: 'free',
+  company: '',
 };
 
 export default function UserManagementPage() {
@@ -138,6 +141,11 @@ export default function UserManagementPage() {
   const handleCreateUser = async () => {
     if (!formData.username || !formData.email || !formData.password) {
       toast.error('请填写必填字段');
+      return;
+    }
+
+    if (!formData.company) {
+      toast.error('请选择所属公司');
       return;
     }
 
@@ -278,6 +286,7 @@ export default function UserManagementPage() {
       phone: user.phone || '',
       role: user.role || 'user',
       membership: user.membership || 'free',
+      company: user.company || '',
     });
     setShowEditModal(true);
   };
@@ -590,6 +599,21 @@ export default function UserManagementPage() {
                     <option value="premium">高级会员</option>
                   </select>
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  所属公司 <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={formData.company || ''}
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                >
+                  <option value="">请选择公司</option>
+                  <option value="宝娜斯">宝娜斯</option>
+                  <option value="盈云">盈云</option>
+                </select>
               </div>
             </div>
             

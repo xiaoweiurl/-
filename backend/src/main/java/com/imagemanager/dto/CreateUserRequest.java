@@ -62,4 +62,9 @@ public class CreateUserRequest {
      */
     @Builder.Default
     private String membership = "free";
+    
+    /**
+     * 所属公司（宝娜斯, 盈云）
+     */
+    private String company;
 }

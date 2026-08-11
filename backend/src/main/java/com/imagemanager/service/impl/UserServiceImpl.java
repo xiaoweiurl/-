@@ -389,6 +389,7 @@ public class UserServiceImpl implements UserService {
                 .phone(request.getPhone())
                 .role(request.getRole() != null ? request.getRole() : "user")
                 .membership(request.getMembership() != null ? request.getMembership() : "free")
+                .company(request.getCompany())
                 .storageUsed(0L)
                 .storageLimit(1024L * 1024 * 1024 * 10) // 默认10GB
                 .createdAt(LocalDateTime.now())
