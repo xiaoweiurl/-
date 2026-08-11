@@ -39,9 +39,9 @@ public class User {
     private String username;
     
     /**
-     * 密码
+     * 密码（哈希值）
      */
-    @Column(length = 255)
+    @Column(name = "password_hash", length = 255, nullable = false)
     private String password;
     
     /**
