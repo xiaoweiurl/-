@@ -274,9 +274,53 @@ export default function LoginPage() {
     }, 300);
   };
 
+  // SSO 重复登录确认弹窗（独立变量，需在每个 step 的 return 中引用）
+  const ssoDialog = showDuplicateLoginDialog && (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      onClick={() => setShowDuplicateLoginDialog(false)}
+    >
+      {/* 遮罩层 */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      {/* 弹窗主体 */}
+      <div
+        className="relative bg-slate-900/95 border border-blue-500/30 backdrop-blur-xl rounded-xl p-6 max-w-md w-full mx-4 shadow-[0_0_30px_rgba(59,130,246,0.2)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 标题 */}
+        <div className="flex items-center gap-2 mb-4">
+          <Shield className="w-5 h-5 text-blue-400" />
+          <h3 className="text-lg font-semibold text-slate-100">账户已登录</h3>
+        </div>
+        {/* 内容 */}
+        <p className="text-slate-400 text-sm mb-6">
+          账户 <span className="text-blue-400 font-medium">{username}</span> 已在其他地方登录。
+          <br />
+          确认登录将使之前的登录失效，是否继续？
+        </p>
+        {/* 按钮 */}
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={() => setShowDuplicateLoginDialog(false)}
+            className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors text-sm"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleConfirmDuplicateLogin}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm font-medium"
+          >
+            确认登录
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ========== Step 1: 登录 ==========
   if (step === 'login') {
     return (
+      <React.Fragment>
       <div className="min-h-screen flex">
         <Toaster position="top-center" richColors closeButton />
 
@@ -508,12 +552,15 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    );
-  }
+      {ssoDialog}
+    </React.Fragment>
+  );
+}
 
   // ========== Step 2: 选择公司 ==========
   if (step === 'company') {
     return (
+      <React.Fragment>
       <div className="min-h-screen flex">
         <Toaster position="top-center" richColors closeButton />
 
@@ -615,6 +662,8 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+      {ssoDialog}
+      </React.Fragment>
     );
   }
 
@@ -659,6 +708,7 @@ export default function LoginPage() {
   ];
 
   return (
+    <React.Fragment>
     <div className="min-h-screen flex">
       <Toaster position="top-center" richColors closeButton />
 
@@ -749,49 +799,8 @@ export default function LoginPage() {
           </button>
         </div>
       </div>
-
-      {/* 重复登录确认弹窗 - 自定义 Modal */}
-      {showDuplicateLoginDialog && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center"
-          onClick={() => setShowDuplicateLoginDialog(false)}
-        >
-          {/* 遮罩层 */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          {/* 弹窗主体 */}
-          <div
-            className="relative bg-slate-900/95 border border-blue-500/30 backdrop-blur-xl rounded-xl p-6 max-w-md w-full mx-4 shadow-[0_0_30px_rgba(59,130,246,0.2)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 标题 */}
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="w-5 h-5 text-blue-400" />
-              <h3 className="text-lg font-semibold text-slate-100">账户已登录</h3>
-            </div>
-            {/* 内容 */}
-            <p className="text-slate-400 text-sm mb-6">
-              账户 <span className="text-blue-400 font-medium">{username}</span> 已在其他地方登录。
-              <br />
-              确认登录将使之前的登录失效，是否继续？
-            </p>
-            {/* 按钮 */}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDuplicateLoginDialog(false)}
-                className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleConfirmDuplicateLogin}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm font-medium"
-              >
-                确认登录
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+      {ssoDialog}
+    </React.Fragment>
   );
 }
