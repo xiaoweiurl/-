@@ -148,7 +148,7 @@ export default function SettingsPage() {
         setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
         
         // 退出登录
-        await fetch('/api/auth/logout', { method: 'POST' });
+        await fetch('/api/proxy/auth/logout', { method: 'POST', credentials: 'include' });
         
         // 延迟跳转，让用户看到成功提示
         setTimeout(() => {

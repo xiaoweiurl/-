@@ -141,6 +141,8 @@ public class AuthController {
         
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
         response.setHeader("Access-Control-Allow-Credentials", "true");
+        // 清除前端 cookie
+        response.setHeader("Set-Cookie", "session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
         
         return ApiResponse.success("登出成功", null);
     }

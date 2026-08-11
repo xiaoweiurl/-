@@ -1016,7 +1016,8 @@ export default function Home() {
     try {
       // 直接调 /api/auth/login (DELETE)，不走 /api/proxy
       // 因为 /api/auth/login 的 DELETE 处理器会从 cookie 读取 session_id 并通知后端删除 Redis session
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      // 调后端 POST /auth/logout，proxy 自动从 cookie 读取 session_id 并转发
+      await fetch('/api/proxy/auth/logout', { method: 'POST', credentials: 'include' });
       // 清除 localStorage 中的 session 和用户数据
       localStorage.removeItem('session_id');
       localStorage.removeItem('session_expires');
