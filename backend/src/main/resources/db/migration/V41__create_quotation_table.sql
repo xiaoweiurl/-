@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS quotations (
     khname          VARCHAR(255) NOT NULL DEFAULT '',   -- 客户名称
     huohao          VARCHAR(128) NOT NULL DEFAULT '',   -- 生产货号
     houhaocp        VARCHAR(128) NOT NULL DEFAULT '',   -- 成品货号
-    remark          TEXT         NOT NULL DEFAULT '',   -- 备注
+    remark          TEXT,                               -- 备注（可空）
     chima           VARCHAR(64)  NOT NULL DEFAULT '',   -- 尺码
 
     -- 成本与税金
