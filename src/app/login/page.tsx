@@ -137,6 +137,20 @@ export default function LoginPage() {
       toast.error('请输入用户名和密码');
       return;
     }
+
+    // 检查是否是同一用户重复登录
+    const currentUsername = localStorage.getItem('username');
+    const currentSessionId = localStorage.getItem('session_id');
+    if (currentUsername && currentSessionId && currentUsername === username.trim()) {
+      // 同一用户重复登录，弹出确认框
+      const confirmed = window.confirm(
+        `账户 "${username.trim()}" 已在当前浏览器登录。\n\n确认登录将使之前的登录失效，是否继续？`
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       // 登录前先清除旧会话（SSO：确保同一浏览器只有一个账号登录）
