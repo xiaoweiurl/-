@@ -186,14 +186,27 @@ public class AuthServiceImpl implements AuthService {
         String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
         String oldSessionId = redisTemplate.opsForValue().get(userSessionKey);
         boolean forceLogin = request.getForceLogin() != null && request.getForceLogin();
+        log.info("SSO检查: username={}, userId={}, userSessionKey={}, oldSessionId={}, forceLogin={}", 
+                 request.getUsername(), userId, userSessionKey, oldSessionId, forceLogin);
 
         if (oldSessionId != null && !forceLogin) {
-            // 用户已有活跃会话，返回提示让前端确认
-            log.info("SSO: 用户 {} 已有活跃会话，等待确认是否踢掉", request.getUsername());
-            return LoginResponse.builder()
-                    .alreadyLoggedIn(true)
-                    .message("该账户已在其他地方登录，确认登录将使之前的登录失效")
-                    .build();
+            // 验证旧 session 是否真的还活着
+            String sessionKey = SESSION_KEY_PREFIX + oldSessionId;
+            Map<Object, Object> oldSession = redisTemplate.opsForHash().entries(sessionKey);
+            log.info("SSO: 旧session验证: sessionKey={}, exists={}", sessionKey, !oldSession.isEmpty());
+            
+            if (!oldSession.isEmpty()) {
+                // 用户已有活跃会话，返回提示让前端确认
+                log.info("SSO: 用户 {} 已有活跃会话(oldSessionId={})，等待确认是否踢掉", request.getUsername(), oldSessionId);
+                return LoginResponse.builder()
+                        .alreadyLoggedIn(true)
+                        .message("该账户已在其他地方登录，确认登录将使之前的登录失效")
+                        .build();
+            } else {
+                // 旧 session 已过期，清理映射
+                log.info("SSO: 旧session已过期，清理user-session映射: {}", userSessionKey);
+                redisTemplate.delete(userSessionKey);
+            }
         }
 
         if (oldSessionId != null && forceLogin) {
@@ -227,6 +240,11 @@ public class AuthServiceImpl implements AuthService {
 
         // SSO: 记录用户当前 sessionId
         redisTemplate.opsForValue().set(userSessionKey, sessionId, timeoutHours, TimeUnit.HOURS);
+        log.info("SSO: 存储用户会话映射: key={}, sessionId={}, ttl={}h", userSessionKey, sessionId, timeoutHours);
+
+        // 验证存储是否成功
+        String verifySessionId = redisTemplate.opsForValue().get(userSessionKey);
+        log.info("SSO: 验证存储结果: key={}, storedSessionId={}", userSessionKey, verifySessionId);
 
         // 更新最后登录时间
         user.setLastLoginAt(LocalDateTime.now());
@@ -296,10 +314,15 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String sessionId) {
-        if (sessionId == null || sessionId.isEmpty()) return;
+        log.info("SSO logout: 开始登出, sessionId={}", sessionId);
+        if (sessionId == null || sessionId.isEmpty()) {
+            log.warn("SSO logout: sessionId为空，跳过登出");
+            return;
+        }
 
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(sessionKey);
+        log.info("SSO logout: session数据: key={}, hasData={}, fields={}", sessionKey, !sessionData.isEmpty(), sessionData.keySet());
 
         if (!sessionData.isEmpty()) {
             String userId = (String) sessionData.get("userId");
@@ -312,8 +335,10 @@ public class AuthServiceImpl implements AuthService {
             if (userId != null) {
                 String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
                 String currentSessionId = redisTemplate.opsForValue().get(userSessionKey);
+                log.info("SSO logout: 检查用户会话映射: key={}, currentSessionId={}, isMatch={}", userSessionKey, currentSessionId, sessionId.equals(currentSessionId));
                 if (sessionId.equals(currentSessionId)) {
                     redisTemplate.delete(userSessionKey);
+                    log.info("SSO logout: 已删除用户会话映射: key={}", userSessionKey);
                 }
             }
 
