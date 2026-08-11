@@ -31,6 +31,16 @@ public class LoginResponse {
      * 用户信息
      */
     private UserInfo user;
+
+    /**
+     * 是否已登录（需要确认是否踢掉旧会话）
+     */
+    private Boolean alreadyLoggedIn;
+
+    /**
+     * 提示信息
+     */
+    private String message;
     
     /**
      * 用户信息

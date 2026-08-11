@@ -26,6 +26,7 @@ interface LoginResponse {
   data?: {
     sessionId?: string;
     expiresIn?: number;
+    alreadyLoggedIn?: boolean;
     user: {
       id: string;
       username: string;
@@ -52,7 +53,6 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [showDuplicateLoginDialog, setShowDuplicateLoginDialog] = React.useState(false);
-  const [duplicateLoginUsername, setDuplicateLoginUsername] = React.useState('');
   const [loggedInUser, setLoggedInUser] = React.useState<LoginResponse['data'] | null>(null);
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
 
@@ -144,7 +144,7 @@ export default function LoginPage() {
   }, []);
 
   // 实际执行登录逻辑
-  const doLogin = async () => {
+  const doLogin = async (forceLogin: boolean = false) => {
     setIsLoading(true);
     try {
       // 登录前先清除旧会话（SSO：确保同一浏览器只有一个账号登录）
@@ -154,9 +154,18 @@ export default function LoginPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, rememberMe }),
+        body: JSON.stringify({ username, password, rememberMe, forceLogin }),
       });
       const result: LoginResponse = await response.json();
+
+      // 检查是否已登录（需要确认）
+      if (result.data?.alreadyLoggedIn && !forceLogin) {
+        console.log('[Login] 后端检测到用户已登录，弹出确认框');
+        setShowDuplicateLoginDialog(true);
+        setIsLoading(false);
+        return;
+      }
+
       if (result.success && result.data) {
         const sessionId = result.data.sessionId;
         if (sessionId) {
@@ -209,35 +218,14 @@ export default function LoginPage() {
       return;
     }
 
-    // 检查是否是同一用户重复登录
-    const currentUsername = localStorage.getItem('username');
-    const currentSessionId = localStorage.getItem('session_id');
-    const sessionExpires = localStorage.getItem('session_expires');
-    const isSessionValid = currentSessionId && sessionExpires && Date.now() < parseInt(sessionExpires);
-    
-    console.log('[Login] 检查重复登录:', {
-      currentUsername,
-      inputUsername: username.trim(),
-      currentSessionId: currentSessionId ? '存在' : '不存在',
-      isSessionValid: isSessionValid ? '有效' : '无效',
-    });
-    
-    if (currentUsername && isSessionValid && currentUsername.toLowerCase() === username.trim().toLowerCase()) {
-      // 同一用户重复登录，弹出确认框
-      console.log('[Login] 检测到同一用户重复登录，弹出确认框');
-      setDuplicateLoginUsername(username.trim());
-      setShowDuplicateLoginDialog(true);
-      return;
-    }
-
-    // 直接登录
-    await doLogin();
+    // 直接调用登录接口，由后端检查是否已登录
+    await doLogin(false);
   };
 
-  // 确认重复登录
+  // 确认重复登录（强制登录，踢掉旧会话）
   const handleConfirmDuplicateLogin = async () => {
     setShowDuplicateLoginDialog(false);
-    await doLogin();
+    await doLogin(true);
   };
 
   const handleSelectCompany = async (companyKey: BrandKey) => {
@@ -761,7 +749,7 @@ export default function LoginPage() {
               账户已登录
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              账户 <span className="text-blue-400 font-medium">{duplicateLoginUsername}</span> 已在当前浏览器登录。
+              账户 <span className="text-blue-400 font-medium">{username}</span> 已在其他地方登录。
               <br />
               确认登录将使之前的登录失效，是否继续？
             </AlertDialogDescription>

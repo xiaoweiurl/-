@@ -181,12 +181,23 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("用户名或密码错误");
         }
 
-        // ============ SSO: 踢掉同一用户的旧 session ============
+        // ============ SSO: 检查用户是否已有活跃会话 ============
         String userId = user.getId();
         String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
         String oldSessionId = redisTemplate.opsForValue().get(userSessionKey);
-        if (oldSessionId != null) {
-            // 删除旧 session
+        boolean forceLogin = request.getForceLogin() != null && request.getForceLogin();
+
+        if (oldSessionId != null && !forceLogin) {
+            // 用户已有活跃会话，返回提示让前端确认
+            log.info("SSO: 用户 {} 已有活跃会话，等待确认是否踢掉", request.getUsername());
+            return LoginResponse.builder()
+                    .alreadyLoggedIn(true)
+                    .message("该账户已在其他地方登录，确认登录将使之前的登录失效")
+                    .build();
+        }
+
+        if (oldSessionId != null && forceLogin) {
+            // 强制登录，踢掉旧会话
             redisTemplate.delete(SESSION_KEY_PREFIX + oldSessionId);
             log.info("SSO: 踢掉用户 {} 的旧会话 {}", request.getUsername(), oldSessionId.substring(0, Math.min(8, oldSessionId.length())));
         }

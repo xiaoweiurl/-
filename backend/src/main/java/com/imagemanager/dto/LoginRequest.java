@@ -34,4 +34,9 @@ public class LoginRequest {
      * 所属公司（登录时选择：宝娜斯/盈云）
      */
     private String company;
+
+    /**
+     * 强制登录（踢掉已有会话）
+     */
+    private Boolean forceLogin;
 }
