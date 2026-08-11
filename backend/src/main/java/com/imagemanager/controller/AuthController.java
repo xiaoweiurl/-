@@ -91,6 +91,12 @@ public class AuthController {
         try {
             LoginResponse loginResponse = authService.login(request);
 
+            // 如果用户已登录（SSO 检查），直接返回，不创建图片表
+            if (Boolean.TRUE.equals(loginResponse.getAlreadyLoggedIn())) {
+                log.info("用户已登录，返回确认提示: username={}", request.getUsername());
+                return ApiResponse.success("用户已登录", loginResponse);
+            }
+
             String sessionId = loginResponse.getSessionId();
             log.info("登录成功，sessionId: {}", sessionId);
             
