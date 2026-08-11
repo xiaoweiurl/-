@@ -144,6 +144,17 @@ export async function POST(request: NextRequest) {
     const result = await response.json();
     
     if (result.success || result.code === 200) {
+      // 检查是否已登录（SSO 确认流程）
+      if (result.data?.alreadyLoggedIn) {
+        console.log('[API] 用户已登录，返回确认提示');
+        return NextResponse.json({
+          success: true,
+          data: {
+            alreadyLoggedIn: true,
+          },
+        });
+      }
+      
       // 优先使用从响应头获取的 sessionId
       const finalSessionId = sessionIdFromHeader || result.data?.sessionId;
       const user = result.data?.user;
