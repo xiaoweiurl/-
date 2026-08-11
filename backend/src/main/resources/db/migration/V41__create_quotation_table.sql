@@ -82,3 +82,51 @@ CREATE TRIGGER trg_quotations_updated_at
     EXECUTE FUNCTION update_quotations_updated_at();
 
 COMMENT ON TABLE quotations IS '报价单表：产品报价成本/利润/工价明细';
+
+-- ---------- 字段注释 ----------
+COMMENT ON COLUMN quotations.id         IS '主键ID';
+COMMENT ON COLUMN quotations.dh         IS '报价单号';
+COMMENT ON COLUMN quotations.zhdate     IS '制单日期';
+COMMENT ON COLUMN quotations.khname     IS '客户名称';
+COMMENT ON COLUMN quotations.huohao     IS '生产货号';
+COMMENT ON COLUMN quotations.houhaocp   IS '成品货号';
+COMMENT ON COLUMN quotations.remark     IS '备注';
+COMMENT ON COLUMN quotations.chima      IS '尺码';
+
+COMMENT ON COLUMN quotations.zpl        IS '正品率';
+COMMENT ON COLUMN quotations.jcb        IS '净成本';
+COMMENT ON COLUMN quotations.yunfei     IS '运费';
+COMMENT ON COLUMN quotations.shuijin    IS '理论税金';
+COMMENT ON COLUMN quotations.shuijin_sg IS '实际税金';
+COMMENT ON COLUMN quotations.xscb       IS '销售成本';
+COMMENT ON COLUMN quotations.khfl       IS '客户返利';
+
+COMMENT ON COLUMN quotations.saleprice  IS '产品售价';
+COMMENT ON COLUMN quotations.mlr        IS '单机毛利润';
+COMMENT ON COLUMN quotations.mlr_dp     IS '单品毛利润';
+COMMENT ON COLUMN quotations.bzlr       IS '标准利润';
+COMMENT ON COLUMN quotations.jsprice    IS '结算价';
+COMMENT ON COLUMN quotations.myprice    IS '美元价';
+
+COMMENT ON COLUMN quotations.countprice IS '前道合计';
+COMMENT ON COLUMN quotations.zhis       IS '下机时间';
+COMMENT ON COLUMN quotations.lyl        IS '利用率';
+COMMENT ON COLUMN quotations.rcl        IS '日产量';
+COMMENT ON COLUMN quotations.zzsb       IS '织造设备';
+COMMENT ON COLUMN quotations.sbdj       IS '机台费';
+COMMENT ON COLUMN quotations.zzcb       IS '织造成本';
+COMMENT ON COLUMN quotations.qdglf      IS '前道管理费用';
+
+COMMENT ON COLUMN quotations.dxprice    IS '定型';
+COMMENT ON COLUMN quotations.otherprice IS '其他工价';
+COMMENT ON COLUMN quotations.yllyl      IS '原料利用率';
+COMMENT ON COLUMN quotations.sumprice   IS '原料金额';
+COMMENT ON COLUMN quotations.fpprice    IS '缝拼工价';
+COMMENT ON COLUMN quotations.hdprice    IS '后道合计';
+COMMENT ON COLUMN quotations.bzprice    IS '包装';
+COMMENT ON COLUMN quotations.hdglf      IS '后道管理费用';
+COMMENT ON COLUMN quotations.fllyl      IS '辅料利用率';
+COMMENT ON COLUMN quotations.flsum      IS '辅料金额';
+
+COMMENT ON COLUMN quotations.created_at IS '创建时间';
+COMMENT ON COLUMN quotations.updated_at IS '更新时间';
