@@ -149,32 +149,26 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, rememberMe, forceLogin }),
       });
-      const result: LoginResponse = await response.json();
-      console.log('[Login] API response:', JSON.stringify(result, null, 2));
 
-      // SSO 弹窗判断：success=true 但没有 sessionId = 后端要求确认重复登录
-      // 使用双重判断：alreadyLoggedIn 字段 + 无 sessionId（更可靠）
-      const needSSOConfirm = result.success
-        && !forceLogin
-        && (result.data?.alreadyLoggedIn || (result.data && !result.data.sessionId && !result.data.user));
-
-      console.log('[Login] SSO check:', {
-        success: result.success,
-        forceLogin,
-        alreadyLoggedIn: result.data?.alreadyLoggedIn,
-        hasSessionId: !!result.data?.sessionId,
-        hasUser: !!result.data?.user,
-        needSSOConfirm,
-      });
-
-      if (needSSOConfirm) {
-        console.log('[Login] 后端检测到用户已登录，弹出确认框');
+      // SSO: HTTP 409 = 用户已在其他地方登录，需要确认
+      // 用 HTTP 状态码判断，不依赖 JSON 字段解析，最可靠
+      if (response.status === 409 && !forceLogin) {
+        console.log('[Login] SSO: HTTP 409，用户已登录，弹出确认框');
         setShowDuplicateLoginDialog(true);
         setIsLoading(false);
         return;
       }
 
+      const result: LoginResponse = await response.json();
+      console.log('[Login] API response:', JSON.stringify(result, null, 2));
+
       if (result.success && result.data) {
+        // 安全检查：正常登录必须有 user 数据，否则是异常响应
+        if (!result.data.user) {
+          console.error('[Login] 响应成功但缺少 user 数据:', JSON.stringify(result.data));
+          toast.error('登录异常', { description: '服务器返回数据不完整，请重试' });
+          return;
+        }
         const sessionId = result.data.sessionId;
         if (sessionId) {
           const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60;

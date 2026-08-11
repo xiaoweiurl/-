@@ -146,15 +146,14 @@ export async function POST(request: NextRequest) {
     console.log('[API /auth/login] forceLogin:', forceLogin, 'alreadyLoggedIn:', result.data?.alreadyLoggedIn);
     
     if (result.success || result.code === 200) {
-      // 检查是否已登录（SSO 确认流程）
+      // SSO: 检查是否已登录 — 用 HTTP 409 明确信号，不依赖 JSON 字段
       if (result.data?.alreadyLoggedIn) {
-        console.log('[API] 用户已登录，返回确认提示');
+        console.log('[API] 用户已登录，返回 409 确认提示');
         return NextResponse.json({
-          success: true,
-          data: {
-            alreadyLoggedIn: true,
-          },
-        });
+          success: false,
+          error: 'ALREADY_LOGGED_IN',
+          message: '该账户已在其他地方登录，确认登录将使之前的登录失效',
+        }, { status: 409 });
       }
       
       // 优先使用从响应头获取的 sessionId
@@ -228,7 +227,7 @@ export async function DELETE(request: NextRequest) {
   try {
     await backendFetch('/auth/logout', {
       method: 'POST',
-      requestHeaders: { 'X-Session-Id': sessionId || '' },
+      headers: { 'X-Session-Id': sessionId || '' },
     });
   } catch (error) {
     console.error('[API] 登出失败:', error);
