@@ -88,8 +88,8 @@ export default function LoginPage() {
     if (oldSessionId) {
       try {
         // 通知后端注销旧会话
-        await fetch('/api/auth/login', {
-          method: 'DELETE',
+        await fetch('/api/auth/logout', {
+          method: 'POST',
           credentials: 'include',
         });
       } catch {
