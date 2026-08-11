@@ -7,6 +7,16 @@ import { cn } from '@/lib/utils';
 import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight, Sparkles, Building2, CheckCircle2, Zap, Shield, Globe, Cpu, TrendingUp, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
 
 interface LoginResponse {
@@ -57,6 +67,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [rememberMe, setRememberMe] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [showDuplicateLoginDialog, setShowDuplicateLoginDialog] = React.useState(false);
+  const [duplicateLoginUsername, setDuplicateLoginUsername] = React.useState('');
   const [loggedInUser, setLoggedInUser] = React.useState<LoginResponse['data'] | null>(null);
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
 
@@ -131,26 +143,8 @@ export default function LoginPage() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      toast.error('请输入用户名和密码');
-      return;
-    }
-
-    // 检查是否是同一用户重复登录
-    const currentUsername = localStorage.getItem('username');
-    const currentSessionId = localStorage.getItem('session_id');
-    if (currentUsername && currentSessionId && currentUsername === username.trim()) {
-      // 同一用户重复登录，弹出确认框
-      const confirmed = window.confirm(
-        `账户 "${username.trim()}" 已在当前浏览器登录。\n\n确认登录将使之前的登录失效，是否继续？`
-      );
-      if (!confirmed) {
-        return;
-      }
-    }
-
+  // 实际执行登录逻辑
+  const doLogin = async () => {
     setIsLoading(true);
     try {
       // 登录前先清除旧会话（SSO：确保同一浏览器只有一个账号登录）
@@ -206,6 +200,33 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !password.trim()) {
+      toast.error('请输入用户名和密码');
+      return;
+    }
+
+    // 检查是否是同一用户重复登录
+    const currentUsername = localStorage.getItem('username');
+    const currentSessionId = localStorage.getItem('session_id');
+    if (currentUsername && currentSessionId && currentUsername === username.trim()) {
+      // 同一用户重复登录，弹出确认框
+      setDuplicateLoginUsername(username.trim());
+      setShowDuplicateLoginDialog(true);
+      return;
+    }
+
+    // 直接登录
+    await doLogin();
+  };
+
+  // 确认重复登录
+  const handleConfirmDuplicateLogin = async () => {
+    setShowDuplicateLoginDialog(false);
+    await doLogin();
   };
 
   const handleSelectCompany = async (companyKey: BrandKey) => {
@@ -716,6 +737,34 @@ export default function LoginPage() {
           </button>
         </div>
       </div>
+
+      {/* 重复登录确认弹窗 */}
+      <AlertDialog open={showDuplicateLoginDialog} onOpenChange={setShowDuplicateLoginDialog}>
+        <AlertDialogContent className="bg-slate-900/95 border-blue-500/30 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-blue-400" />
+              账户已登录
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              账户 <span className="text-blue-400 font-medium">{duplicateLoginUsername}</span> 已在当前浏览器登录。
+              <br />
+              确认登录将使之前的登录失效，是否继续？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100">
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDuplicateLogin}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              确认登录
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
