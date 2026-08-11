@@ -160,6 +160,13 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password, rememberMe, forceLogin }),
       });
       const result: LoginResponse = await response.json();
+      console.log('[Login] API response:', JSON.stringify(result, null, 2));
+      console.log('[Login] alreadyLoggedIn check:', {
+        hasData: !!result.data,
+        alreadyLoggedIn: result.data?.alreadyLoggedIn,
+        forceLogin,
+        willShowDialog: !!(result.data?.alreadyLoggedIn && !forceLogin),
+      });
 
       // 检查是否已登录（需要确认）
       if (result.data?.alreadyLoggedIn && !forceLogin) {

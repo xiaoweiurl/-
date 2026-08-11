@@ -142,6 +142,8 @@ export async function POST(request: NextRequest) {
     console.log('[API] 登录，从响应头 X-Session-Id 获取:', sessionIdFromHeader?.substring(0, 8) + '...');
     
     const result = await response.json();
+    console.log('[API /auth/login] 后端返回:', JSON.stringify(result, null, 2));
+    console.log('[API /auth/login] forceLogin:', forceLogin, 'alreadyLoggedIn:', result.data?.alreadyLoggedIn);
     
     if (result.success || result.code === 200) {
       // 检查是否已登录（SSO 确认流程）
@@ -217,17 +219,28 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  // 从 cookie 获取 session_id
+  const sessionId = request.cookies.get('session_id')?.value;
+  console.log('[API] 登出, sessionId:', sessionId ? '存在' : '不存在');
+
   // 调用后端登出
   try {
-    await backendFetch('/auth/logout', { method: 'POST' });
+    await backendFetch('/auth/logout', {
+      method: 'POST',
+      requestHeaders: { 'X-Session-Id': sessionId || '' },
+    });
   } catch (error) {
     console.error('[API] 登出失败:', error);
   }
-  
-  // 返回响应（前端会清除 localStorage）
-  return NextResponse.json({
+
+  // 清除 cookie
+  const response = NextResponse.json({
     success: true,
     message: '已退出登录',
   });
+  response.cookies.set('session_id', '', { maxAge: 0, path: '/' });
+  response.cookies.set('user_role', '', { maxAge: 0, path: '/' });
+  
+  return response;
 }
