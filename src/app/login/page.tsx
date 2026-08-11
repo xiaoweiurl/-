@@ -43,24 +43,8 @@ type PortalType = 'designer' | 'factory' | 'marketing' | null;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = React.useState<Step>(() => {
-    // 如果标记了返回角色选择页面，且用户有session，直接进入portal
-    if (typeof window !== 'undefined') {
-      const backToPortal = localStorage.getItem('back_to_portal');
-      if (backToPortal === 'true' && localStorage.getItem('session_id')) {
-        localStorage.removeItem('back_to_portal');
-        return 'portal';
-      }
-    }
-    return 'login';
-  });
-  const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('selected_brand');
-      if (saved === 'bonasi' || saved === 'yingyun') return saved;
-    }
-    return 'yingyun';
-  });
+  const [step, setStep] = React.useState<Step>('login');
+  const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>('yingyun');
   const [portal, setPortal] = React.useState<PortalType>(null);
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -73,6 +57,22 @@ export default function LoginPage() {
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
 
   const brand = BRANDS[selectedBrand];
+
+  // 客户端初始化：从 localStorage 恢复状态（避免 SSR hydration mismatch）
+  React.useEffect(() => {
+    // 恢复 step 状态
+    const backToPortal = localStorage.getItem('back_to_portal');
+    if (backToPortal === 'true' && localStorage.getItem('session_id')) {
+      localStorage.removeItem('back_to_portal');
+      setStep('portal');
+    }
+
+    // 恢复 selectedBrand 状态
+    const saved = localStorage.getItem('selected_brand');
+    if (saved === 'bonasi' || saved === 'yingyun') {
+      setSelectedBrand(saved);
+    }
+  }, []);
 
   // 当从子页面返回(step=portal)时，恢复用户信息
   React.useEffect(() => {
