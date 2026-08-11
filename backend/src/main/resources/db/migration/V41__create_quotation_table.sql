@@ -5,14 +5,14 @@
 CREATE TABLE IF NOT EXISTS quotations (
     id              BIGSERIAL PRIMARY KEY,
 
-    -- 基础信息
+    -- 基础信息（字符串字段非空，与实体规范一致；DEFAULT '' 防止插入缺省失败）
     dh              VARCHAR(64)  NOT NULL,              -- 报价单号
-    zhdate          TIMESTAMP,                          -- 制单日期
-    khname          VARCHAR(255),                       -- 客户名称
-    huohao          VARCHAR(128),                       -- 生产货号
-    houhaocp        VARCHAR(128),                       -- 成品货号
-    remark          TEXT,                               -- 备注
-    chima           VARCHAR(64),                        -- 尺码
+    zhdate          TIMESTAMP,                          -- 制单日期（可空）
+    khname          VARCHAR(255) NOT NULL DEFAULT '',   -- 客户名称
+    huohao          VARCHAR(128) NOT NULL DEFAULT '',   -- 生产货号
+    houhaocp        VARCHAR(128) NOT NULL DEFAULT '',   -- 成品货号
+    remark          TEXT         NOT NULL DEFAULT '',   -- 备注
+    chima           VARCHAR(64)  NOT NULL DEFAULT '',   -- 尺码
 
     -- 成本与税金
     zpl             NUMERIC(18,4),                      -- 正品率
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS quotations (
     zhis            NUMERIC(18,4),                      -- 下机时间
     lyl             NUMERIC(18,4),                      -- 利用率
     rcl             NUMERIC(18,4),                      -- 日产量
-    zzsb            VARCHAR(128),                       -- 织造设备
+    zzsb            VARCHAR(128) NOT NULL DEFAULT '',   -- 织造设备
     sbdj            NUMERIC(18,4),                      -- 机台费
     zzcb            NUMERIC(18,4),                      -- 织造成本
     qdglf           NUMERIC(18,4),                      -- 前道管理费用
