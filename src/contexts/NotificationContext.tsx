@@ -31,9 +31,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const previousIdsRef = useRef<Set<string>>(new Set());
+  const lastFetchTimeRef = useRef<number>(0);
+  const inFlightRef = useRef<boolean>(false);
 
-  // 获取通知 - 每次调用时重新读取最新状态
+  // 获取通知 - 带节流去重，防止短时间内重复请求
   const fetchNotifications = useCallback(async () => {
+    const now = Date.now();
+    // 3秒内不重复请求（去重 StrictMode 双调用 / 快速重复触发）
+    if (inFlightRef.current || now - lastFetchTimeRef.current < 3000) {
+      return;
+    }
+    inFlightRef.current = true;
+    lastFetchTimeRef.current = now;
     try {
       const res = await fetch('/api/notifications?limit=20', {
         credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
@@ -81,6 +90,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     } catch (error) {
       console.error('获取通知失败:', error);
+    } finally {
+      inFlightRef.current = false;
     }
   }, []);
 
