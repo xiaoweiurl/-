@@ -7,16 +7,6 @@ import { cn } from '@/lib/utils';
 import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight, Sparkles, Building2, CheckCircle2, Zap, Shield, Globe, Cpu, TrendingUp, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
 
 interface LoginResponse {
@@ -161,15 +151,23 @@ export default function LoginPage() {
       });
       const result: LoginResponse = await response.json();
       console.log('[Login] API response:', JSON.stringify(result, null, 2));
-      console.log('[Login] alreadyLoggedIn check:', {
-        hasData: !!result.data,
-        alreadyLoggedIn: result.data?.alreadyLoggedIn,
+
+      // SSO 弹窗判断：success=true 但没有 sessionId = 后端要求确认重复登录
+      // 使用双重判断：alreadyLoggedIn 字段 + 无 sessionId（更可靠）
+      const needSSOConfirm = result.success
+        && !forceLogin
+        && (result.data?.alreadyLoggedIn || (result.data && !result.data.sessionId && !result.data.user));
+
+      console.log('[Login] SSO check:', {
+        success: result.success,
         forceLogin,
-        willShowDialog: !!(result.data?.alreadyLoggedIn && !forceLogin),
+        alreadyLoggedIn: result.data?.alreadyLoggedIn,
+        hasSessionId: !!result.data?.sessionId,
+        hasUser: !!result.data?.user,
+        needSSOConfirm,
       });
 
-      // 检查是否已登录（需要确认）
-      if (result.data?.alreadyLoggedIn && !forceLogin) {
+      if (needSSOConfirm) {
         console.log('[Login] 后端检测到用户已登录，弹出确认框');
         setShowDuplicateLoginDialog(true);
         setIsLoading(false);
@@ -758,36 +756,48 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* 重复登录确认弹窗 */}
-      <AlertDialog open={showDuplicateLoginDialog} onOpenChange={(open) => {
-        console.log('[Login] AlertDialog onOpenChange:', open);
-        setShowDuplicateLoginDialog(open);
-      }}>
-        <AlertDialogContent className="bg-slate-900/95 border-blue-500/30 backdrop-blur-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-100 flex items-center gap-2">
+      {/* 重复登录确认弹窗 - 自定义 Modal */}
+      {showDuplicateLoginDialog && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          onClick={() => setShowDuplicateLoginDialog(false)}
+        >
+          {/* 遮罩层 */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          {/* 弹窗主体 */}
+          <div
+            className="relative bg-slate-900/95 border border-blue-500/30 backdrop-blur-xl rounded-xl p-6 max-w-md w-full mx-4 shadow-[0_0_30px_rgba(59,130,246,0.2)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 标题 */}
+            <div className="flex items-center gap-2 mb-4">
               <Shield className="w-5 h-5 text-blue-400" />
-              账户已登录
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
+              <h3 className="text-lg font-semibold text-slate-100">账户已登录</h3>
+            </div>
+            {/* 内容 */}
+            <p className="text-slate-400 text-sm mb-6">
               账户 <span className="text-blue-400 font-medium">{username}</span> 已在其他地方登录。
               <br />
               确认登录将使之前的登录失效，是否继续？
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100">
-              取消
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDuplicateLogin}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              确认登录
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </p>
+            {/* 按钮 */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDuplicateLoginDialog(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmDuplicateLogin}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm font-medium"
+              >
+                确认登录
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
