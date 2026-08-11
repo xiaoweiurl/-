@@ -18,6 +18,7 @@ export const loginSchema = z.object({
   password: z.string().min(1, '密码不能为空'),
   rememberMe: z.boolean().optional().default(false),
   company: z.string().optional(),
+  forceLogin: z.boolean().optional().default(false),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

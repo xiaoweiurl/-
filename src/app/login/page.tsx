@@ -190,8 +190,18 @@ export default function LoginPage() {
           const roleExpiry = new Date(Date.now() + 7 * 24 * 3600 * 1000).toUTCString();
           document.cookie = `user_role=${result.data.user.role}; path=/; expires=${roleExpiry}; SameSite=Lax`;
         }
+        if (result.data.user?.company) {
+          localStorage.setItem('user_company', result.data.user.company);
+        }
         setLoggedInUser(result.data);
         const userCompany = result.data.user?.company;
+        console.log('[Login] doLogin result:', {
+          hasUser: !!result.data.user,
+          userId: result.data.user?.id,
+          username: result.data.user?.username,
+          company: result.data.user?.company,
+          fullUser: result.data.user,
+        });
         if (userCompany && userCompany.trim() !== '') {
           const brandKey = userCompany === '宝娜斯' ? 'bonasi' : 'yingyun';
           setSelectedBrand(brandKey);
@@ -254,14 +264,15 @@ export default function LoginPage() {
     setPortal(portalType);
     localStorage.setItem('portal_type', portalType || 'designer');
     toast.success('欢迎进入', { description: '正在跳转...' });
-    if (portalType === 'factory') {
-      router.replace('/supply-chain');
-    } else if (portalType === 'marketing') {
-      router.replace('/marketing');
-    } else {
-      router.replace('/');
-    }
-    router.refresh();
+    setTimeout(() => {
+      if (portalType === 'factory') {
+        window.location.href = '/supply-chain';
+      } else if (portalType === 'marketing') {
+        window.location.href = '/marketing';
+      } else {
+        window.location.href = '/';
+      }
+    }, 300);
   };
 
   // ========== Step 1: 登录 ==========
