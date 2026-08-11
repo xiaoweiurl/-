@@ -147,8 +147,11 @@ export default function LoginPage() {
   const doLogin = async (forceLogin: boolean = false) => {
     setIsLoading(true);
     try {
-      // 登录前先清除旧会话（SSO：确保同一浏览器只有一个账号登录）
-      await clearOldSession();
+      // SSO：只在确认强制登录时才清除旧会话
+      // 首次登录（forceLogin=false）不清除，让后端 Redis 判断是否已有活跃会话
+      if (forceLogin) {
+        await clearOldSession();
+      }
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
