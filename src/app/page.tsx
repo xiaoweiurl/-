@@ -969,6 +969,29 @@ export default function Home() {
     };
   }, []); // 空依赖，只在挂载时执行一次
 
+  // 跨标签页会话同步：当其他标签页登录/登出时，当前标签页自动响应
+  React.useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'session_id') {
+        if (e.newValue === null) {
+          // 其他标签页登出了，当前标签页也登出
+          localStorage.removeItem('session_id');
+          localStorage.removeItem('session_expires');
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('username');
+          localStorage.removeItem('user_role');
+          localStorage.removeItem('user_company');
+          window.location.href = '/login';
+        } else if (e.newValue !== e.oldValue) {
+          // 其他标签页登录了不同账号，当前标签页刷新以同步
+          window.location.reload();
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // 监听菜单项变化，重新获取数据
   React.useEffect(() => {
     // 排除初始化时（auth check 会自动获取）
@@ -992,12 +1015,17 @@ export default function Home() {
   const handleLogout = async () => {
     try {
       await backendFetch('/auth/login', { method: 'DELETE' });
-      // 清除 localStorage 中的 session
+      // 清除 localStorage 中的 session 和用户数据
       localStorage.removeItem('session_id');
       localStorage.removeItem('session_expires');
       localStorage.removeItem('portal_type');
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('username');
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('user_company');
       // 清除 Cookie 中的 session
       document.cookie = 'session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+      document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
       toast.success('已退出登录');
       window.location.href = '/login';
     } catch (error) {

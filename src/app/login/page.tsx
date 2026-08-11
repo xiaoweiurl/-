@@ -80,6 +80,57 @@ export default function LoginPage() {
     }
   }, []);
 
+  // 清除旧会话数据（登录前调用）
+  const clearOldSession = async () => {
+    const oldSessionId = localStorage.getItem('session_id');
+    if (oldSessionId) {
+      try {
+        // 通知后端注销旧会话
+        await fetch('/api/auth/login', {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+      } catch {
+        // 忽略登出失败，继续登录
+      }
+    }
+    // 清除所有本地存储的用户数据
+    localStorage.removeItem('session_id');
+    localStorage.removeItem('session_expires');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('username');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_company');
+    // 清除 cookie
+    document.cookie = 'session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  };
+
+  // 跨标签页会话同步：当其他标签页登录/登出时，当前标签页自动刷新
+  React.useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'session_id') {
+        if (e.newValue === null) {
+          // 其他标签页登出了，当前标签页也登出
+          localStorage.removeItem('session_id');
+          localStorage.removeItem('session_expires');
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('username');
+          localStorage.removeItem('user_role');
+          localStorage.removeItem('user_company');
+          setLoggedInUser(null);
+          setStep('login');
+          toast.info('已在其他窗口登出');
+        } else if (e.newValue !== e.oldValue && e.newValue !== localStorage.getItem('session_id')) {
+          // 其他标签页登录了不同账号，当前标签页刷新以同步
+          window.location.reload();
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
@@ -88,6 +139,9 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
+      // 登录前先清除旧会话（SSO：确保同一浏览器只有一个账号登录）
+      await clearOldSession();
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'include',
