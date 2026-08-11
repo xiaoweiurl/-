@@ -79,6 +79,50 @@ export async function GET(request: NextRequest) {
 }
 
 /**
+ * DELETE /api/notifications?id=xxx
+ * 删除单条通知
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, message: '缺少通知ID' },
+        { status: 400 }
+      );
+    }
+
+    // 尝试调用后端
+    try {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const response = await userApi.deleteNotification(id, { cookie: cookieHeader });
+      const { result, ok } = await safeParseResponse(response as any);
+      if (ok) {
+        return NextResponse.json(result);
+      }
+    } catch (backendError) {
+      console.warn('[API] 后端不可用，使用降级模式:', backendError);
+    }
+
+    // 降级模式
+    fallbackNotifications = fallbackNotifications.filter(n => n.id !== id);
+    return NextResponse.json({
+      success: true,
+      message: '通知已删除（降级模式）',
+      unreadCount: fallbackNotifications.filter(n => !n.read).length,
+    });
+  } catch (error) {
+    console.error('[API] 删除通知失败:', error);
+    return NextResponse.json(
+      { success: false, message: '删除失败' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/notifications
  * 创建通知
  */
