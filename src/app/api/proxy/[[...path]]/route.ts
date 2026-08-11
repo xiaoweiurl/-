@@ -72,9 +72,6 @@ async function proxyRequest(request: NextRequest, method: string) {
     }
 
     console.log(`[Proxy] ${method} → ${targetUrl}`);
-    if (path.includes('/auth/logout')) {
-      console.log(`[Proxy] 登出请求, cookie中sessionId: ${sessionIdFromCookie ? sessionIdFromCookie.substring(0, 8) + '...' : 'null'}, X-Session-Id头: ${headers.get('X-Session-Id') ? '已设置' : '未设置'}`);
-    }
 
     const backendResponse = await fetch(targetUrl, fetchOptions);
 

@@ -5,7 +5,6 @@ import com.imagemanager.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -37,51 +36,18 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
         
-        // ===== 优先检查 Spring Security 的 SecurityContext =====
+        // 优先检查 Spring Security 的 SecurityContext（SessionIdAuthFilter 已设置）
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated() && authentication.getPrincipal() != null) {
-            log.info("=== AuthInterceptor ===");
-            log.info("请求路径: {}", path);
-            log.info("SecurityContext 已有认证: {}", authentication.getPrincipal());
-            // 如果 SecurityContext 已有认证信息，不再做额外的 session 验证
             return true;
         }
         
-        // 调试：打印所有请求头
-        log.info("=== AuthInterceptor ===");
-        log.info("请求路径: {}", path);
-        log.info("SecurityContext 无认证信息，继续验证...");
-        log.info("X-Session-Id header: {}", request.getHeader("X-Session-Id"));
-        log.info("Cookie header: {}", request.getHeader("Cookie"));
-        
-        // 尝试从多个来源获取 sessionId
+        // SecurityContext 无认证信息，尝试从请求中提取 sessionId 验证
         String sessionId = extractSessionId(request);
         
-        // 记录请求的 cookies 用于调试
-        StringBuilder cookieDebug = new StringBuilder();
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                String valuePreview = c.getValue().length() > 8 ? c.getValue().substring(0, 8) + "..." : c.getValue();
-                cookieDebug.append(c.getName()).append("=").append(valuePreview).append("; ");
-            }
-        } else {
-            cookieDebug.append("null");
-        }
-        log.info("解析到的 cookies: {}", cookieDebug.toString());
-        
-        // 尝试验证 session
         LoginResponse.UserInfo userInfo = null;
         if (sessionId != null) {
-            log.info("提取到的 sessionId: {}", sessionId.substring(0, Math.min(8, sessionId.length())));
             userInfo = authService.validateSession(sessionId);
-            if (userInfo != null) {
-                log.info("Session 验证成功，用户: {}", userInfo.getUsername());
-            } else {
-                log.warn("Session 验证失败，sessionId: {}", sessionId.substring(0, Math.min(8, sessionId.length())));
-            }
-        } else {
-            log.warn("无法提取 sessionId");
         }
         
         if (userInfo == null) {
@@ -95,18 +61,16 @@ public class AuthInterceptor implements HandlerInterceptor {
         // 将用户信息存储到请求属性中
         request.setAttribute(USER_INFO_ATTRIBUTE, userInfo);
         
-        // 检查管理员权限 - 支持大小写不敏感比较
+        // 检查管理员权限
         boolean isAdmin = "ADMIN".equalsIgnoreCase(userInfo.getRole());
         if (path.startsWith("/admin/") && !isAdmin) {
-            log.warn("用户 {} (角色: {}) 试图访问管理员端点: {}", userInfo.getUsername(), userInfo.getRole(), path);
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
-            response.getWriter().write("{\"success\":false,\"error\":\"您没有权限执行此操作 (需要 ADMIN 权限，当前: " + userInfo.getRole() + ")\"}");
+            response.getWriter().write("{\"success\":false,\"error\":\"您没有权限执行此操作\"}");
             return false;
         }
         
-        log.debug("用户 {} 通过认证: {}", userInfo.getUsername(), path);
         return true;
     }
     
@@ -115,10 +79,9 @@ public class AuthInterceptor implements HandlerInterceptor {
      * 支持多种方式：session_id cookie, X-Session-Id header, Authorization header
      */
     private String extractSessionId(HttpServletRequest request) {
-        // 1. 优先从 X-Session-Id 请求头获取（前端主要方式）
+        // 1. 优先从 X-Session-Id 请求头获取
         String xSessionId = request.getHeader("X-Session-Id");
         if (xSessionId != null && !xSessionId.isEmpty()) {
-            log.debug("从 X-Session-Id header 获取 sessionId: {}", xSessionId.substring(0, Math.min(8, xSessionId.length())));
             return xSessionId;
         }
         
@@ -143,13 +106,12 @@ public class AuthInterceptor implements HandlerInterceptor {
             }
         }
         
-        // 4. 从 Authorization header 获取（Authorization: Bearer xxx）
+        // 4. 从 Authorization header 获取
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
         
-        // 5. 最后从参数中获取
         return request.getParameter("session_id");
     }
     

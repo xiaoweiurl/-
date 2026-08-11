@@ -134,30 +134,22 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        // 优先从 body 获取 sessionId（前端显式传递，最可靠）
+        // 优先从 body 获取 sessionId
         String sessionId = null;
         if (body != null && body.get("sessionId") != null && !body.get("sessionId").isEmpty()) {
             sessionId = body.get("sessionId");
-            log.info("登出: 从 body 获取 sessionId={}", sessionId.substring(0, Math.min(8, sessionId.length())) + "...");
         }
-
         // 兜底：从请求头/Cookie 获取
         if (sessionId == null || sessionId.isEmpty()) {
             sessionId = extractSessionId(request);
-            log.info("登出: 从 header/cookie 获取 sessionId={}", sessionId != null ?
-                sessionId.substring(0, Math.min(8, sessionId.length())) + "..." : "null");
         }
 
         if (sessionId != null && !sessionId.isEmpty()) {
             authService.logout(sessionId);
-            log.info("登出: Redis session 已删除, sessionId={}", sessionId.substring(0, Math.min(8, sessionId.length())) + "...");
-        } else {
-            log.warn("登出: sessionId 为空，无法删除 Redis session");
         }
 
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
         response.setHeader("Access-Control-Allow-Credentials", "true");
-        // 清除前端 cookie
         response.setHeader("Set-Cookie", "session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
 
         return ApiResponse.success("登出成功", null);
@@ -184,14 +176,8 @@ public class AuthController {
             sessionId = extractSessionId(request);
         }
 
-        log.info("删除Redis会话: sessionId={}", sessionId != null ?
-            sessionId.substring(0, Math.min(8, sessionId.length())) + "..." : "null");
-
         if (sessionId != null && !sessionId.isEmpty()) {
             authService.logout(sessionId);
-            log.info("删除Redis会话: 成功删除 session={}", sessionId.substring(0, Math.min(8, sessionId.length())) + "...");
-        } else {
-            log.warn("删除Redis会话: sessionId 为空，无法删除");
         }
 
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");

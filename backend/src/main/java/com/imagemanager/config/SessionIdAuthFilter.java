@@ -48,56 +48,35 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
             return;
         }
         
-        // 调试日志
-        log.info("=== SessionIdAuthFilter ===");
-        log.info("请求路径: {}", path);
-        log.info("X-Session-Id header: {}", request.getHeader("X-Session-Id"));
-        
         // 尝试从多个来源获取 sessionId
         String sessionId = extractSessionId(request);
         
         if (sessionId != null) {
-            log.info("提取到的 sessionId: {}", sessionId.length() > 8 ? sessionId.substring(0, 8) + "..." : sessionId);
-            
-            // 验证 session
+            // 验证 session（从 Redis 读取）
             LoginResponse.UserInfo userInfo = authService.validateSession(sessionId);
             
             if (userInfo != null && userInfo.getUsername() != null) {
-                log.info("Session 验证成功，用户: {}", userInfo.getUsername());
-                
                 // 将用户信息存储到 request 属性中，供后续使用
                 request.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, userInfo);
                 
-                // ===== 关键修复：将认证信息设置到 Spring Security 的 SecurityContext =====
-                // 创建权限列表
+                // 将认证信息设置到 Spring Security 的 SecurityContext
                 String role = userInfo.getRole();
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority(
                     role != null && "ADMIN".equalsIgnoreCase(role) ? "ROLE_ADMIN" : "ROLE_USER"
                 );
                 
-                // 创建 Authentication 对象
-                // 重要：principal 使用 userInfo.getId()（真正的用户ID，如"user-1"），而不是 getUsername()（用户名）
-                // 这样 auth.getName() 会返回用户ID，用于通知创建等场景的外键约束
                 UsernamePasswordAuthenticationToken authentication = 
                     new UsernamePasswordAuthenticationToken(
-                        userInfo.getId(),         // principal = 用户ID（如"user-1"）
-                        null,                     // credentials
-                        Collections.singletonList(authority)  // authorities
+                        userInfo.getId(),
+                        null,
+                        Collections.singletonList(authority)
                     );
                 
-                // 将 Authentication 设置到 SecurityContext
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 
-                log.info("已设置 Spring Security 认证上下文");
-                
-                // 继续执行过滤链
                 filterChain.doFilter(request, response);
                 return;
-            } else {
-                log.warn("Session 验证失败");
             }
-        } else {
-            log.warn("无法提取 sessionId");
         }
         
         // 没有有效的 session，继续执行（让 Spring Security 处理）

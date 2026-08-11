@@ -314,15 +314,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String sessionId) {
-        log.info("SSO logout: 开始登出, sessionId={}", sessionId);
         if (sessionId == null || sessionId.isEmpty()) {
-            log.warn("SSO logout: sessionId为空，跳过登出");
             return;
         }
 
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(sessionKey);
-        log.info("SSO logout: session数据: key={}, hasData={}, fields={}", sessionKey, !sessionData.isEmpty(), sessionData.keySet());
 
         if (!sessionData.isEmpty()) {
             String userId = (String) sessionData.get("userId");
@@ -331,20 +328,18 @@ public class AuthServiceImpl implements AuthService {
             // 删除 session
             redisTemplate.delete(sessionKey);
 
-            // SSO: 清除用户当前 session 映射（仅当是当前 session 时才清除）
+            // SSO: 清除用户当前 session 映射
             if (userId != null) {
                 String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
                 String currentSessionId = redisTemplate.opsForValue().get(userSessionKey);
-                log.info("SSO logout: 检查用户会话映射: key={}, currentSessionId={}, isMatch={}", userSessionKey, currentSessionId, sessionId.equals(currentSessionId));
                 if (sessionId.equals(currentSessionId)) {
                     redisTemplate.delete(userSessionKey);
-                    log.info("SSO logout: 已删除用户会话映射: key={}", userSessionKey);
                 }
             }
 
             log.info("用户登出：{}", username);
 
-            // 清理用户 LLM 缓存（权限变更/登出场景）
+            // 清理用户 LLM 缓存
             if (userId != null) {
                 try {
                     llmCacheService.clearUserCache(userId);
