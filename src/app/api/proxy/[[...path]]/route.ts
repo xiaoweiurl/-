@@ -143,5 +143,14 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  // 拦截 /auth/login 的 DELETE 请求，不应该走 proxy 转发到后端
+  // 登出应该走 /api/auth/login 的 DELETE 处理器（调后端 POST /auth/logout）
+  const path = request.nextUrl.pathname.replace('/api/proxy', '');
+  if (path === '/auth/login' || path === '/auth/login/') {
+    return NextResponse.json(
+      { success: false, error: '请使用 /api/auth/login (DELETE) 进行登出' },
+      { status: 405 }
+    );
+  }
   return proxyRequest(request, 'DELETE');
 }

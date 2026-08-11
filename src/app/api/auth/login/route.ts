@@ -219,18 +219,27 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  // 从 cookie 获取 session_id
-  const sessionId = request.cookies.get('session_id')?.value;
-  console.log('[API] 登出, sessionId:', sessionId ? '存在' : '不存在');
+  // 从 cookie 获取 session_id（HttpOnly cookie 在服务端可读）
+  let sessionId = request.cookies.get('session_id')?.value;
+  // 后备：从请求头获取（前端可能通过 X-Session-Id 传入）
+  if (!sessionId) {
+    sessionId = request.headers.get('X-Session-Id') || '';
+  }
+  console.log('[API] 登出, sessionId:', sessionId ? sessionId.substring(0, 8) + '...' : '不存在');
 
-  // 调用后端登出
-  try {
-    await backendFetch('/auth/logout', {
-      method: 'POST',
-      headers: { 'X-Session-Id': sessionId || '' },
-    });
-  } catch (error) {
-    console.error('[API] 登出失败:', error);
+  // 调用后端登出（POST /auth/logout，不是 DELETE /auth/login）
+  if (sessionId) {
+    try {
+      await backendFetch('/auth/logout', {
+        method: 'POST',
+        headers: { 'X-Session-Id': sessionId },
+      });
+      console.log('[API] 后端登出成功');
+    } catch (error) {
+      console.error('[API] 登出失败:', error);
+    }
+  } else {
+    console.warn('[API] 登出时未找到 sessionId');
   }
 
   // 清除 cookie
