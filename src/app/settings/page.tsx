@@ -147,8 +147,15 @@ export default function SettingsPage() {
         toast.success('密码修改成功，请重新登录');
         setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
         
-        // 退出登录
-        await fetch('/api/proxy/auth/logout', { method: 'POST', credentials: 'include' });
+        // 退出登录，把 sessionId 放 body 确保后端能删除 Redis session
+        const sessionId = localStorage.getItem('session_id');
+        await fetch('/api/proxy/auth/logout', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        });
+        localStorage.removeItem('session_id');
         
         // 延迟跳转，让用户看到成功提示
         setTimeout(() => {

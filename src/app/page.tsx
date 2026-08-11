@@ -1014,10 +1014,14 @@ export default function Home() {
   // 登出
   const handleLogout = async () => {
     try {
-      // 直接调 /api/auth/login (DELETE)，不走 /api/proxy
-      // 因为 /api/auth/login 的 DELETE 处理器会从 cookie 读取 session_id 并通知后端删除 Redis session
-      // 调后端 POST /auth/logout，proxy 自动从 cookie 读取 session_id 并转发
-      await fetch('/api/proxy/auth/logout', { method: 'POST', credentials: 'include' });
+      // 从 localStorage 取 sessionId 放到 body，确保后端能拿到并删除 Redis session
+      const sessionId = localStorage.getItem('session_id');
+      await fetch('/api/proxy/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
       // 清除 localStorage 中的 session 和用户数据
       localStorage.removeItem('session_id');
       localStorage.removeItem('session_expires');
@@ -1026,9 +1030,6 @@ export default function Home() {
       localStorage.removeItem('username');
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_company');
-      // 清除 Cookie 中的 session
-      document.cookie = 'session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-      document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
       toast.success('已退出登录');
       window.location.href = '/login';
     } catch (error) {
