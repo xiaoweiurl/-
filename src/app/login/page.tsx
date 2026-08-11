@@ -212,8 +212,19 @@ export default function LoginPage() {
     // 检查是否是同一用户重复登录
     const currentUsername = localStorage.getItem('username');
     const currentSessionId = localStorage.getItem('session_id');
-    if (currentUsername && currentSessionId && currentUsername === username.trim()) {
+    const sessionExpires = localStorage.getItem('session_expires');
+    const isSessionValid = currentSessionId && sessionExpires && Date.now() < parseInt(sessionExpires);
+    
+    console.log('[Login] 检查重复登录:', {
+      currentUsername,
+      inputUsername: username.trim(),
+      currentSessionId: currentSessionId ? '存在' : '不存在',
+      isSessionValid: isSessionValid ? '有效' : '无效',
+    });
+    
+    if (currentUsername && isSessionValid && currentUsername.toLowerCase() === username.trim().toLowerCase()) {
       // 同一用户重复登录，弹出确认框
+      console.log('[Login] 检测到同一用户重复登录，弹出确认框');
       setDuplicateLoginUsername(username.trim());
       setShowDuplicateLoginDialog(true);
       return;
@@ -739,7 +750,10 @@ export default function LoginPage() {
       </div>
 
       {/* 重复登录确认弹窗 */}
-      <AlertDialog open={showDuplicateLoginDialog} onOpenChange={setShowDuplicateLoginDialog}>
+      <AlertDialog open={showDuplicateLoginDialog} onOpenChange={(open) => {
+        console.log('[Login] AlertDialog onOpenChange:', open);
+        setShowDuplicateLoginDialog(open);
+      }}>
         <AlertDialogContent className="bg-slate-900/95 border-blue-500/30 backdrop-blur-xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-slate-100 flex items-center gap-2">
