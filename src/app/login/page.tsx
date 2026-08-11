@@ -87,15 +87,15 @@ export default function LoginPage() {
     const oldSessionId = localStorage.getItem('session_id');
     if (oldSessionId) {
       try {
-        // 通知后端注销旧会话，把 sessionId 放 body 确保后端能删除 Redis session
-        await fetch('/api/proxy/auth/logout', {
-          method: 'POST',
+        // 调专用接口删除 Redis 中的旧 session
+        await fetch('/api/proxy/auth/session', {
+          method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: oldSessionId }),
         });
       } catch {
-        // 忽略登出失败，继续登录
+        // 忽略失败，继续登录
       }
     }
     // 清除所有本地存储的用户数据

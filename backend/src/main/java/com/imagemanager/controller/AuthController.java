@@ -162,7 +162,45 @@ public class AuthController {
 
         return ApiResponse.success("登出成功", null);
     }
-    
+
+    /**
+     * 删除当前用户在 Redis 中的 session（专用接口）
+     * 前端登出时调用此接口确保 Redis session 被清除
+     */
+    @DeleteMapping("/session")
+    @Operation(summary = "删除Redis会话", description = "删除当前用户在Redis中存储的sessionID")
+    public ApiResponse<Void> deleteSession(
+            @RequestBody(required = false) Map<String, String> body,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        // 优先从 body 获取 sessionId
+        String sessionId = null;
+        if (body != null && body.get("sessionId") != null && !body.get("sessionId").isEmpty()) {
+            sessionId = body.get("sessionId");
+        }
+        // 兜底：从 header/cookie 获取
+        if (sessionId == null || sessionId.isEmpty()) {
+            sessionId = extractSessionId(request);
+        }
+
+        log.info("删除Redis会话: sessionId={}", sessionId != null ?
+            sessionId.substring(0, Math.min(8, sessionId.length())) + "..." : "null");
+
+        if (sessionId != null && !sessionId.isEmpty()) {
+            authService.logout(sessionId);
+            log.info("删除Redis会话: 成功删除 session={}", sessionId.substring(0, Math.min(8, sessionId.length())) + "...");
+        } else {
+            log.warn("删除Redis会话: sessionId 为空，无法删除");
+        }
+
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Set-Cookie", "session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+
+        return ApiResponse.success("Redis会话已删除", null);
+    }
+
     /**
      * 验证会话
      */

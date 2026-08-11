@@ -1014,10 +1014,10 @@ export default function Home() {
   // 登出
   const handleLogout = async () => {
     try {
-      // 从 localStorage 取 sessionId 放到 body，确保后端能拿到并删除 Redis session
+      // 从 localStorage 取 sessionId，调专用接口删除 Redis 中的 session
       const sessionId = localStorage.getItem('session_id');
-      await fetch('/api/proxy/auth/logout', {
-        method: 'POST',
+      await fetch('/api/proxy/auth/session', {
+        method: 'DELETE',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId }),

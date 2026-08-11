@@ -147,10 +147,10 @@ export default function SettingsPage() {
         toast.success('密码修改成功，请重新登录');
         setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
         
-        // 退出登录，把 sessionId 放 body 确保后端能删除 Redis session
+        // 退出登录，调专用接口删除 Redis 中的 session
         const sessionId = localStorage.getItem('session_id');
-        await fetch('/api/proxy/auth/logout', {
-          method: 'POST',
+        await fetch('/api/proxy/auth/session', {
+          method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId }),
