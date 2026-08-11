@@ -26,17 +26,11 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
 
-// 轮询间隔（毫秒）
-const POLL_INTERVAL = 30000; // 30秒
-
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const previousIdsRef = useRef<Set<string>>(new Set());
-
-  // 使用 ref 存储轮询 interval ID
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // 获取通知 - 每次调用时重新读取最新状态
   const fetchNotifications = useCallback(async () => {
@@ -90,23 +84,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  // 初始加载和轮询
+  // 初始加载一次（获取未读数用于角标显示）
   useEffect(() => {
-    // 立即获取一次
     fetchNotifications();
-    
-    // 设置轮询
-    pollIntervalRef.current = setInterval(() => {
-      fetchNotifications();
-    }, POLL_INTERVAL);
-    
-    // 清理函数
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
   }, [fetchNotifications]);
 
   // 标记单个通知为已读

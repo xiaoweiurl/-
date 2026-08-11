@@ -87,7 +87,7 @@ export default function Header({
   const [showUserMenu, setShowUserMenu] = React.useState(false);
   const brandAccent = brand?.key === 'bonasi' ? 'rose' : 'blue';
   
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNewFlag } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNewFlag, fetchNotifications } = useNotifications();
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -271,7 +271,11 @@ export default function Header({
         {/* 通知 */}
         <div className="relative">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => {
+              const next = !showNotifications;
+              setShowNotifications(next);
+              if (next) fetchNotifications(); // 打开时刷新通知列表
+            }}
             className="relative p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-700/80 rounded-lg transition-colors"
           >
             <Bell className={cn("w-4 h-4", unreadCount > 0 && 'animate-bell-shake')} />
