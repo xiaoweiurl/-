@@ -144,12 +144,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
-                // 2. 意图识别：供应链意图仅在工厂模式下生效
-                // 并入报价意图(单号/报价指标)与客户名反向匹配，确保"XX有多少单号"类问题进入供应链检索
-                boolean supplyChainIntent = "factory".equals(mode)
-                        && (isSupplyChainIntent(message)
-                            || isQuotationIntent(message)
-                            || (quotationCalcService != null && quotationCalcService.matchKhnameInQuery(message) != null));
+                // 2. 意图识别：供应链关键词意图仅在工厂模式下生效（只用于"宽泛模糊检索"的兜底开关）
+                // 精确报价检索不依赖关键词，改为"实体驱动"（见步骤3），与提问方式无关
+                boolean supplyChainIntent = "factory".equals(mode) && isSupplyChainIntent(message);
                 boolean hasProductCode = "factory".equals(mode) && extractProductCode(message) != null;
                 // 当用户提到具体产品编码+供应链意图时，认为是"强供应链意图"
                 boolean strongSupplyChainIntent = supplyChainIntent && hasProductCode;
@@ -186,11 +183,27 @@ public class SmartChatServiceImpl implements SmartChatService {
                 log.info("意图识别: mode={}, isFactory={}, generalChatIntent={}, webSearchIntent={}, externalKnowledgeIntent={}, supplyChainIntent={}, positionIntent={}",
                         mode, isFactory, generalChatIntent, webSearchIntent, externalKnowledgeIntent, supplyChainIntent, positionIntent);
 
-                // 3. 供应链/工厂数据检索(优先检索，命中后降低知识库检索权重)
+                // 3. 供应链/工厂数据检索
+                // 设计原则【实体驱动，而非关键词驱动】：
+                //   - 精确报价检索只判断"问题中是否包含库里真实存在的实体"（报价单号/客户名称），
+                //     与提问方式无关——"海宁世正有多少单号/海宁世正的订单/查下海宁世正/20250625-001S" 都能命中；
+                //   - 宽泛模糊检索仍由关键词意图兜底，防止无关数据导致幻觉。
                 List<Map<String, Object>> supplyChainResults = Collections.emptyList();
-                if (supplyChainIntent && !generalChatIntent) {
+                if (isFactory && !generalChatIntent) {
                     try {
-                        supplyChainResults = searchSupplyChain(message, company, userId);
+                        List<Map<String, Object>> precise = (quotationCalcService != null)
+                                ? searchQuotation(message) : Collections.emptyList();
+                        boolean otherIntent = isSchedulingIntent(message) || isPartsIntent(message) || isMaterialIntent(message);
+                        if (!precise.isEmpty()) {
+                            supplyChainResults = new ArrayList<>(precise);
+                            log.info("报价维度实体命中(实体驱动), 条数={}", precise.size());
+                            // 问题同时涉及其他维度时再并入宽泛检索
+                            if (otherIntent || supplyChainIntent) {
+                                supplyChainResults.addAll(searchSupplyChain(message, company, userId));
+                            }
+                        } else if (supplyChainIntent || otherIntent) {
+                            supplyChainResults = searchSupplyChain(message, company, userId);
+                        }
                         log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
                     } catch (Exception e) {
                         log.warn("供应链数据检索异常: {}", e.getMessage());
@@ -1540,26 +1553,6 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 报价单意图识别 - 判断是否在询问报价单(order_bjd_query)的指标
-     */
-    private boolean isQuotationIntent(String message) {
-        String lower = message.toLowerCase();
-        // 含报价单号格式（如 20250625-001S）直接命中
-        if (extractQuotationNo(message) != null) return true;
-        String[] patterns = {
-            "报价单", "净成本", "销售成本", "日产量", "机台费", "织造成本",
-            "理论税金", "实际税金", "前道合计", "后道合计", "辅料金额", "原料金额",
-            "缝拼工价", "下机时间", "利用率", "正品率", "结算价", "美元价",
-            "标准利润", "毛利润", "客户返利", "定型", "包装费", "后道管理", "前道管理",
-            "单号", "多少单", "几个单", "订单数", "下单"
-        };
-        for (String kw : patterns) {
-            if (lower.contains(kw)) return true;
-        }
-        return false;
-    }
-
-    /**
      * 提取报价单号（形如 20250625-001S）
      */
     private String extractQuotationNo(String message) {
@@ -1855,25 +1848,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     private List<Map<String, Object>> searchSupplyChain(String query, String company, String userId) {
         List<Map<String, Object>> results = new ArrayList<>();
 
-        // 报价单维度：精确匹配 order_bjd_query
-        boolean quotationIntent = isQuotationIntent(query);
-        // 兜底：问题中含库内客户名称（如"海宁世正…"）也视为报价维度
-        if (!quotationIntent && quotationCalcService != null) {
-            quotationIntent = quotationCalcService.matchKhnameInQuery(query) != null;
-        }
-        boolean otherIntent = isSchedulingIntent(query) || isPartsIntent(query) || isMaterialIntent(query);
-        if (quotationIntent && quotationCalcService != null) {
-            List<Map<String, Object>> q = searchQuotation(query);
-            if (!q.isEmpty()) {
-                log.info("报价单维度命中, 并入结果, 条数={}", q.size());
-                results.addAll(q);
-                // 带具体单号且精确命中, 或纯报价问题: 只返回精确报价数据, 跳过模糊检索, 避免无关维度数据导致幻觉
-                boolean exactOrder = extractQuotationNo(query) != null;
-                if (exactOrder || !otherIntent) {
-                    return results;
-                }
-            }
-        }
+        // 注：精确报价检索（实体驱动）已上移到主流程步骤3，这里只做宽泛的排产/部件/物料/供应商等检索
 
         try {
             // L1 缓存：检查 RAG 检索结果缓存（按用户隔离）
