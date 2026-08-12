@@ -63,6 +63,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     private com.imagemanager.tools.SupplyChainTools supplyChainTools;
 
     @Autowired(required = false)
+    private com.imagemanager.service.QuotationCalcService quotationCalcService;
+
+    @Autowired(required = false)
     private com.imagemanager.enhance.RagPipeline ragPipeline;
 
     @Autowired(required = false)
@@ -1522,6 +1525,64 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
+     * 报价单意图识别 - 判断是否在询问报价单(order_bjd_query)的指标
+     */
+    private boolean isQuotationIntent(String message) {
+        String lower = message.toLowerCase();
+        // 含报价单号格式（如 20250625-001S）直接命中
+        if (extractQuotationNo(message) != null) return true;
+        String[] patterns = {
+            "报价单", "净成本", "销售成本", "日产量", "机台费", "织造成本",
+            "理论税金", "实际税金", "前道合计", "后道合计", "辅料金额", "原料金额",
+            "缝拼工价", "下机时间", "利用率", "正品率", "结算价", "美元价",
+            "标准利润", "毛利润", "客户返利", "定型", "包装费", "后道管理", "前道管理"
+        };
+        for (String kw : patterns) {
+            if (lower.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 提取报价单号（形如 20250625-001S）
+     */
+    private String extractQuotationNo(String message) {
+        if (message == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6,8}-[A-Za-z0-9]+)\\b").matcher(message);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /**
+     * 报价单查询+确定性计算，返回可直接注入上下文的结果
+     */
+    private List<Map<String, Object>> searchQuotation(String query) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            String dh = extractQuotationNo(query);
+            List<Map<String, Object>> rows = (dh != null)
+                    ? quotationCalcService.queryByDh(dh)
+                    : quotationCalcService.queryByKeyword(query);
+            for (Map<String, Object> row : rows) {
+                Map<String, BigDecimal> calc = quotationCalcService.calculate(row, null);
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("报价单号", row.get("dh"));
+                data.put("客户名称", row.get("khname"));
+                data.put("生产货号", row.get("huohao"));
+                data.put("尺码", row.get("chima"));
+                data.putAll(calc);
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("type", "报价单计算");
+                r.put("summary", "报价单 " + row.get("dh") + " 成本利润计算结果");
+                r.put("data", data);
+                out.add(r);
+            }
+        } catch (Exception e) {
+            log.warn("报价单查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /**
      * 岗位意图识别 - 判断用户是否在询问岗位职责、工作内容等
      */
     private boolean isPositionIntent(String message) {
@@ -1722,6 +1783,16 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private List<Map<String, Object>> searchSupplyChain(String query, String company, String userId) {
         List<Map<String, Object>> results = new ArrayList<>();
+
+        // 报价单意图优先：直接走报价计算（确定性），跳过RAG/部件库搜索
+        if (isQuotationIntent(query) && quotationCalcService != null) {
+            List<Map<String, Object>> q = searchQuotation(query);
+            if (!q.isEmpty()) {
+                log.info("报价单意图命中，直接返回报价计算结果, 条数={}", q.size());
+                return q;
+            }
+        }
+
         try {
             // L1 缓存：检查 RAG 检索结果缓存（按用户隔离）
             if (llmCacheService != null && userId != null && !userId.isEmpty()) {
