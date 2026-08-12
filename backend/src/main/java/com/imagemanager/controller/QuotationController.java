@@ -37,7 +37,7 @@ public class QuotationController {
     public ApiResponse<Map<String, Object>> ai(@RequestBody Map<String, String> body) {
         String question = body.get("question");
         if (question == null || question.isBlank()) {
-            return ApiResponse.fail("question 不能为空");
+            return ApiResponse.error("question 不能为空");
         }
         try {
             String answer = quotationAssistant.chat(question);
@@ -47,7 +47,7 @@ public class QuotationController {
             return ApiResponse.success("报价问答成功", data);
         } catch (Exception e) {
             log.error("报价AI问答失败", e);
-            return ApiResponse.fail("报价AI问答失败: " + e.getMessage());
+            return ApiResponse.error("报价AI问答失败: " + e.getMessage());
         }
     }
 
@@ -60,12 +60,12 @@ public class QuotationController {
     public ApiResponse<Map<String, BigDecimal>> calculate(@RequestBody Map<String, Object> body) {
         Object dhObj = body.get("dh");
         if (dhObj == null || dhObj.toString().isBlank()) {
-            return ApiResponse.fail("dh(报价单号) 不能为空");
+            return ApiResponse.error("dh(报价单号) 不能为空");
         }
         String dh = dhObj.toString();
         List<Map<String, Object>> rows = calcService.queryByDh(dh);
         if (rows.isEmpty()) {
-            return ApiResponse.fail("未找到报价单: " + dh);
+            return ApiResponse.error("未找到报价单: " + dh);
         }
 
         Map<String, BigDecimal> overrides = new LinkedHashMap<>();
@@ -84,7 +84,7 @@ public class QuotationController {
     @GetMapping("/query")
     public ApiResponse<List<Map<String, Object>>> query(@RequestParam String keyword) {
         if (keyword == null || keyword.isBlank()) {
-            return ApiResponse.fail("keyword 不能为空");
+            return ApiResponse.error("keyword 不能为空");
         }
         return ApiResponse.success("查询成功", calcService.queryByKeyword(keyword.trim()));
     }
