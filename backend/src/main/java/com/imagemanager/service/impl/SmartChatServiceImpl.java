@@ -1822,8 +1822,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (!q.isEmpty()) {
                 log.info("报价单维度命中, 并入结果, 条数={}", q.size());
                 results.addAll(q);
-                // 纯报价问题: 只返回精确报价数据, 跳过模糊检索, 避免无关维度数据导致幻觉
-                if (!otherIntent) {
+                // 带具体单号且精确命中, 或纯报价问题: 只返回精确报价数据, 跳过模糊检索, 避免无关维度数据导致幻觉
+                boolean exactOrder = extractQuotationNo(query) != null;
+                if (exactOrder || !otherIntent) {
                     return results;
                 }
             }
