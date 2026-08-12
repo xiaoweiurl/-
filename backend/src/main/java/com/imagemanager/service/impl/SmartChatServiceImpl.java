@@ -145,7 +145,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 2. 意图识别：供应链意图仅在工厂模式下生效
-                boolean supplyChainIntent = "factory".equals(mode) && isSupplyChainIntent(message);
+                // 并入报价意图(单号/报价指标)与客户名反向匹配，确保"XX有多少单号"类问题进入供应链检索
+                boolean supplyChainIntent = "factory".equals(mode)
+                        && (isSupplyChainIntent(message)
+                            || isQuotationIntent(message)
+                            || (quotationCalcService != null && quotationCalcService.matchKhnameInQuery(message) != null));
                 boolean hasProductCode = "factory".equals(mode) && extractProductCode(message) != null;
                 // 当用户提到具体产品编码+供应链意图时，认为是"强供应链意图"
                 boolean strongSupplyChainIntent = supplyChainIntent && hasProductCode;
