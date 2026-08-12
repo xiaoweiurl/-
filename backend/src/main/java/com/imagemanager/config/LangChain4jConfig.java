@@ -1,5 +1,7 @@
 package com.imagemanager.config;
 
+import com.imagemanager.tools.QuotationAssistant;
+import com.imagemanager.tools.QuotationTools;
 import com.imagemanager.tools.SupplyChainAssistant;
 import com.imagemanager.tools.SupplyChainTools;
 import dev.langchain4j.model.chat.ChatModel;
@@ -54,6 +56,18 @@ public class LangChain4jConfig {
         return AiServices.builder(SupplyChainAssistant.class)
                 .chatModel(chatModel)
                 .tools(tools)
+                .build();
+    }
+
+    /**
+     * 报价单 AI 助手 Bean
+     * 绑定 QuotationTools（查询+确定性计算），大模型负责理解与解释
+     */
+    @Bean
+    public QuotationAssistant quotationAssistant(ChatModel chatModel, QuotationTools quotationTools) {
+        return AiServices.builder(QuotationAssistant.class)
+                .chatModel(chatModel)
+                .tools(quotationTools)
                 .build();
     }
 }
