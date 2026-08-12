@@ -51,10 +51,10 @@ public class QuotationCalcService {
         return jdbcTemplate.queryForList(sql, dh);
     }
 
-    /** 按客户名称模糊查询 */
+    /** 按客户名称精确查询 */
     public List<Map<String, Object>> queryByKhname(String khname) {
-        String sql = "SELECT * FROM " + TABLE + " WHERE khname ILIKE ? LIMIT 50";
-        return jdbcTemplate.queryForList(sql, "%" + khname + "%");
+        String sql = "SELECT * FROM " + TABLE + " WHERE khname = ? LIMIT 50";
+        return jdbcTemplate.queryForList(sql, khname);
     }
 
     /** 按生产货号模糊查询 */
@@ -63,12 +63,11 @@ public class QuotationCalcService {
         return jdbcTemplate.queryForList(sql, "%" + huohao + "%");
     }
 
-    /** 关键字综合查询（单号/客户/货号任一匹配） */
+    /** 关键字精确查询（单号/客户精确匹配，不用模糊，保证准确） */
     public List<Map<String, Object>> queryByKeyword(String keyword) {
         String sql = "SELECT * FROM " + TABLE
-                + " WHERE dh ILIKE ? OR khname ILIKE ? OR huohao ILIKE ? LIMIT 50";
-        String like = "%" + keyword + "%";
-        return jdbcTemplate.queryForList(sql, like, like, like);
+                + " WHERE dh = ? OR khname = ? LIMIT 50";
+        return jdbcTemplate.queryForList(sql, keyword, keyword);
     }
 
     // ====== 确定性计算 ======
