@@ -3,6 +3,7 @@ package com.imagemanager.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.MemorySearchResult;
+import com.imagemanager.enhance.ChatMemoryManager;
 import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.SmartChatService;
 import com.imagemanager.service.FileStorageService;
@@ -1389,6 +1390,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (qaText.length() > 2000) {
                 qaText = qaText.substring(0, 2000);
             }
+            final String qaTextFinal = qaText;
 
             float[] embeddingArray = getEmbedding(qaText);
             if (embeddingArray == null || embeddingArray.length == 0) {
@@ -1409,7 +1411,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 jdbcTemplate.update(
                         "INSERT INTO knowledge_embeddings (id, source_type, source_doc_id, chunk_text, chunk_index, embedding, company, created_at) " +
                                 "VALUES (gen_random_uuid(), 'SMART_CHAT', ?::uuid, ?, 0, ?::vector, ?, NOW())",
-                        conversationId, qaText, embeddingStr, company
+                        conversationId, qaTextFinal, embeddingStr, company
                 );
             });
             log.info("Q&A向量化成功: conversationId={}, 维度={}, textLength={}", conversationId, embeddingArray.length, qaText.length());
@@ -2426,112 +2428,6 @@ public class SmartChatServiceImpl implements SmartChatService {
         }
     }
 
-    /**
-     * 标准Chat Completions API调用（无联网搜索）
-     */
-    private void streamChatStandard(SseEmitter emitter, List<Map<String, Object>> messages,
-                                     StringBuilder fullResponse, StringBuilder reasoningContent, String apiKey) throws Exception {
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", deepseekModel);
-        body.put("max_tokens", 8192);
-        body.put("stream", true);
-
-        if (deepseekThinkingEnabled) {
-            Map<String, Object> thinking = new HashMap<>();
-            thinking.put("type", "enabled");
-            body.put("thinking", thinking);
-            body.put("reasoning_effort", deepseekReasoningEffort);
-        } else {
-            body.put("temperature", 0.7);
-        }
-
-        body.put("messages", messages);
-
-        String endpointUrl = buildEndpointUrl(deepseekBaseUrl, "/chat/completions");
-        HttpURLConnection conn = createConnection(endpointUrl, apiKey, "Bearer");
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
-        }
-
-        checkResponseCode(conn);
-        parseOpenAISSEStream(emitter, conn, fullResponse, reasoningContent);
-    }
-
-    /**
-     * Anthropic兼容端点调用（支持联网搜索）
-     * 
-     * DeepSeek Anthropic兼容端点: https://api.deepseek.com/anthropic
-     * 使用web_search_20250305工具实现联网搜索
-     * 
-     * Anthropic SSE事件流:
-     *   event: message_start       → 消息开始
-     *   event: content_block_start → 内容块开始（thinking/text/web_search_tool）
-     *   event: content_block_delta → 内容增量（thinking_delta/text_delta）
-     *   event: content_block_stop  → 内容块结束
-     *   event: message_stop        → 消息结束
-     */
-    private void streamChatWithWebSearch(SseEmitter emitter, List<Map<String, Object>> openAIMessages,
-                                          StringBuilder fullResponse, StringBuilder reasoningContent, String apiKey) throws Exception {
-        log.info("使用DeepSeek Anthropic兼容端点（联网搜索模式）");
-
-        // 转换消息格式：OpenAI → Anthropic
-        List<Map<String, Object>> anthropicMessages = convertToAnthropicMessages(openAIMessages);
-
-        // 构建Anthropic请求体
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", deepseekModel);
-        body.put("max_tokens", 8192);
-        body.put("stream", true);
-
-        // Anthropic格式：system是顶层参数
-        // 从messages中提取system消息
-        String systemPrompt = null;
-        List<Map<String, Object>> chatMessages = new ArrayList<>();
-        for (Map<String, Object> msg : anthropicMessages) {
-            if ("system".equals(msg.get("role"))) {
-                systemPrompt = (String) msg.get("content");
-            } else {
-                chatMessages.add(msg);
-            }
-        }
-        if (systemPrompt != null) {
-            body.put("system", systemPrompt);
-        }
-        body.put("messages", chatMessages);
-
-        // 思考模式
-        if (deepseekThinkingEnabled) {
-            Map<String, Object> thinking = new HashMap<>();
-            thinking.put("type", "enabled");
-            thinking.put("budget_tokens", 8192);
-            body.put("thinking", thinking);
-        }
-
-        // 联网搜索工具
-        List<Map<String, Object>> tools = new ArrayList<>();
-        Map<String, Object> webSearchTool = new HashMap<>();
-        webSearchTool.put("type", "web_search_20250305");
-        webSearchTool.put("name", "web_search");
-        webSearchTool.put("max_uses", 3);
-        tools.add(webSearchTool);
-        body.put("tools", tools);
-
-        // 请求Anthropic兼容端点
-        String endpointUrl = buildEndpointUrl(deepseekBaseUrl, "/anthropic/v1/messages");
-        HttpURLConnection conn = createConnection(endpointUrl, apiKey, "Bearer");
-
-        // Anthropic额外Header
-        conn.setRequestProperty("anthropic-version", "2023-06-01");
-        conn.setRequestProperty("anthropic-beta", "web-search-2025-03-05");
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
-        }
-
-        checkResponseCode(conn);
-        parseAnthropicSSEStream(emitter, conn, fullResponse, reasoningContent);
-    }
 
     /**
      * 转换消息格式：OpenAI → Anthropic
