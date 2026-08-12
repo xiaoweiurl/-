@@ -360,7 +360,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 try {
                                     Map<String, BigDecimal> calc = quotationCalcService.calculate(row, null);
                                     o.put("rcl", calc.get("rcl_日产量"));
+                                    o.put("zzcb", calc.get("zzcb_织造成本"));
+                                    o.put("rs", calc.get("染色成本"));
+                                    o.put("yl", calc.get("sumprice_原料金额"));
+                                    o.put("qd", calc.get("countprice_前道合计"));
+                                    o.put("fl", calc.get("flsum_辅料金额"));
+                                    o.put("hd", calc.get("hdprice_后道合计"));
                                     o.put("jcb", calc.get("jcb_净成本"));
+                                    o.put("shuijin", calc.get("shuijin_理论税金"));
+                                    o.put("shuijinSg", calc.get("shuijin_sg_实际税金"));
                                     o.put("xscb", calc.get("xscb_销售成本"));
                                 } catch (Exception ignore) {
                                 }

@@ -70,6 +70,14 @@ interface SupplierCompare {
   bestPrice: number; bestSupplier: string; worstPrice: number; savingRate: number;
 }
 
+interface QuotationOrderRow {
+  dh: string; chima?: string; huohao?: string;
+  sbdj?: number | string; lyl?: number | string; zpl?: number | string;
+  rcl?: number | string; zzcb?: number | string; rs?: number | string;
+  yl?: number | string; qd?: number | string; fl?: number | string; hd?: number | string;
+  jcb?: number | string; shuijin?: number | string; shuijinSg?: number | string; xscb?: number | string;
+}
+
 type TabKey = 'chat' | 'dashboard' | 'smart-quote' | 'quotation' | 'warehouse' | 'purchase' | 'plan' | 'accessory';
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
@@ -134,7 +142,7 @@ export default function SupplyChainPage() {
     isStreaming?: boolean;
     searchResults?: Array<{ title: string; url: string }>;
     attachments?: Array<{ name: string; type: string; base64: string; mimeType: string }>;
-    quotationList?: { customer: string; total: number; orders: { dh: string; chima?: string; huohao?: string; sbdj?: number | string; lyl?: number | string; zpl?: number | string; rcl?: number | string; jcb?: number | string; xscb?: number | string }[] };
+    quotationList?: { customer: string; total: number; orders: QuotationOrderRow[] };
   }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -1120,28 +1128,40 @@ export default function SupplyChainPage() {
                               <span className="text-[11px] font-semibold text-blue-400">客户「{msg.quotationList.customer}」报价单号全量列表</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">共 {msg.quotationList.total} 个</span>
                             </div>
-                            <div className="max-h-80 overflow-auto rounded-lg border border-slate-700/60">
-                              <table className="w-full text-[11px]">
+                            <div className="max-h-96 overflow-auto rounded-lg border border-slate-700/60">
+                              <table className="w-full min-w-[1100px] text-[11px]">
                                 <thead className="sticky top-0 bg-slate-800 text-slate-300">
                                   <tr>
                                     <th className="px-2 py-1.5 text-left font-medium">报价单号</th>
                                     <th className="px-2 py-1.5 text-left font-medium">尺码</th>
-                                    <th className="px-2 py-1.5 text-left font-medium">货号</th>
                                     <th className="px-2 py-1.5 text-right font-medium">日产量</th>
-                                    <th className="px-2 py-1.5 text-right font-medium">机台费</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">织造成本</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">染色成本</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">原料金额</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">前道合计</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">辅料金额</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">后道合计</th>
                                     <th className="px-2 py-1.5 text-right font-medium">净成本</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">理论税金</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">实际税金</th>
                                     <th className="px-2 py-1.5 text-right font-medium">销售成本</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {msg.quotationList.orders.map((o, i) => (
                                     <tr key={i} className={i % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-800/30'}>
-                                      <td className="px-2 py-1 font-mono text-slate-200">{o.dh}</td>
+                                      <td className="px-2 py-1 font-mono text-slate-200 whitespace-nowrap">{o.dh}</td>
                                       <td className="px-2 py-1 text-slate-300">{o.chima ?? '-'}</td>
-                                      <td className="px-2 py-1 font-mono text-slate-400">{o.huohao ?? '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.rcl != null ? Number(o.rcl).toFixed(2) : '-'}</td>
-                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.sbdj != null ? Number(o.sbdj).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.zzcb != null ? Number(o.zzcb).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.rs != null ? Number(o.rs).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.yl != null ? Number(o.yl).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.qd != null ? Number(o.qd).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.fl != null ? Number(o.fl).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.hd != null ? Number(o.hd).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-red-300">{o.jcb != null ? Number(o.jcb).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-amber-300">{o.shuijin != null ? Number(o.shuijin).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-amber-300">{o.shuijinSg != null ? Number(o.shuijinSg).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-red-300">{o.xscb != null ? Number(o.xscb).toFixed(2) : '-'}</td>
                                     </tr>
                                   ))}
