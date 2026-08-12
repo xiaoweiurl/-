@@ -433,6 +433,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "④ 问原料/辅料/供应商/采购/价格对比 → 以物料/供应商数据为准；" +
                             "⑤ 若问题跨多个维度，分维度分别说明，各自引用对应数据；" +
                             "⑥【防幻觉】只引用与用户所问实体（单号/货号/客户名称）直接、明确匹配的数据；模糊相似但不包含所问实体的数据一律不得引用，视为无数据并明确告知用户。" +
+                            "⑦【报价方案输出】当检索结果中包含【报价单计算】数据且用户要求报价/核算时，必须按计算公式的步骤输出完整报价核算方案：依次列出 日产量、织造成本、染色成本、原料金额、前道合计、辅料金额、后道合计、净成本、理论税金、实际税金、销售成本 各项的计算值，并给出最终建议报价，不得只回单个数字。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 【知识库文档使用指引】当检索结果中包含【知识库文档】片段时，必须基于文档原文回答，不得歪曲或过度推断。引用时注明出处文档名称。如果文档片段不完整或信息不足以回答问题，请明确说明并建议用户补充上传相关文档。" +
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +
@@ -1599,6 +1600,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 data.put("客户名称", row.get("khname"));
                 data.put("生产货号", row.get("huohao"));
                 data.put("尺码", row.get("chima"));
+                // 原始输入字段（供模型展示完整核算方案的输入项）
+                data.put("下机时间", row.get("zhis"));
+                data.put("利用率", row.get("lyl"));
+                data.put("机台费", row.get("sbdj"));
+                data.put("正品率", row.get("zpl"));
+                data.put("原料利用率", row.get("yllyl"));
+                data.put("辅料利用率", row.get("fllyl"));
+                data.put("运费", row.get("yunfei"));
                 data.putAll(calc);
                 Map<String, Object> r = new LinkedHashMap<>();
                 r.put("type", "报价单计算");
