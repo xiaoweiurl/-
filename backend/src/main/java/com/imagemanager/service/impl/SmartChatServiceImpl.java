@@ -431,7 +431,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "② 问排产/生产安排/批次/交期/投产 → 以【生产排产】数据为准；" +
                             "③ 问部件/款式/尺码明细 → 以部件数据为准；" +
                             "④ 问原料/辅料/供应商/采购/价格对比 → 以物料/供应商数据为准；" +
-                            "⑤ 若问题跨多个维度，分维度分别说明，各自引用对应数据。" +
+                            "⑤ 若问题跨多个维度，分维度分别说明，各自引用对应数据；" +
+                            "⑥【防幻觉】只引用与用户所问实体（单号/货号/客户名称）直接、明确匹配的数据；模糊相似但不包含所问实体的数据一律不得引用，视为无数据并明确告知用户。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 【知识库文档使用指引】当检索结果中包含【知识库文档】片段时，必须基于文档原文回答，不得歪曲或过度推断。引用时注明出处文档名称。如果文档片段不完整或信息不足以回答问题，请明确说明并建议用户补充上传相关文档。" +
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +
@@ -1560,6 +1561,27 @@ public class SmartChatServiceImpl implements SmartChatService {
         return m.find() ? m.group(1) : null;
     }
 
+    /** 排产意图：排产/批次/交期/投产/生产安排 */
+    private boolean isSchedulingIntent(String message) {
+        String[] kws = {"排产", "批次", "交期", "投产", "生产安排", "排期", "甘特", "产能"};
+        for (String kw : kws) if (message.contains(kw)) return true;
+        return false;
+    }
+
+    /** 部件意图：部件/款式/尺码/工艺 */
+    private boolean isPartsIntent(String message) {
+        String[] kws = {"部件", "款式", "尺码", "工艺", "大身", "袖子", "腰口"};
+        for (String kw : kws) if (message.contains(kw)) return true;
+        return false;
+    }
+
+    /** 物料/供应商意图：原料/辅料/供应商/采购/库存 */
+    private boolean isMaterialIntent(String message) {
+        String[] kws = {"原料", "辅料", "供应商", "采购", "库存", "物料", "面料"};
+        for (String kw : kws) if (message.contains(kw)) return true;
+        return false;
+    }
+
     /**
      * 报价单查询+确定性计算，返回可直接注入上下文的结果
      */
@@ -1792,12 +1814,18 @@ public class SmartChatServiceImpl implements SmartChatService {
     private List<Map<String, Object>> searchSupplyChain(String query, String company, String userId) {
         List<Map<String, Object>> results = new ArrayList<>();
 
-        // 报价单维度：命中则并入结果（不互斥），排产/部件/物料等维度仍会正常检索
-        if (isQuotationIntent(query) && quotationCalcService != null) {
+        // 报价单维度：精确匹配 order_bjd_query
+        boolean quotationIntent = isQuotationIntent(query);
+        boolean otherIntent = isSchedulingIntent(query) || isPartsIntent(query) || isMaterialIntent(query);
+        if (quotationIntent && quotationCalcService != null) {
             List<Map<String, Object>> q = searchQuotation(query);
             if (!q.isEmpty()) {
                 log.info("报价单维度命中, 并入结果, 条数={}", q.size());
                 results.addAll(q);
+                // 纯报价问题: 只返回精确报价数据, 跳过模糊检索, 避免无关维度数据导致幻觉
+                if (!otherIntent) {
+                    return results;
+                }
             }
         }
 
