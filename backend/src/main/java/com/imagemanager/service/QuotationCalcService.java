@@ -255,6 +255,7 @@ public class QuotationCalcService {
     // ====== BigDecimal 工具（null 安全 + 除零保护） ======
 
     private BigDecimal get(Map<String, BigDecimal> m, String key) {
+        if (m == null) return BigDecimal.ZERO;
         BigDecimal v = m.get(key);
         return v != null ? v : BigDecimal.ZERO;
     }

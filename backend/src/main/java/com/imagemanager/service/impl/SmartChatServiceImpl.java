@@ -358,7 +358,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 o.put("lyl", row.get("lyl"));
                                 o.put("zpl", row.get("zpl"));
                                 try {
-                                    Map<String, BigDecimal> calc = quotationCalcService.calculate(row, null);
+                                    Map<String, BigDecimal> calc = quotationCalcService.calculate(row, new HashMap<>());
                                     o.put("rcl", calc.get("rcl_日产量"));
                                     o.put("zzcb", calc.get("zzcb_织造成本"));
                                     o.put("rs", calc.get("染色成本"));
@@ -1687,7 +1687,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             int idx = 0;
             for (Map<String, Object> row : rows) {
                 if (idx++ >= detailLimit) break;
-                Map<String, BigDecimal> calc = quotationCalcService.calculate(row, null);
+                Map<String, BigDecimal> calc = quotationCalcService.calculate(row, new HashMap<>());
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("报价单号", row.get("dh"));
                 data.put("客户名称", row.get("khname"));
