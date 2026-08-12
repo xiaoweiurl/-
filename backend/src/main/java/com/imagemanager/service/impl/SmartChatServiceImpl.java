@@ -340,6 +340,27 @@ public class SmartChatServiceImpl implements SmartChatService {
                     ));
                 }
 
+                // 3c. 发送报价单全量列表(结构化事件, 前端直接渲染全部单号, 不依赖LLM复述, 零省略)
+                for (Map<String, Object> r : supplyChainResults) {
+                    if ("报价单统计".equals(r.get("type"))) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> statData = (Map<String, Object>) r.get("data");
+                        if (statData != null) {
+                            String ordersStr = String.valueOf(statData.getOrDefault("单号列表", ""));
+                            List<String> orders = ordersStr.isEmpty() ? List.of() : Arrays.asList(ordersStr.split(",\\s*"));
+                            emitter.send(SseEmitter.event().name("message").data(
+                                    objectMapper.writeValueAsString(Map.of(
+                                            "type", "quotation_list",
+                                            "customer", statData.getOrDefault("客户名称", ""),
+                                            "total", statData.getOrDefault("单号总数", 0),
+                                            "orders", orders
+                                    ))
+                            ));
+                        }
+                        break;
+                    }
+                }
+
                 // 4. 构建知识上下文（供应链数据优先放置在前面，确保AI优先参考）
                 StringBuilder knowledgeContext = new StringBuilder();
 
@@ -472,7 +493,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "⑥【防幻觉】只引用与用户所问实体（单号/货号/客户名称）直接、明确匹配的数据；模糊相似但不包含所问实体的数据一律不得引用，视为无数据并明确告知用户。" +
                             "⑦【报价方案输出】当检索结果中包含【报价单计算】数据且用户要求报价/核算时，必须按计算公式的步骤输出完整报价核算方案：依次列出 日产量、织造成本、染色成本、原料金额、前道合计、辅料金额、后道合计、净成本、理论税金、实际税金、销售成本 各项的计算值，并给出最终建议报价，不得只回单个数字。" +
                             "⑧【单号统计回答】当检索结果中包含【报价单统计】数据（含单号总数、单号列表）时，必须以'单号总数'为准回答准确数量，不得以明细条数代替总数，不得说'暂无数据'。" +
-                            "⑨【全量输出-无条件】只要检索结果含【报价单统计】的'单号列表'，必须在回答中用一个独立代码块将其中全部单号逐条完整列出（逗号分隔），无论用户是否要求'全部'；严禁使用'...''等''以此类推''其余略'等任何省略或举例方式，严禁只列部分。单号列表本身已是全量数据，原样全部输出即可。" +
+                            "⑨【全量列表展示】客户的报价单号全量列表已由系统以结构化面板自动、完整、零省略地展示给用户，你无需在回答中逐条复述全部单号；只需准确给出'单号总数'，并结合数据做分析/建议，必要时仅举例少量单号即可。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 【知识库文档使用指引】当检索结果中包含【知识库文档】片段时，必须基于文档原文回答，不得歪曲或过度推断。引用时注明出处文档名称。如果文档片段不完整或信息不足以回答问题，请明确说明并建议用户补充上传相关文档。" +
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +

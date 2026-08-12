@@ -47,6 +47,7 @@ interface ChatMessage {
   images?: ChatImage[];
   userImages?: string[]; // 用户上传的base64图片（兼容旧逻辑）
   attachments?: UploadedAttachment[]; // 用户上传的附件
+  quotationList?: { customer: string; total: number; orders: string[] }; // 报价单全量列表(结构化, 前端直接渲染)
   isStreaming?: boolean;
   isThinking?: boolean;
 }
@@ -425,6 +426,20 @@ export default function ChatPage() {
                 const last = updated[updated.length - 1];
                 if (last?.isStreaming) {
                   updated[updated.length - 1] = { ...last, images };
+                }
+                return updated;
+              });
+            } else if (event.type === 'quotation_list') {
+              const quotationList = {
+                customer: String(event.customer || ''),
+                total: Number(event.total || 0),
+                orders: Array.isArray(event.orders) ? event.orders.map((o: unknown) => String(o)) : [],
+              };
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.isStreaming) {
+                  updated[updated.length - 1] = { ...last, quotationList };
                 }
                 return updated;
               });
@@ -900,6 +915,28 @@ export default function ChatPage() {
                           {msg.searchResults}
                         </div>
                       </details>
+                    )}
+
+                    {/* 报价单全量列表(结构化渲染, 不经过LLM, 零省略) */}
+                    {msg.role === 'assistant' && msg.quotationList && msg.quotationList.orders.length > 0 && (
+                      <div className="mb-2.5 p-3 rounded-xl border border-blue-500/20 bg-slate-800/60 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <FileText className="w-3.5 h-3.5 text-blue-400" />
+                          <span className="text-xs font-medium text-slate-200">
+                            客户「{msg.quotationList.customer}」报价单号全量列表
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/20">
+                            共 {msg.quotationList.total} 个
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto pr-1">
+                          {msg.quotationList.orders.map((o, oi) => (
+                            <span key={oi} className="px-2 py-0.5 rounded-md bg-slate-700/60 border border-slate-600/40 text-[11px] font-mono text-slate-300">
+                              {o}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     {/* 消息内容 */}
