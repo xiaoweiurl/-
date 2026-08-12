@@ -116,10 +116,10 @@ public class QuotationCalcService {
         return c == null ? 0 : c;
     }
 
-    /** 按客户名称查询全部报价单号（最多200条） */
+    /** 按客户名称查询全部报价单号（最多1000条，覆盖常规全量） */
     public List<String> listDhByKhname(String khname) {
         return jdbcTemplate.queryForList(
-                "SELECT dh FROM " + TABLE + " WHERE khname = ? ORDER BY dh LIMIT 200",
+                "SELECT dh FROM " + TABLE + " WHERE khname = ? ORDER BY dh LIMIT 1000",
                 String.class, khname);
     }
 
