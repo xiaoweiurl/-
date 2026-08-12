@@ -434,6 +434,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "⑤ 若问题跨多个维度，分维度分别说明，各自引用对应数据；" +
                             "⑥【防幻觉】只引用与用户所问实体（单号/货号/客户名称）直接、明确匹配的数据；模糊相似但不包含所问实体的数据一律不得引用，视为无数据并明确告知用户。" +
                             "⑦【报价方案输出】当检索结果中包含【报价单计算】数据且用户要求报价/核算时，必须按计算公式的步骤输出完整报价核算方案：依次列出 日产量、织造成本、染色成本、原料金额、前道合计、辅料金额、后道合计、净成本、理论税金、实际税金、销售成本 各项的计算值，并给出最终建议报价，不得只回单个数字。" +
+                            "⑧【单号统计回答】当检索结果中包含【报价单统计】数据（含单号总数、单号列表）且用户询问某客户有多少单号/订单时，必须以'单号总数'为准回答准确数量，并列出单号列表；不得以明细条数代替总数，不得说'暂无数据'。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 【知识库文档使用指引】当检索结果中包含【知识库文档】片段时，必须基于文档原文回答，不得歪曲或过度推断。引用时注明出处文档名称。如果文档片段不完整或信息不足以回答问题，请明确说明并建议用户补充上传相关文档。" +
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +
@@ -1545,7 +1546,8 @@ public class SmartChatServiceImpl implements SmartChatService {
             "报价单", "净成本", "销售成本", "日产量", "机台费", "织造成本",
             "理论税金", "实际税金", "前道合计", "后道合计", "辅料金额", "原料金额",
             "缝拼工价", "下机时间", "利用率", "正品率", "结算价", "美元价",
-            "标准利润", "毛利润", "客户返利", "定型", "包装费", "后道管理", "前道管理"
+            "标准利润", "毛利润", "客户返利", "定型", "包装费", "后道管理", "前道管理",
+            "单号", "多少单", "几个单", "订单数", "下单"
         };
         for (String kw : patterns) {
             if (lower.contains(kw)) return true;
@@ -1590,10 +1592,36 @@ public class SmartChatServiceImpl implements SmartChatService {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
             String dh = extractQuotationNo(query);
-            List<Map<String, Object>> rows = (dh != null)
-                    ? quotationCalcService.queryByDh(dh)
-                    : quotationCalcService.queryByKeyword(query);
+            String matchedCustomer = null;
+            List<Map<String, Object>> rows;
+            if (dh != null) {
+                rows = quotationCalcService.queryByDh(dh);
+            } else {
+                // 客户名称反向匹配：问题文本包含库内客户名（如"海宁世正有多少单号"→海宁世正）
+                matchedCustomer = quotationCalcService.matchKhnameInQuery(query);
+                rows = (matchedCustomer != null)
+                        ? quotationCalcService.queryByKhname(matchedCustomer)
+                        : quotationCalcService.queryByKeyword(query);
+            }
+            // 客户维度：先给统计条目（总数+全部单号），模型才能准确回答"有多少单号"
+            if (matchedCustomer != null) {
+                int total = quotationCalcService.countByKhname(matchedCustomer);
+                List<String> dhs = quotationCalcService.listDhByKhname(matchedCustomer);
+                Map<String, Object> aggData = new LinkedHashMap<>();
+                aggData.put("客户名称", matchedCustomer);
+                aggData.put("单号总数", total);
+                aggData.put("单号列表", String.join(", ", dhs));
+                Map<String, Object> agg = new LinkedHashMap<>();
+                agg.put("type", "报价单统计");
+                agg.put("summary", "客户 " + matchedCustomer + " 的报价单统计：共 " + total + " 个单号");
+                agg.put("data", aggData);
+                out.add(agg);
+            }
+            // 明细条目最多5条，避免上下文过大；统计问题靠上面的聚合条目回答
+            int detailLimit = (matchedCustomer != null) ? 5 : rows.size();
+            int idx = 0;
             for (Map<String, Object> row : rows) {
+                if (idx++ >= detailLimit) break;
                 Map<String, BigDecimal> calc = quotationCalcService.calculate(row, null);
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("报价单号", row.get("dh"));
@@ -1825,6 +1853,10 @@ public class SmartChatServiceImpl implements SmartChatService {
 
         // 报价单维度：精确匹配 order_bjd_query
         boolean quotationIntent = isQuotationIntent(query);
+        // 兜底：问题中含库内客户名称（如"海宁世正…"）也视为报价维度
+        if (!quotationIntent && quotationCalcService != null) {
+            quotationIntent = quotationCalcService.matchKhnameInQuery(query) != null;
+        }
         boolean otherIntent = isSchedulingIntent(query) || isPartsIntent(query) || isMaterialIntent(query);
         if (quotationIntent && quotationCalcService != null) {
             List<Map<String, Object>> q = searchQuotation(query);

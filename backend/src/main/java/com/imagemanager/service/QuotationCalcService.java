@@ -70,6 +70,59 @@ public class QuotationCalcService {
         return jdbcTemplate.queryForList(sql, keyword, keyword);
     }
 
+    // ====== 客户名称反向匹配与统计 ======
+
+    private volatile List<String> khnameCache;
+    private volatile long khnameCacheTime = 0L;
+
+    /** 库内全部客户名称（5分钟缓存），用于从自然语言问题中反向识别客户实体 */
+    public List<String> distinctKhnames() {
+        long now = System.currentTimeMillis();
+        List<String> cached = khnameCache;
+        if (cached != null && now - khnameCacheTime < 5 * 60 * 1000L) return cached;
+        try {
+            List<String> list = jdbcTemplate.queryForList(
+                    "SELECT DISTINCT khname FROM " + TABLE
+                            + " WHERE khname IS NOT NULL AND TRIM(khname) <> '' ORDER BY khname LIMIT 500",
+                    String.class);
+            khnameCache = list;
+            khnameCacheTime = now;
+            return list;
+        } catch (Exception e) {
+            log.warn("查询客户名称列表失败: {}", e.getMessage());
+            return cached != null ? cached : List.of();
+        }
+    }
+
+    /**
+     * 反向匹配：用户问题文本中是否包含库内客户名称。
+     * 取最长匹配，避免"海宁"抢先匹配而漏掉"海宁世正"。
+     */
+    public String matchKhnameInQuery(String query) {
+        if (query == null || query.isEmpty()) return null;
+        String best = null;
+        for (String kh : distinctKhnames()) {
+            if (kh != null && kh.length() >= 2 && query.contains(kh)) {
+                if (best == null || kh.length() > best.length()) best = kh;
+            }
+        }
+        return best;
+    }
+
+    /** 按客户名称统计报价单总数（不受 LIMIT 限制） */
+    public int countByKhname(String khname) {
+        Integer c = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM " + TABLE + " WHERE khname = ?", Integer.class, khname);
+        return c == null ? 0 : c;
+    }
+
+    /** 按客户名称查询全部报价单号（最多200条） */
+    public List<String> listDhByKhname(String khname) {
+        return jdbcTemplate.queryForList(
+                "SELECT dh FROM " + TABLE + " WHERE khname = ? ORDER BY dh LIMIT 200",
+                String.class, khname);
+    }
+
     // ====== 确定性计算 ======
 
     /**
