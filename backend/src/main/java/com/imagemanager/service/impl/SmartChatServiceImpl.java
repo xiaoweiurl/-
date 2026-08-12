@@ -340,18 +340,36 @@ public class SmartChatServiceImpl implements SmartChatService {
                     ));
                 }
 
-                // 3c. 发送报价单全量列表(结构化事件, 前端直接渲染全部单号, 不依赖LLM复述, 零省略)
+                // 3c. 发送报价单全量明细(结构化事件, 前端渲染全量表格, 零省略)
                 for (Map<String, Object> r : supplyChainResults) {
                     if ("报价单统计".equals(r.get("type"))) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> statData = (Map<String, Object>) r.get("data");
-                        if (statData != null) {
-                            String ordersStr = String.valueOf(statData.getOrDefault("单号列表", ""));
-                            List<String> orders = ordersStr.isEmpty() ? List.of() : Arrays.asList(ordersStr.split(",\\s*"));
+                        if (statData != null && quotationCalcService != null) {
+                            String customer = String.valueOf(statData.getOrDefault("客户名称", ""));
+                            List<Map<String, Object>> rows = quotationCalcService.queryByKhnameAll(customer);
+                            List<Map<String, Object>> orders = new ArrayList<>();
+                            for (Map<String, Object> row : rows) {
+                                Map<String, Object> o = new LinkedHashMap<>();
+                                o.put("dh", row.get("dh"));
+                                o.put("chima", row.get("chima"));
+                                o.put("huohao", row.get("huohao"));
+                                o.put("sbdj", row.get("sbdj"));
+                                o.put("lyl", row.get("lyl"));
+                                o.put("zpl", row.get("zpl"));
+                                try {
+                                    Map<String, BigDecimal> calc = quotationCalcService.calculate(row, null);
+                                    o.put("rcl", calc.get("rcl_日产量"));
+                                    o.put("jcb", calc.get("jcb_净成本"));
+                                    o.put("xscb", calc.get("xscb_销售成本"));
+                                } catch (Exception ignore) {
+                                }
+                                orders.add(o);
+                            }
                             emitter.send(SseEmitter.event().name("message").data(
                                     objectMapper.writeValueAsString(Map.of(
                                             "type", "quotation_list",
-                                            "customer", statData.getOrDefault("客户名称", ""),
+                                            "customer", customer,
                                             "total", statData.getOrDefault("单号总数", 0),
                                             "orders", orders
                                     ))
@@ -493,7 +511,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "⑥【防幻觉】只引用与用户所问实体（单号/货号/客户名称）直接、明确匹配的数据；模糊相似但不包含所问实体的数据一律不得引用，视为无数据并明确告知用户。" +
                             "⑦【报价方案输出】当检索结果中包含【报价单计算】数据且用户要求报价/核算时，必须按计算公式的步骤输出完整报价核算方案：依次列出 日产量、织造成本、染色成本、原料金额、前道合计、辅料金额、后道合计、净成本、理论税金、实际税金、销售成本 各项的计算值，并给出最终建议报价，不得只回单个数字。" +
                             "⑧【单号统计回答】当检索结果中包含【报价单统计】数据（含单号总数、单号列表）时，必须以'单号总数'为准回答准确数量，不得以明细条数代替总数，不得说'暂无数据'。" +
-                            "⑨【全量列表展示】客户的报价单号全量列表已由系统以结构化面板自动、完整、零省略地展示给用户，你无需在回答中逐条复述全部单号；只需准确给出'单号总数'，并结合数据做分析/建议，必要时仅举例少量单号即可。" +
+                            "⑨【全量明细已由面板展示】客户的全部报价单明细(单号/尺码/日产量/机台费/净成本/销售成本)已由系统以结构化表格完整、零省略地自动展示给用户。你的回答中【严禁】再输出任何'以…为例'的示例表格、只含部分行的表格或逐条单号列表；只需准确给出'单号总数'、整体统计(平均/最高/最低净成本、产能分布等)与管控建议。" +
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 【知识库文档使用指引】当检索结果中包含【知识库文档】片段时，必须基于文档原文回答，不得歪曲或过度推断。引用时注明出处文档名称。如果文档片段不完整或信息不足以回答问题，请明确说明并建议用户补充上传相关文档。" +
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +

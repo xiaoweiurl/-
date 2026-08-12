@@ -57,6 +57,12 @@ public class QuotationCalcService {
         return jdbcTemplate.queryForList(sql, khname);
     }
 
+    /** 按客户名称查询全部行(供前端全量明细表, 上限1000) */
+    public List<Map<String, Object>> queryByKhnameAll(String khname) {
+        String sql = "SELECT * FROM " + TABLE + " WHERE khname = ? ORDER BY dh LIMIT 1000";
+        return jdbcTemplate.queryForList(sql, khname);
+    }
+
     /** 按生产货号模糊查询 */
     public List<Map<String, Object>> queryByHuohao(String huohao) {
         String sql = "SELECT * FROM " + TABLE + " WHERE huohao ILIKE ? LIMIT 50";
