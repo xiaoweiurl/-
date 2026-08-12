@@ -204,6 +204,26 @@ public class SmartChatServiceImpl implements SmartChatService {
                         } else if (supplyChainIntent || otherIntent) {
                             supplyChainResults = searchSupplyChain(message, company, userId);
                         }
+                        // 终极兜底【function-calling】：实体/关键词都未命中时，交给工具调用模型自己决定调用哪个工具，
+                        // 支持"哪个客户单号最多/所有客户报价汇总/一共多少单"等不含实体的任意问法
+                        if (supplyChainResults.isEmpty() && supplyChainAssistant != null) {
+                            try {
+                                String analysis = supplyChainAssistant.chat(message, company);
+                                if (analysis != null && !analysis.isBlank()) {
+                                    Map<String, Object> entry = new LinkedHashMap<>();
+                                    entry.put("type", "供应链AI工具分析");
+                                    entry.put("summary", "AI 通过 function-calling 调用统计/查询工具得出的分析");
+                                    Map<String, Object> data = new LinkedHashMap<>();
+                                    data.put("分析结论", analysis);
+                                    entry.put("data", data);
+                                    supplyChainResults = new ArrayList<>();
+                                    supplyChainResults.add(entry);
+                                    log.info("function-calling 兜底分析完成, 长度={}", analysis.length());
+                                }
+                            } catch (Exception ex) {
+                                log.warn("function-calling 兜底分析异常: {}", ex.getMessage());
+                            }
+                        }
                         log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
                     } catch (Exception e) {
                         log.warn("供应链数据检索异常: {}", e.getMessage());

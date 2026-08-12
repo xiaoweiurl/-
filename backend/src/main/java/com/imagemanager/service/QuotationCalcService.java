@@ -123,6 +123,36 @@ public class QuotationCalcService {
                 String.class, khname);
     }
 
+    // ====== 全局聚合统计（不依赖具体实体，支持"哪个客户单号最多"等任意问法） ======
+
+    private static int clamp(int v, int min, int max) {
+        return Math.max(min, Math.min(v, max));
+    }
+
+    /** 客户单量排行（GROUP BY 统计，降序） */
+    public List<Map<String, Object>> customerOrderRanking(int limit) {
+        String sql = "SELECT khname, COUNT(*) AS order_count FROM " + TABLE
+                + " WHERE khname IS NOT NULL AND TRIM(khname) <> ''"
+                + " GROUP BY khname ORDER BY order_count DESC LIMIT " + clamp(limit, 1, 100);
+        return jdbcTemplate.queryForList(sql);
+    }
+
+    /** 全客户报价汇总：单量 + 平均净成本 + 平均销售成本 */
+    public List<Map<String, Object>> customerQuotationSummary(int limit) {
+        String sql = "SELECT khname, COUNT(*) AS order_count,"
+                + " ROUND(AVG(jcb), 4) AS avg_net_cost, ROUND(AVG(xscb), 4) AS avg_sales_cost"
+                + " FROM " + TABLE
+                + " WHERE khname IS NOT NULL AND TRIM(khname) <> ''"
+                + " GROUP BY khname ORDER BY order_count DESC LIMIT " + clamp(limit, 1, 100);
+        return jdbcTemplate.queryForList(sql);
+    }
+
+    /** 全局统计：总单数 / 客户总数 */
+    public Map<String, Object> globalStats() {
+        return jdbcTemplate.queryForMap(
+                "SELECT COUNT(*) AS total_orders, COUNT(DISTINCT khname) AS total_customers FROM " + TABLE);
+    }
+
     // ====== 确定性计算 ======
 
     /**

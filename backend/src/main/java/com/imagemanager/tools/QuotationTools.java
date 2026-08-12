@@ -42,6 +42,49 @@ public class QuotationTools {
         return formatRows(rows);
     }
 
+    @Tool("统计每个客户的报价单数量并按数量降序排行。当用户问'哪个客户单号最多/单量排行/客户单量对比/谁下单最多'等全局聚合问题时使用。")
+    public String rankCustomersByOrderCount(int topN) {
+        List<Map<String, Object>> rows = calcService.customerOrderRanking(topN);
+        if (rows.isEmpty()) return "暂无报价单数据";
+        StringBuilder sb = new StringBuilder("客户单量排行(降序):\n");
+        for (Map<String, Object> r : rows) {
+            sb.append(r.get("khname")).append(" = ").append(r.get("order_count")).append(" 单\n");
+        }
+        return sb.toString();
+    }
+
+    @Tool("汇总所有客户的报价数据：单量、平均净成本、平均销售成本。当用户问'所有客户报价汇总/整体报价情况/各客户成本对比'时使用。")
+    public String summarizeAllCustomers(int topN) {
+        List<Map<String, Object>> rows = calcService.customerQuotationSummary(topN);
+        if (rows.isEmpty()) return "暂无报价单数据";
+        StringBuilder sb = new StringBuilder("客户报价汇总:\n");
+        for (Map<String, Object> r : rows) {
+            sb.append(r.get("khname")).append(": 单量=").append(r.get("order_count"))
+              .append(", 平均净成本=").append(r.get("avg_net_cost"))
+              .append(", 平均销售成本=").append(r.get("avg_sales_cost")).append("\n");
+        }
+        return sb.toString();
+    }
+
+    @Tool("统计报价单总数与客户总数。当用户问'一共多少单/有多少客户/总体规模'时使用。")
+    public String globalQuotationStats() {
+        Map<String, Object> s = calcService.globalStats();
+        return "报价单总数=" + s.get("total_orders") + ", 客户总数=" + s.get("total_customers");
+    }
+
+    @Tool("按客户名称统计报价单数量。当用户问某客户有多少单/下单数量时使用。")
+    public String countOrdersByCustomer(String customer) {
+        int c = calcService.countByKhname(customer);
+        return "客户 " + customer + " 的报价单数量 = " + c;
+    }
+
+    @Tool("按客户名称列出全部报价单号。当用户需要某客户的单号清单时使用。")
+    public String listOrderNosByCustomer(String customer) {
+        List<String> dhs = calcService.listDhByKhname(customer);
+        if (dhs.isEmpty()) return "客户 " + customer + " 暂无报价单";
+        return "客户 " + customer + " 共 " + dhs.size() + " 单: " + String.join(", ", dhs);
+    }
+
     @Tool("按报价单号(dh)查询并用后端公式引擎计算全部派生指标(日产量/织造成本/原料金额/前道合计/后道合计/净成本/税金/销售成本)。当用户要求计算、核算、验证某单的成本或报价时使用。")
     public String calculateByDh(String dh) {
         List<Map<String, Object>> rows = calcService.queryByDh(dh);
