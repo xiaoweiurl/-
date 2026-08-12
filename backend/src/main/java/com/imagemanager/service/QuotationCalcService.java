@@ -197,7 +197,7 @@ public class QuotationCalcService {
         // 日产量 = 24*3600/下机时间 * 利用率
         BigDecimal rcl = BigDecimal.ZERO;
         if (zhis.compareTo(BigDecimal.ZERO) != 0) {
-            rcl = div(mul(BigDecimal.valueOf(24 * 3600), lyl), zhis);
+            rcl = div(mul(BigDecimal.valueOf(24 * 3600), pct(lyl)), zhis);
         }
         r.put("rcl_日产量", rcl);
 
@@ -249,7 +249,15 @@ public class QuotationCalcService {
 
     /** (1 - 比率 + 1)，比率按小数(0~1)存储 */
     private BigDecimal factor(BigDecimal rate) {
-        return BigDecimal.ONE.subtract(rate).add(BigDecimal.ONE);
+        return BigDecimal.ONE.subtract(pct(rate)).add(BigDecimal.ONE);
+    }
+
+    /** 比率归一化：DB 存百分数(94 表示 94%)，>1 时转为小数 0.94；已为小数(<=1)则原样返回 */
+    private BigDecimal pct(BigDecimal v) {
+        if (v == null) return BigDecimal.ZERO;
+        return v.compareTo(BigDecimal.ONE) > 0
+                ? v.divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP)
+                : v;
     }
 
     // ====== BigDecimal 工具（null 安全 + 除零保护） ======
