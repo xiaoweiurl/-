@@ -134,6 +134,7 @@ export default function SupplyChainPage() {
     isStreaming?: boolean;
     searchResults?: Array<{ title: string; url: string }>;
     attachments?: Array<{ name: string; type: string; base64: string; mimeType: string }>;
+    quotationList?: { customer: string; total: number; orders: string[] };
   }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -456,6 +457,13 @@ export default function SupplyChainPage() {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 updated[updated.length - 1] = { ...last, searchResults: parsed.results };
+                return updated;
+              });
+            } else if (parsed.type === 'quotation_list' && Array.isArray(parsed.orders)) {
+              setChatMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                updated[updated.length - 1] = { ...last, quotationList: { customer: String(parsed.customer || ''), total: Number(parsed.total || parsed.orders.length), orders: parsed.orders.map((o: unknown) => String(o)) } };
                 return updated;
               });
             } else if (parsed.type === 'done') {
@@ -1103,6 +1111,21 @@ export default function SupplyChainPage() {
                               {msg.reasoning}
                             </div>
                           </details>
+                        )}
+
+                        {/* 报价单全量列表(结构化渲染, 零省略) */}
+                        {msg.role === 'assistant' && msg.quotationList && msg.quotationList.orders.length > 0 && (
+                          <div className="mb-2.5 rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-900/20 to-slate-900/10 p-3 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[11px] font-semibold text-blue-400">客户「{msg.quotationList.customer}」报价单号全量列表</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">共 {msg.quotationList.total} 个</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 max-h-64 overflow-y-auto">
+                              {msg.quotationList.orders.map((o, i) => (
+                                <span key={i} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-slate-300">{o}</span>
+                              ))}
+                            </div>
+                          </div>
                         )}
 
                         {/* 联网搜索结果 */}
