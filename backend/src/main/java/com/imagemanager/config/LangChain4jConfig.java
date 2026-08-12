@@ -52,10 +52,10 @@ public class LangChain4jConfig {
      * 大模型会根据用户问题自动决定调用哪个工具
      */
     @Bean
-    public SupplyChainAssistant supplyChainAssistant(ChatModel chatModel, SupplyChainTools tools) {
+    public SupplyChainAssistant supplyChainAssistant(ChatModel chatModel, SupplyChainTools tools, QuotationTools quotationTools) {
         return AiServices.builder(SupplyChainAssistant.class)
                 .chatModel(chatModel)
-                .tools(tools)
+                .tools(tools, quotationTools)
                 .build();
     }
 

@@ -44,6 +44,14 @@ public interface SupplyChainAssistant {
             SQL 中公司过滤条件用 COMPANY_PLACEHOLDER 代替，例如: WHERE company = COMPANY_PLACEHOLDER
             只能生成 SELECT 语句，搜索内容用 ILIKE 模糊匹配。
 
+            ### 工具3/4/5: 报价单查询与成本计算（order_bjd_query 表，涉及报价/成本/利润时优先使用）
+            - queryQuotationByDh(报价单号)：按报价单号精确查询报价单
+            - queryQuotationByCustomer(客户名称)：按客户模糊查询报价单
+            - queryQuotationByHuohao(货号)：按生产/成品货号模糊查询
+            - calculateQuotation(报价单号)：查询报价单并按公式自动计算日产量/织造成本/前道合计/后道合计/净成本/税金/销售成本等全部指标
+            当用户问"报价单、净成本、销售成本、利润、某客户/某货号的报价"时，优先调用这些工具，
+            计算结果由系统用确定性代码得出，直接引用即可，不要自己手算。
+
             ## 【强制性能硬性规则，违反则输出无效SQL】
             1. 禁止使用 SELECT *，必须只写出用户问题明确需要的字段
             2. 必须携带 WHERE 过滤条件，禁止无过滤全表查询
