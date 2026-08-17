@@ -695,7 +695,9 @@ public class KnowledgeImportService {
      * 合并单元格向下填充 + 首列同值延续，保证每行数据带完整上下文（检索友好）
      */
     private String parseExcel(Path file) throws Exception {
-        try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
+        Workbook workbook = null;
+        try {
+            workbook = WorkbookFactory.create(file.toFile());
             DataFormatter formatter = new DataFormatter();
             FormulaEvaluator evaluator;
             try {
@@ -714,6 +716,15 @@ public class KnowledgeImportService {
                 }
             }
             return sb.toString();
+        } finally {
+            if (workbook != null) {
+                try {
+                    workbook.close();
+                } catch (Exception e) {
+                    // 忽略关闭时的保存错误（内嵌媒体文件压缩比问题）
+                    log.debug("Excel 关闭时保存失败（可忽略）: {}", e.getMessage());
+                }
+            }
         }
     }
 
@@ -770,8 +781,8 @@ public class KnowledgeImportService {
                     if (header.isEmpty()) continue;
                     String value = cellText(formatter, evaluator, row.getCell(c));
                     if (value.isEmpty()) {
-                        // 合并单元格：区域内空格子取区域首格值
-                        String mergedVal = mergedValueAt(merged, sheet, formatter, evaluator, r, c);
+                        // 合并单元格：区域内空格子取区域首格值（但首行不能是表头行）
+                        String mergedVal = mergedValueAt(merged, sheet, formatter, evaluator, r, c, firstRow);
                         if (mergedVal != null) value = mergedVal;
                         // 首列额外延续（部分表不用合并单元格，留空表示同上）
                         if (value.isEmpty() && c == 0 && carry[c] != null) value = carry[c];
@@ -791,12 +802,16 @@ public class KnowledgeImportService {
         sb.append("\n");
     }
 
-    /** 取 (row, col) 所在合并区域的首格值；不在任何区域内返回 null */
+    /** 取 (row, col) 所在合并区域的首格值；不在任何区域内或首行是表头行返回 null */
     private String mergedValueAt(List<CellRangeAddress> merged, Sheet sheet,
                                  DataFormatter formatter, FormulaEvaluator evaluator,
-                                 int rowIdx, int colIdx) {
+                                 int rowIdx, int colIdx, int headerRowIdx) {
         for (CellRangeAddress region : merged) {
             if (region.isInRange(rowIdx, colIdx)) {
+                // 如果合并区域从表头行开始，不填充（避免用表头值覆盖数据行）
+                if (region.getFirstRow() <= headerRowIdx) {
+                    return null;
+                }
                 Row firstRow = sheet.getRow(region.getFirstRow());
                 if (firstRow == null) return null;
                 return cellText(formatter, evaluator, firstRow.getCell(region.getFirstColumn()));
