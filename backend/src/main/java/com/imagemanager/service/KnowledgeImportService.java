@@ -187,6 +187,7 @@ public class KnowledgeImportService {
         final AtomicInteger processedCounter = new AtomicInteger();
         final AtomicInteger failCounter = new AtomicInteger();
         final AtomicInteger sinceLastPersist = new AtomicInteger();
+        final List<Path> tempDirs = Collections.synchronizedList(new ArrayList<>());
         volatile boolean cancelled = false;
         volatile boolean producerDone = false;
         Throwable writerError = null;
@@ -323,8 +324,26 @@ public class KnowledgeImportService {
             persistTask(progress, "FAILED", e.getMessage());
         } finally {
             parsePool.shutdownNow();
+            // 等待仍在运行的解析任务退出，避免清理临时文件时它们还在读
+            try { parsePool.awaitTermination(60, TimeUnit.SECONDS); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            cleanTempDirs(ctx);
             runningContexts.remove(taskId);
         }
+    }
+
+    /**
+     * 清理任务期间登记的所有临时目录（在解析池完全停止后调用）
+     */
+    private void cleanTempDirs(ImportContext ctx) {
+        for (Path dir : ctx.tempDirs) {
+            try (var leftovers = Files.list(dir)) {
+                leftovers.forEach(f -> {
+                    try { Files.deleteIfExists(f); } catch (IOException ignored) {}
+                });
+            } catch (IOException ignored) {}
+            try { Files.deleteIfExists(dir); } catch (IOException ignored) {}
+        }
+        ctx.tempDirs.clear();
     }
 
     /**
@@ -377,6 +396,7 @@ public class KnowledgeImportService {
         Semaphore inflight = new Semaphore(maxInflightFiles);
         List<String> supportedExts = supportedExtensions();
         Path tempDir = Files.createTempDirectory("kimport-");
+        ctx.tempDirs.add(tempDir);
         byte[] buf = new byte[128 * 1024];
 
         try (ZipFile zf = openZipFile(zipFile)) {
@@ -437,15 +457,9 @@ public class KnowledgeImportService {
                     throw e;
                 }
             }
-        } finally {
-            // 清理本层临时目录残留
-            try (var leftovers = Files.list(tempDir)) {
-                leftovers.forEach(f -> {
-                    try { Files.deleteIfExists(f); } catch (IOException ignored) {}
-                });
-            }
-            Files.deleteIfExists(tempDir);
         }
+        // 临时目录不在这里清理：解析任务在 parsePool 异步运行，仍需读取临时文件。
+        // 统一登记到 ctx.tempDirs，待整个导入任务结束（解析池 shutdown 后）再清理。
     }
 
     /**
