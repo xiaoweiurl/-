@@ -605,7 +605,7 @@ public class KnowledgeImportService {
             String content = fullText == null ? null
                     : (fullText.length() > 50000 ? fullText.substring(0, 50000) : fullText);
             String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
-            jdbc.update("""
+            jdbcTemplate.update("""
                     INSERT INTO knowledge_base_docs
                         (id, user_id, category_id, title, file_name, file_type, file_size,
                          file_path, content, status, tags, chunk_count, embedding_status,
