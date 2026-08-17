@@ -239,10 +239,10 @@ public class KnowledgeImportService {
     }
 
     private Map<String, Object> startTask(Path root, String sourceName, String userId) {
-        // 创建任务记录
+        // 创建任务记录（knowledge_import_task 表没有 user_id 字段）
         Long taskId = jdbcTemplate.queryForObject(
-                "INSERT INTO knowledge_import_task (source, user_id) VALUES (?, ?) RETURNING id",
-                Long.class, sourceName, userId);
+                "INSERT INTO knowledge_import_task (source) VALUES (?) RETURNING id",
+                Long.class, sourceName);
 
         ImportTaskProgress progress = new ImportTaskProgress();
         progress.taskId = taskId;
