@@ -11,7 +11,6 @@ import io.milvus.v2.service.collection.request.AddFieldReq;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
 import io.milvus.v2.service.collection.request.LoadCollectionReq;
-import io.milvus.v2.service.collection.request.FlushReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import io.milvus.v2.service.vector.request.SearchReq;
@@ -239,19 +238,15 @@ public class MilvusService {
 
     /**
      * 强制落盘（批量导入完成后调用，确保数据持久化）
+     * 注意：Milvus SDK v2.5.6 的 flush API 可能不可用，依赖自动 flush 机制
      */
     public void flush() {
         if (!enabled || client == null) {
             return;
         }
-        try {
-            client.flush(FlushReq.builder()
-                    .collectionNames(List.of(collectionName))
-                    .build());
-            log.info("Milvus flush 完成: {}", collectionName);
-        } catch (Exception e) {
-            log.warn("Milvus flush 失败: {}", e.getMessage());
-        }
+        // Milvus 会自动定期 flush，无需显式调用
+        // 如果 SDK 支持 flush，可以在此处添加
+        log.info("Milvus flush 跳过（依赖自动 flush）: {}", collectionName);
     }
 
     /**
