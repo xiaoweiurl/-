@@ -452,8 +452,12 @@ public class KnowledgeImportService {
             } catch (Exception e) {
                 int failed = ctx.failCounter.incrementAndGet();
                 ctx.progress.failedFiles = failed;
-                recordError(ctx, virtualName, e.getMessage() != null ? e.getMessage() : e.toString());
-                log.warn("文件解析失败: {} -> {}", virtualName, e.getMessage());
+                String errorMsg = e.getMessage();
+                if (errorMsg == null || errorMsg.isBlank()) {
+                    errorMsg = e.getClass().getSimpleName() + ": " + e.toString();
+                }
+                recordError(ctx, virtualName, errorMsg);
+                log.warn("文件解析失败: {} -> {}", virtualName, errorMsg, e);
             } finally {
                 if (deleteAfter) {
                     try { Files.deleteIfExists(file); } catch (IOException ignored) {}
@@ -867,7 +871,14 @@ public class KnowledgeImportService {
     }
 
     private void recordError(ImportContext ctx, String fileName, String error) {
-        String msg = error != null && error.length() > 500 ? error.substring(0, 500) : error;
+        // 确保错误信息不为空
+        String msg = error;
+        if (msg == null || msg.isBlank()) {
+            msg = "未知错误（请查看后端日志）";
+        }
+        if (msg.length() > 500) {
+            msg = msg.substring(0, 500) + "...";
+        }
         ctx.progress.recentErrors.add(fileName + " -> " + msg);
         synchronized (ctx.progress.recentErrors) {
             while (ctx.progress.recentErrors.size() > 100) {
