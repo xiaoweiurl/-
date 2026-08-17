@@ -7,11 +7,11 @@ import io.milvus.v2.common.DataType;
 import io.milvus.v2.common.IndexParam;
 import io.milvus.v2.service.vector.request.data.BaseVector;
 import io.milvus.v2.service.vector.request.data.FloatVec;
+import io.milvus.v2.service.collection.request.AddFieldReq;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.CreateCollectionReq.CollectionSchema;
-import io.milvus.v2.service.collection.request.CreateCollectionReq.FieldSchema;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
-import io.milvus.v2.service.collection.request.CreatePartitionReq;
+import io.milvus.v2.service.collection.request.LoadCollectionReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import io.milvus.v2.service.vector.request.SearchReq;
@@ -108,58 +108,58 @@ public class MilvusService {
                 return;
             }
 
-            // 定义字段
-            List<FieldSchema> fields = new ArrayList<>();
+            // 构建 CollectionSchema（使用 client.createSchema()）
+            CollectionSchema schema = client.createSchema();
 
             // 主键（自增）
-            fields.add(FieldSchema.builder()
-                    .name("chunk_id")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("chunk_id")
                     .dataType(DataType.Int64)
                     .isPrimaryKey(true)
                     .autoID(true)
                     .build());
 
             // 文档ID（标量过滤）
-            fields.add(FieldSchema.builder()
-                    .name("doc_id")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("doc_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 业务员ID（分区键，加速过滤）
-            fields.add(FieldSchema.builder()
-                    .name("salesperson_id")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("salesperson_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 客户ID（标量过滤）
-            fields.add(FieldSchema.builder()
-                    .name("customer_id")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("customer_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 文档类型（pdf/word/excel/image）
-            fields.add(FieldSchema.builder()
-                    .name("doc_type")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("doc_type")
                     .dataType(DataType.VarChar)
                     .maxLength(32)
                     .build());
 
             // 切片序号
-            fields.add(FieldSchema.builder()
-                    .name("chunk_index")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("chunk_index")
                     .dataType(DataType.Int32)
                     .build());
 
             // 切片原文（用于检索后返回）
-            fields.add(FieldSchema.builder()
-                    .name("content")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("content")
                     .dataType(DataType.VarChar)
                     .maxLength(8192)
                     .build());
 
             // 向量（bge-m3, 1024维）
-            fields.add(FieldSchema.builder()
-                    .name("embedding")
+            schema.addField(AddFieldReq.builder()
+                    .fieldName("embedding")
                     .dataType(DataType.FloatVector)
                     .dimension(dimension)
                     .build());
@@ -175,13 +175,13 @@ public class MilvusService {
                     .extraParams(Map.of("M", 16, "efConstruction", 200))
                     .build());
 
-            // 标量索引：doc_id（加速过滤）
+            // 标量索引：doc_id
             indexes.add(IndexParam.builder()
                     .fieldName("doc_id")
                     .indexType(IndexParam.IndexType.STL_SORT)
                     .build());
 
-            // 标量索引：salesperson_id（分区键）
+            // 标量索引：salesperson_id
             indexes.add(IndexParam.builder()
                     .fieldName("salesperson_id")
                     .indexType(IndexParam.IndexType.STL_SORT)
@@ -199,17 +199,17 @@ public class MilvusService {
                     .indexType(IndexParam.IndexType.TRIE)
                     .build());
 
-            // 构建 CollectionSchema
-            CollectionSchema schema = CollectionSchema.builder()
-                    .fieldTypes(fields)
-                    .build();
-
-            // 创建 Collection
+            // 创建 Collection（schema + indexes 一起传入）
             client.createCollection(CreateCollectionReq.builder()
                     .collectionName(collectionName)
                     .collectionSchema(schema)
-                    .indexes(indexes)
+                    .indexParams(indexes)
                     .enableDynamicField(false)
+                    .build());
+
+            // 加载 Collection 到内存（加速检索）
+            client.loadCollection(LoadCollectionReq.builder()
+                    .collectionName(collectionName)
                     .build());
 
             log.info("Milvus collection 创建成功: {} (dimension={}, HNSW索引)", collectionName, dimension);
