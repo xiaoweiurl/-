@@ -10,6 +10,7 @@ import com.imagemanager.repository.KnowledgeBaseDocRepository;
 import com.imagemanager.service.DocumentParserService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
+import com.imagemanager.service.MilvusService;
 import com.imagemanager.util.KeywordExtractor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,6 +47,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final DocumentParserService documentParserService;
     private final JdbcTemplate jdbcTemplate;
     private final PlatformTransactionManager transactionManager;
+    private final MilvusService milvusService;
 
     public KnowledgeBaseServiceImpl(
             KnowledgeBaseDocRepository docRepository,
@@ -53,13 +55,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             @Qualifier("localFileStorageService") FileStorageService localFileStorageService,
             DocumentParserService documentParserService,
             JdbcTemplate jdbcTemplate,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            MilvusService milvusService) {
         this.docRepository = docRepository;
         this.categoryRepository = categoryRepository;
         this.localFileStorageService = localFileStorageService;
         this.documentParserService = documentParserService;
         this.jdbcTemplate = jdbcTemplate;
         this.transactionManager = transactionManager;
+        this.milvusService = milvusService;
     }
 
     @Value("${app.ollama.base-url:http://localhost:11434}")
@@ -210,6 +214,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     );
                     return null;
                 });
+                
+                // 写入 Milvus（向量检索）
+                if (milvusService != null && milvusService.isEnabled()) {
+                    try {
+                        milvusService.insertChunk(docId.toString(), null, null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
+                    } catch (Exception e) {
+                        log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
+                    }
+                }
+                
                 successCount++;
             }
 
@@ -295,6 +309,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     );
                     return null;
                 });
+                
+                // 写入 Milvus（向量检索）
+                if (milvusService != null && milvusService.isEnabled()) {
+                    try {
+                        milvusService.insertChunk(docId.toString(), null, null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
+                    } catch (Exception e) {
+                        log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
+                    }
+                }
+                
                 successCount++;
             }
 
@@ -334,6 +358,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 docRepository.save(doc);
                 // 先删除旧的向量记录
                 jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?::uuid", docId.toString());
+                // Milvus 双删
+                if (milvusService != null && milvusService.isEnabled()) {
+                    milvusService.deleteByDocId(docId);
+                }
                 return null;
             });
 
@@ -362,6 +390,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     );
                     return null;
                 });
+                
+                // 写入 Milvus（向量检索）
+                if (milvusService != null && milvusService.isEnabled()) {
+                    try {
+                        milvusService.insertChunk(docId.toString(), null, null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
+                    } catch (Exception e) {
+                        log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
+                    }
+                }
+                
                 successCount++;
             }
 
@@ -410,6 +448,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         try {
             jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?", id.toString());
             log.info("删除知识库文档 {} 对应的向量记录", id);
+            // Milvus 双删
+            if (milvusService != null && milvusService.isEnabled()) {
+                milvusService.deleteByDocId(id);
+            }
         } catch (Exception e) {
             log.warn("删除知识库向量记录失败: {}", e.getMessage());
         }
@@ -474,7 +516,34 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         try {
             log.info("知识库搜索: query='{}', minScore={}, limit={}, company='{}'", query, minScore, limit, company);
             
-            // ====== 混合检索(Hybrid Search): 关键词预过滤 + 向量语义搜索 ======
+            // ====== Milvus 检索分支（启用时优先走 Milvus） ======
+            if (milvusService != null && milvusService.isEnabled()) {
+                try {
+                    float[] queryEmbedding = getEmbedding(query);
+                    if (queryEmbedding != null && queryEmbedding.length > 0) {
+                        List<MilvusService.MilvusSearchResult> milvusResults = milvusService.search(queryEmbedding, limit, null, null);
+                        if (!milvusResults.isEmpty()) {
+                            List<MemorySearchResult> results = new ArrayList<>();
+                            for (MilvusService.MilvusSearchResult mr : milvusResults) {
+                                if (mr.score >= minScore) {
+                                    MemorySearchResult r = new MemorySearchResult();
+                                    r.setChunkId(String.valueOf(mr.chunkId));
+                                    r.setContent(mr.content);
+                                    r.setScore(mr.score);
+                                    r.setSourceDocId(mr.docId != null ? mr.docId.toString() : null);
+                                    results.add(r);
+                                }
+                            }
+                            log.info("知识库搜索: Milvus检索返回{}条结果", results.size());
+                            return results;
+                        }
+                    }
+                } catch (Exception milvusEx) {
+                    log.warn("知识库搜索: Milvus检索失败,降级到pgvector: {}", milvusEx.getMessage());
+                }
+            }
+            
+            // ====== 原有 pgvector 混合检索逻辑 ======
             // Step 1: 从查询中提取关键词（去除停用词、保留核心名词）
             List<String> keywords = extractKeywords(query);
             log.info("知识库搜索: 提取关键词={}", keywords);
