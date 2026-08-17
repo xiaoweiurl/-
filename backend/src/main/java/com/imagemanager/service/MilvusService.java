@@ -199,10 +199,15 @@ public class MilvusService {
                     .indexType(IndexParam.IndexType.TRIE)
                     .build());
 
+            // 构建 CollectionSchema
+            CollectionSchema schema = CollectionSchema.builder()
+                    .fieldTypes(fields)
+                    .build();
+
             // 创建 Collection
             client.createCollection(CreateCollectionReq.builder()
                     .collectionName(collectionName)
-                    .fieldTypes(fields)
+                    .collectionSchema(schema)
                     .indexes(indexes)
                     .enableDynamicField(false)
                     .build());
