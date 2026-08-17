@@ -42,8 +42,10 @@ public class KnowledgeImportController {
             return ResponseEntity.badRequest().body(Map.of("error", "path 参数必填"));
         }
         String userId = SessionUtil.getCurrentUserId();
+        // company 必须在 HTTP 线程捕获（runImport 在异步线程，RequestContextHolder 不可用）
+        String company = SessionUtil.getCurrentCompany();
         try {
-            return ResponseEntity.ok(importService.submitPath(path.trim(), userId));
+            return ResponseEntity.ok(importService.submitPath(path.trim(), userId, company));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
@@ -61,8 +63,10 @@ public class KnowledgeImportController {
             return ResponseEntity.badRequest().body(Map.of("error", "文件不能为空"));
         }
         String userId = SessionUtil.getCurrentUserId();
+        // company 必须在 HTTP 线程捕获（runImport 在异步线程，RequestContextHolder 不可用）
+        String company = SessionUtil.getCurrentCompany();
         try {
-            return ResponseEntity.ok(importService.submitUpload(file, userId));
+            return ResponseEntity.ok(importService.submitUpload(file, userId, company));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {

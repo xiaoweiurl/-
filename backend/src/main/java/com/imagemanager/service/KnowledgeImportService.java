@@ -183,20 +183,23 @@ public class KnowledgeImportService {
     private static class ImportContext {
         final long taskId;
         final String userId;
+        final String company;
         final ImportTaskProgress progress;
         final BlockingQueue<JsonObject> buffer;
         final AtomicLong chunkCounter = new AtomicLong();
         final AtomicInteger processedCounter = new AtomicInteger();
         final AtomicInteger failCounter = new AtomicInteger();
+        final AtomicInteger skippedCounter = new AtomicInteger();
         final AtomicInteger sinceLastPersist = new AtomicInteger();
         final List<Path> tempDirs = Collections.synchronizedList(new ArrayList<>());
         volatile boolean cancelled = false;
         volatile boolean producerDone = false;
         Throwable writerError = null;
 
-        ImportContext(long taskId, String userId, ImportTaskProgress progress, int bufferCapacity) {
+        ImportContext(long taskId, String userId, String company, ImportTaskProgress progress, int bufferCapacity) {
             this.taskId = taskId;
             this.userId = userId;
+            this.company = company;
             this.progress = progress;
             this.buffer = new ArrayBlockingQueue<>(bufferCapacity);
         }
@@ -207,7 +210,7 @@ public class KnowledgeImportService {
     /**
      * 按服务器路径导入（zip 压缩包或文件夹）
      */
-    public Map<String, Object> submitPath(String path, String userId) {
+    public Map<String, Object> submitPath(String path, String userId, String company) {
         Path root = Paths.get(path);
         if (!Files.exists(root)) {
             throw new IllegalArgumentException("路径不存在: " + path);
@@ -218,27 +221,27 @@ public class KnowledgeImportService {
         if (!tryAcquireTaskSlot()) {
             throw new IllegalStateException("已有导入任务在运行，请等待完成后再提交（max-concurrent-tasks=" + maxConcurrentTasks + "）");
         }
-        return startTask(root, path, userId);
+        return startTask(root, path, userId, company);
     }
 
     /**
      * 上传 zip 文件导入（保存到系统临时目录后流式处理）
      */
-    public Map<String, Object> submitUpload(MultipartFile file, String userId) throws IOException {
+    public Map<String, Object> submitUpload(MultipartFile file, String userId, String company) throws IOException {
         Path tempZip = Files.createTempFile("knowledge-import-", ".zip");
         file.transferTo(tempZip);
         if (!tryAcquireTaskSlot()) {
             Files.deleteIfExists(tempZip);
             throw new IllegalStateException("已有导入任务在运行，请等待完成后再提交");
         }
-        return startTask(tempZip, file.getOriginalFilename() != null ? file.getOriginalFilename() : tempZip.getFileName().toString(), userId);
+        return startTask(tempZip, file.getOriginalFilename() != null ? file.getOriginalFilename() : tempZip.getFileName().toString(), userId, company);
     }
 
     private boolean tryAcquireTaskSlot() {
         return taskSemaphore().tryAcquire();
     }
 
-    private Map<String, Object> startTask(Path root, String sourceName, String userId) {
+    private Map<String, Object> startTask(Path root, String sourceName, String userId, String company) {
         // 创建任务记录（knowledge_import_task 表没有 user_id 字段）
         Long taskId = jdbcTemplate.queryForObject(
                 "INSERT INTO knowledge_import_task (source) VALUES (?) RETURNING id",
@@ -252,7 +255,7 @@ public class KnowledgeImportService {
 
         taskExecutor.submit(() -> {
             try {
-                runImport(root, taskId, userId);
+                runImport(root, taskId, userId, company);
             } finally {
                 taskSemaphore().release();
             }
@@ -267,9 +270,9 @@ public class KnowledgeImportService {
 
     // ========== 核心导入流程 ==========
 
-    private void runImport(Path root, long taskId, String userId) {
+    private void runImport(Path root, long taskId, String userId, String company) {
         ImportTaskProgress progress = progressMap.get(taskId);
-        ImportContext ctx = new ImportContext(taskId, userId, progress, bufferCapacity);
+        ImportContext ctx = new ImportContext(taskId, userId, company, progress, bufferCapacity);
         runningContexts.put(taskId, ctx);
 
         ExecutorService parsePool = Executors.newFixedThreadPool(Math.max(1, parseThreads), r -> {
@@ -525,8 +528,14 @@ public class KnowledgeImportService {
 
     private void parseAndEmbedFile(Path file, String virtualName, String ext,
                                    String docId, ImportContext ctx) throws Exception {
-        // 幂等：重导前删除旧向量
-        milvusService.deleteByDocId(docId);
+        // 幂等：相同内容(docId)已导入且未变更则跳过
+        if (milvusService.existsByDocId(docId)) {
+            ctx.skippedCounter.incrementAndGet();
+            ctx.progress.skippedFiles = ctx.skippedCounter.get();
+            maybePersistProgress(ctx);
+            log.debug("文件未变更，跳过: {}", virtualName);
+            return;
+        }
 
         String text;
         String docType = ext;
@@ -562,6 +571,9 @@ public class KnowledgeImportService {
             persistDocMeta(ctx, virtualName, docId, docType, 0, null, "SKIPPED");
             return;
         }
+
+        // 内容有更新：先清掉旧向量再写新
+        milvusService.deleteByDocId(docId);
 
         String fileName = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
 
@@ -607,10 +619,10 @@ public class KnowledgeImportService {
             String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
             jdbcTemplate.update("""
                     INSERT INTO knowledge_base_docs
-                        (id, user_id, category_id, title, file_name, file_type, file_size,
+                        (id, user_id, company, category_id, title, file_name, file_type, file_size,
                          file_path, content, status, tags, chunk_count, embedding_status,
                          file_content, created_at, updated_at)
-                    VALUES (CAST(? AS uuid), ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
+                    VALUES (CAST(? AS uuid), ?, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
                             'bulk-import', ?, ?, ?, NOW(), NOW())
                     ON CONFLICT (id) DO UPDATE SET
                         chunk_count = EXCLUDED.chunk_count,
@@ -620,7 +632,7 @@ public class KnowledgeImportService {
                         file_name = EXCLUDED.file_name,
                         updated_at = NOW()
                     """,
-                    uuid, ctx.userId, title, name1000, docType, chunkCount, status, content);
+                    uuid, ctx.userId, ctx.company, title, name1000, docType, chunkCount, status, content);
         } catch (Exception ex) {
             log.warn("文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
         }
@@ -1067,7 +1079,7 @@ public class KnowledgeImportService {
             jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg) VALUES (?,?,?)",
                     ctx.taskId, fileName, msg);
         } catch (Exception e) {
-            log.warn("记录导入错误失败: {}", e.getMessage());
+            log.warn("记录导入错误失败: {}", e.getMessage(), e);
         }
     }
 
@@ -1085,7 +1097,7 @@ public class KnowledgeImportService {
                     "UPDATE knowledge_import_task SET status=?, total_files=?, processed_files=?, failed_files=?, total_chunks=?, error_msg=?, finished_at=CASE WHEN ? IN ('COMPLETED','FAILED','CANCELLED') THEN NOW() ELSE finished_at END WHERE id=?",
                     status, p.totalFiles, p.processedFiles, p.failedFiles, p.totalChunks, errorMsg, status, p.taskId);
         } catch (Exception e) {
-            log.warn("持久化导入任务状态失败: {}", e.getMessage());
+            log.warn("持久化导入任务状态失败: {}", e.getMessage(), e);
         }
     }
 

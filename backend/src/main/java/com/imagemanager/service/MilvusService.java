@@ -13,7 +13,9 @@ import io.milvus.v2.service.collection.request.HasCollectionReq;
 import io.milvus.v2.service.collection.request.LoadCollectionReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
+import io.milvus.v2.service.vector.request.QueryReq;
 import io.milvus.v2.service.vector.request.SearchReq;
+import io.milvus.v2.service.vector.response.QueryResp;
 import io.milvus.v2.service.vector.response.SearchResp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -258,6 +260,64 @@ public class MilvusService {
         public String docType;
         public String content;
         public float score;
+    }
+
+    /**
+     * 判断 doc_id 是否已存在（重复导入跳过用）
+     */
+    public boolean existsByDocId(String docId) {
+        if (!enabled || client == null || docId == null || docId.isBlank()) {
+            return false;
+        }
+        try {
+            QueryResp resp = client.query(QueryReq.builder()
+                    .collectionName(collectionName)
+                    .filter("doc_id == \"" + escape(docId) + "\"")
+                    .outputFields(List.of("doc_id"))
+                    .limit(1L)
+                    .build());
+            return resp != null && resp.getQueryResults() != null && !resp.getQueryResults().isEmpty();
+        } catch (Exception e) {
+            log.warn("Milvus doc_id 存在性查询失败: {} -> {}", docId, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 按文件名查询已有 doc_id 列表（内容更新时清理旧向量用）
+     */
+    public List<String> findDocIdsByFileName(String fileName) {
+        if (!enabled || client == null || fileName == null || fileName.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            QueryResp resp = client.query(QueryReq.builder()
+                    .collectionName(collectionName)
+                    .filter("file_name == \"" + escape(fileName) + "\"")
+                    .outputFields(List.of("doc_id"))
+                    .limit(100L)
+                    .build());
+            List<String> ids = new ArrayList<>();
+            if (resp != null && resp.getQueryResults() != null) {
+                for (QueryResp.QueryResult row : resp.getQueryResults()) {
+                    Object id = row.getEntity() != null ? row.getEntity().get("doc_id") : null;
+                    if (id != null) {
+                        ids.add(id.toString());
+                    }
+                }
+            }
+            return ids;
+        } catch (Exception e) {
+            log.warn("Milvus 按文件名查询失败: {} -> {}", fileName, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * filter 表达式转义（反斜杠和双引号）
+     */
+    private String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /**

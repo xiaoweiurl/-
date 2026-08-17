@@ -67,6 +67,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     private com.imagemanager.service.QuotationCalcService quotationCalcService;
 
     @Autowired(required = false)
+    private com.imagemanager.service.MilvusService milvusService;
+
+    @Autowired(required = false)
     private com.imagemanager.enhance.RagPipeline ragPipeline;
 
     @Autowired(required = false)
@@ -275,6 +278,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                     log.info("跳过知识库检索（原因: {}）", reason);
                 }
 
+                // 4c. 业务员资料库 Milvus 向量检索（工厂模式核心上下文，与供应链精确数据互补）
+                List<Map<String, Object>> salespersonResults = Collections.emptyList();
+                if (isFactory && !generalChatIntent) {
+                    try {
+                        salespersonResults = searchSalespersonKnowledge(message);
+                        log.info("业务员资料 Milvus 检索到 {} 条结果", salespersonResults.size());
+                    } catch (Exception e) {
+                        log.warn("业务员资料检索异常: {}", e.getMessage());
+                    }
+                }
+
                 // 4d. 图片搜索(当用户意图涉及找图时)
                 List<Map<String, Object>> imageResults = Collections.emptyList();
                 if (isImageSearchIntent(message)) {
@@ -294,6 +308,16 @@ public class SmartChatServiceImpl implements SmartChatService {
                     sources.add(Map.of(
                             "source", "knowledge",
                             "content", r.getOrDefault("content", "").toString(),
+                            "score", r.getOrDefault("score", 0)
+                    ));
+                }
+
+                // 业务员资料来源（工厂模式）
+                for (Map<String, Object> r : salespersonResults) {
+                    sources.add(Map.of(
+                            "source", "salesperson_kb",
+                            "content", r.getOrDefault("content", "").toString(),
+                            "fileName", r.getOrDefault("fileName", "").toString(),
                             "score", r.getOrDefault("score", 0)
                     ));
                 }
@@ -415,6 +439,24 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "不要用知识库文档中的泛泛内容替代这些精确数据！\n\n");
                 }
 
+                // 业务员资料上下文（Milvus 向量检索，工厂模式第二优先级：业务语义补充）
+                if (!salespersonResults.isEmpty()) {
+                    knowledgeContext.append("## 【重要】业务员资料库（业务员一手业务文档，向量检索命中）：\n");
+                    for (int i = 0; i < salespersonResults.size(); i++) {
+                        Map<String, Object> r = salespersonResults.get(i);
+                        double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
+                        String content = r.getOrDefault("content", "").toString();
+                        String fileName = r.getOrDefault("fileName", "未知文件").toString();
+                        // 按相关度动态截断：高分保留更多内容
+                        int maxLen = score >= 0.7 ? 1000 : 600;
+                        if (content.length() > maxLen) content = content.substring(0, maxLen) + "...";
+                        knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%% | 来源: %s)\n%s\n\n",
+                                i + 1, score * 100, fileName, content));
+                    }
+                    knowledgeContext.append("⚠️ 以上来自业务员资料库（Milvus向量检索），包含业务员的客户资料、产品明细、价格表等一手业务知识。" +
+                            "请与【供应链/工厂业务数据】结合使用：精确数字以供应链数据为准，业务员资料用于补充客户背景、产品细节、工艺说明等业务语义信息。\n\n");
+                }
+
                 // 岗位卡片上下文（岗位意图时标注优先级最高，排在知识库PDF之前）
                 if (!positionCardResults.isEmpty()) {
                     if (positionIntent) {
@@ -509,6 +551,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "核心职责：" +
                             "1. 回答产品报价、原料采购、辅料采购、生产计划等供应链业务问题。" +
                             "2. 当检索结果中包含【供应链/工厂业务数据】时，必须优先且主要基于这些精确的业务数据回答，引用具体数字和供应商名称。" +
+                            "2.5【业务员资料综合回答】当检索结果中包含【业务员资料库】片段时，你必须将业务员一手资料与供应链精确数据结合起来综合回答：" +
+                            "报价/成本/库存等精确数字以供应链业务数据为准；客户背景、产品款式细节、工艺说明、业务往来背景等业务语义信息优先引用业务员资料库（注明来源文件）；" +
+                            "两者结合能给出比单一数据源更完整的答案时，必须分点综合呈现，不得只用其中一个数据源。" +
                             "3. 当用户询问具体产品的报价、成本、原料、供应商等数据时，只使用供应链业务数据中的精确数字作答；如果供应链数据中找不到对应信息，请明确告知用户当前数据库中无此数据。" +
                             "3.1【多维度数据源判断】检索结果可能同时包含多个维度的数据（报价单、生产排产、部件/款式、物料、供应商等）。你必须先理解用户问题的核心意图，再选择最匹配的维度作答，不得张冠李戴：" +
                             "① 问报价单号/净成本/销售成本/日产量/机台费/织造成本/税金等报价指标 → 以【报价单】维度数据为准；" +
@@ -523,7 +568,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "4. 支持产品图片搜索：当用户需要查看产品主图、详情图时，可以搜索图片库中的产品图片。" +
                             "5. 【知识库文档使用指引】当检索结果中包含【知识库文档】片段时，必须基于文档原文回答，不得歪曲或过度推断。引用时注明出处文档名称。如果文档片段不完整或信息不足以回答问题，请明确说明并建议用户补充上传相关文档。" +
                             "6. 严禁使用自身通用知识编造数据。如果供应链数据和知识库文档中均无相关信息，必须明确告知用户'当前数据库中暂无此数据'，不要凭通用知识猜测。" +
-                            "7. 回答时标注引用来源（供应链数据/产品图片/知识库文档/网络搜索）。" +
+                            "7. 回答时标注引用来源（供应链数据/业务员资料/产品图片/知识库文档/网络搜索）。" +
                             "8. 保持专业、简洁、有帮助的回答风格，重点关注成本控制、供应商管理、生产效率、工艺流程、质量标准等工厂核心议题。" +
                             "8. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             (webSearchIntent ? "9. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
@@ -578,7 +623,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
                     if (isFactory && hasSupplyChain) {
-                        userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答。";
+                        userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答";
+                        if (!salespersonResults.isEmpty()) {
+                            userContent += "，并结合【业务员资料库】片段补充业务背景与产品细节，给出综合答案";
+                        }
+                        userContent += "。";
                     } else if (hasSupplyChain) {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答，不要使用知识库文档内容替代业务数据。";
                     } else if (positionIntent && hasPositionCards) {
@@ -1592,6 +1641,48 @@ public class SmartChatServiceImpl implements SmartChatService {
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
             log.error("[知识库] 检索异常, 耗时 {}ms: {}", elapsed, e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    // ========== 业务员资料库 Milvus 向量检索（工厂模式 RAG） ==========
+
+    /**
+     * 从 Milvus salesperson_chunks 精确检索业务员业务知识
+     *
+     * 精确性控制（业务问题 → 给大模型的上下文）：
+     * 1. 查询文本经 bge-m3 向量化后做 HNSW COSINE TopK 检索（Milvus 内 ef=128 精排）
+     * 2. score < MIN_SCORE 的切片直接过滤，防止无关内容进入上下文引发幻觉
+     * 3. 同一 doc_id 只保留最高分片段，避免单个文件刷屏挤掉其他文件的有效信息
+     */
+    private List<Map<String, Object>> searchSalespersonKnowledge(String query) {
+        if (milvusService == null || !milvusService.isEnabled()) {
+            return Collections.emptyList();
+        }
+        final double MIN_SCORE = 0.35;
+        final int TOP_K = 8;
+        try {
+            float[] queryEmbedding = getEmbedding(query);
+            List<com.imagemanager.service.MilvusService.MilvusSearchResult> hits =
+                    milvusService.search(queryEmbedding, TOP_K);
+            List<Map<String, Object>> out = new ArrayList<>();
+            java.util.Set<String> seenDocIds = new java.util.HashSet<>();
+            for (com.imagemanager.service.MilvusService.MilvusSearchResult r : hits) {
+                if (r.score < MIN_SCORE) continue;
+                if (r.content == null || r.content.isBlank()) continue;
+                // 同一文档只保留首个（最高分）片段
+                if (r.docId != null && !seenDocIds.add(r.docId)) continue;
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("content", r.content);
+                item.put("fileName", r.fileName != null ? r.fileName : "未知文件");
+                item.put("docType", r.docType != null ? r.docType : "");
+                item.put("docId", r.docId != null ? r.docId : "");
+                item.put("score", r.score);
+                out.add(item);
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("业务员资料 Milvus 检索失败: {}", e.getMessage());
             return Collections.emptyList();
         }
     }
