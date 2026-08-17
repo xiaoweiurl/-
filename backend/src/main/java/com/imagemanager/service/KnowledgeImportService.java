@@ -666,8 +666,15 @@ public class KnowledgeImportService {
         if (file.getFileName().toString().toLowerCase().endsWith(".doc")) {
             try (InputStream is = new BufferedInputStream(Files.newInputStream(file));
                  WordExtractor extractor = new WordExtractor(is)) {
-                String text = extractor.getText();
-                return text != null ? text : "";
+                try {
+                    String text = extractor.getText();
+                    return text != null ? text : "";
+                } catch (NullPointerException e) {
+                    // POI HWPF 解析某些 .doc 文件时 listTables 为 null，降级到简单提取
+                    log.warn("WordExtractor.getText() 失败，降级到 getTextFromPieces(): {}", e.getMessage());
+                    String text = extractor.getTextFromPieces();
+                    return text != null ? text : "";
+                }
             }
         }
         try (InputStream is = new BufferedInputStream(Files.newInputStream(file));
