@@ -25,7 +25,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/knowledge/import")
+@RequestMapping("/knowledge/import")
 @RequiredArgsConstructor
 public class KnowledgeImportController {
 
