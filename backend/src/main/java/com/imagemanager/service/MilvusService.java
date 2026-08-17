@@ -5,7 +5,8 @@ import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.DataType;
 import io.milvus.v2.common.IndexParam;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
-import io.milvus.v2.service.collection.request.FieldType;
+import io.milvus.v2.service.collection.request.CreateCollectionReq.CollectionSchema;
+import io.milvus.v2.service.collection.request.CreateCollectionReq.FieldSchema;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
 import io.milvus.v2.service.collection.request.CreatePartitionReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
@@ -16,8 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -105,10 +106,10 @@ public class MilvusService {
             }
 
             // 定义字段
-            List<FieldType> fields = new ArrayList<>();
+            List<FieldSchema> fields = new ArrayList<>();
 
             // 主键（自增）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("chunk_id")
                     .dataType(DataType.Int64)
                     .isPrimaryKey(true)
@@ -116,45 +117,45 @@ public class MilvusService {
                     .build());
 
             // 文档ID（标量过滤）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("doc_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 业务员ID（分区键，加速过滤）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("salesperson_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 客户ID（标量过滤）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("customer_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 文档类型（pdf/word/excel/image）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("doc_type")
                     .dataType(DataType.VarChar)
                     .maxLength(32)
                     .build());
 
             // 切片序号
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("chunk_index")
                     .dataType(DataType.Int32)
                     .build());
 
             // 切片原文（用于检索后返回）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("content")
                     .dataType(DataType.VarChar)
                     .maxLength(8192)
                     .build());
 
             // 向量（bge-m3, 1024维）
-            fields.add(FieldType.builder()
+            fields.add(FieldSchema.builder()
                     .fieldName("embedding")
                     .dataType(DataType.FloatVector)
                     .dimension(dimension)
