@@ -610,7 +610,7 @@ public class KnowledgeImportService {
                         (id, user_id, category_id, title, file_name, file_type, file_size,
                          file_path, content, status, tags, chunk_count, embedding_status,
                          file_content, created_at, updated_at)
-                    VALUES (?::uuid, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
+                    VALUES (CAST(? AS uuid), ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
                             'bulk-import', ?, ?, ?, NOW(), NOW())
                     ON CONFLICT (id) DO UPDATE SET
                         chunk_count = EXCLUDED.chunk_count,
