@@ -115,6 +115,54 @@ const knowledgeApi = {
       headers: sid ? { 'X-Session-Id': sid } : undefined,
     });
   },
+  // 批量导入 API
+  import: {
+    submitPath: (path: string) => {
+      const sid = getSessionId();
+      return fetch('/api/knowledge/import/path', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sid ? { 'X-Session-Id': sid } : {}),
+        },
+        body: JSON.stringify({ path }),
+        credentials: 'include',
+      });
+    },
+    submitUpload: (file: File) => {
+      const sid = getSessionId();
+      const formData = new FormData();
+      formData.append('file', file);
+      return fetch('/api/knowledge/import/upload', {
+        method: 'POST',
+        headers: sid ? { 'X-Session-Id': sid } : undefined,
+        body: formData,
+        credentials: 'include',
+      });
+    },
+    getProgress: (taskId: number) => {
+      const sid = getSessionId();
+      return fetch(`/api/knowledge/import/progress/${taskId}`, {
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : undefined,
+      });
+    },
+    cancel: (taskId: number) => {
+      const sid = getSessionId();
+      return fetch(`/api/knowledge/import/cancel/${taskId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : undefined,
+      });
+    },
+    getTasks: (limit = 20) => {
+      const sid = getSessionId();
+      return fetch(`/api/knowledge/import/tasks?limit=${limit}`, {
+        credentials: 'include',
+        headers: sid ? { 'X-Session-Id': sid } : undefined,
+      });
+    },
+  },
 };
 
 function formatFileSize(bytes: number): string {
@@ -144,6 +192,20 @@ export default function KnowledgePage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 批量导入
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importMode, setImportMode] = useState<'upload' | 'path'>('upload');
+  const [importZipFile, setImportZipFile] = useState<File | null>(null);
+  const [importPath, setImportPath] = useState('');
+  const [importDragOver, setImportDragOver] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [currentImportTaskId, setCurrentImportTaskId] = useState<number | null>(null);
+  const [importProgress, setImportProgress] = useState<any>(null);
+  const [importTasks, setImportTasks] = useState<any[]>([]);
+  const [showTaskHistory, setShowTaskHistory] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+  const importProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 新建分类
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -292,6 +354,131 @@ export default function KnowledgePage() {
       setIsUploading(false);
       setUploadProgress(0);
     }
+  };
+
+  // 批量导入 - 提交
+  const handleImportSubmit = async () => {
+    setIsImporting(true);
+    try {
+      let res: Response;
+      if (importMode === 'upload') {
+        if (!importZipFile) {
+          alert('请选择 zip 文件');
+          setIsImporting(false);
+          return;
+        }
+        res = await knowledgeApi.import.submitUpload(importZipFile);
+      } else {
+        if (!importPath.trim()) {
+          alert('请输入服务器路径');
+          setIsImporting(false);
+          return;
+        }
+        res = await knowledgeApi.import.submitPath(importPath.trim());
+      }
+
+      const data = await res.json();
+      if (!data.success) {
+        alert(`提交导入失败: ${data.error || data.message || '未知错误'}`);
+        setIsImporting(false);
+        return;
+      }
+
+      const taskId = data.taskId;
+      setCurrentImportTaskId(taskId);
+      setImportProgress({ status: 'RUNNING', processedFiles: 0, totalFiles: 0, totalChunks: 0 });
+
+      // 开始轮询进度
+      startProgressPolling(taskId);
+    } catch (err) {
+      console.error('提交导入失败:', err);
+      alert('提交导入失败，请重试');
+      setIsImporting(false);
+    }
+  };
+
+  // 轮询进度
+  const startProgressPolling = (taskId: number) => {
+    if (importProgressTimerRef.current) {
+      clearInterval(importProgressTimerRef.current);
+    }
+
+    const poll = async () => {
+      try {
+        const res = await knowledgeApi.import.getProgress(taskId);
+        const data = await res.json();
+        if (data.success) {
+          setImportProgress(data.progress);
+          if (data.progress.status === 'COMPLETED' || data.progress.status === 'FAILED' || data.progress.status === 'CANCELLED') {
+            // 任务结束，停止轮询
+            if (importProgressTimerRef.current) {
+              clearInterval(importProgressTimerRef.current);
+              importProgressTimerRef.current = null;
+            }
+            setIsImporting(false);
+            if (data.progress.status === 'COMPLETED') {
+              await fetchDocuments();
+            }
+          }
+        }
+      } catch (err) {
+        console.error('查询进度失败:', err);
+      }
+    };
+
+    poll(); // 立即查询一次
+    importProgressTimerRef.current = setInterval(poll, 2000); // 每 2 秒查询
+  };
+
+  // 取消导入
+  const handleCancelImport = async () => {
+    if (!currentImportTaskId) return;
+    try {
+      const res = await knowledgeApi.import.cancel(currentImportTaskId);
+      const data = await res.json();
+      if (data.success) {
+        if (importProgressTimerRef.current) {
+          clearInterval(importProgressTimerRef.current);
+          importProgressTimerRef.current = null;
+        }
+        setIsImporting(false);
+        setCurrentImportTaskId(null);
+        setImportProgress(null);
+      } else {
+        alert(`取消失败: ${data.error || '未知错误'}`);
+      }
+    } catch (err) {
+      console.error('取消导入失败:', err);
+    }
+  };
+
+  // 加载任务历史
+  const loadTaskHistory = async () => {
+    try {
+      const res = await knowledgeApi.import.getTasks(20);
+      const data = await res.json();
+      if (data.success) {
+        setImportTasks(data.tasks || []);
+        setShowTaskHistory(true);
+      }
+    } catch (err) {
+      console.error('加载任务历史失败:', err);
+    }
+  };
+
+  // 关闭导入面板
+  const closeImportPanel = () => {
+    if (isImporting) return;
+    setShowImportPanel(false);
+    setImportZipFile(null);
+    setImportPath('');
+    setImportProgress(null);
+    setCurrentImportTaskId(null);
+    if (importProgressTimerRef.current) {
+      clearInterval(importProgressTimerRef.current);
+      importProgressTimerRef.current = null;
+    }
+    if (importFileInputRef.current) importFileInputRef.current.value = '';
   };
 
   // 新建文本文档
@@ -688,6 +875,20 @@ export default function KnowledgePage() {
                 <Upload className="w-3.5 h-3.5" />
                 上传文件
               </button>
+              <button
+                onClick={() => setShowImportPanel(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg hover:from-violet-600 hover:to-purple-600 transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]"
+              >
+                <Database className="w-3.5 h-3.5" />
+                批量导入
+              </button>
+              <button
+                onClick={loadTaskHistory}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-slate-300"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                导入历史
+              </button>
             </div>
           </div>
 
@@ -927,6 +1128,256 @@ export default function KnowledgePage() {
               >
                 {isUploading ? '上传中...' : '开始上传'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Import Modal */}
+      {showImportPanel && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => !isImporting && closeImportPanel()}>
+          <div className="bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl p-6 border border-slate-700/50" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-100">批量导入</h3>
+              {!isImporting && (
+                <button onClick={closeImportPanel} className="p-1 hover:bg-slate-800 rounded">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              )}
+            </div>
+
+            {/* Mode Tabs */}
+            {!isImporting && !importProgress && (
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setImportMode('upload')}
+                  className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                    importMode === 'upload'
+                      ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  上传 Zip 文件
+                </button>
+                <button
+                  onClick={() => setImportMode('path')}
+                  className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                    importMode === 'path'
+                      ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  服务器路径
+                </button>
+              </div>
+            )}
+
+            {/* Upload Mode */}
+            {importMode === 'upload' && !isImporting && !importProgress && (
+              <>
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 ${
+                    importDragOver ? 'border-violet-400 bg-violet-500/10' : 'border-slate-700 hover:border-violet-500/50'
+                  }`}
+                  onClick={() => importFileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setImportDragOver(true); }}
+                  onDragLeave={() => setImportDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setImportDragOver(false);
+                    if (e.dataTransfer.files.length > 0) {
+                      const file = e.dataTransfer.files[0];
+                      if (file.name.endsWith('.zip')) {
+                        setImportZipFile(file);
+                      } else {
+                        alert('请选择 zip 文件');
+                      }
+                    }
+                  }}
+                >
+                  <Database className={`w-10 h-10 mx-auto mb-3 ${importDragOver ? 'text-violet-400' : 'text-slate-500'}`} />
+                  <p className="text-sm text-slate-400 mb-1">{importDragOver ? '松开以上传文件' : '点击选择 Zip 文件或拖拽到此处'}</p>
+                  <p className="text-xs text-slate-500">支持 200GB+ 大文件，流式处理不占内存</p>
+                  <input
+                    ref={importFileInputRef}
+                    type="file"
+                    accept=".zip"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && file.name.endsWith('.zip')) {
+                        setImportZipFile(file);
+                      } else {
+                        alert('请选择 zip 文件');
+                      }
+                    }}
+                  />
+                </div>
+
+                {importZipFile && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-lg text-sm mb-4">
+                    <Database className="w-4 h-4 text-violet-400" />
+                    <span className="flex-1 truncate text-slate-300">{importZipFile.name}</span>
+                    <span className="text-slate-500">{formatFileSize(importZipFile.size)}</span>
+                    <button onClick={() => setImportZipFile(null)} className="p-1 hover:bg-slate-700 rounded">
+                      <X className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Path Mode */}
+            {importMode === 'path' && !isImporting && !importProgress && (
+              <div className="space-y-4 mb-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">服务器路径（Zip 文件或文件夹）</label>
+                  <input
+                    type="text"
+                    value={importPath}
+                    onChange={(e) => setImportPath(e.target.value)}
+                    placeholder="/data/salesperson.zip 或 /data/salesperson/"
+                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">支持 zip 压缩包或文件夹，自动递归处理所有子目录</p>
+                </div>
+              </div>
+            )}
+
+            {/* Progress Display */}
+            {importProgress && (
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-400">状态</span>
+                  <span className={`font-medium ${
+                    importProgress.status === 'COMPLETED' ? 'text-emerald-400' :
+                    importProgress.status === 'FAILED' ? 'text-red-400' :
+                    importProgress.status === 'CANCELLED' ? 'text-amber-400' :
+                    'text-blue-400'
+                  }`}>
+                    {importProgress.status === 'RUNNING' ? '处理中...' :
+                     importProgress.status === 'COMPLETED' ? '已完成' :
+                     importProgress.status === 'FAILED' ? '失败' :
+                     importProgress.status === 'CANCELLED' ? '已取消' : importProgress.status}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-400">文件进度</span>
+                  <span className="text-slate-200">
+                    {importProgress.processedFiles || 0} / {importProgress.totalFiles || 0}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-400">切片数</span>
+                  <span className="text-slate-200">{importProgress.totalChunks || 0}</span>
+                </div>
+
+                {importProgress.failedFiles > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">失败文件</span>
+                    <span className="text-red-400">{importProgress.failedFiles}</span>
+                  </div>
+                )}
+
+                {importProgress.status === 'RUNNING' && importProgress.totalFiles > 0 && (
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.round(((importProgress.processedFiles || 0) / importProgress.totalFiles) * 100)}%` }}
+                    />
+                  </div>
+                )}
+
+                {importProgress.recentErrors && importProgress.recentErrors.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-slate-500 mb-1">最近错误：</p>
+                    <div className="max-h-24 overflow-y-auto space-y-1">
+                      {importProgress.recentErrors.slice(0, 5).map((err: string, i: number) => (
+                        <div key={i} className="text-xs text-red-400/80 bg-red-500/5 px-2 py-1 rounded">
+                          {err}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={closeImportPanel}
+                disabled={isImporting}
+                className="flex-1 py-2 border border-slate-700 rounded-lg text-sm text-slate-500 hover:bg-slate-800/50 transition-colors disabled:opacity-50"
+              >
+                {importProgress?.status === 'COMPLETED' || importProgress?.status === 'FAILED' || importProgress?.status === 'CANCELLED' ? '关闭' : '取消'}
+              </button>
+              {isImporting && importProgress?.status === 'RUNNING' ? (
+                <button
+                  onClick={handleCancelImport}
+                  className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-all"
+                >
+                  取消导入
+                </button>
+              ) : !importProgress ? (
+                <button
+                  onClick={handleImportSubmit}
+                  disabled={(importMode === 'upload' && !importZipFile) || (importMode === 'path' && !importPath.trim()) || isImporting}
+                  className="flex-1 py-2 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-sm font-medium hover:from-violet-600 hover:to-purple-600 transition-all disabled:opacity-50"
+                >
+                  {isImporting ? '提交中...' : '开始导入'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task History Modal */}
+      {showTaskHistory && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowTaskHistory(false)}>
+          <div className="bg-slate-900 rounded-2xl shadow-xl w-full max-w-3xl p-6 border border-slate-700/50 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-100">导入任务历史</h3>
+              <button onClick={() => setShowTaskHistory(false)} className="p-1 hover:bg-slate-800 rounded">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {importTasks.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>暂无导入任务</p>
+                </div>
+              ) : (
+                importTasks.map((task: any) => (
+                  <div key={task.taskId} className="bg-slate-800 rounded-lg p-4 border border-slate-700/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-slate-200 truncate flex-1">{task.source}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        task.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' :
+                        task.status === 'FAILED' ? 'bg-red-500/10 text-red-400' :
+                        task.status === 'CANCELLED' ? 'bg-amber-500/10 text-amber-400' :
+                        'bg-blue-500/10 text-blue-400'
+                      }`}>
+                        {task.status === 'RUNNING' ? '处理中' :
+                         task.status === 'COMPLETED' ? '已完成' :
+                         task.status === 'FAILED' ? '失败' :
+                         task.status === 'CANCELLED' ? '已取消' : task.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                      <span>文件: {task.processedFiles}/{task.totalFiles}</span>
+                      <span>切片: {task.totalChunks}</span>
+                      {task.failedFiles > 0 && <span className="text-red-400">失败: {task.failedFiles}</span>}
+                      <span className="ml-auto">{new Date(task.startTime).toLocaleString('zh-CN')}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
