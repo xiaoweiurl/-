@@ -12,6 +12,7 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
@@ -181,6 +182,7 @@ public class KnowledgeImportService {
     /** 导入任务上下文（流水线共享状态） */
     private static class ImportContext {
         final long taskId;
+        final String userId;
         final ImportTaskProgress progress;
         final BlockingQueue<JsonObject> buffer;
         final AtomicLong chunkCounter = new AtomicLong();
@@ -192,8 +194,9 @@ public class KnowledgeImportService {
         volatile boolean producerDone = false;
         Throwable writerError = null;
 
-        ImportContext(long taskId, ImportTaskProgress progress, int bufferCapacity) {
+        ImportContext(long taskId, String userId, ImportTaskProgress progress, int bufferCapacity) {
             this.taskId = taskId;
+            this.userId = userId;
             this.progress = progress;
             this.buffer = new ArrayBlockingQueue<>(bufferCapacity);
         }
@@ -204,7 +207,7 @@ public class KnowledgeImportService {
     /**
      * 按服务器路径导入（zip 压缩包或文件夹）
      */
-    public Map<String, Object> submitPath(String path) {
+    public Map<String, Object> submitPath(String path, String userId) {
         Path root = Paths.get(path);
         if (!Files.exists(root)) {
             throw new IllegalArgumentException("路径不存在: " + path);
@@ -215,31 +218,31 @@ public class KnowledgeImportService {
         if (!tryAcquireTaskSlot()) {
             throw new IllegalStateException("已有导入任务在运行，请等待完成后再提交（max-concurrent-tasks=" + maxConcurrentTasks + "）");
         }
-        return startTask(root, path);
+        return startTask(root, path, userId);
     }
 
     /**
      * 上传 zip 文件导入（保存到系统临时目录后流式处理）
      */
-    public Map<String, Object> submitUpload(MultipartFile file) throws IOException {
+    public Map<String, Object> submitUpload(MultipartFile file, String userId) throws IOException {
         Path tempZip = Files.createTempFile("knowledge-import-", ".zip");
         file.transferTo(tempZip);
         if (!tryAcquireTaskSlot()) {
             Files.deleteIfExists(tempZip);
             throw new IllegalStateException("已有导入任务在运行，请等待完成后再提交");
         }
-        return startTask(tempZip, file.getOriginalFilename() != null ? file.getOriginalFilename() : tempZip.getFileName().toString());
+        return startTask(tempZip, file.getOriginalFilename() != null ? file.getOriginalFilename() : tempZip.getFileName().toString(), userId);
     }
 
     private boolean tryAcquireTaskSlot() {
         return taskSemaphore().tryAcquire();
     }
 
-    private Map<String, Object> startTask(Path root, String sourceName) {
+    private Map<String, Object> startTask(Path root, String sourceName, String userId) {
         // 创建任务记录
         Long taskId = jdbcTemplate.queryForObject(
-                "INSERT INTO knowledge_import_task (source) VALUES (?) RETURNING id",
-                Long.class, sourceName);
+                "INSERT INTO knowledge_import_task (source, user_id) VALUES (?, ?) RETURNING id",
+                Long.class, sourceName, userId);
 
         ImportTaskProgress progress = new ImportTaskProgress();
         progress.taskId = taskId;
@@ -249,7 +252,7 @@ public class KnowledgeImportService {
 
         taskExecutor.submit(() -> {
             try {
-                runImport(root, taskId);
+                runImport(root, taskId, userId);
             } finally {
                 taskSemaphore().release();
             }
@@ -264,9 +267,9 @@ public class KnowledgeImportService {
 
     // ========== 核心导入流程 ==========
 
-    private void runImport(Path root, long taskId) {
+    private void runImport(Path root, long taskId, String userId) {
         ImportTaskProgress progress = progressMap.get(taskId);
-        ImportContext ctx = new ImportContext(taskId, progress, bufferCapacity);
+        ImportContext ctx = new ImportContext(taskId, userId, progress, bufferCapacity);
         runningContexts.put(taskId, ctx);
 
         ExecutorService parsePool = Executors.newFixedThreadPool(Math.max(1, parseThreads), r -> {
@@ -536,6 +539,7 @@ public class KnowledgeImportService {
                 if (!ocrEnabled) {
                     ctx.processedCounter.incrementAndGet();
                     ctx.progress.processedFiles = ctx.processedCounter.get();
+                    persistDocMeta(ctx, virtualName, docId, "image", 0, null, "SKIPPED");
                     return;
                 }
                 text = ocrImage(file);
@@ -547,6 +551,7 @@ public class KnowledgeImportService {
         if (text == null || text.isBlank()) {
             ctx.processedCounter.incrementAndGet();
             ctx.progress.processedFiles = ctx.processedCounter.get();
+            persistDocMeta(ctx, virtualName, docId, docType, 0, null, "SKIPPED");
             return;
         }
 
@@ -554,6 +559,7 @@ public class KnowledgeImportService {
         if (chunks.isEmpty()) {
             ctx.processedCounter.incrementAndGet();
             ctx.progress.processedFiles = ctx.processedCounter.get();
+            persistDocMeta(ctx, virtualName, docId, docType, 0, null, "SKIPPED");
             return;
         }
 
@@ -580,7 +586,44 @@ public class KnowledgeImportService {
 
         int processed = ctx.processedCounter.incrementAndGet();
         ctx.progress.processedFiles = processed;
+        persistDocMeta(ctx, virtualName, docId, docType, chunks.size(), text, "COMPLETED");
         maybePersistProgress(ctx);
+    }
+
+    /**
+     * 导入文档元数据同步写入 knowledge_base_docs（知识库列表可见向量化状态）。
+     * docId（32位hex）格式化为 UUID 作为主键，重导时幂等更新。
+     */
+    private void persistDocMeta(ImportContext ctx, String virtualName, String docId,
+                                String docType, int chunkCount, String fullText, String status) {
+        try {
+            String uuid = docId.replaceAll("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
+            String title = virtualName.contains("/")
+                    ? virtualName.substring(virtualName.lastIndexOf('/') + 1)
+                    : virtualName;
+            if (title.length() > 250) title = title.substring(0, 250);
+            String content = fullText == null ? null
+                    : (fullText.length() > 50000 ? fullText.substring(0, 50000) : fullText);
+            String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
+            jdbc.update("""
+                    INSERT INTO knowledge_base_docs
+                        (id, user_id, category_id, title, file_name, file_type, file_size,
+                         file_path, content, status, tags, chunk_count, embedding_status,
+                         file_content, created_at, updated_at)
+                    VALUES (?::uuid, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
+                            'bulk-import', ?, ?, ?, NOW(), NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        chunk_count = EXCLUDED.chunk_count,
+                        embedding_status = EXCLUDED.embedding_status,
+                        file_content = EXCLUDED.file_content,
+                        title = EXCLUDED.title,
+                        file_name = EXCLUDED.file_name,
+                        updated_at = NOW()
+                    """,
+                    uuid, ctx.userId, title, name1000, docType, chunkCount, status, content);
+        } catch (Exception ex) {
+            log.warn("文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
+        }
     }
 
     // ========== 文件解析器（临时文件模式，堆内存可控） ==========
@@ -641,72 +684,134 @@ public class KnowledgeImportService {
     }
 
     /**
-     * Excel 解析：表头 + 自然语言行（检索友好），与 DocumentParserServiceImpl 保持一致
+     * Excel 解析：「表头: 值」键值对格式保留列对应关系；
+     * 合并单元格向下填充 + 首列同值延续，保证每行数据带完整上下文（检索友好）
      */
     private String parseExcel(Path file) throws Exception {
         try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
+            DataFormatter formatter = new DataFormatter();
+            FormulaEvaluator evaluator;
+            try {
+                evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            } catch (Exception e) {
+                evaluator = null;
+            }
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
                 Sheet sheet = workbook.getSheetAt(i);
-                sb.append("【工作表: ").append(sheet.getSheetName()).append("】\n");
-
-                List<String> headers = new ArrayList<>();
-                Row headerRow = sheet.getRow(0);
-                if (headerRow != null) {
-                    for (Cell cell : headerRow) {
-                        headers.add(cellValue(cell).trim());
-                    }
+                if (sheet == null) continue;
+                try {
+                    appendSheetText(sb, sheet, formatter, evaluator);
+                } catch (Exception e) {
+                    sb.append("[工作表解析失败: ").append(e.getMessage()).append("]\n");
                 }
-
-                if (headers.isEmpty() || headers.stream().allMatch(String::isEmpty)) {
-                    for (Row row : sheet) {
-                        List<String> cells = new ArrayList<>();
-                        for (Cell cell : row) {
-                            cells.add(cellValue(cell));
-                        }
-                        sb.append(String.join(" | ", cells)).append("\n");
-                    }
-                } else {
-                    for (int r = 1; r <= sheet.getLastRowNum(); r++) {
-                        Row row = sheet.getRow(r);
-                        if (row == null) continue;
-                        List<String> parts = new ArrayList<>();
-                        boolean hasData = false;
-                        for (int c = 0; c < headers.size(); c++) {
-                            String header = headers.get(c);
-                            if (header.isEmpty()) continue;
-                            String value = cellValue(row.getCell(c)).trim();
-                            if (!value.isEmpty()) {
-                                parts.add(header + value);
-                                hasData = true;
-                            }
-                        }
-                        if (hasData) {
-                            sb.append(String.join("，", parts)).append("\n");
-                        }
-                    }
-                }
-                sb.append("\n");
             }
             return sb.toString();
         }
     }
 
-    private String cellValue(Cell cell) {
-        if (cell == null) return "";
-        return switch (cell.getCellType()) {
-            case STRING -> cell.getStringCellValue();
-            case NUMERIC -> {
-                double val = cell.getNumericCellValue();
-                if (val == Math.floor(val) && !Double.isInfinite(val)) {
-                    yield String.valueOf((long) val);
-                }
-                yield String.valueOf(val);
+    private void appendSheetText(StringBuilder sb, Sheet sheet,
+                                 DataFormatter formatter, FormulaEvaluator evaluator) {
+        sb.append("【工作表: ").append(sheet.getSheetName()).append("】\n");
+
+        // 合并单元格区域列表：区域内的空格子视为首格值的延续
+        List<CellRangeAddress> merged = new ArrayList<>();
+        try {
+            for (int m = 0; m < sheet.getNumMergedRegions(); m++) {
+                merged.add(sheet.getMergedRegion(m));
             }
-            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
-            case FORMULA -> cell.getCellFormula();
-            default -> "";
-        };
+        } catch (Exception ignore) {
+            // 部分损坏文件合并区域读取失败，忽略后按普通表格处理
+        }
+
+        int firstRow = sheet.getFirstRowNum();
+        Row headerRow = sheet.getRow(firstRow);
+        List<String> headers = new ArrayList<>();
+        int headerLen = 0;
+        if (headerRow != null) {
+            headerLen = Math.max(0, headerRow.getLastCellNum());
+            for (int c = 0; c < headerLen; c++) {
+                headers.add(cellText(formatter, evaluator, headerRow.getCell(c)));
+            }
+        }
+
+        boolean hasHeader = !headers.isEmpty() && headers.stream().anyMatch(h -> !h.isEmpty());
+
+        if (!hasHeader) {
+            // 无表头：整行管道分隔
+            for (Row row : sheet) {
+                if (row == null) continue;
+                List<String> cells = new ArrayList<>();
+                int len = Math.max(0, row.getLastCellNum());
+                for (int c = 0; c < len; c++) {
+                    cells.add(cellText(formatter, evaluator, row.getCell(c)));
+                }
+                if (cells.stream().anyMatch(s -> !s.isEmpty())) {
+                    sb.append(String.join(" | ", cells)).append("\n");
+                }
+            }
+        } else {
+            // 有表头：键值对 + 合并单元格填充 + 首列延续
+            String[] carry = new String[headers.size()];
+            for (int r = firstRow + 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                List<String> parts = new ArrayList<>();
+                boolean hasData = false;
+                for (int c = 0; c < headers.size(); c++) {
+                    String header = headers.get(c);
+                    if (header.isEmpty()) continue;
+                    String value = cellText(formatter, evaluator, row.getCell(c));
+                    if (value.isEmpty()) {
+                        // 合并单元格：区域内空格子取区域首格值
+                        String mergedVal = mergedValueAt(merged, sheet, formatter, evaluator, r, c);
+                        if (mergedVal != null) value = mergedVal;
+                        // 首列额外延续（部分表不用合并单元格，留空表示同上）
+                        if (value.isEmpty() && c == 0 && carry[c] != null) value = carry[c];
+                    } else {
+                        carry[c] = value;
+                    }
+                    if (!value.isEmpty()) {
+                        parts.add(header + ": " + value);
+                        hasData = true;
+                    }
+                }
+                if (hasData) {
+                    sb.append(String.join("；", parts)).append("\n");
+                }
+            }
+        }
+        sb.append("\n");
+    }
+
+    /** 取 (row, col) 所在合并区域的首格值；不在任何区域内返回 null */
+    private String mergedValueAt(List<CellRangeAddress> merged, Sheet sheet,
+                                 DataFormatter formatter, FormulaEvaluator evaluator,
+                                 int rowIdx, int colIdx) {
+        for (CellRangeAddress region : merged) {
+            if (region.isInRange(rowIdx, colIdx)) {
+                Row firstRow = sheet.getRow(region.getFirstRow());
+                if (firstRow == null) return null;
+                return cellText(formatter, evaluator, firstRow.getCell(region.getFirstColumn()));
+            }
+        }
+        return null;
+    }
+
+    /** DataFormatter 统一取值：覆盖 STRING/NUMERIC/BOOLEAN/FORMULA（含缓存值），彻底避免 NPE */
+    private String cellText(DataFormatter formatter, FormulaEvaluator evaluator, Cell cell) {
+        if (cell == null) return "";
+        try {
+            String v = formatter.formatCellValue(cell, evaluator);
+            return v == null ? "" : v.trim();
+        } catch (Exception e) {
+            try {
+                String v = formatter.formatCellValue(cell);
+                return v == null ? "" : v.trim();
+            } catch (Exception e2) {
+                return "";
+            }
+        }
     }
 
     private String parseTextFile(Path file) throws Exception {

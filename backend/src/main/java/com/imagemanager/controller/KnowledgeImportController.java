@@ -1,6 +1,7 @@
 package com.imagemanager.controller;
 
 import com.imagemanager.service.KnowledgeImportService;
+import com.imagemanager.util.SessionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -40,8 +41,9 @@ public class KnowledgeImportController {
         if (path == null || path.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "path 参数必填"));
         }
+        String userId = SessionUtil.getCurrentUserId();
         try {
-            return ResponseEntity.ok(importService.submitPath(path.trim()));
+            return ResponseEntity.ok(importService.submitPath(path.trim(), userId));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
@@ -58,8 +60,9 @@ public class KnowledgeImportController {
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "文件不能为空"));
         }
+        String userId = SessionUtil.getCurrentUserId();
         try {
-            return ResponseEntity.ok(importService.submitUpload(file));
+            return ResponseEntity.ok(importService.submitUpload(file, userId));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
