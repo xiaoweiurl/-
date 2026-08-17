@@ -1,9 +1,12 @@
 package com.imagemanager.service;
 
+import com.google.gson.JsonObject;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.DataType;
 import io.milvus.v2.common.IndexParam;
+import io.milvus.v2.common.BaseVector;
+import io.milvus.v2.common.FloatVec;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.CreateCollectionReq.CollectionSchema;
 import io.milvus.v2.service.collection.request.CreateCollectionReq.FieldSchema;
@@ -110,7 +113,7 @@ public class MilvusService {
 
             // 主键（自增）
             fields.add(FieldSchema.builder()
-                    .fieldName("chunk_id")
+                    .name("chunk_id")
                     .dataType(DataType.Int64)
                     .isPrimaryKey(true)
                     .autoID(true)
@@ -118,45 +121,45 @@ public class MilvusService {
 
             // 文档ID（标量过滤）
             fields.add(FieldSchema.builder()
-                    .fieldName("doc_id")
+                    .name("doc_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 业务员ID（分区键，加速过滤）
             fields.add(FieldSchema.builder()
-                    .fieldName("salesperson_id")
+                    .name("salesperson_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 客户ID（标量过滤）
             fields.add(FieldSchema.builder()
-                    .fieldName("customer_id")
+                    .name("customer_id")
                     .dataType(DataType.Int64)
                     .build());
 
             // 文档类型（pdf/word/excel/image）
             fields.add(FieldSchema.builder()
-                    .fieldName("doc_type")
+                    .name("doc_type")
                     .dataType(DataType.VarChar)
                     .maxLength(32)
                     .build());
 
             // 切片序号
             fields.add(FieldSchema.builder()
-                    .fieldName("chunk_index")
+                    .name("chunk_index")
                     .dataType(DataType.Int32)
                     .build());
 
             // 切片原文（用于检索后返回）
             fields.add(FieldSchema.builder()
-                    .fieldName("content")
+                    .name("content")
                     .dataType(DataType.VarChar)
                     .maxLength(8192)
                     .build());
 
             // 向量（bge-m3, 1024维）
             fields.add(FieldSchema.builder()
-                    .fieldName("embedding")
+                    .name("embedding")
                     .dataType(DataType.FloatVector)
                     .dimension(dimension)
                     .build());
@@ -221,9 +224,33 @@ public class MilvusService {
             return 0;
         }
         try {
+            // 转换为 JsonObject（Milvus SDK v2 要求）
+            List<JsonObject> jsonRows = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                JsonObject obj = new JsonObject();
+                for (Map.Entry<String, Object> entry : row.entrySet()) {
+                    String key = entry.getKey();
+                    Object val = entry.getValue();
+                    if (val instanceof Number) {
+                        obj.addProperty(key, (Number) val);
+                    } else if (val instanceof String) {
+                        obj.addProperty(key, (String) val);
+                    } else if (val instanceof List) {
+                        // embedding 字段：List<Float> 序列化为 JSON 数组
+                        com.google.gson.JsonArray arr = new com.google.gson.JsonArray();
+                        for (Object item : (List<?>) val) {
+                            if (item instanceof Number) {
+                                arr.add((Number) item);
+                            }
+                        }
+                        obj.add(key, arr);
+                    }
+                }
+                jsonRows.add(obj);
+            }
             client.insert(InsertReq.builder()
                     .collectionName(collectionName)
-                    .data(rows)
+                    .data(jsonRows)
                     .build());
             log.info("Milvus 批量插入成功: {} 条", rows.size());
             return rows.size();
@@ -234,6 +261,28 @@ public class MilvusService {
     }
 
     /**
+     * Milvus 检索结果
+     */
+    public static class MilvusSearchResult {
+        public long chunkId;
+        public Long docId;
+        public Long salespersonId;
+        public Long customerId;
+        public String docType;
+        public int chunkIndex;
+        public String content;
+        public float score;
+    }
+
+    /**
+     * 向量检索（4参数重载，默认不过滤 docType）
+     */
+    public List<MilvusSearchResult> search(float[] queryEmbedding, int topK,
+                                            Long salespersonId, Long customerId) {
+        return search(queryEmbedding, topK, salespersonId, customerId, null);
+    }
+
+    /**
      * 向量检索（支持元数据过滤，200G 数据快速精准）
      *
      * @param queryEmbedding 查询向量
@@ -241,9 +290,9 @@ public class MilvusService {
      * @param salespersonId 业务员ID过滤（可选，null 表示不过滤）
      * @param customerId 客户ID过滤（可选）
      * @param docType 文档类型过滤（可选）
-     * @return 检索结果列表（chunk_id, doc_id, content, score）
+     * @return 检索结果列表
      */
-    public List<Map<String, Object>> search(float[] queryEmbedding, int topK,
+    public List<MilvusSearchResult> search(float[] queryEmbedding, int topK,
                                             Long salespersonId, Long customerId, String docType) {
         if (!enabled || client == null) {
             return Collections.emptyList();
@@ -269,13 +318,13 @@ public class MilvusService {
                     .topK(topK)
                     .outputFields(Arrays.asList("chunk_id", "doc_id", "salesperson_id", "customer_id", "doc_type", "chunk_index", "content"));
 
-            // 设置向量数据
-            List<List<Float>> vectors = new ArrayList<>();
+            // 设置向量数据（包装为 FloatVec）
             List<Float> vector = new ArrayList<>();
             for (float f : queryEmbedding) {
                 vector.add(f);
             }
-            vectors.add(vector);
+            List<BaseVector> vectors = new ArrayList<>();
+            vectors.add(new FloatVec(vector));
             builder.data(vectors);
 
             // 设置过滤条件
@@ -292,19 +341,19 @@ public class MilvusService {
                 return Collections.emptyList();
             }
 
-            List<Map<String, Object>> out = new ArrayList<>();
+            List<MilvusSearchResult> out = new ArrayList<>();
             for (SearchResp.SearchResult r : results.get(0)) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("chunk_id", r.getId());
-                row.put("score", r.getScore());
+                MilvusSearchResult row = new MilvusSearchResult();
+                row.chunkId = r.getId() instanceof Number ? ((Number) r.getId()).longValue() : 0L;
+                row.score = r.getScore();
                 Map<String, Object> entity = r.getEntity();
                 if (entity != null) {
-                    row.put("doc_id", entity.get("doc_id"));
-                    row.put("salesperson_id", entity.get("salesperson_id"));
-                    row.put("customer_id", entity.get("customer_id"));
-                    row.put("doc_type", entity.get("doc_type"));
-                    row.put("chunk_index", entity.get("chunk_index"));
-                    row.put("content", entity.get("content"));
+                    row.docId = entity.get("doc_id") instanceof Number ? ((Number) entity.get("doc_id")).longValue() : null;
+                    row.salespersonId = entity.get("salesperson_id") instanceof Number ? ((Number) entity.get("salesperson_id")).longValue() : null;
+                    row.customerId = entity.get("customer_id") instanceof Number ? ((Number) entity.get("customer_id")).longValue() : null;
+                    row.docType = entity.get("doc_type") instanceof String ? (String) entity.get("doc_type") : null;
+                    row.chunkIndex = entity.get("chunk_index") instanceof Number ? ((Number) entity.get("chunk_index")).intValue() : 0;
+                    row.content = entity.get("content") instanceof String ? (String) entity.get("content") : null;
                 }
                 out.add(row);
             }
