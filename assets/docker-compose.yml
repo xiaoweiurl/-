@@ -57,12 +57,12 @@ services:
         condition: service_healthy
     restart: always
 
-  attu:
-    container_name: milvus-attu
-    image: zilliz/attu:v2.5.6
-    ports:
-      - "8000:3000"
-    environment:
-      MILVUS_URL: milvus-standalone:19530
-    depends_on:
-      - milvus-standalone
+  # attu:  # 阿里云镜像无此镜像，暂时注释，核心服务不受影响
+  #   container_name: milvus-attu
+  #   image: zilliz/attu:v2.5.6
+  #   ports:
+  #     - "8000:3000"
+  #   environment:
+  #     MILVUS_URL: milvus-standalone:19530
+  #   depends_on:
+  #     - milvus-standalone
