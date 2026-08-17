@@ -218,7 +218,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 // 写入 Milvus（向量检索）
                 if (milvusService != null && milvusService.isEnabled()) {
                     try {
-                        milvusService.insertChunk(docId.toString(), null, null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
+                        milvusService.insertChunk(docId.toString(), null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
                     } catch (Exception e) {
                         log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
                     }
@@ -313,7 +313,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 // 写入 Milvus（向量检索）
                 if (milvusService != null && milvusService.isEnabled()) {
                     try {
-                        milvusService.insertChunk(docId.toString(), null, null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
+                        milvusService.insertChunk(docId.toString(), null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
                     } catch (Exception e) {
                         log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
                     }
@@ -360,7 +360,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?::uuid", docId.toString());
                 // Milvus 双删
                 if (milvusService != null && milvusService.isEnabled()) {
-                    milvusService.deleteByDocId(docId);
+                    milvusService.deleteByDocId(docId.toString());
                 }
                 return null;
             });
@@ -394,7 +394,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 // 写入 Milvus（向量检索）
                 if (milvusService != null && milvusService.isEnabled()) {
                     try {
-                        milvusService.insertChunk(docId.toString(), null, null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
+                        milvusService.insertChunk(docId.toString(), null, "KNOWLEDGE_BASE", chunkIndex, chunk, embedding);
                     } catch (Exception e) {
                         log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
                     }
@@ -450,7 +450,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.info("删除知识库文档 {} 对应的向量记录", id);
             // Milvus 双删
             if (milvusService != null && milvusService.isEnabled()) {
-                milvusService.deleteByDocId(id);
+                milvusService.deleteByDocId(id.toString());
             }
         } catch (Exception e) {
             log.warn("删除知识库向量记录失败: {}", e.getMessage());
@@ -521,16 +521,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 try {
                     float[] queryEmbedding = getEmbedding(query);
                     if (queryEmbedding != null && queryEmbedding.length > 0) {
-                        List<MilvusService.MilvusSearchResult> milvusResults = milvusService.search(queryEmbedding, limit, null, null);
+                        List<MilvusService.MilvusSearchResult> milvusResults = milvusService.search(queryEmbedding, limit);
                         if (!milvusResults.isEmpty()) {
                             List<MemorySearchResult> results = new ArrayList<>();
                             for (MilvusService.MilvusSearchResult mr : milvusResults) {
                                 if (mr.score >= minScore) {
                                     MemorySearchResult r = new MemorySearchResult();
-                                    r.setChunkId(String.valueOf(mr.chunkId));
                                     r.setContent(mr.content);
                                     r.setScore(mr.score);
-                                    r.setSourceDocId(mr.docId != null ? mr.docId.toString() : null);
+                                    r.setSourceDocId(mr.docId);
                                     results.add(r);
                                 }
                             }

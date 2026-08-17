@@ -151,6 +151,8 @@ app:
     embedding-model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
     # 对话模型（用于 AI 对话/RAG 检索）
     chat-model: ${OLLAMA_CHAT_MODEL:qwen3.6}
+    # 多模态视觉模型（用于批量导入时图片 OCR）
+    vision-model: ${OLLAMA_VISION_MODEL:qwen3.6:35b}
     # 超时配置（毫秒）
     timeout: ${OLLAMA_TIMEOUT:60000}
 
@@ -208,3 +210,28 @@ milvus:
   port: ${MILVUS_PORT:19530}
   collection-name: ${MILVUS_COLLECTION:salesperson_chunks}
   dimension: ${MILVUS_DIMENSION:1024}
+
+# 知识批量导入配置（200G 级流式导入，直写 Milvus）
+knowledge-import:
+  # 解析线程数（PDF/Excel/OCR 解析 + 切片，受 CPU 和内存约束，不宜过大）
+  parse-threads: ${KI_PARSE_THREADS:2}
+  # 每次调用 Ollama 批量向量化的条数
+  embed-batch-size: ${KI_EMBED_BATCH:32}
+  # 每批写入 Milvus 的行数
+  milvus-batch-size: ${KI_MILVUS_BATCH:512}
+  # 写入缓冲队列容量（背压：写满时解析线程自动阻塞）
+  buffer-capacity: ${KI_BUFFER:2048}
+  # 最大在途文件数（临时文件落盘数量上限，防止磁盘被占满）
+  max-inflight-files: ${KI_MAX_INFLIGHT:16}
+  # 图片是否启用 OCR（qwen3.6:35b 多模态）
+  ocr-enabled: ${KI_OCR_ENABLED:true}
+  # OCR 并发数（多模态模型重负载，4 并发约需 20G+ 显存，按显卡调整）
+  ocr-concurrency: ${KI_OCR_CONCURRENCY:4}
+  # 切片长度（字符）
+  chunk-size: ${KI_CHUNK_SIZE:800}
+  # 切片重叠（字符）
+  chunk-overlap: ${KI_CHUNK_OVERLAP:100}
+  # 单文件大小上限（MB），超过跳过并记录失败
+  max-file-size-mb: ${KI_MAX_FILE_MB:500}
+  # 最大并发导入任务数（同时只跑一个任务，避免资源争抢）
+  max-concurrent-tasks: ${KI_MAX_CONCURRENT:1}

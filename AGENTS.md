@@ -476,6 +476,35 @@ export const ROLE_PERMISSIONS = {
 - `GET /api/knowledge/categories` - 获取分类列表
 - `POST /api/knowledge/categories` - 创建分类
 
+#### 知识批量导入 API（200G 级，流式直写 Milvus）
+业务员资料批量导入：流式遍历 zip/文件夹，逐条目读取解析（PDF/Word/Excel/CSV/TXT/Markdown/图片OCR），切片后向量化直写 Milvus，不落 pgvector，不占堆内存。
+
+- `POST /api/knowledge/import/path` - 按服务器路径导入（zip 或文件夹）
+  - Body: `{"path": "/data/salesperson.zip"}`
+- `POST /api/knowledge/import/upload` - 上传 zip 导入（multipart file 字段）
+- `GET /api/knowledge/import/progress/{taskId}` - 查询进度（文件数/失败数/切片数/最近错误）
+- `POST /api/knowledge/import/cancel/{taskId}` - 取消任务
+- `GET /api/knowledge/import/tasks?limit=20` - 任务列表
+
+**架构要点**（`KnowledgeImportService.java`）：
+- 三级流水线：生产者（流式读 zip/目录）→ 解析池（解析+切片+批量向量化）→ 单写线程（攒批写 Milvus）
+- 背压：有界缓冲队列（默认 2048 行）+ in-flight 信号量（默认 16 文件），内存占用恒定
+- 幂等：doc_id = 文件内容 SHA-256 前 32 位，重导自动覆盖旧向量
+- 嵌套 zip 递归处理（最深 3 层），条目边读边落临时文件（磁盘缓冲）
+- OCR 用 qwen3.6:35b 多模态，信号量限流（默认 4 并发）
+- 配置在 `application.yml` 的 `knowledge-import` 段（parse-threads/embed-batch-size/milvus-batch-size 等）
+
+**Milvus Collection**（`salesperson_chunks`，启动时自动创建）：
+- `chunk_id` Int64 自增主键
+- `doc_id` VarChar(64) - 文件内容哈希
+- `file_name` VarChar(1024) - zip 内虚拟路径（TRIE 索引）
+- `doc_type` VarChar(16) - pdf/excel/word/txt/image（TRIE 索引）
+- `chunk_index` Int32
+- `content` VarChar(8192)
+- `embedding` FloatVector(1024) - HNSW 索引（M=16, efConstruction=200, COSINE）
+
+**导入任务表**（V43）：`knowledge_import_task`（进度）、`knowledge_import_error`（失败明细）
+
 #### 相册/分类管理
 - `GET /api/albums` - 获取相册列表
 - `POST /api/albums` - 创建相册
