@@ -200,3 +200,11 @@ logging:
     org.springframework.jdbc.core: WARN
   pattern:
     console: "%d{HH:mm:ss} [%thread] %msg%n"
+
+# Milvus 向量数据库配置
+milvus:
+  enabled: ${MILVUS_ENABLED:false}
+  host: ${MILVUS_HOST:localhost}
+  port: ${MILVUS_PORT:19530}
+  collection-name: ${MILVUS_COLLECTION:knowledge_embeddings}
+  dimension: ${MILVUS_DIMENSION:1024}
