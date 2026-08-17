@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+import org.apache.commons.compress.archivers.zip.ZipFile;
+
+import java.util.Enumeration;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -23,6 +25,7 @@ import jakarta.annotation.PreDestroy;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.MessageDigest;
@@ -35,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 知识批量导入服务（200G 级，流式处理，直写 Milvus）
  *
  * 设计要点：
- * 1. 流式遍历：ZipArchiveInputStream 逐条目读取，绝不把整个 zip 或全部文件加载进堆内存
+ * 1. 流式遍历：ZipFile 逐条目读取中央目录，绝不把整个 zip 或全部文件加载进堆内存
  * 2. 单文件先落临时文件（磁盘缓冲，不占堆），解析完即删
  * 3. 三级流水线：生产者(读zip/目录) -> 解析池(解析+切片+向量化) -> 写入线程(攒批写Milvus)
  * 4. 背压控制：有界缓冲队列 + in-flight 信号量，解析慢时自动阻塞生产者，内存恒定
@@ -358,7 +361,12 @@ public class KnowledgeImportService {
     }
 
     /**
-     * 流式遍历 zip（ZipArchiveInputStream 逐条目，支持 ZIP64 / 中文文件名 / 嵌套 zip）
+     * 遍历 zip（ZipFile 随机访问模式，读取中央目录，兼容 ZIP64 / 中文文件名 / 嵌套 zip）
+     *
+     * 注意：不能用 ZipArchiveInputStream —— 它无法处理 Windows 工具压缩的
+     * "stored entry 使用 data descriptor" 格式（compressed/uncompressed size 校验失败）。
+     * 本项目所有 zip 来源（服务器路径/上传临时文件/嵌套临时文件）均为本地磁盘文件，
+     * 可随机访问，使用 ZipFile 是官方推荐做法。
      */
     private void walkZip(Path zipFile, String prefix, ImportContext ctx,
                          ExecutorService parsePool, int depth) throws Exception {
@@ -369,28 +377,28 @@ public class KnowledgeImportService {
         Semaphore inflight = new Semaphore(maxInflightFiles);
         List<String> supportedExts = supportedExtensions();
         Path tempDir = Files.createTempDirectory("kimport-");
+        byte[] buf = new byte[128 * 1024];
 
-        try (ZipArchiveInputStream zis = new ZipArchiveInputStream(
-                new BufferedInputStream(Files.newInputStream(zipFile), 256 * 1024),
-                "GBK", true, true)) {
-
-            ZipArchiveEntry entry;
-            byte[] buf = new byte[128 * 1024];
-            while ((entry = zis.getNextZipEntry()) != null) {
+        try (ZipFile zf = openZipFile(zipFile)) {
+            Enumeration<ZipArchiveEntry> entries = zf.getEntries();
+            while (entries.hasMoreElements()) {
+                ZipArchiveEntry entry = entries.nextElement();
                 if (ctx.cancelled) return;
                 if (entry.isDirectory()) continue;
 
                 String entryName = entry.getName();
                 String ext = extOf(entryName);
 
-                // 嵌套 zip：拷出后递归流式处理
+                // 嵌套 zip：拷出后递归处理
                 if ("zip".equals(ext)) {
                     if (entry.getSize() > maxFileSizeMb * 1024L * 1024L) {
                         recordError(ctx, prefix + entryName, "嵌套zip超过大小限制");
                         continue;
                     }
                     Path nested = Files.createTempFile(tempDir, "nested-", ".zip");
-                    copyStream(zis, nested, buf);
+                    try (InputStream is = zf.getInputStream(entry)) {
+                        copyStream(is, nested, buf);
+                    }
                     ctx.progress.totalFiles++; // zip 自身计一个文件
                     try {
                         walkZip(nested, prefix + entryName + "/", ctx, parsePool, depth + 1);
@@ -416,7 +424,10 @@ public class KnowledgeImportService {
 
                 // 条目 -> 临时文件（磁盘缓冲，不占堆内存）
                 Path tempFile = Files.createTempFile(tempDir, "f-", "." + ext);
-                String hash = copyStreamWithHash(zis, tempFile, buf);
+                String hash;
+                try (InputStream is = zf.getInputStream(entry)) {
+                    hash = copyStreamWithHash(is, tempFile, buf);
+                }
 
                 try {
                     submitParseJob(tempFile, prefix + entryName, ext, hash, ctx, parsePool, inflight, true);
@@ -434,6 +445,32 @@ public class KnowledgeImportService {
                 });
             }
             Files.deleteIfExists(tempDir);
+        }
+    }
+
+    /**
+     * 打开 zip：UTF-8 优先（Mac/Linux 标准 + EFS 标志自动生效），解码失败回退 GBK（Windows 中文压缩包）
+     */
+    private ZipFile openZipFile(Path zipPath) throws IOException {
+        ZipFile zf = null;
+        try {
+            zf = ZipFile.builder()
+                    .setFile(zipPath.toFile())
+                    .setCharset(StandardCharsets.UTF_8)
+                    .setUseUnicodeExtraFields(true)
+                    .get();
+            zf.getEntries(); // 强制解析中央目录（文件名解码失败会在此抛出，触发回退）
+            return zf;
+        } catch (Exception e) {
+            log.debug("zip 以 UTF-8 打开失败，回退 GBK: {}", e.getMessage());
+            if (zf != null) {
+                try { zf.close(); } catch (IOException ignored) {}
+            }
+            return ZipFile.builder()
+                    .setFile(zipPath.toFile())
+                    .setCharset(Charset.forName("GBK"))
+                    .setUseUnicodeExtraFields(true)
+                    .get();
         }
     }
 
