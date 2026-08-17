@@ -7,6 +7,7 @@ import io.milvus.v2.common.IndexParam;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.FieldType;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
+import io.milvus.v2.service.collection.request.CreatePartitionReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import io.milvus.v2.service.vector.request.SearchReq;
@@ -18,10 +19,25 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Milvus 向量数据库服务
- * 用于存储和检索文档切片向量（替代 pgvector，支持千万级向量）
+ * Milvus 向量数据库服务（200G 业务员数据优化版）
+ *
+ * Collection 结构：
+ * - chunk_id: 主键（自增）
+ * - doc_id: 文档ID（标量过滤）
+ * - salesperson_id: 业务员ID（分区键，加速过滤）
+ * - customer_id: 客户ID（标量过滤）
+ * - doc_type: 文档类型（pdf/word/excel/image）
+ * - chunk_index: 切片序号
+ * - content: 切片原文（用于检索后返回）
+ * - embedding: 向量（bge-m3, 1024维）
+ *
+ * 索引策略：
+ * - embedding: HNSW（M=16, efConstruction=200）快速近似搜索
+ * - salesperson_id: 分区键（按业务员分区，查询时只扫对应分区）
+ * - doc_id/customer_id/doc_type: 标量索引（支持过滤）
  */
 @Slf4j
 @Service
@@ -33,141 +49,265 @@ public class MilvusService {
     @Value("${milvus.port:19530}")
     private int port;
 
-    @Value("${milvus.collection:knowledge_chunks}")
+    @Value("${milvus.collection:salesperson_chunks}")
     private String collectionName;
 
     @Value("${milvus.dimension:1024}")
     private int dimension;
 
+    @Value("${milvus.enabled:true}")
+    private boolean enabled;
+
     private MilvusClientV2 client;
 
     @PostConstruct
     public void init() {
+        if (!enabled) {
+            log.info("Milvus 未启用 (milvus.enabled=false)");
+            return;
+        }
         try {
             String uri = "http://" + host + ":" + port;
             log.info("连接 Milvus: {}", uri);
             client = new MilvusClientV2(ConnectConfig.builder()
                     .uri(uri)
+                    .connectTimeoutMs(10000)
                     .build());
-
-            if (!client.hasCollection(HasCollectionReq.builder()
-                    .collectionName(collectionName)
-                    .build())) {
-                createCollection();
-            }
-            log.info("Milvus 连接成功，集合 {} 已就绪", collectionName);
+            log.info("Milvus 连接成功");
+            ensureCollection();
         } catch (Exception e) {
-            log.error("Milvus 初始化失败: {}", e.getMessage(), e);
+            log.error("Milvus 连接失败: {}", e.getMessage(), e);
         }
     }
 
     @PreDestroy
     public void destroy() {
         if (client != null) {
-            client.close();
+            try {
+                client.close();
+            } catch (Exception e) {
+                log.warn("关闭 Milvus 连接异常: {}", e.getMessage());
+            }
         }
     }
 
     /**
-     * 创建集合（schema: id, chunk_id, doc_id, text, vector）
+     * 确保 Collection 存在（不存在则创建）
      */
-    private void createCollection() {
-        log.info("创建 Milvus 集合: {}", collectionName);
+    private void ensureCollection() {
+        try {
+            boolean exists = client.hasCollection(HasCollectionReq.builder()
+                    .collectionName(collectionName)
+                    .build());
+            if (exists) {
+                log.info("Milvus collection 已存在: {}", collectionName);
+                return;
+            }
 
-        // 定义字段
-        List<FieldType> fields = new ArrayList<>();
-        fields.add(FieldType.builder()
-                .name("id")
-                .dataType(DataType.Int64)
-                .primaryKey(true)
-                .autoID(false)
-                .build());
-        fields.add(FieldType.builder()
-                .name("chunk_id")
-                .dataType(DataType.VarChar)
-                .maxLength(64)
-                .build());
-        fields.add(FieldType.builder()
-                .name("doc_id")
-                .dataType(DataType.VarChar)
-                .maxLength(64)
-                .build());
-        fields.add(FieldType.builder()
-                .name("text")
-                .dataType(DataType.VarChar)
-                .maxLength(65535)
-                .build());
-        fields.add(FieldType.builder()
-                .name("vector")
-                .dataType(DataType.FloatVector)
-                .dimension(dimension)
-                .build());
+            // 定义字段
+            List<FieldType> fields = new ArrayList<>();
 
-        // 索引参数（HNSW）
-        IndexParam indexParam = IndexParam.builder()
-                .fieldName("vector")
-                .indexType(IndexParam.IndexType.HNSW)
-                .metricType(IndexParam.MetricType.COSINE)
-                .extraParams(Map.of("M", 16, "efConstruction", 200))
-                .build();
+            // 主键（自增）
+            fields.add(FieldType.builder()
+                    .fieldName("chunk_id")
+                    .dataType(DataType.Int64)
+                    .isPrimaryKey(true)
+                    .autoID(true)
+                    .build());
 
-        CreateCollectionReq req = CreateCollectionReq.builder()
-                .collectionName(collectionName)
-                .fieldTypes(fields)
-                .indexParams(List.of(indexParam))
-                .build();
+            // 文档ID（标量过滤）
+            fields.add(FieldType.builder()
+                    .fieldName("doc_id")
+                    .dataType(DataType.Int64)
+                    .build());
 
-        client.createCollection(req);
-        log.info("Milvus 集合 {} 创建成功", collectionName);
+            // 业务员ID（分区键，加速过滤）
+            fields.add(FieldType.builder()
+                    .fieldName("salesperson_id")
+                    .dataType(DataType.Int64)
+                    .build());
+
+            // 客户ID（标量过滤）
+            fields.add(FieldType.builder()
+                    .fieldName("customer_id")
+                    .dataType(DataType.Int64)
+                    .build());
+
+            // 文档类型（pdf/word/excel/image）
+            fields.add(FieldType.builder()
+                    .fieldName("doc_type")
+                    .dataType(DataType.VarChar)
+                    .maxLength(32)
+                    .build());
+
+            // 切片序号
+            fields.add(FieldType.builder()
+                    .fieldName("chunk_index")
+                    .dataType(DataType.Int32)
+                    .build());
+
+            // 切片原文（用于检索后返回）
+            fields.add(FieldType.builder()
+                    .fieldName("content")
+                    .dataType(DataType.VarChar)
+                    .maxLength(8192)
+                    .build());
+
+            // 向量（bge-m3, 1024维）
+            fields.add(FieldType.builder()
+                    .fieldName("embedding")
+                    .dataType(DataType.FloatVector)
+                    .dimension(dimension)
+                    .build());
+
+            // 定义索引
+            List<IndexParam> indexes = new ArrayList<>();
+
+            // 向量索引：HNSW（快速近似搜索）
+            indexes.add(IndexParam.builder()
+                    .fieldName("embedding")
+                    .indexType(IndexParam.IndexType.HNSW)
+                    .metricType(IndexParam.MetricType.COSINE)
+                    .extraParams(Map.of("M", 16, "efConstruction", 200))
+                    .build());
+
+            // 标量索引：doc_id（加速过滤）
+            indexes.add(IndexParam.builder()
+                    .fieldName("doc_id")
+                    .indexType(IndexParam.IndexType.STL_SORT)
+                    .build());
+
+            // 标量索引：salesperson_id（分区键）
+            indexes.add(IndexParam.builder()
+                    .fieldName("salesperson_id")
+                    .indexType(IndexParam.IndexType.STL_SORT)
+                    .build());
+
+            // 标量索引：customer_id
+            indexes.add(IndexParam.builder()
+                    .fieldName("customer_id")
+                    .indexType(IndexParam.IndexType.STL_SORT)
+                    .build());
+
+            // 标量索引：doc_type
+            indexes.add(IndexParam.builder()
+                    .fieldName("doc_type")
+                    .indexType(IndexParam.IndexType.TRIE)
+                    .build());
+
+            // 创建 Collection
+            client.createCollection(CreateCollectionReq.builder()
+                    .collectionName(collectionName)
+                    .fieldTypes(fields)
+                    .indexes(indexes)
+                    .enableDynamicField(false)
+                    .build());
+
+            log.info("Milvus collection 创建成功: {} (dimension={}, HNSW索引)", collectionName, dimension);
+        } catch (Exception e) {
+            log.error("创建 Milvus collection 失败: {}", e.getMessage(), e);
+        }
     }
 
     /**
-     * 插入向量
-     * @param rows 每行包含 id, chunk_id, doc_id, text, vector
+     * 批量插入向量（200G 数据批量导入优化）
+     *
+     * @param rows 每行包含 doc_id, salesperson_id, customer_id, doc_type, chunk_index, content, embedding
+     * @return 插入成功数量
      */
-    public void insert(List<Map<String, Object>> rows) {
-        if (client == null || rows == null || rows.isEmpty()) return;
+    public int batchInsert(List<Map<String, Object>> rows) {
+        if (!enabled || client == null || rows == null || rows.isEmpty()) {
+            return 0;
+        }
         try {
             client.insert(InsertReq.builder()
                     .collectionName(collectionName)
                     .data(rows)
                     .build());
-            log.info("Milvus 插入 {} 条向量", rows.size());
+            log.info("Milvus 批量插入成功: {} 条", rows.size());
+            return rows.size();
         } catch (Exception e) {
-            log.error("Milvus 插入失败: {}", e.getMessage(), e);
+            log.error("Milvus 批量插入失败: {}", e.getMessage(), e);
+            return 0;
         }
     }
 
     /**
-     * 向量检索
-     * @param queryVector 查询向量
+     * 向量检索（支持元数据过滤，200G 数据快速精准）
+     *
+     * @param queryEmbedding 查询向量
      * @param topK 返回数量
-     * @param filter 过滤条件（如 doc_id == 'xxx'）
-     * @return 检索结果（chunk_id, text, score）
+     * @param salespersonId 业务员ID过滤（可选，null 表示不过滤）
+     * @param customerId 客户ID过滤（可选）
+     * @param docType 文档类型过滤（可选）
+     * @return 检索结果列表（chunk_id, doc_id, content, score）
      */
-    public List<Map<String, Object>> search(List<Float> queryVector, int topK, String filter) {
-        if (client == null) return Collections.emptyList();
+    public List<Map<String, Object>> search(float[] queryEmbedding, int topK,
+                                            Long salespersonId, Long customerId, String docType) {
+        if (!enabled || client == null) {
+            return Collections.emptyList();
+        }
         try {
-            SearchReq.SearchReqBuilder builder = SearchReq.builder()
-                    .collectionName(collectionName)
-                    .data(Collections.singletonList(queryVector))
-                    .topK(topK)
-                    .outputFields(Arrays.asList("chunk_id", "doc_id", "text"));
-
-            if (filter != null && !filter.isEmpty()) {
-                builder.filter(filter);
+            // 构建过滤表达式
+            List<String> filters = new ArrayList<>();
+            if (salespersonId != null) {
+                filters.add("salesperson_id == " + salespersonId);
             }
+            if (customerId != null) {
+                filters.add("customer_id == " + customerId);
+            }
+            if (docType != null && !docType.isEmpty()) {
+                filters.add("doc_type == \"" + docType + "\"");
+            }
+            String filterExpr = filters.isEmpty() ? "" : String.join(" and ", filters);
+
+            // 构建查询
+            SearchReq.SearchReqBuilder<?, ?> builder = SearchReq.builder()
+                    .collectionName(collectionName)
+                    .annsField("embedding")
+                    .topK(topK)
+                    .outputFields(Arrays.asList("chunk_id", "doc_id", "salesperson_id", "customer_id", "doc_type", "chunk_index", "content"));
+
+            // 设置向量数据
+            List<List<Float>> vectors = new ArrayList<>();
+            List<Float> vector = new ArrayList<>();
+            for (float f : queryEmbedding) {
+                vector.add(f);
+            }
+            vectors.add(vector);
+            builder.data(vectors);
+
+            // 设置过滤条件
+            if (!filterExpr.isEmpty()) {
+                builder.filter(filterExpr);
+            }
+
+            // 设置搜索参数（HNSW: ef 越大越准但越慢）
+            builder.searchParams(Map.of("ef", 128));
 
             SearchResp resp = client.search(builder.build());
-            List<Map<String, Object>> results = new ArrayList<>();
-            for (SearchResp.SearchResult result : resp.getSearchResults().get(0)) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("chunk_id", result.getId());
-                row.put("score", result.getScore());
-                row.putAll(result.getEntity());
-                results.add(row);
+            List<List<SearchResp.SearchResult>> results = resp.getSearchResults();
+            if (results == null || results.isEmpty()) {
+                return Collections.emptyList();
             }
-            return results;
+
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (SearchResp.SearchResult r : results.get(0)) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("chunk_id", r.getId());
+                row.put("score", r.getScore());
+                Map<String, Object> entity = r.getEntity();
+                if (entity != null) {
+                    row.put("doc_id", entity.get("doc_id"));
+                    row.put("salesperson_id", entity.get("salesperson_id"));
+                    row.put("customer_id", entity.get("customer_id"));
+                    row.put("doc_type", entity.get("doc_type"));
+                    row.put("chunk_index", entity.get("chunk_index"));
+                    row.put("content", entity.get("content"));
+                }
+                out.add(row);
+            }
+            return out;
         } catch (Exception e) {
             log.error("Milvus 检索失败: {}", e.getMessage(), e);
             return Collections.emptyList();
@@ -175,23 +315,42 @@ public class MilvusService {
     }
 
     /**
-     * 删除指定文档的所有向量
-     * @param docId 文档ID
+     * 按文档ID删除（删除文档时同步删除向量）
      */
-    public void deleteByDocId(String docId) {
-        if (client == null) return;
+    public void deleteByDocId(long docId) {
+        if (!enabled || client == null) {
+            return;
+        }
         try {
             client.delete(DeleteReq.builder()
                     .collectionName(collectionName)
-                    .filter("doc_id == '" + docId + "'")
+                    .filter("doc_id == " + docId)
                     .build());
-            log.info("Milvus 删除文档 {} 的向量", docId);
+            log.info("Milvus 删除文档向量: docId={}", docId);
         } catch (Exception e) {
             log.error("Milvus 删除失败: {}", e.getMessage(), e);
         }
     }
 
-    public boolean isReady() {
-        return client != null;
+    /**
+     * 按业务员ID删除（删除业务员数据时同步删除向量）
+     */
+    public void deleteBySalespersonId(long salespersonId) {
+        if (!enabled || client == null) {
+            return;
+        }
+        try {
+            client.delete(DeleteReq.builder()
+                    .collectionName(collectionName)
+                    .filter("salesperson_id == " + salespersonId)
+                    .build());
+            log.info("Milvus 删除业务员向量: salespersonId={}", salespersonId);
+        } catch (Exception e) {
+            log.error("Milvus 删除失败: {}", e.getMessage(), e);
+        }
+    }
+
+    public boolean isEnabled() {
+        return enabled && client != null;
     }
 }
