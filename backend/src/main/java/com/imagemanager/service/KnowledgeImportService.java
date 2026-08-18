@@ -156,6 +156,7 @@ public class KnowledgeImportService {
         public volatile int totalFiles;
         public volatile int processedFiles;
         public volatile int failedFiles;
+        public volatile int skippedFiles;
         public volatile long totalChunks;
         public volatile long startTime;
         public volatile long endTime;
@@ -169,6 +170,7 @@ public class KnowledgeImportService {
             m.put("totalFiles", totalFiles);
             m.put("processedFiles", processedFiles);
             m.put("failedFiles", failedFiles);
+            m.put("skippedFiles", skippedFiles);
             m.put("totalChunks", totalChunks);
             m.put("elapsedSeconds", (endTime > 0 ? endTime : System.currentTimeMillis()) - startTime > 0
                     ? ((endTime > 0 ? endTime : System.currentTimeMillis()) - startTime) / 1000 : 0);
