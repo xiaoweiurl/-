@@ -13,7 +13,9 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.hwpf.usermodel.Range;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.github.universalchardet.UniversalDetector;
@@ -131,6 +133,9 @@ public class KnowledgeImportService {
         this.milvusService = milvusService;
         this.documentParserService = documentParserService;
         this.objectMapper = objectMapper;
+        // POI HWPF 对部分 .doc 的内部告警走 JUL 且带完整堆栈（无文件名、刷屏），抑制到 SEVERE；
+        // 真正的解析失败由本服务捕获并带文件名记录
+        java.util.logging.Logger.getLogger("org.apache.poi").setLevel(java.util.logging.Level.SEVERE);
     }
 
     private synchronized Semaphore ocrSemaphore() {
@@ -534,6 +539,8 @@ public class KnowledgeImportService {
         if (milvusService.existsByDocId(docId)) {
             ctx.skippedCounter.incrementAndGet();
             ctx.progress.skippedFiles = ctx.skippedCounter.get();
+            // 跳过也要保证 knowledge_base_docs 有行：否则前端知识库永远看不到该文档
+            persistDocMetaSkipped(ctx, virtualName, docId, ext);
             maybePersistProgress(ctx);
             log.debug("文件未变更，跳过: {}", virtualName);
             return;
@@ -627,6 +634,7 @@ public class KnowledgeImportService {
                     VALUES (CAST(? AS uuid), ?, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
                             'bulk-import', ?, ?, ?, NOW(), NOW())
                     ON CONFLICT (id) DO UPDATE SET
+                        company = COALESCE(knowledge_base_docs.company, EXCLUDED.company),
                         chunk_count = EXCLUDED.chunk_count,
                         embedding_status = EXCLUDED.embedding_status,
                         file_content = EXCLUDED.file_content,
@@ -637,6 +645,36 @@ public class KnowledgeImportService {
                     uuid, ctx.userId, ctx.company, title, name1000, docType, chunkCount, status, content);
         } catch (Exception ex) {
             log.warn("文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
+        }
+    }
+
+    /**
+     * 跳过文件（内容未变更、向量已在 Milvus）也要保证 knowledge_base_docs 有行：
+     * 无行则补建（COMPLETED）；已有行仅回填 company（历史导入可能为 NULL 被列表查询过滤），保留原切片数
+     */
+    private void persistDocMetaSkipped(ImportContext ctx, String virtualName, String docId, String docType) {
+        try {
+            String uuid = docId.replaceAll("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
+            String title = virtualName.contains("/")
+                    ? virtualName.substring(virtualName.lastIndexOf('/') + 1)
+                    : virtualName;
+            if (title.length() > 250) title = title.substring(0, 250);
+            String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
+            jdbcTemplate.update("""
+                    INSERT INTO knowledge_base_docs
+                        (id, user_id, company, category_id, title, file_name, file_type, file_size,
+                         file_path, content, status, tags, chunk_count, embedding_status,
+                         file_content, created_at, updated_at)
+                    VALUES (CAST(? AS uuid), ?, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
+                            'bulk-import', 0, 'COMPLETED', NULL, NOW(), NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        company = COALESCE(knowledge_base_docs.company, EXCLUDED.company),
+                        embedding_status = 'COMPLETED',
+                        updated_at = NOW()
+                    """,
+                    uuid, ctx.userId, ctx.company, title, name1000, docType);
+        } catch (Exception ex) {
+            log.warn("跳过文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
         }
     }
 
@@ -678,17 +716,34 @@ public class KnowledgeImportService {
     private String parseWord(Path file) throws Exception {
         // 老格式 .doc 用 HWPF（poi-scratchpad），.docx 用 XWPF
         if (file.getFileName().toString().toLowerCase().endsWith(".doc")) {
+            // 直接用 HWPF Range 逐段取文本，绕过 WordToTextConverter 的列表解析
+            // （部分 .doc 的 listTables 为 null，converter 内部逐段 NPE 并向 JUL 刷 WARN 堆栈，日志无文件名）
+            try (InputStream is = new BufferedInputStream(Files.newInputStream(file));
+                 HWPFDocument doc = new HWPFDocument(is)) {
+                StringBuilder sb = new StringBuilder();
+                Range range = doc.getRange();
+                for (int i = 0; i < range.numParagraphs(); i++) {
+                    try {
+                        String text = range.getParagraph(i).text();
+                        if (text != null) {
+                            // \u0007 = 表格单元格分隔符，\r = 段落符，统一清洗
+                            text = text.replace('\u0007', ' ').replace('\r', ' ').trim();
+                            if (!text.isBlank()) sb.append(text).append('\n');
+                        }
+                    } catch (Exception ignored) {
+                        // 单段落损坏跳过，不影响其余段落
+                    }
+                }
+                if (sb.length() > 0) return sb.toString();
+            } catch (Exception e) {
+                log.warn(".doc Range 提取失败，降级 getTextFromPieces: {} -> {}",
+                        file.getFileName(), e.getMessage());
+            }
+            // 兜底：文本片段表直读（完全绕开文档模型，不做列表/表格解析）
             try (InputStream is = new BufferedInputStream(Files.newInputStream(file));
                  WordExtractor extractor = new WordExtractor(is)) {
-                try {
-                    String text = extractor.getText();
-                    return text != null ? text : "";
-                } catch (NullPointerException e) {
-                    // POI HWPF 解析某些 .doc 文件时 listTables 为 null，降级到简单提取
-                    log.warn("WordExtractor.getText() 失败，降级到 getTextFromPieces(): {}", e.getMessage());
-                    String text = extractor.getTextFromPieces();
-                    return text != null ? text : "";
-                }
+                String text = extractor.getTextFromPieces();
+                return text != null ? text : "";
             }
         }
         try (InputStream is = new BufferedInputStream(Files.newInputStream(file));
@@ -1078,8 +1133,9 @@ public class KnowledgeImportService {
             }
         }
         try {
+            String name2048 = fileName != null && fileName.length() > 2000 ? fileName.substring(0, 2000) : fileName;
             jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg) VALUES (?,?,?)",
-                    ctx.taskId, fileName, msg);
+                    ctx.taskId, name2048, msg);
         } catch (Exception e) {
             log.warn("记录导入错误失败: {}", e.getMessage(), e);
         }
