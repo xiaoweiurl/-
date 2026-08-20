@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Database,
   Briefcase,
+  Info,
 } from 'lucide-react';
 import KnowledgeCardForm from '@/components/KnowledgeCardForm';
 import KnowledgeCardList, { KnowledgeCardListHandle } from '@/components/KnowledgeCardList';
@@ -46,7 +47,7 @@ const FILE_ICONS: Record<string, React.ReactNode> = {
   csv: <FileSpreadsheet className="w-8 h-8 text-green-500" />,
   txt: <FileType className="w-8 h-8 text-slate-500" />,
   md: <FileType className="w-8 h-8 text-amber-500" />,
-  url: <Eye className="w-8 h-8 text-violet-500" />,
+  url: <Eye className="w-8 h-8 text-blue-500" />,
   text: <FileText className="w-8 h-8 text-indigo-500" />,
 };
 
@@ -204,6 +205,8 @@ export default function KnowledgePage() {
   const [importProgress, setImportProgress] = useState<any>(null);
   const [importTasks, setImportTasks] = useState<any[]>([]);
   const [showTaskHistory, setShowTaskHistory] = useState(false);
+  // 导入弹窗内嵌提示条（替代原生 alert，符合项目深色科技风格）
+  const [importNotice, setImportNotice] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const importProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -363,14 +366,14 @@ export default function KnowledgePage() {
       let res: Response;
       if (importMode === 'upload') {
         if (!importZipFile) {
-          alert('请选择 zip 文件');
+          setImportNotice({ type: 'error', text: '请选择 zip 压缩包文件' });
           setIsImporting(false);
           return;
         }
         res = await knowledgeApi.import.submitUpload(importZipFile);
       } else {
         if (!importPath.trim()) {
-          alert('请输入服务器路径');
+          setImportNotice({ type: 'error', text: '请输入服务器上的 zip 或文件夹路径' });
           setIsImporting(false);
           return;
         }
@@ -379,7 +382,7 @@ export default function KnowledgePage() {
 
       const data = await res.json();
       if (!data.success) {
-        alert(`提交导入失败: ${data.error || data.message || '未知错误'}`);
+        setImportNotice({ type: 'error', text: `提交导入失败: ${data.error || data.message || '未知错误'}` });
         setIsImporting(false);
         return;
       }
@@ -387,12 +390,13 @@ export default function KnowledgePage() {
       const taskId = data.taskId;
       setCurrentImportTaskId(taskId);
       setImportProgress({ status: 'RUNNING', processedFiles: 0, totalFiles: 0, totalChunks: 0 });
+      setImportNotice({ type: 'info', text: '导入任务已提交，后台流式处理中' });
 
       // 开始轮询进度
       startProgressPolling(taskId);
     } catch (err) {
       console.error('提交导入失败:', err);
-      alert('提交导入失败，请重试');
+      setImportNotice({ type: 'error', text: '提交导入失败，请检查后端服务是否可用' });
       setIsImporting(false);
     }
   };
@@ -417,7 +421,12 @@ export default function KnowledgePage() {
             }
             setIsImporting(false);
             if (data.progress.status === 'COMPLETED') {
+              setImportNotice({ type: 'success', text: `导入完成：已处理 ${data.progress.processedFiles ?? 0} 个文件，向量化 ${data.progress.totalChunks ?? 0} 个切片` });
               await fetchDocuments();
+            } else if (data.progress.status === 'FAILED') {
+              setImportNotice({ type: 'error', text: `导入失败: ${data.progress.errorMsg || '部分文件处理失败，详见任务历史'}` });
+            } else {
+              setImportNotice({ type: 'info', text: '导入已取消' });
             }
           }
         }
@@ -444,8 +453,9 @@ export default function KnowledgePage() {
         setIsImporting(false);
         setCurrentImportTaskId(null);
         setImportProgress(null);
+        setImportNotice({ type: 'info', text: '已发送取消指令，任务将停止' });
       } else {
-        alert(`取消失败: ${data.error || '未知错误'}`);
+        setImportNotice({ type: 'error', text: `取消失败: ${data.error || '未知错误'}` });
       }
     } catch (err) {
       console.error('取消导入失败:', err);
@@ -474,6 +484,7 @@ export default function KnowledgePage() {
     setImportPath('');
     setImportProgress(null);
     setCurrentImportTaskId(null);
+    setImportNotice(null);
     if (importProgressTimerRef.current) {
       clearInterval(importProgressTimerRef.current);
       importProgressTimerRef.current = null;
@@ -877,7 +888,7 @@ export default function KnowledgePage() {
               </button>
               <button
                 onClick={() => setShowImportPanel(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg hover:from-violet-600 hover:to-purple-600 transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-[0_0_10px_rgba(59,130,246,0.25)]"
               >
                 <Database className="w-3.5 h-3.5" />
                 批量导入
@@ -1136,7 +1147,7 @@ export default function KnowledgePage() {
       {/* Batch Import Modal */}
       {showImportPanel && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => !isImporting && closeImportPanel()}>
-          <div className="bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl p-6 border border-slate-700/50" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-slate-900 rounded-2xl w-full max-w-2xl p-6 border border-blue-500/20 shadow-[0_0_25px_rgba(59,130,246,0.15)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-100">批量导入</h3>
               {!isImporting && (
@@ -1146,6 +1157,32 @@ export default function KnowledgePage() {
               )}
             </div>
 
+            {/* 内嵌提示条（替代原生 alert） */}
+            {importNotice && (
+              <div className={`mb-4 flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm ${
+                importNotice.type === 'error'
+                  ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                  : importNotice.type === 'success'
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                    : 'border-blue-500/30 bg-blue-500/10 text-blue-300'
+              }`}>
+                {importNotice.type === 'error' ? (
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                ) : importNotice.type === 'success' ? (
+                  <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                ) : (
+                  <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                )}
+                <span className="flex-1 leading-5">{importNotice.text}</span>
+                <button
+                  onClick={() => setImportNotice(null)}
+                  className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Mode Tabs */}
             {!isImporting && !importProgress && (
               <div className="flex gap-2 mb-4">
@@ -1153,7 +1190,7 @@ export default function KnowledgePage() {
                   onClick={() => setImportMode('upload')}
                   className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
                     importMode === 'upload'
-                      ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
+                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
                       : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
                 >
@@ -1163,7 +1200,7 @@ export default function KnowledgePage() {
                   onClick={() => setImportMode('path')}
                   className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
                     importMode === 'path'
-                      ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
+                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
                       : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
                 >
@@ -1177,7 +1214,7 @@ export default function KnowledgePage() {
               <>
                 <div
                   className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 ${
-                    importDragOver ? 'border-violet-400 bg-violet-500/10' : 'border-slate-700 hover:border-violet-500/50'
+                    importDragOver ? 'border-blue-400 bg-blue-500/10' : 'border-slate-700 hover:border-blue-500/50'
                   }`}
                   onClick={() => importFileInputRef.current?.click()}
                   onDragOver={(e) => { e.preventDefault(); setImportDragOver(true); }}
@@ -1195,7 +1232,7 @@ export default function KnowledgePage() {
                     }
                   }}
                 >
-                  <Database className={`w-10 h-10 mx-auto mb-3 ${importDragOver ? 'text-violet-400' : 'text-slate-500'}`} />
+                  <Database className={`w-10 h-10 mx-auto mb-3 ${importDragOver ? 'text-blue-400' : 'text-slate-500'}`} />
                   <p className="text-sm text-slate-400 mb-1">{importDragOver ? '松开以上传文件' : '点击选择 Zip 文件或拖拽到此处'}</p>
                   <p className="text-xs text-slate-500">支持 200GB+ 大文件，流式处理不占内存</p>
                   <input
@@ -1216,7 +1253,7 @@ export default function KnowledgePage() {
 
                 {importZipFile && (
                   <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-lg text-sm mb-4">
-                    <Database className="w-4 h-4 text-violet-400" />
+                    <Database className="w-4 h-4 text-blue-400" />
                     <span className="flex-1 truncate text-slate-300">{importZipFile.name}</span>
                     <span className="text-slate-500">{formatFileSize(importZipFile.size)}</span>
                     <button onClick={() => setImportZipFile(null)} className="p-1 hover:bg-slate-700 rounded">
@@ -1237,7 +1274,7 @@ export default function KnowledgePage() {
                     value={importPath}
                     onChange={(e) => setImportPath(e.target.value)}
                     placeholder="/data/salesperson.zip 或 /data/salesperson/"
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                   <p className="text-xs text-slate-500 mt-1">支持 zip 压缩包或文件夹，自动递归处理所有子目录</p>
                 </div>
@@ -1284,7 +1321,7 @@ export default function KnowledgePage() {
                 {importProgress.status === 'RUNNING' && importProgress.totalFiles > 0 && (
                   <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-300"
+                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-300"
                       style={{ width: `${Math.round(((importProgress.processedFiles || 0) / importProgress.totalFiles) * 100)}%` }}
                     />
                   </div>
@@ -1325,7 +1362,7 @@ export default function KnowledgePage() {
                 <button
                   onClick={handleImportSubmit}
                   disabled={(importMode === 'upload' && !importZipFile) || (importMode === 'path' && !importPath.trim()) || isImporting}
-                  className="flex-1 py-2 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-sm font-medium hover:from-violet-600 hover:to-purple-600 transition-all disabled:opacity-50"
+                  className="flex-1 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-cyan-600 transition-all disabled:opacity-50"
                 >
                   {isImporting ? '提交中...' : '开始导入'}
                 </button>

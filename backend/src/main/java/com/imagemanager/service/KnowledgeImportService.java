@@ -57,6 +57,11 @@ public class KnowledgeImportService {
     private final DocumentParserService documentParserService;
     private final ObjectMapper objectMapper;
 
+    /** 三张 PG 表的实际列集合（启动时加载，写入按列存在动态适配） */
+    private volatile Set<String> taskTableCols = Set.of();
+    private volatile Set<String> errorTableCols = Set.of();
+    private volatile Set<String> docsTableCols = Set.of();
+
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
@@ -136,6 +141,50 @@ public class KnowledgeImportService {
         // POI HWPF 对部分 .doc 的内部告警走 JUL 且带完整堆栈（无文件名、刷屏），抑制到 SEVERE；
         // 真正的解析失败由本服务捕获并带文件名记录
         java.util.logging.Logger.getLogger("org.apache.poi").setLevel(java.util.logging.Level.SEVERE);
+        // 启动时缓存三张 PG 表的实际列集合：导入写入全部按"列存在才写"动态适配，
+        // 避免手建表缺列/多列导致整个导入链路静默失败
+        this.taskTableCols = loadColumns("knowledge_import_task");
+        this.errorTableCols = loadColumns("knowledge_import_error");
+        this.docsTableCols = loadColumns("knowledge_base_docs");
+        verifyTable("knowledge_import_task", taskTableCols,
+                "id", "source", "status", "total_files", "processed_files", "failed_files", "total_chunks");
+        verifyTable("knowledge_import_error", errorTableCols, "task_id", "file_name", "error_msg");
+        if (docsTableCols.isEmpty()) {
+            log.error("[导入] 表 knowledge_base_docs 不存在或不可查，导入文档将无法在知识库列表展示");
+        } else if (!docsTableCols.contains("id") || !docsTableCols.contains("title")) {
+            log.error("[导入] knowledge_base_docs 缺少核心列 id/title，实际列: {}", docsTableCols);
+        }
+    }
+
+    /** 读取 PG 表的列名集合（统一小写） */
+    private Set<String> loadColumns(String table) {
+        try {
+            Set<String> cols = new HashSet<>();
+            for (String c : jdbcTemplate.queryForList(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = ?", String.class, table)) {
+                cols.add(c.toLowerCase());
+            }
+            log.info("[导入] 表 {} 实际列: {}", table, cols);
+            return cols;
+        } catch (Exception e) {
+            log.error("[导入] 读取表 {} 列信息失败: {}", table, e.getMessage());
+            return Set.of();
+        }
+    }
+
+    /** 校验必需列，缺失则打 ERROR（帮助定位手建表结构不完整问题） */
+    private void verifyTable(String table, Set<String> actual, String... required) {
+        if (actual.isEmpty()) {
+            log.error("[导入] 表 {} 不存在或不可查！任务进度/错误明细将无法落库", table);
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        for (String r : required) {
+            if (!actual.contains(r)) missing.add(r);
+        }
+        if (!missing.isEmpty()) {
+            log.error("[导入] 表 {} 缺少列: {}（实际列: {}）", table, missing, actual);
+        }
     }
 
     private synchronized Semaphore ocrSemaphore() {
@@ -249,10 +298,25 @@ public class KnowledgeImportService {
     }
 
     private Map<String, Object> startTask(Path root, String sourceName, String userId, String company) {
-        // 创建任务记录（knowledge_import_task 表没有 user_id 字段）
-        Long taskId = jdbcTemplate.queryForObject(
-                "INSERT INTO knowledge_import_task (source) VALUES (?) RETURNING id",
-                Long.class, sourceName);
+        // 创建任务记录：首选 INSERT..RETURNING（要求 id 有 bigserial 默认值），
+        // 失败（手建表无序列/列缺失）则降级手动 MAX(id)+1 显式插 id
+        long taskId;
+        try {
+            Long tid = jdbcTemplate.queryForObject(
+                    "INSERT INTO knowledge_import_task (source) VALUES (?) RETURNING id",
+                    Long.class, sourceName);
+            taskId = tid != null ? tid : -1L;
+        } catch (Exception e) {
+            log.warn("[导入] INSERT..RETURNING 创建任务失败，降级手动生成 id: {}", e.getMessage());
+            Long maxId = jdbcTemplate.queryForObject(
+                    "SELECT COALESCE(MAX(id), 0) FROM knowledge_import_task", Long.class);
+            taskId = (maxId == null ? 0 : maxId) + 1;
+            jdbcTemplate.update("INSERT INTO knowledge_import_task (id, source, status) VALUES (?,?,?)",
+                    taskId, sourceName, "RUNNING");
+        }
+        if (taskId < 0) {
+            throw new IllegalStateException("任务 id 生成失败");
+        }
 
         ImportTaskProgress progress = new ImportTaskProgress();
         progress.taskId = taskId;
@@ -614,10 +678,29 @@ public class KnowledgeImportService {
     /**
      * 导入文档元数据同步写入 knowledge_base_docs（知识库列表可见向量化状态）。
      * docId（32位hex）格式化为 UUID 作为主键，重导时幂等更新。
+     * 按启动时缓存的表列集合动态拼 SQL：列存在才写，手建表缺列不会导致整体失败。
      */
     private void persistDocMeta(ImportContext ctx, String virtualName, String docId,
                                 String docType, int chunkCount, String fullText, String status) {
+        upsertDocMeta(ctx, virtualName, docId, docType, chunkCount, fullText, status, false);
+    }
+
+    /**
+     * 跳过文件（内容未变更、向量已在 Milvus）也要保证 knowledge_base_docs 有行：
+     * 无行则补建（COMPLETED）；已有行仅回填 company，且不覆盖原切片数（preserveChunkCount）
+     */
+    private void persistDocMetaSkipped(ImportContext ctx, String virtualName, String docId, String docType) {
+        upsertDocMeta(ctx, virtualName, docId, docType, 0, null, "COMPLETED", true);
+    }
+
+    private void upsertDocMeta(ImportContext ctx, String virtualName, String docId,
+                               String docType, int chunkCount, String fullText, String status,
+                               boolean preserveChunkCount) {
         try {
+            if (docsTableCols.isEmpty()) {
+                log.warn("[导入] knowledge_base_docs 列信息不可用，跳过文档元数据写入: {}", virtualName);
+                return;
+            }
             String uuid = docId.replaceAll("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
             String title = virtualName.contains("/")
                     ? virtualName.substring(virtualName.lastIndexOf('/') + 1)
@@ -626,55 +709,42 @@ public class KnowledgeImportService {
             String content = fullText == null ? null
                     : (fullText.length() > 50000 ? fullText.substring(0, 50000) : fullText);
             String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
-            jdbcTemplate.update("""
-                    INSERT INTO knowledge_base_docs
-                        (id, user_id, company, category_id, title, file_name, file_type, file_size,
-                         file_path, content, status, tags, chunk_count, embedding_status,
-                         file_content, created_at, updated_at)
-                    VALUES (CAST(? AS uuid), ?, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
-                            'bulk-import', ?, ?, ?, NOW(), NOW())
-                    ON CONFLICT (id) DO UPDATE SET
-                        company = COALESCE(knowledge_base_docs.company, EXCLUDED.company),
-                        chunk_count = EXCLUDED.chunk_count,
-                        embedding_status = EXCLUDED.embedding_status,
-                        file_content = EXCLUDED.file_content,
-                        title = EXCLUDED.title,
-                        file_name = EXCLUDED.file_name,
-                        updated_at = NOW()
-                    """,
-                    uuid, ctx.userId, ctx.company, title, name1000, docType, chunkCount, status, content);
+
+            List<String> cols = new ArrayList<>();
+            List<String> valExprs = new ArrayList<>();
+            List<Object> args = new ArrayList<>();
+            cols.add("id"); valExprs.add("CAST(? AS uuid)"); args.add(uuid);
+            if (docsTableCols.contains("user_id") && ctx.userId != null) { cols.add("user_id"); valExprs.add("?"); args.add(ctx.userId); }
+            if (docsTableCols.contains("company") && ctx.company != null) { cols.add("company"); valExprs.add("?"); args.add(ctx.company); }
+            if (docsTableCols.contains("title")) { cols.add("title"); valExprs.add("?"); args.add(title); }
+            if (docsTableCols.contains("file_name")) { cols.add("file_name"); valExprs.add("?"); args.add(name1000); }
+            if (docsTableCols.contains("file_type")) { cols.add("file_type"); valExprs.add("?"); args.add(docType); }
+            if (docsTableCols.contains("file_path")) { cols.add("file_path"); valExprs.add("?"); args.add("bulk-import"); }
+            if (docsTableCols.contains("status")) { cols.add("status"); valExprs.add("?"); args.add("COMPLETED"); }
+            if (docsTableCols.contains("tags")) { cols.add("tags"); valExprs.add("?"); args.add("bulk-import"); }
+            if (docsTableCols.contains("chunk_count")) { cols.add("chunk_count"); valExprs.add("?"); args.add(chunkCount); }
+            if (docsTableCols.contains("embedding_status")) { cols.add("embedding_status"); valExprs.add("?"); args.add(status); }
+            if (docsTableCols.contains("file_content") && content != null) { cols.add("file_content"); valExprs.add("?"); args.add(content); }
+
+            List<String> conflictSets = new ArrayList<>();
+            if (docsTableCols.contains("company")) conflictSets.add("company = COALESCE(knowledge_base_docs.company, EXCLUDED.company)");
+            if (docsTableCols.contains("title")) conflictSets.add("title = EXCLUDED.title");
+            if (docsTableCols.contains("file_name")) conflictSets.add("file_name = EXCLUDED.file_name");
+            if (docsTableCols.contains("chunk_count")) {
+                conflictSets.add(preserveChunkCount
+                        ? "chunk_count = CASE WHEN EXCLUDED.chunk_count > 0 THEN EXCLUDED.chunk_count ELSE knowledge_base_docs.chunk_count END"
+                        : "chunk_count = EXCLUDED.chunk_count");
+            }
+            if (docsTableCols.contains("embedding_status")) conflictSets.add("embedding_status = EXCLUDED.embedding_status");
+            if (docsTableCols.contains("file_content")) conflictSets.add("file_content = COALESCE(EXCLUDED.file_content, knowledge_base_docs.file_content)");
+            if (docsTableCols.contains("updated_at")) conflictSets.add("updated_at = NOW()");
+
+            String conflict = conflictSets.isEmpty() ? "" : " ON CONFLICT (id) DO UPDATE SET " + String.join(", ", conflictSets);
+            String sql = "INSERT INTO knowledge_base_docs (" + String.join(", ", cols) + ") VALUES ("
+                    + String.join(", ", valExprs) + ")" + conflict;
+            jdbcTemplate.update(sql, args.toArray());
         } catch (Exception ex) {
             log.warn("文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
-        }
-    }
-
-    /**
-     * 跳过文件（内容未变更、向量已在 Milvus）也要保证 knowledge_base_docs 有行：
-     * 无行则补建（COMPLETED）；已有行仅回填 company（历史导入可能为 NULL 被列表查询过滤），保留原切片数
-     */
-    private void persistDocMetaSkipped(ImportContext ctx, String virtualName, String docId, String docType) {
-        try {
-            String uuid = docId.replaceAll("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
-            String title = virtualName.contains("/")
-                    ? virtualName.substring(virtualName.lastIndexOf('/') + 1)
-                    : virtualName;
-            if (title.length() > 250) title = title.substring(0, 250);
-            String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
-            jdbcTemplate.update("""
-                    INSERT INTO knowledge_base_docs
-                        (id, user_id, company, category_id, title, file_name, file_type, file_size,
-                         file_path, content, status, tags, chunk_count, embedding_status,
-                         file_content, created_at, updated_at)
-                    VALUES (CAST(? AS uuid), ?, ?, NULL, ?, ?, ?, 0, 'bulk-import', NULL, 'COMPLETED',
-                            'bulk-import', 0, 'COMPLETED', NULL, NOW(), NOW())
-                    ON CONFLICT (id) DO UPDATE SET
-                        company = COALESCE(knowledge_base_docs.company, EXCLUDED.company),
-                        embedding_status = 'COMPLETED',
-                        updated_at = NOW()
-                    """,
-                    uuid, ctx.userId, ctx.company, title, name1000, docType);
-        } catch (Exception ex) {
-            log.warn("跳过文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
         }
     }
 
@@ -1133,11 +1203,21 @@ public class KnowledgeImportService {
             }
         }
         try {
+            if (!errorTableCols.contains("task_id") || !errorTableCols.contains("error_msg")) {
+                log.warn("[导入] knowledge_import_error 缺少必需列，跳过落库: {} -> {}", fileName, msg);
+                return;
+            }
             String name2048 = fileName != null && fileName.length() > 2000 ? fileName.substring(0, 2000) : fileName;
-            jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg) VALUES (?,?,?)",
-                    ctx.taskId, name2048, msg);
+            boolean hasFileName = errorTableCols.contains("file_name");
+            if (hasFileName) {
+                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg) VALUES (?,?,?)",
+                        ctx.taskId, name2048, msg);
+            } else {
+                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, error_msg) VALUES (?,?)",
+                        ctx.taskId, msg);
+            }
         } catch (Exception e) {
-            log.warn("记录导入错误失败: {}", e.getMessage(), e);
+            log.error("记录导入错误失败: {}", e.getMessage(), e);
         }
     }
 
@@ -1150,12 +1230,29 @@ public class KnowledgeImportService {
     }
 
     private void persistTask(ImportTaskProgress p, String status, String errorMsg) {
+        if (taskTableCols.isEmpty()) {
+            log.warn("[导入] knowledge_import_task 不可用，跳过进度持久化 taskId={}", p.taskId);
+            return;
+        }
         try {
-            jdbcTemplate.update(
-                    "UPDATE knowledge_import_task SET status=?, total_files=?, processed_files=?, failed_files=?, total_chunks=?, error_msg=?, finished_at=CASE WHEN ? IN ('COMPLETED','FAILED','CANCELLED') THEN NOW() ELSE finished_at END WHERE id=?",
-                    status, p.totalFiles, p.processedFiles, p.failedFiles, p.totalChunks, errorMsg, status, p.taskId);
+            List<String> sets = new ArrayList<>();
+            List<Object> args = new ArrayList<>();
+            sets.add("status = ?"); args.add(status);
+            if (taskTableCols.contains("total_files")) { sets.add("total_files = ?"); args.add(p.totalFiles); }
+            if (taskTableCols.contains("processed_files")) { sets.add("processed_files = ?"); args.add(p.processedFiles); }
+            if (taskTableCols.contains("failed_files")) { sets.add("failed_files = ?"); args.add(p.failedFiles); }
+            if (taskTableCols.contains("total_chunks")) { sets.add("total_chunks = ?"); args.add(p.totalChunks); }
+            if (taskTableCols.contains("skipped_files")) { sets.add("skipped_files = ?"); args.add(p.skippedFiles); }
+            if (taskTableCols.contains("error_msg")) { sets.add("error_msg = ?"); args.add(errorMsg); }
+            if (taskTableCols.contains("finished_at")
+                    && ("COMPLETED".equals(status) || "FAILED".equals(status) || "CANCELLED".equals(status))) {
+                sets.add("finished_at = NOW()");
+            }
+            String sql = "UPDATE knowledge_import_task SET " + String.join(", ", sets) + " WHERE id = ?";
+            args.add(p.taskId);
+            jdbcTemplate.update(sql, args.toArray());
         } catch (Exception e) {
-            log.warn("持久化导入任务状态失败: {}", e.getMessage(), e);
+            log.error("持久化导入任务状态失败 taskId={} status={}: {}", p.taskId, status, e.getMessage(), e);
         }
     }
 
@@ -1166,12 +1263,12 @@ public class KnowledgeImportService {
         if (p != null) {
             return p.toMap();
         }
-        // 已重启或不在内存中，查 PG
+        // 已重启或不在内存中，查 PG（DB 列为 snake_case，转 camelCase 与内存 toMap 对齐）
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                     "SELECT * FROM knowledge_import_task WHERE id = ?", taskId);
             if (!rows.isEmpty()) {
-                return rows.get(0);
+                return camelRow(rows.get(0));
             }
         } catch (Exception ignored) {}
         throw new IllegalArgumentException("任务不存在: " + taskId);
@@ -1190,8 +1287,33 @@ public class KnowledgeImportService {
     }
 
     public List<Map<String, Object>> listTasks(int limit) {
-        return jdbcTemplate.queryForList(
-                "SELECT * FROM knowledge_import_task ORDER BY id DESC LIMIT ?", Math.max(1, limit));
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT * FROM knowledge_import_task ORDER BY id DESC LIMIT ?", Math.max(1, limit));
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                out.add(camelRow(row));
+            }
+            return out;
+        } catch (Exception e) {
+            log.error("查询导入任务列表失败: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    /** DB snake_case 行转 camelCase（与 ImportTaskProgress.toMap 键名对齐，供前端直接使用） */
+    private Map<String, Object> camelRow(Map<String, Object> row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        row.forEach((k, v) -> {
+            StringBuilder sb = new StringBuilder();
+            for (String part : k.toLowerCase().split("_")) {
+                if (part.isEmpty()) continue;
+                if (sb.length() == 0) sb.append(part);
+                else sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+            }
+            out.put(sb.toString(), v);
+        });
+        return out;
     }
 
     @PreDestroy
