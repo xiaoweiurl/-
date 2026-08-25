@@ -22,6 +22,9 @@ import org.github.universalchardet.UniversalDetector;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import javax.sql.DataSource;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PreDestroy;
@@ -56,6 +59,7 @@ public class KnowledgeImportService {
     private final MilvusService milvusService;
     private final DocumentParserService documentParserService;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate txTemplate;
 
     /** 三张 PG 表的实际列集合（启动时加载，写入按列存在动态适配） */
     private volatile Set<String> taskTableCols = Set.of();
@@ -133,11 +137,16 @@ public class KnowledgeImportService {
     public KnowledgeImportService(JdbcTemplate jdbcTemplate,
                                   MilvusService milvusService,
                                   DocumentParserService documentParserService,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  DataSource dataSource) {
         this.jdbcTemplate = jdbcTemplate;
         this.milvusService = milvusService;
         this.documentParserService = documentParserService;
         this.objectMapper = objectMapper;
+        // HikariCP auto-commit=false：所有 DDL/DML 必须显式事务提交，否则连接归还时回滚。
+        // 用 DataSourceTransactionManager（而非 JPA 的 JpaTransactionManager）：
+        // 它会把 ConnectionHolder 绑定到 DataSource，JdbcTemplate 才能复用同一事务连接并被真正 commit
+        this.txTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         // POI HWPF 对部分 .doc 的内部告警走 JUL 且带完整堆栈（无文件名、刷屏），抑制到 SEVERE；
         // 真正的解析失败由本服务捕获并带文件名记录
         java.util.logging.Logger.getLogger("org.apache.poi").setLevel(java.util.logging.Level.SEVERE);
@@ -163,7 +172,7 @@ public class KnowledgeImportService {
      * 1. knowledge_import_task / knowledge_import_error 不存在则创建（标准结构）
      * 2. 已存在（手建）则 ALTER ADD COLUMN IF NOT EXISTS 补齐缺失列
      * 3. knowledge_base_docs 补 doc_id 业务列 + 索引（一个文档只一行，按内容哈希去重）
-     * 每条 DDL 独立 try/catch，单条失败不影响启动与其他语句
+     * 每条 DDL 独立事务提交（HikariCP auto-commit=false，不提交会被回滚）
      */
     private void ensureSchema() {
         List<String> ddls = List.of(
@@ -196,7 +205,11 @@ public class KnowledgeImportService {
         );
         for (String ddl : ddls) {
             try {
-                jdbcTemplate.execute(ddl);
+                // 每条 DDL 独立事务立即提交：auto-commit=false 时不提交会被连接池回滚
+                txTemplate.execute(status -> {
+                    jdbcTemplate.execute(ddl);
+                    return null;
+                });
             } catch (Exception e) {
                 log.warn("[导入] DDL 自愈语句执行失败（已跳过）: {} -> {}",
                         ddl.length() > 80 ? ddl.substring(0, 80) + "..." : ddl, e.getMessage());
@@ -355,19 +368,22 @@ public class KnowledgeImportService {
         String createdExpr = taskTableCols.contains("created_at") ? ", created_at" : "";
         String createdVal = taskTableCols.contains("created_at") ? ", NOW()" : "";
         try {
-            Long tid = jdbcTemplate.queryForObject(
+            // 独立事务立即提交：auto-commit=false 时不提交会被连接池回滚
+            Long tid = txTemplate.execute(status -> jdbcTemplate.queryForObject(
                     "INSERT INTO knowledge_import_task (source, status" + createdExpr + ") VALUES (?, 'RUNNING'"
                             + createdVal + ") RETURNING id",
-                    Long.class, sourceName);
+                    Long.class, sourceName));
             taskId = tid != null ? tid : -1L;
         } catch (Exception e) {
             log.warn("[导入] INSERT..RETURNING 创建任务失败，降级手动生成 id: {}", e.getMessage());
             Long maxId = jdbcTemplate.queryForObject(
                     "SELECT COALESCE(MAX(id), 0) FROM knowledge_import_task", Long.class);
             taskId = (maxId == null ? 0 : maxId) + 1;
-            jdbcTemplate.update("INSERT INTO knowledge_import_task (id, source, status" + createdExpr
+            final long finalTaskId = taskId;
+            txTemplate.executeWithoutResult(status -> jdbcTemplate.update(
+                    "INSERT INTO knowledge_import_task (id, source, status" + createdExpr
                             + ") VALUES (?,?,?" + createdVal + ")",
-                    taskId, sourceName, "RUNNING");
+                    finalTaskId, sourceName, "RUNNING"));
         }
         if (taskId < 0) {
             throw new IllegalStateException("任务 id 生成失败");
@@ -817,7 +833,7 @@ public class KnowledgeImportService {
                     String sql = "UPDATE knowledge_base_docs SET " + String.join(", ", sets) + " WHERE id = ?";
                     args.add(existingId);
                     log.info("[导入] upsertDocMeta UPDATE SQL: {}", sql);
-                    jdbcTemplate.update(sql, args.toArray());
+                    txTemplate.executeWithoutResult(s -> jdbcTemplate.update(sql, args.toArray()));
                     log.info("[导入] upsertDocMeta UPDATE 成功: file={}, docId={}, existingId={}", virtualName, docId, existingId);
                 }
                 return;
@@ -856,7 +872,7 @@ public class KnowledgeImportService {
             String sql = "INSERT INTO knowledge_base_docs (" + String.join(", ", cols) + ") VALUES ("
                     + String.join(", ", valExprs) + ")";
             log.info("[导入] upsertDocMeta INSERT SQL: {}", sql);
-            jdbcTemplate.update(sql, args.toArray());
+            txTemplate.executeWithoutResult(s -> jdbcTemplate.update(sql, args.toArray()));
             log.info("[导入] upsertDocMeta INSERT 成功: file={}, docId={}", virtualName, docId);
         } catch (Exception ex) {
             log.error("[导入] 文档元数据写入失败: {} -> {}", virtualName, ex.getMessage(), ex);
@@ -1413,6 +1429,7 @@ public class KnowledgeImportService {
         if (msg.length() > 500) {
             msg = msg.substring(0, 500) + "...";
         }
+        final String finalMsg = msg;
         ctx.progress.recentErrors.add(fileName + " -> " + msg);
         synchronized (ctx.progress.recentErrors) {
             while (ctx.progress.recentErrors.size() > 100) {
@@ -1430,13 +1447,15 @@ public class KnowledgeImportService {
             String createdExpr = errorTableCols.contains("created_at") ? ", created_at" : "";
             String createdVal = errorTableCols.contains("created_at") ? ", NOW()" : "";
             if (hasFileName) {
-                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg"
+                txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
+                        "INSERT INTO knowledge_import_error (task_id, file_name, error_msg"
                                 + createdExpr + ") VALUES (?,?,?" + createdVal + ")",
-                        ctx.taskId, name2048, msg);
+                        ctx.taskId, name2048, finalMsg));
             } else {
-                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, error_msg"
+                txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
+                        "INSERT INTO knowledge_import_error (task_id, error_msg"
                                 + createdExpr + ") VALUES (?,?" + createdVal + ")",
-                        ctx.taskId, msg);
+                        ctx.taskId, finalMsg));
             }
         } catch (Exception e) {
             log.error("记录导入错误失败: {}", e.getMessage(), e);
@@ -1473,7 +1492,7 @@ public class KnowledgeImportService {
             }
             String sql = "UPDATE knowledge_import_task SET " + String.join(", ", sets) + " WHERE id = ?";
             args.add(p.taskId);
-            jdbcTemplate.update(sql, args.toArray());
+            txTemplate.executeWithoutResult(s -> jdbcTemplate.update(sql, args.toArray()));
         } catch (Exception e) {
             log.error("持久化导入任务状态失败 taskId={} status={}: {}", p.taskId, status, e.getMessage(), e);
         }
