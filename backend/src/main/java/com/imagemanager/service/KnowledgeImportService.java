@@ -210,13 +210,13 @@ public class KnowledgeImportService {
         try {
             Set<String> cols = new HashSet<>();
             for (String c : jdbcTemplate.queryForList(
-                    "SELECT column_name FROM information_schema.columns WHERE table_name = ?", String.class, table)) {
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?", String.class, table)) {
                 cols.add(c.toLowerCase());
             }
-            log.info("[导入] 表 {} 实际列: {}", table, cols);
+            log.info("[导入] 表 public.{} 实际列: {}", table, cols);
             return cols;
         } catch (Exception e) {
-            log.error("[导入] 读取表 {} 列信息失败: {}", table, e.getMessage());
+            log.error("[导入] 读取表 public.{} 列信息失败: {}", table, e.getMessage(), e);
             return Set.of();
         }
     }
@@ -347,6 +347,7 @@ public class KnowledgeImportService {
     }
 
     private Map<String, Object> startTask(Path root, String sourceName, String userId, String company) {
+        log.info("[导入] startTask 开始: source={}, userId={}, company={}, taskTableCols.size={}", sourceName, userId, company, taskTableCols.size());
         // 创建任务记录：首选 INSERT..RETURNING（要求 id 有 bigserial 默认值），
         // 失败（手建表无序列/列缺失）则降级手动 MAX(id)+1 显式插 id
         long taskId;
@@ -758,6 +759,8 @@ public class KnowledgeImportService {
     private void upsertDocMeta(ImportContext ctx, String virtualName, String docId,
                                String docType, int chunkCount, String fullText, String status,
                                boolean preserveChunkCount) {
+        log.info("[导入] upsertDocMeta 开始: file={}, docId={}, docType={}, chunkCount={}, status={}, docsTableCols.size={}",
+                virtualName, docId, docType, chunkCount, status, docsTableCols.size());
         try {
             if (docsTableCols.isEmpty()) {
                 log.error("[导入] knowledge_base_docs 列信息不可用，跳过文档元数据写入: {}", virtualName);
@@ -813,7 +816,9 @@ public class KnowledgeImportService {
                 if (!sets.isEmpty()) {
                     String sql = "UPDATE knowledge_base_docs SET " + String.join(", ", sets) + " WHERE id = ?";
                     args.add(existingId);
+                    log.info("[导入] upsertDocMeta UPDATE SQL: {}", sql);
                     jdbcTemplate.update(sql, args.toArray());
+                    log.info("[导入] upsertDocMeta UPDATE 成功: file={}, docId={}, existingId={}", virtualName, docId, existingId);
                 }
                 return;
             }
@@ -850,7 +855,9 @@ public class KnowledgeImportService {
 
             String sql = "INSERT INTO knowledge_base_docs (" + String.join(", ", cols) + ") VALUES ("
                     + String.join(", ", valExprs) + ")";
+            log.info("[导入] upsertDocMeta INSERT SQL: {}", sql);
             jdbcTemplate.update(sql, args.toArray());
+            log.info("[导入] upsertDocMeta INSERT 成功: file={}, docId={}", virtualName, docId);
         } catch (Exception ex) {
             log.error("[导入] 文档元数据写入失败: {} -> {}", virtualName, ex.getMessage(), ex);
         }
@@ -1397,6 +1404,7 @@ public class KnowledgeImportService {
     }
 
     private void recordError(ImportContext ctx, String fileName, String error) {
+        log.info("[导入] recordError 开始: taskId={}, fileName={}, errorTableCols.size={}", ctx.taskId, fileName, errorTableCols.size());
         // 确保错误信息不为空
         String msg = error;
         if (msg == null || msg.isBlank()) {
@@ -1413,7 +1421,7 @@ public class KnowledgeImportService {
         }
         try {
             if (!errorTableCols.contains("task_id") || !errorTableCols.contains("error_msg")) {
-                log.warn("[导入] knowledge_import_error 缺少必需列，跳过落库: {} -> {}", fileName, msg);
+                log.error("[导入] knowledge_import_error 缺少必需列 task_id/error_msg，跳过落库: {} -> {} (实际列: {})", fileName, msg, errorTableCols);
                 return;
             }
             String name2048 = fileName != null && fileName.length() > 2000 ? fileName.substring(0, 2000) : fileName;
@@ -1444,8 +1452,9 @@ public class KnowledgeImportService {
     }
 
     private void persistTask(ImportTaskProgress p, String status, String errorMsg) {
+        log.info("[导入] persistTask 开始: taskId={}, status={}, taskTableCols.size={}", p.taskId, status, taskTableCols.size());
         if (taskTableCols.isEmpty()) {
-            log.warn("[导入] knowledge_import_task 不可用，跳过进度持久化 taskId={}", p.taskId);
+            log.error("[导入] knowledge_import_task 列信息不可用，跳过进度持久化 taskId={}", p.taskId);
             return;
         }
         try {
