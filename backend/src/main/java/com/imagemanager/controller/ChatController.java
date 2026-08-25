@@ -70,12 +70,13 @@ public class ChatController {
             @RequestParam String message,
             @RequestParam(required = false) String conversationId,
             @RequestParam(required = false) String mode,
+            @RequestParam(required = false) String subMode,
             HttpServletRequest request) {
         try {
             LoginResponse.UserInfo user = getCurrentUser(request);
             String userId = resolveUserId(user);
             String company = resolveCompany(user);
-            return smartChatService.smartChat(message, userId, company, conversationId, mode);
+            return smartChatService.smartChat(message, userId, company, conversationId, mode, subMode);
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {
@@ -97,6 +98,7 @@ public class ChatController {
             HttpServletRequest request) {
         String message = body.get("message") != null ? body.get("message").toString() : null;
         String conversationId = body.get("conversationId") != null ? body.get("conversationId").toString() : null;
+        String subMode = body.get("subMode") != null ? body.get("subMode").toString() : null;
         @SuppressWarnings("unchecked")
         List<String> images = body.get("images") != null ? (List<String>) body.get("images") : null;
         @SuppressWarnings("unchecked")
@@ -114,7 +116,7 @@ public class ChatController {
             LoginResponse.UserInfo user = getCurrentUser(request);
             String userId = resolveUserId(user);
             String company = resolveCompany(user);
-            return smartChatService.smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs);
+            return smartChatService.smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs, subMode);
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {

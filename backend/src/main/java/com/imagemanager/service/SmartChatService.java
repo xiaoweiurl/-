@@ -36,6 +36,21 @@ public interface SmartChatService {
     SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> images, List<Map<String, String>> pdfs);
 
     /**
+     * 智能对话 (SSE流式) - 显式指定业务子模式（工厂模式下的两大智能体）
+     * @param subMode 业务子模式：planning=商品企划智能体 / decision=决策辅助智能体 / general或null=通用业务助手
+     */
+    default SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode, String subMode) {
+        return smartChat(message, userId, company, conversationId, mode);
+    }
+
+    /**
+     * 智能对话 (SSE流式) - 附件 + 显式业务子模式
+     */
+    default SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> images, List<Map<String, String>> pdfs, String subMode) {
+        return smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs);
+    }
+
+    /**
      * 智能对话 (SSE流式) - 兼容旧接口(无mode)
      */
     default SseEmitter smartChat(String message, String userId, String company, String conversationId) {

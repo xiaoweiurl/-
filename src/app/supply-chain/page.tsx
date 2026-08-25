@@ -146,6 +146,8 @@ export default function SupplyChainPage() {
   }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  // 业务智能体子模式：general=通用业务助手 / planning=商品企划智能体 / decision=决策辅助智能体
+  const [chatAgent, setChatAgent] = useState<'general' | 'planning' | 'decision'>('general');
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -402,12 +404,14 @@ export default function SupplyChainPage() {
       if (sid) headers['X-Session-Id'] = sid;
 
       const params = new URLSearchParams({ message: msg, mode: 'factory' });
+      // 显式智能体选择：general 也传（用于从子模式切回通用助手）
+      params.set('subMode', chatAgent);
       // 如果有附件，用POST方式发送
       let res: Response;
       if (currentAttachments.length > 0) {
         const images = currentAttachments.filter(a => a.type === 'image').map(a => a.base64);
         const pdfs = currentAttachments.filter(a => a.type === 'pdf').map(a => ({ name: a.name, base64: a.base64 }));
-        const body: Record<string, unknown> = { message: msg };
+        const body: Record<string, unknown> = { message: msg, subMode: chatAgent };
         if (images.length > 0) body.images = images;
         if (pdfs.length > 0) body.pdfs = pdfs;
         res = await fetch(`/api/chat/smart?mode=factory`, {
@@ -538,7 +542,7 @@ export default function SupplyChainPage() {
     } finally {
       setChatLoading(false);
     }
-  }, [chatInput, chatLoading]);
+  }, [chatInput, chatLoading, chatAgent]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -1252,6 +1256,33 @@ export default function SupplyChainPage() {
                 </div>
                 {/* 输入区 */}
                 <div className="border-t border-slate-700/50 px-4 py-3 bg-slate-800/50">
+                  {/* 业务智能体切换：点击即切换对应智能体，消息显式携带 subMode */}
+                  <div className="flex items-center gap-1.5 mb-2.5 p-1 rounded-xl bg-slate-900/60 border border-slate-700/50 w-fit">
+                    {([
+                      { key: 'general', label: '通用助手', icon: <Bot className="w-3.5 h-3.5" />, activeCls: 'bg-slate-700 text-slate-100 shadow-sm' },
+                      { key: 'planning', label: '商品企划', icon: <Lightbulb className="w-3.5 h-3.5" />, activeCls: 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-sm shadow-purple-500/30' },
+                      { key: 'decision', label: '决策辅助', icon: <Target className="w-3.5 h-3.5" />, activeCls: 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-sm shadow-cyan-500/30' },
+                    ] as const).map(agent => (
+                      <button
+                        key={agent.key}
+                        onClick={() => {
+                          if (chatAgent === agent.key) return;
+                          setChatAgent(agent.key);
+                          const tip = agent.key === 'planning'
+                            ? '已切换到【商品企划智能体】。请输入客户名/品牌名/品类启动企划（可选补充国家、渠道、价格、季节），我将输出企划任务卡并按7步流程多轮共创。'
+                            : agent.key === 'decision'
+                            ? '已切换到【决策辅助智能体】。请提出待决策的经营议题（产能/客户/外部环境/研发/人效/报价利润），我将按六维分析输出A/B/C备选方案，最终决策由总经理确认。'
+                            : '已切换回【通用业务助手】。报价、成本、原料、供应商、生产计划等业务问题都可以直接提问。';
+                          setChatMessages(prev => [...prev, { role: 'assistant' as const, content: tip }]);
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                          ${chatAgent === agent.key ? agent.activeCls : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'}`}
+                      >
+                        {agent.icon}
+                        {agent.label}
+                      </button>
+                    ))}
+                  </div>
                   {chatAttachments.length > 0 && (
                     <div className="flex gap-2 mb-2 flex-wrap">
                       {chatAttachments.map((att, i) => (
@@ -1294,7 +1325,11 @@ export default function SupplyChainPage() {
                           handleFactoryChat();
                         }
                       }}
-                      placeholder="输入工厂业务问题..."
+                      placeholder={chatAgent === 'planning'
+                        ? '商品企划模式：输入客户名/品牌名/品类启动企划...'
+                        : chatAgent === 'decision'
+                        ? '决策辅助模式：提出待决策的经营议题...'
+                        : '输入工厂业务问题...'}
                       rows={1}
                       className="flex-1 resize-none rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all placeholder:text-slate-500"
                     />

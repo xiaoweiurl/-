@@ -99,14 +99,24 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     @Override
+    public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode, String subMode) {
+        return smartChatWithAttachments(message, userId, company, conversationId, mode, null, null, subMode);
+    }
+
+    @Override
     public SseEmitter smartChatWithImages(String message, String userId, String company, String conversationId, String mode, List<String> userImages) {
         return smartChatWithAttachments(message, userId, company, conversationId, mode, userImages, null);
     }
 
     @Override
     public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs) {
-        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}', hasImages={}, hasPdfs={}", 
-                message, userId, company, conversationId, mode, 
+        return smartChatWithAttachments(message, userId, company, conversationId, mode, userImages, userPdfs, null);
+    }
+
+    @Override
+    public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs, String subMode) {
+        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}', subMode='{}', hasImages={}, hasPdfs={}",
+                message, userId, company, conversationId, mode, subMode,
                 userImages != null && !userImages.isEmpty(),
                 userPdfs != null && !userPdfs.isEmpty());
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
@@ -122,6 +132,16 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 1. 发送conversationId给前端
                 final String finalConvId = convId;
                 emitter.send(SseEmitter.event().name("conversation").data(finalConvId));
+
+                // 1a. 显式 subMode（前端智能体按钮）优先级最高，直接写入会话记忆
+                if (subMode != null && ("planning".equals(subMode) || "decision".equals(subMode) || "general".equals(subMode))) {
+                    if ("general".equals(subMode)) {
+                        businessSubModeMap.remove(finalConvId);
+                    } else {
+                        businessSubModeMap.put(finalConvId, subMode);
+                    }
+                    log.info("业务子模式显式指定: convId={}, subMode={}", finalConvId, subMode);
+                }
 
                 // 2. 加载历史对话（按conversationId），优先用ChatMemory缓存，无缓存时查DB
                 List<Map<String, Object>> history;
@@ -180,6 +200,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 工厂模式判断（用于后续多处逻辑分支）
                 boolean isFactory = "factory".equals(mode);
 
+                // 模式切换指令：纯指令性输入（"切换商品企划模式"/"切换总经理决策辅助模式"），
+                // 与业务数据无关，跳过所有检索（供应链/知识库/Milvus/岗位卡片），
+                // 避免低分不相关切片注入上下文引发幻觉并拖慢响应
+                boolean modeSwitchCmd = detectSubModeSwitch(message) != null;
+                if (modeSwitchCmd) {
+                    log.info("识别为模式切换指令，跳过所有数据检索: message='{}'", message);
+                }
+
                 // 联网搜索意图识别：当用户明确要求联网/全网搜索时，强制启用联网搜索
                 boolean webSearchIntent = isWebSearchIntent(message);
 
@@ -195,7 +223,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 //     与提问方式无关——"海宁世正有多少单号/海宁世正的订单/查下海宁世正/20250625-001S" 都能命中；
                 //   - 宽泛模糊检索仍由关键词意图兜底，防止无关数据导致幻觉。
                 List<Map<String, Object>> supplyChainResults = Collections.emptyList();
-                if (isFactory && !generalChatIntent) {
+                if (isFactory && !generalChatIntent && !modeSwitchCmd) {
                     try {
                         List<Map<String, Object>> precise = (quotationCalcService != null)
                                 ? searchQuotation(message) : Collections.emptyList();
@@ -238,7 +266,8 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 4. 双库检索（工厂模式也检索知识库向量文档，不检索岗位卡片/外部知识）
                 // 外部知识意图不再跳过向量检索：用户可能上传了相关PDF，先查知识库，知识库无结果时再走联网搜索
-                boolean skipVectorSearch = (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent;
+                // 模式切换指令直接跳过：指令与业务数据无关
+                boolean skipVectorSearch = (strongSupplyChainIntent && !supplyChainResults.isEmpty()) || generalChatIntent || modeSwitchCmd;
 
                 // 4a. 岗位卡片向量检索（仅设计师模式）
                 List<Map<String, Object>> positionCardResults = Collections.emptyList();
@@ -283,7 +312,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 4c. 业务员资料库 Milvus 向量检索（工厂模式核心上下文，与供应链精确数据互补）
                 List<Map<String, Object>> salespersonResults = Collections.emptyList();
-                if (isFactory && !generalChatIntent) {
+                if (isFactory && !generalChatIntent && !modeSwitchCmd) {
                     try {
                         salespersonResults = searchSalespersonKnowledge(message);
                         log.info("业务员资料 Milvus 检索到 {} 条结果", salespersonResults.size());
@@ -294,7 +323,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 4d. 图片搜索(当用户意图涉及找图时)
                 List<Map<String, Object>> imageResults = Collections.emptyList();
-                if (isImageSearchIntent(message)) {
+                if (!modeSwitchCmd && isImageSearchIntent(message)) {
                     try {
                         imageResults = searchImages(message, userId);
                         log.info("图片搜索匹配到 {} 条结果", imageResults.size());
@@ -1635,8 +1664,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
 
             // 2. 降级：直接向量检索（不经过 RagPipeline）
+            // 阈值与 RagPipeline 召回粗筛对齐（0.30），过低会召回弱相关切片引发幻觉
             log.info("[知识库] 使用直接向量检索（knowledgeBaseService.search）");
-            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.12, 15, company);
+            List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.30, 15, company);
             log.info("[知识库] 直接检索返回 {} 条结果", allResults != null ? allResults.size() : 0);
 
             for (MemorySearchResult r : allResults) {

@@ -44,6 +44,16 @@ public class RagPipeline {
     /** 单路向量检索超时时间（毫秒） */
     private static final long RETRIEVAL_TIMEOUT_MS = 1000;
 
+    /** 向量召回粗筛阈值（bge-m3 COSINE）：低于此分的切片直接不召回 */
+    private static final float RECALL_MIN_SCORE = 0.30f;
+
+    /**
+     * Rerank 后注入上下文的相关性阈值（bge-reranker-v2-m3 normalize 分数）：
+     * >0.5 通常相关，0.3-0.5 弱相关，<0.4 视为不相关。
+     * 低分切片注入上下文会引发幻觉（如问"模式切换"却给货号数据），必须过滤。
+     */
+    private static final double RERANK_MIN_SCORE = 0.40;
+
     /**
      * 完整RAG增强检索
      *
@@ -70,7 +80,7 @@ public class RagPipeline {
         for (String q : enhancedQueries) {
             CompletableFuture<List<MemorySearchResult>> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    List<MemorySearchResult> results = knowledgeBaseService.search(q, 0.10f, 10, company);
+                    List<MemorySearchResult> results = knowledgeBaseService.search(q, RECALL_MIN_SCORE, 10, company);
                     log.info("[RagPipeline] 查询'{}' 召回 {} 条", q, results != null ? results.size() : 0);
                     return results != null ? results : Collections.<MemorySearchResult>emptyList();
                 } catch (Exception e) {
@@ -109,10 +119,10 @@ public class RagPipeline {
         log.info("[RagPipeline] 多路召回总计 {} 条", allResults.size());
 
         if (allResults.isEmpty()) {
-            // 降级：降低相似度阈值重试
-            log.info("[RagPipeline] 召回为空，降低阈值到0.08重试");
+            // 降级：略降阈值重试（仍保持合理下限，避免召回垃圾切片）
+            log.info("[RagPipeline] 召回为空，降低阈值到0.25重试");
             try {
-                allResults = knowledgeBaseService.search(query, 0.08f, 15, company);
+                allResults = knowledgeBaseService.search(query, 0.25f, 15, company);
                 if (allResults == null) allResults = new ArrayList<>();
             } catch (Exception e) {
                 log.warn("[RagPipeline] 降级检索也失败: {}", e.getMessage());
@@ -132,10 +142,28 @@ public class RagPipeline {
         List<MemorySearchResult> reranked = reranker.rerank(query, deduped, topK);
         log.info("[RagPipeline] Rerank后保留 {} 条", reranked.size());
 
-        long elapsed = System.currentTimeMillis() - startTime;
-        log.info("[RagPipeline] 增强检索完成, 耗时 {}ms", elapsed);
+        // ========== Step 5: 相关性过滤 ==========
+        // rerank normalize 分数 < RERANK_MIN_SCORE 的切片视为不相关，直接丢弃：
+        // 低分切片注入上下文会引发幻觉并浪费 token（如指令性输入召回到货号数据）
+        List<MemorySearchResult> filtered = new ArrayList<>();
+        for (MemorySearchResult r : reranked) {
+            double s = r.getScore() != null ? r.getScore() : 0;
+            if (s >= RERANK_MIN_SCORE) {
+                filtered.add(r);
+            } else {
+                log.info("[RagPipeline] 过滤低分切片: score={}, content={}...",
+                        String.format("%.3f", s),
+                        r.getContent() != null ? r.getContent().substring(0, Math.min(40, r.getContent().length())) : "");
+            }
+        }
+        if (filtered.isEmpty() && !reranked.isEmpty()) {
+            log.info("[RagPipeline] 全部切片低于相关性阈值({}), 返回空结果（不注入弱相关上下文）", RERANK_MIN_SCORE);
+        }
 
-        return reranked;
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.info("[RagPipeline] 增强检索完成, 保留 {} 条, 耗时 {}ms", filtered.size(), elapsed);
+
+        return filtered;
     }
 
     /**
