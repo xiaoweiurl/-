@@ -141,6 +141,8 @@ public class KnowledgeImportService {
         // POI HWPF 对部分 .doc 的内部告警走 JUL 且带完整堆栈（无文件名、刷屏），抑制到 SEVERE；
         // 真正的解析失败由本服务捕获并带文件名记录
         java.util.logging.Logger.getLogger("org.apache.poi").setLevel(java.util.logging.Level.SEVERE);
+        // 启动时幂等 DDL 自愈：无表建表、有表补列（手建表结构不确定也能适配）
+        ensureSchema();
         // 启动时缓存三张 PG 表的实际列集合：导入写入全部按"列存在才写"动态适配，
         // 避免手建表缺列/多列导致整个导入链路静默失败
         this.taskTableCols = loadColumns("knowledge_import_task");
@@ -154,6 +156,53 @@ public class KnowledgeImportService {
         } else if (!docsTableCols.contains("id") || !docsTableCols.contains("title")) {
             log.error("[导入] knowledge_base_docs 缺少核心列 id/title，实际列: {}", docsTableCols);
         }
+    }
+
+    /**
+     * 启动时幂等 DDL 自愈：
+     * 1. knowledge_import_task / knowledge_import_error 不存在则创建（标准结构）
+     * 2. 已存在（手建）则 ALTER ADD COLUMN IF NOT EXISTS 补齐缺失列
+     * 3. knowledge_base_docs 补 doc_id 业务列 + 索引（一个文档只一行，按内容哈希去重）
+     * 每条 DDL 独立 try/catch，单条失败不影响启动与其他语句
+     */
+    private void ensureSchema() {
+        List<String> ddls = List.of(
+                "CREATE TABLE IF NOT EXISTS public.knowledge_import_task (" +
+                        "id BIGSERIAL PRIMARY KEY, source VARCHAR(512), status VARCHAR(32) DEFAULT 'RUNNING', " +
+                        "total_files INT DEFAULT 0, processed_files INT DEFAULT 0, failed_files INT DEFAULT 0, " +
+                        "skipped_files INT DEFAULT 0, total_chunks INT DEFAULT 0, error_msg TEXT, " +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, finished_at TIMESTAMP NULL)",
+                "CREATE TABLE IF NOT EXISTS public.knowledge_import_error (" +
+                        "id BIGSERIAL PRIMARY KEY, task_id BIGINT NOT NULL, file_name TEXT, error_msg TEXT, " +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+                // 手建表补列（CREATE TABLE IF NOT EXISTS 不会动已有表，逐列补齐）
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS source VARCHAR(512)",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'RUNNING'",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS total_files INT DEFAULT 0",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS processed_files INT DEFAULT 0",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS failed_files INT DEFAULT 0",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS skipped_files INT DEFAULT 0",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS total_chunks INT DEFAULT 0",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS error_msg TEXT",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE public.knowledge_import_task ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP NULL",
+                "ALTER TABLE public.knowledge_import_error ADD COLUMN IF NOT EXISTS task_id BIGINT",
+                "ALTER TABLE public.knowledge_import_error ADD COLUMN IF NOT EXISTS file_name TEXT",
+                "ALTER TABLE public.knowledge_import_error ADD COLUMN IF NOT EXISTS error_msg TEXT",
+                "ALTER TABLE public.knowledge_import_error ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                // knowledge_base_docs：doc_id = 文件内容 SHA-256 前32位，一个文档无论切多少片只一行
+                "ALTER TABLE public.knowledge_base_docs ADD COLUMN IF NOT EXISTS doc_id VARCHAR(64)",
+                "CREATE INDEX IF NOT EXISTS idx_kb_docs_doc_id ON public.knowledge_base_docs (doc_id)"
+        );
+        for (String ddl : ddls) {
+            try {
+                jdbcTemplate.execute(ddl);
+            } catch (Exception e) {
+                log.warn("[导入] DDL 自愈语句执行失败（已跳过）: {} -> {}",
+                        ddl.length() > 80 ? ddl.substring(0, 80) + "..." : ddl, e.getMessage());
+            }
+        }
+        log.info("[导入] DDL 自愈完成（task/error 表与 knowledge_base_docs.doc_id 已确保存在）");
     }
 
     /** 读取 PG 表的列名集合（统一小写） */
@@ -301,9 +350,13 @@ public class KnowledgeImportService {
         // 创建任务记录：首选 INSERT..RETURNING（要求 id 有 bigserial 默认值），
         // 失败（手建表无序列/列缺失）则降级手动 MAX(id)+1 显式插 id
         long taskId;
+        // created_at 列存在则显式写入（手建表可能 NOT NULL 无默认值）
+        String createdExpr = taskTableCols.contains("created_at") ? ", created_at" : "";
+        String createdVal = taskTableCols.contains("created_at") ? ", NOW()" : "";
         try {
             Long tid = jdbcTemplate.queryForObject(
-                    "INSERT INTO knowledge_import_task (source) VALUES (?) RETURNING id",
+                    "INSERT INTO knowledge_import_task (source, status" + createdExpr + ") VALUES (?, 'RUNNING'"
+                            + createdVal + ") RETURNING id",
                     Long.class, sourceName);
             taskId = tid != null ? tid : -1L;
         } catch (Exception e) {
@@ -311,7 +364,8 @@ public class KnowledgeImportService {
             Long maxId = jdbcTemplate.queryForObject(
                     "SELECT COALESCE(MAX(id), 0) FROM knowledge_import_task", Long.class);
             taskId = (maxId == null ? 0 : maxId) + 1;
-            jdbcTemplate.update("INSERT INTO knowledge_import_task (id, source, status) VALUES (?,?,?)",
+            jdbcTemplate.update("INSERT INTO knowledge_import_task (id, source, status" + createdExpr
+                            + ") VALUES (?,?,?" + createdVal + ")",
                     taskId, sourceName, "RUNNING");
         }
         if (taskId < 0) {
@@ -323,6 +377,8 @@ public class KnowledgeImportService {
         progress.source = sourceName;
         progress.startTime = System.currentTimeMillis();
         progressMap.put(taskId, progress);
+        // 立即落一条 RUNNING 记录：任务列表/历史页签第一时间可见，不等首个进度周期
+        persistTask(progress, "RUNNING", null);
 
         taskExecutor.submit(() -> {
             try {
@@ -693,15 +749,20 @@ public class KnowledgeImportService {
         upsertDocMeta(ctx, virtualName, docId, docType, 0, null, "COMPLETED", true);
     }
 
+    /**
+     * 文档元数据落库（去重核心）：
+     * 一个文档无论被 Milvus 切成多少片，knowledge_base_docs 只保留一行。
+     * 判重优先级：doc_id（内容哈希，重导同一文件幂等覆盖）-> file_name 兜底。
+     * 应用层 SELECT -> UPDATE/INSERT，不依赖 ON CONFLICT 与特定主键结构，兼容手建表。
+     */
     private void upsertDocMeta(ImportContext ctx, String virtualName, String docId,
                                String docType, int chunkCount, String fullText, String status,
                                boolean preserveChunkCount) {
         try {
             if (docsTableCols.isEmpty()) {
-                log.warn("[导入] knowledge_base_docs 列信息不可用，跳过文档元数据写入: {}", virtualName);
+                log.error("[导入] knowledge_base_docs 列信息不可用，跳过文档元数据写入: {}", virtualName);
                 return;
             }
-            String uuid = docId.replaceAll("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
             String title = virtualName.contains("/")
                     ? virtualName.substring(virtualName.lastIndexOf('/') + 1)
                     : virtualName;
@@ -710,11 +771,65 @@ public class KnowledgeImportService {
                     : (fullText.length() > 50000 ? fullText.substring(0, 50000) : fullText);
             String name1000 = virtualName.length() > 1000 ? virtualName.substring(0, 1000) : virtualName;
 
+            // 1) 判重查询：优先 doc_id，其次 file_name
+            Object existingId = null;
+            if (docsTableCols.contains("doc_id")) {
+                List<Object> ids = jdbcTemplate.query(
+                        "SELECT id FROM knowledge_base_docs WHERE doc_id = ? LIMIT 1",
+                        (rs, i) -> rs.getObject("id"), docId);
+                if (!ids.isEmpty()) existingId = ids.get(0);
+            }
+            if (existingId == null && docsTableCols.contains("file_name")) {
+                List<Object> ids = jdbcTemplate.query(
+                        "SELECT id FROM knowledge_base_docs WHERE file_name = ? LIMIT 1",
+                        (rs, i) -> rs.getObject("id"), name1000);
+                if (!ids.isEmpty()) existingId = ids.get(0);
+            }
+
+            if (existingId != null) {
+                // 2a) 已存在 -> UPDATE（company 只回填不覆盖；preserveChunkCount 时切片数只增不减）
+                List<String> sets = new ArrayList<>();
+                List<Object> args = new ArrayList<>();
+                if (docsTableCols.contains("title")) { sets.add("title = ?"); args.add(title); }
+                if (docsTableCols.contains("file_type")) { sets.add("file_type = ?"); args.add(docType); }
+                if (docsTableCols.contains("chunk_count")) {
+                    if (preserveChunkCount && chunkCount <= 0) {
+                        // 跳过文件不覆盖原切片数
+                    } else {
+                        sets.add("chunk_count = ?"); args.add(chunkCount);
+                    }
+                }
+                if (docsTableCols.contains("embedding_status")) { sets.add("embedding_status = ?"); args.add(status); }
+                if (docsTableCols.contains("file_content") && content != null) { sets.add("file_content = ?"); args.add(content); }
+                if (docsTableCols.contains("content") && content != null) {
+                    sets.add("content = ?");
+                    args.add(content.length() > 5000 ? content.substring(0, 5000) : content);
+                }
+                if (docsTableCols.contains("doc_id")) { sets.add("doc_id = ?"); args.add(docId); }
+                if (docsTableCols.contains("company") && ctx.company != null) {
+                    sets.add("company = COALESCE(company, ?)"); args.add(ctx.company);
+                }
+                if (docsTableCols.contains("updated_at")) { sets.add("updated_at = NOW()"); }
+                if (!sets.isEmpty()) {
+                    String sql = "UPDATE knowledge_base_docs SET " + String.join(", ", sets) + " WHERE id = ?";
+                    args.add(existingId);
+                    jdbcTemplate.update(sql, args.toArray());
+                }
+                return;
+            }
+
+            // 2b) 不存在 -> INSERT（id 由 docId 哈希确定性转 uuid，避免依赖表默认值）
+            String uuid = docId.replaceAll("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
             List<String> cols = new ArrayList<>();
             List<String> valExprs = new ArrayList<>();
             List<Object> args = new ArrayList<>();
             cols.add("id"); valExprs.add("CAST(? AS uuid)"); args.add(uuid);
-            if (docsTableCols.contains("user_id") && ctx.userId != null) { cols.add("user_id"); valExprs.add("?"); args.add(ctx.userId); }
+            if (docsTableCols.contains("doc_id")) { cols.add("doc_id"); valExprs.add("?"); args.add(docId); }
+            if (docsTableCols.contains("user_id")) {
+                // user_id 在 JPA 实体中 nullable=false，会话缺失时用 system 兜底，避免 NOT NULL 违规
+                cols.add("user_id"); valExprs.add("?");
+                args.add(ctx.userId != null ? ctx.userId : "system");
+            }
             if (docsTableCols.contains("company") && ctx.company != null) { cols.add("company"); valExprs.add("?"); args.add(ctx.company); }
             if (docsTableCols.contains("title")) { cols.add("title"); valExprs.add("?"); args.add(title); }
             if (docsTableCols.contains("file_name")) { cols.add("file_name"); valExprs.add("?"); args.add(name1000); }
@@ -725,26 +840,19 @@ public class KnowledgeImportService {
             if (docsTableCols.contains("chunk_count")) { cols.add("chunk_count"); valExprs.add("?"); args.add(chunkCount); }
             if (docsTableCols.contains("embedding_status")) { cols.add("embedding_status"); valExprs.add("?"); args.add(status); }
             if (docsTableCols.contains("file_content") && content != null) { cols.add("file_content"); valExprs.add("?"); args.add(content); }
-
-            List<String> conflictSets = new ArrayList<>();
-            if (docsTableCols.contains("company")) conflictSets.add("company = COALESCE(knowledge_base_docs.company, EXCLUDED.company)");
-            if (docsTableCols.contains("title")) conflictSets.add("title = EXCLUDED.title");
-            if (docsTableCols.contains("file_name")) conflictSets.add("file_name = EXCLUDED.file_name");
-            if (docsTableCols.contains("chunk_count")) {
-                conflictSets.add(preserveChunkCount
-                        ? "chunk_count = CASE WHEN EXCLUDED.chunk_count > 0 THEN EXCLUDED.chunk_count ELSE knowledge_base_docs.chunk_count END"
-                        : "chunk_count = EXCLUDED.chunk_count");
+            // content 列（前端详情页展示）：用提取文本前 5000 字符
+            if (docsTableCols.contains("content") && content != null) {
+                cols.add("content"); valExprs.add("?");
+                args.add(content.length() > 5000 ? content.substring(0, 5000) : content);
             }
-            if (docsTableCols.contains("embedding_status")) conflictSets.add("embedding_status = EXCLUDED.embedding_status");
-            if (docsTableCols.contains("file_content")) conflictSets.add("file_content = COALESCE(EXCLUDED.file_content, knowledge_base_docs.file_content)");
-            if (docsTableCols.contains("updated_at")) conflictSets.add("updated_at = NOW()");
+            if (docsTableCols.contains("created_at")) { cols.add("created_at"); valExprs.add("NOW()"); }
+            if (docsTableCols.contains("updated_at")) { cols.add("updated_at"); valExprs.add("NOW()"); }
 
-            String conflict = conflictSets.isEmpty() ? "" : " ON CONFLICT (id) DO UPDATE SET " + String.join(", ", conflictSets);
             String sql = "INSERT INTO knowledge_base_docs (" + String.join(", ", cols) + ") VALUES ("
-                    + String.join(", ", valExprs) + ")" + conflict;
+                    + String.join(", ", valExprs) + ")";
             jdbcTemplate.update(sql, args.toArray());
         } catch (Exception ex) {
-            log.warn("文档元数据写入失败: {} -> {}", virtualName, ex.getMessage());
+            log.error("[导入] 文档元数据写入失败: {} -> {}", virtualName, ex.getMessage(), ex);
         }
     }
 
@@ -834,9 +942,29 @@ public class KnowledgeImportService {
      * 合并单元格向下填充 + 首列同值延续，保证每行数据带完整上下文（检索友好）
      */
     private String parseExcel(Path file) throws Exception {
+        // .xlsx 本质是 zip：产品图/参考图等内嵌媒体与解析无关却占大头内存，
+        // 先流式剥离 xl/media/* 与 xl/drawings/* 生成无图临时副本再解析（图片按要求忽略，只留文字）
+        Path effective = file;
+        boolean stripMedia = file.getFileName().toString().toLowerCase().endsWith(".xlsx");
+        if (stripMedia) {
+            Path stripped = stripXlsxMedia(file);
+            if (stripped != null) effective = stripped;
+        }
         Workbook workbook = null;
         try {
-            workbook = WorkbookFactory.create(file.toFile());
+            try {
+                workbook = WorkbookFactory.create(effective.toFile());
+            } catch (Exception openError) {
+                // 无图副本打不开（POI 校验严格等情况）→ 回退解析原文件
+                if (effective != file) {
+                    log.warn("无图副本解析失败，回退原文件: {} -> {}", file.getFileName(), openError.getMessage());
+                    try { Files.deleteIfExists(effective); } catch (IOException ignored) {}
+                    effective = file;
+                    workbook = WorkbookFactory.create(file.toFile());
+                } else {
+                    throw openError;
+                }
+            }
             DataFormatter formatter = new DataFormatter();
             FormulaEvaluator evaluator;
             try {
@@ -864,6 +992,48 @@ public class KnowledgeImportService {
                     log.debug("Excel 关闭时保存失败（可忽略）: {}", e.getMessage());
                 }
             }
+            if (stripMedia && effective != file) {
+                try { Files.deleteIfExists(effective); } catch (IOException ignored) {}
+            }
+        }
+    }
+
+    /**
+     * 流式复制 xlsx（zip）并剔除 xl/media/* 与 xl/drawings/* 条目。
+     * 图片型开发计划表（几十~几百 MB 产品图）剥离后 DOM 解析内存恒定，且只保留文字。
+     * 失败返回 null（回退解析原文件）。
+     */
+    private Path stripXlsxMedia(Path file) {
+        Path stripped = null;
+        try {
+            stripped = Files.createTempFile("xlsx-nomedia-", ".xlsx");
+            try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(
+                    new BufferedInputStream(Files.newInputStream(file), 256 * 1024));
+                 java.util.zip.ZipOutputStream zout = new java.util.zip.ZipOutputStream(
+                    new BufferedOutputStream(Files.newOutputStream(stripped), 256 * 1024))) {
+                byte[] buf = new byte[128 * 1024];
+                java.util.zip.ZipEntry entry;
+                while ((entry = zin.getNextEntry()) != null) {
+                    String name = entry.getName();
+                    // 剔除媒体与绘图层（图片本身），保留 sheet/styles/sharedStrings 等文本数据
+                    if (name.startsWith("xl/media/") || name.startsWith("xl/drawings/")) {
+                        continue;
+                    }
+                    zout.putNextEntry(new java.util.zip.ZipEntry(name));
+                    int n;
+                    while ((n = zin.read(buf)) > 0) {
+                        zout.write(buf, 0, n);
+                    }
+                    zout.closeEntry();
+                }
+            }
+            return stripped;
+        } catch (Exception e) {
+            log.warn("xlsx 媒体剥离失败，回退解析原文件: {} -> {}", file.getFileName(), e.getMessage());
+            if (stripped != null) {
+                try { Files.deleteIfExists(stripped); } catch (IOException ignored) {}
+            }
+            return null;
         }
     }
 
@@ -882,7 +1052,44 @@ public class KnowledgeImportService {
         }
 
         int firstRow = sheet.getFirstRowNum();
-        Row headerRow = sheet.getRow(firstRow);
+        int lastRow = sheet.getLastRowNum();
+
+        // 智能表头识别：扫描前 10 行，选"非空单元格最多"的行为表头行。
+        // 解决开发计划表第 1 行是合并大标题（如"智舒爽纱线成品开发计划 NO.1"）、
+        // 第 2 行才是真表头（序号/人群/场景/系列/品类...）时固定取首行导致表头失效的问题
+        int headerRowIdx = firstRow;
+        int maxNonEmpty = -1;
+        int scanEnd = Math.min(firstRow + 9, lastRow);
+        for (int r = firstRow; r <= scanEnd; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            int nonEmpty = 0;
+            int len = Math.max(0, row.getLastCellNum());
+            for (int c = 0; c < len; c++) {
+                if (!cellText(formatter, evaluator, row.getCell(c)).isEmpty()) nonEmpty++;
+            }
+            if (nonEmpty > maxNonEmpty) {
+                maxNonEmpty = nonEmpty;
+                headerRowIdx = r;
+            }
+        }
+
+        // 表头行之前的内容（大标题、日期等）作为文档上下文保留在 sheet 开头
+        for (int r = firstRow; r < headerRowIdx; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            List<String> cells = new ArrayList<>();
+            int len = Math.max(0, row.getLastCellNum());
+            for (int c = 0; c < len; c++) {
+                String v = cellText(formatter, evaluator, row.getCell(c));
+                if (!v.isEmpty()) cells.add(v);
+            }
+            if (!cells.isEmpty()) {
+                sb.append("【").append(String.join(" | ", cells)).append("】\n");
+            }
+        }
+
+        Row headerRow = sheet.getRow(headerRowIdx);
         List<String> headers = new ArrayList<>();
         int headerLen = 0;
         if (headerRow != null) {
@@ -892,7 +1099,9 @@ public class KnowledgeImportService {
             }
         }
 
-        boolean hasHeader = !headers.isEmpty() && headers.stream().anyMatch(h -> !h.isEmpty());
+        // 表头有效性：至少 2 个非空列才按键值对输出（避免大标题行被误判为表头）
+        long nonEmptyHeaders = headers.stream().filter(h -> !h.isEmpty()).count();
+        boolean hasHeader = nonEmptyHeaders >= 2;
 
         if (!hasHeader) {
             // 无表头：整行管道分隔
@@ -908,9 +1117,9 @@ public class KnowledgeImportService {
                 }
             }
         } else {
-            // 有表头：键值对 + 合并单元格填充 + 首列延续
+            // 有表头：键值对 + 合并单元格填充 + 首列延续（数据从表头行下一行开始）
             String[] carry = new String[headers.size()];
-            for (int r = firstRow + 1; r <= sheet.getLastRowNum(); r++) {
+            for (int r = headerRowIdx + 1; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
                 List<String> parts = new ArrayList<>();
@@ -921,7 +1130,7 @@ public class KnowledgeImportService {
                     String value = cellText(formatter, evaluator, row.getCell(c));
                     if (value.isEmpty()) {
                         // 合并单元格：区域内空格子取区域首格值（但首行不能是表头行）
-                        String mergedVal = mergedValueAt(merged, sheet, formatter, evaluator, r, c, firstRow);
+                        String mergedVal = mergedValueAt(merged, sheet, formatter, evaluator, r, c, headerRowIdx);
                         if (mergedVal != null) value = mergedVal;
                         // 首列额外延续（部分表不用合并单元格，留空表示同上）
                         if (value.isEmpty() && c == 0 && carry[c] != null) value = carry[c];
@@ -1209,11 +1418,16 @@ public class KnowledgeImportService {
             }
             String name2048 = fileName != null && fileName.length() > 2000 ? fileName.substring(0, 2000) : fileName;
             boolean hasFileName = errorTableCols.contains("file_name");
+            // created_at 列存在则显式写入（手建表可能 NOT NULL 无默认值）
+            String createdExpr = errorTableCols.contains("created_at") ? ", created_at" : "";
+            String createdVal = errorTableCols.contains("created_at") ? ", NOW()" : "";
             if (hasFileName) {
-                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg) VALUES (?,?,?)",
+                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, file_name, error_msg"
+                                + createdExpr + ") VALUES (?,?,?" + createdVal + ")",
                         ctx.taskId, name2048, msg);
             } else {
-                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, error_msg) VALUES (?,?)",
+                jdbcTemplate.update("INSERT INTO knowledge_import_error (task_id, error_msg"
+                                + createdExpr + ") VALUES (?,?" + createdVal + ")",
                         ctx.taskId, msg);
             }
         } catch (Exception e) {
@@ -1221,9 +1435,9 @@ public class KnowledgeImportService {
         }
     }
 
-    /** 每处理 50 个文件持久化一次进度（断电也能看到中间状态） */
+    /** 每处理 10 个文件持久化一次进度（前端轮询更快看到中间状态，断电可追） */
     private void maybePersistProgress(ImportContext ctx) {
-        if (ctx.sinceLastPersist.incrementAndGet() >= 50) {
+        if (ctx.sinceLastPersist.incrementAndGet() >= 10) {
             ctx.sinceLastPersist.set(0);
             persistTask(ctx.progress, "RUNNING", null);
         }
