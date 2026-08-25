@@ -578,9 +578,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // System prompt: 根据mode构建不同的角色定位
                 String systemPrompt;
                 if ("factory".equals(mode)) {
-                    // 两大工作子模式解析：模式A商品企划 / 模式B总经理决策辅助（手动指令 > 会话记忆 > 自动识别）
-                    String subMode = resolveBusinessSubMode(finalConvId, message);
-                    boolean justSwitched = detectSubModeSwitch(message) != null;
+                    // 两大工作子模式解析：模式A商品企划 / 模式B总经理决策辅助（显式参数 > 手动指令 > 会话记忆 > 自动识别）
+                    String resolvedSubMode = resolveBusinessSubMode(finalConvId, message);
+                    boolean justSwitched = detectSubModeSwitch(message) != null || "planning".equals(subMode) || "decision".equals(subMode);
                     // 分层结构化 prompt：身份 → 数据源优先级 → 核心能力(报价SOP/查询/业务/知识) → 防幻觉 → 输出格式 → 子模式层
                     systemPrompt = "你是盈云产品智能中台的【业务与供应链智能助手】，同时服务业务人员和工厂供应链管理人员，" +
                             "是集'工厂数据 + 业务员一手资料 + 客户洞察'于一体的综合业务决策助手，核心价值是帮助用户完成从成本核算到客户成交的全链路决策。" +
@@ -606,10 +606,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "\n\n【防幻觉铁律】只引用检索结果中明确存在的内容；单号/货号/客户名称必须精确匹配，模糊相似但不包含所问实体的数据一律不得引用；供应链数据、业务员资料、知识库文档均无相关信息时，必须明确告知'当前数据库中暂无此数据'，严禁凭通用知识编造。" +
                             "\n\n【输出格式】Markdown；数据用表格（表头加粗），要点用列表，关键数据加粗；不用特殊符号(如※★●◆)装饰，不滥用分隔线；回答末尾标注引用来源（供应链数据/业务员资料/知识库文档/产品图片/网络搜索）。" +
                             // 子模式层：激活时注入基础约束+对应模式SOP；未激活时提示两大模式入口
-                            (subMode != null ? buildBusinessBaseConstraints() : "") +
-                            ("planning".equals(subMode) ? buildPlanningModePrompt(justSwitched) : "") +
-                            ("decision".equals(subMode) ? buildDecisionModePrompt(justSwitched) : "") +
-                            (subMode == null ? "\n\n【工作模式提示】本助手支持两大工作模式：模式A-业务员商品企划模式（多轮共创企划）、模式B-总经理决策辅助模式（六维分析+A/B/C方案）。用户可通过'切换商品企划模式'/'切换总经理决策辅助模式'手动切换，或根据输入自动识别。当前未进入特定模式，按通用业务助手职责回答。" : "") +
+                            (resolvedSubMode != null ? buildBusinessBaseConstraints() : "") +
+                            ("planning".equals(resolvedSubMode) ? buildPlanningModePrompt(justSwitched) : "") +
+                            ("decision".equals(resolvedSubMode) ? buildDecisionModePrompt(justSwitched) : "") +
+                            (resolvedSubMode == null ? "\n\n【工作模式提示】本助手支持两大工作模式：模式A-业务员商品企划模式（多轮共创企划）、模式B-总经理决策辅助模式（六维分析+A/B/C方案）。用户可通过'切换商品企划模式'/'切换总经理决策辅助模式'手动切换，或根据输入自动识别。当前未进入特定模式，按通用业务助手职责回答。" : "") +
                             (webSearchIntent ? "\n\n【本次特殊指令】用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部数据仅作为补充参考。" : "");
                 } else {
                     systemPrompt = "你是盈云产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
