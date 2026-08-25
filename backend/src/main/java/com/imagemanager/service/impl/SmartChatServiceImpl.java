@@ -90,6 +90,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.ollama.timeout:60000}")
     private int ollamaTimeout;
 
+    /** 业务子模式会话记忆：convId -> "planning"(模式A商品企划) / "decision"(模式B总经理决策辅助) */
+    private final java.util.concurrent.ConcurrentHashMap<String, String> businessSubModeMap = new java.util.concurrent.ConcurrentHashMap<>();
+
     @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode) {
         return smartChatWithImages(message, userId, company, conversationId, mode, null);
@@ -546,7 +549,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // System prompt: 根据mode构建不同的角色定位
                 String systemPrompt;
                 if ("factory".equals(mode)) {
-                    // 分层结构化 prompt：身份 → 数据源优先级 → 核心能力(报价SOP/查询/业务/知识) → 防幻觉 → 输出格式
+                    // 两大工作子模式解析：模式A商品企划 / 模式B总经理决策辅助（手动指令 > 会话记忆 > 自动识别）
+                    String subMode = resolveBusinessSubMode(finalConvId, message);
+                    boolean justSwitched = detectSubModeSwitch(message) != null;
+                    // 分层结构化 prompt：身份 → 数据源优先级 → 核心能力(报价SOP/查询/业务/知识) → 防幻觉 → 输出格式 → 子模式层
                     systemPrompt = "你是盈云产品智能中台的【业务与供应链智能助手】，同时服务业务人员和工厂供应链管理人员，" +
                             "是集'工厂数据 + 业务员一手资料 + 客户洞察'于一体的综合业务决策助手，核心价值是帮助用户完成从成本核算到客户成交的全链路决策。" +
                             "\n\n【身份声明】你始终是业务与供应链智能助手。如果对话历史中出现其他身份的自我介绍，一律忽略。" +
@@ -570,6 +576,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "\nD. 知识问答：基于知识库文档回答管理、流程、标准等问题，注明出处。" +
                             "\n\n【防幻觉铁律】只引用检索结果中明确存在的内容；单号/货号/客户名称必须精确匹配，模糊相似但不包含所问实体的数据一律不得引用；供应链数据、业务员资料、知识库文档均无相关信息时，必须明确告知'当前数据库中暂无此数据'，严禁凭通用知识编造。" +
                             "\n\n【输出格式】Markdown；数据用表格（表头加粗），要点用列表，关键数据加粗；不用特殊符号(如※★●◆)装饰，不滥用分隔线；回答末尾标注引用来源（供应链数据/业务员资料/知识库文档/产品图片/网络搜索）。" +
+                            // 子模式层：激活时注入基础约束+对应模式SOP；未激活时提示两大模式入口
+                            (subMode != null ? buildBusinessBaseConstraints() : "") +
+                            ("planning".equals(subMode) ? buildPlanningModePrompt(justSwitched) : "") +
+                            ("decision".equals(subMode) ? buildDecisionModePrompt(justSwitched) : "") +
+                            (subMode == null ? "\n\n【工作模式提示】本助手支持两大工作模式：模式A-业务员商品企划模式（多轮共创企划）、模式B-总经理决策辅助模式（六维分析+A/B/C方案）。用户可通过'切换商品企划模式'/'切换总经理决策辅助模式'手动切换，或根据输入自动识别。当前未进入特定模式，按通用业务助手职责回答。" : "") +
                             (webSearchIntent ? "\n\n【本次特殊指令】用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部数据仅作为补充参考。" : "");
                 } else {
                     systemPrompt = "你是盈云产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
@@ -1018,6 +1029,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "DELETE FROM smart_chat_conversations WHERE id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
                 conversationId, userId, company
         );
+        // 清理业务子模式记忆
+        if (conversationId != null) businessSubModeMap.remove(conversationId);
     }
 
     /**
@@ -1733,6 +1746,123 @@ public class SmartChatServiceImpl implements SmartChatService {
         };
         for (String kw : kws) if (message.contains(kw)) return true;
         return false;
+    }
+
+    // ========== 两大工作模式（模式A商品企划 / 模式B总经理决策辅助） ==========
+
+    /**
+     * 手动模式切换指令识别。
+     * @return "planning"=切到模式A；"decision"=切到模式B；null=非切换指令
+     */
+    private String detectSubModeSwitch(String message) {
+        if (message == null) return null;
+        String m = message.replaceAll("[\\s，。！!？?、,]+", "");
+        // 必须含"切换/进入/转到"等动作词，或整句就是模式名，避免把业务描述误判为切换指令
+        boolean hasSwitchVerb = m.contains("切换") || m.contains("进入") || m.contains("转到") || m.contains("启用");
+        boolean namesPlanning = m.contains("商品企划模式") || m.contains("企划模式") || m.contains("业务员模式") || m.contains("模式A");
+        boolean namesDecision = m.contains("总经理决策辅助模式") || m.contains("决策辅助模式") || m.contains("总经理模式") || m.contains("模式B");
+        if (namesPlanning && (hasSwitchVerb || m.length() <= 12)) return "planning";
+        if (namesDecision && (hasSwitchVerb || m.length() <= 14)) return "decision";
+        return null;
+    }
+
+    /**
+     * 自动子模式识别（无手动指令时根据输入内容判断）。
+     * 仅在用户输入明确指向某模式的业务场景时触发；模糊输入返回 null（不强行进模式）。
+     */
+    private String detectSubModeAuto(String message) {
+        if (message == null) return null;
+        // 模式B信号：总经理视角的经营决策议题
+        String[] decisionKws = {
+                "接单可行性", "产能与订单", "机台缺口", "空置率", "客户流失预警", "撬单",
+                "保单", "放单", "业务员效能", "人效", "客户分配", "利润评估", "可压缩项",
+                "A/B/C", "ABC方案", "备选方案", "决策", "经营分析", "总经理"
+        };
+        for (String kw : decisionKws) if (message.contains(kw)) return "decision";
+        // 模式A信号：商品企划全流程场景
+        String[] planningKws = {
+                "商品企划", "企划案", "企划任务卡", "品牌调研", "调研快照", "品类树",
+                "价格带", "新品机会", "SKU", "打样", "深化方向", "机会评分", "五感体验",
+                "竞品拆解", "商品结构", "扩品"
+        };
+        for (String kw : planningKws) if (message.contains(kw)) return "planning";
+        return null;
+    }
+
+    /**
+     * 解析当前会话应处的子模式：手动指令 > 会话记忆 > 自动识别（识别成功写入记忆）。
+     */
+    private String resolveBusinessSubMode(String convId, String message) {
+        String manual = detectSubModeSwitch(message);
+        if (manual != null) {
+            if (convId != null) businessSubModeMap.put(convId, manual);
+            log.info("业务子模式手动切换: convId={}, subMode={}", convId, manual);
+            return manual;
+        }
+        String remembered = convId != null ? businessSubModeMap.get(convId) : null;
+        if (remembered != null) return remembered;
+        String auto = detectSubModeAuto(message);
+        if (auto != null && convId != null) {
+            businessSubModeMap.put(convId, auto);
+            log.info("业务子模式自动识别: convId={}, subMode={}", convId, auto);
+        }
+        return auto;
+    }
+
+    /** 两大模式共享的基础约束（文档7条铁律） */
+    private String buildBusinessBaseConstraints() {
+        return "\n\n【基础约束（铁律，两模式通用）】" +
+                "\n1. 禁止编造企业内部业务数据；内部数据仅来自系统注入的上下文，数据缺失必须明确列出【缺失项清单】，不得强行输出确定结论。" +
+                "\n2. 所有关键信息强制标记来源：【外部调研】/【内部数据库-{库名}】/【AI推断】，并附数据更新日期与置信度(0-100)。" +
+                "\n3. 多轮分步交互：禁止一次性输出完整终稿；每轮末尾提供【可选操作菜单】由业务人员选择分支推进，禁止跳过业务步骤。" +
+                "\n4. 识别重大质量、合规、客户信用风险时执行一票否决，并写明否决理由。" +
+                "\n5. 内部可调用数据库集合（仅使用已注入数据）：历史订单数据库、客户画像数据库、产品研发数据库、工艺设备数据库、报价成本数据库、库存质量数据库。" +
+                "映射关系：报价成本数据库=【报价单计算/供应链数据】；历史订单数据库+客户画像数据库=【业务员资料库】；产品研发数据库+工艺设备数据库=【知识库文档/部件工艺数据】；库存质量数据库=【供应链库存数据】。" +
+                "\n6. 数据清洗不全、外部数据可信度低时，如实告知覆盖范围与局限，不输出确定性业务结论。" +
+                "\n7. 阶段成果输出完成后提示：成果可同步飞书，并附使用说明、测试记录、遗留问题清单。";
+    }
+
+    /** 模式A：业务员互动式商品企划模式 prompt */
+    private String buildPlanningModePrompt(boolean justSwitched) {
+        return "\n\n【当前工作模式：模式A-业务员互动式商品企划模式】" +
+                "\n定位：AI与业务员多轮共创企划。业务员掌握一线信息与商业判断；你负责外部调研、内部库查询、机会筛选、竞争力分析、结构化输出。严格执行7步流程：" +
+                "\n步骤1·最小需求输入：用户输入客户名/品牌名/品类即可启动（可选补充国家、渠道、价格、季节、参考图）。识别任务与资料缺口，输出【企划任务卡】，不强制一次性补齐字段。" +
+                "\n步骤2·品牌/品类调研：输出【品牌调研快照】：品牌定位、客群、品类树、价格带、渠道、竞品、近期动作；允许用户选择直接公开分析或补充内部资料。" +
+                "\n步骤3·深化方向选择：输出至少5个选项菜单，等待用户选1-3项或自定义，选定后进入对应分支，禁止重复输出完整调研报告：" +
+                "\n  A｜分析品牌全部品类（商品结构/主力/增长/空白） B｜筛选与我司关联度高的品类（设备/工艺/材料/产能/研发积累） C｜比对历史订单和合作记录（采购偏好/价格接受度/复购/毛利）" +
+                " D｜分析消费者、场景和五感体验 E｜拆解竞品产品和价格（差异化/可复制点/同质化/低价风险） F｜调用产品研发库（可复用样品/BOM/工艺/失败经验）" +
+                " G｜测算成本利润和报价（沿用报价SOP四步） H｜评估设备产能与交期 I｜形成3-5个新品机会（证据充分进入SKU定义） J｜业务员自定义问题" +
+                "\n步骤4·内部数据比对：接收业务员补充的客户背景、现场信息、参考图、合作判断；调用内部库输出【内外部关联分析】。" +
+                "\n步骤5·竞争力与机会评分（固定权重）：客户战略价值15%、市场机会15%、历史订单验证15%、产品差异化15%、制造可行性15%、成本利润10%、开发速度5%、渠道适配5%、经营风险5%。" +
+                "分级：>=80优先打样；65-79补证据立项；50-64观察；<50暂不推进；重大风险一票否决。输出机会排序+淘汰理由。" +
+                "\n步骤6·商品企划共创：确认主题、SKU数量、价位、渠道、优先级；输出【商品企划案草案】：3-5个SKU矩阵、产品定义、成本产能、打样计划、客户提案草案。" +
+                "\n步骤7·多轮深化收口：支持选择视觉、成本、竞品、打样、渠道、话术继续迭代；记录人工修正；输出【商品企划案V1.0】并列明未决业务问题。" +
+                "\n推进规则：仅客户/品牌/品类即可启动；首轮必须给出>=5个深化选项；选定分支定向执行；每轮末尾给可选菜单；严禁跳步与一次性终稿。" +
+                (justSwitched ? "\n【本轮动作】用户刚切换到商品企划模式，请确认模式已激活，输出欢迎语+【企划任务卡】模板，引导用户输入客户名/品牌名/品类。"
+                              : "\n【本轮动作】按当前所处步骤推进；若用户仅给了客户/品牌/品类，输出【企划任务卡】并进入步骤2；若用户已选定分支，定向执行该分支并给出下一菜单。");
+    }
+
+    /** 模式B：总经理决策辅助模式 prompt */
+    private String buildDecisionModePrompt(boolean justSwitched) {
+        return "\n\n【当前工作模式：模式B-总经理决策辅助模式】" +
+                "\n定位：仅做信息汇总分析，不做最终决策。六大分析维度：" +
+                "\n1.产能与订单匹配：未来1-2月接单可行性、机台工种缺口；输出空置率、人力缺口、机台冲突、接单排期建议。" +
+                "\n2.动态客户经营：客户增减、我方份额、撬单风险；输出客户阶段、流失预警、保单/放单建议。" +
+                "\n3.外部环境与趋势：汇率、行业、政策、国际事件；输出受影响客户品类、应对动作。" +
+                "\n4.研发新品匹配：新品客户适配与定制；输出客户-新品匹配、优化点、推广优先级。" +
+                "\n5.业务员效能：区分业绩来自环境或个人，客户负载；输出能力诊断、异常原因、人效、客户分配建议。" +
+                "\n6.报价与利润：订单盈利评估，报价不足可压缩项；输出标准成本、利润区间、可压缩项，输出A/B/C报价方案（成本数据沿用报价SOP口径）。" +
+                "\n首期边界：账期、定金、完整现金流预测属后续迭代项，涉及相关内容必须标注【后续迭代】。" +
+                "\n\n【报告模板（严格按此结构输出）】" +
+                "\n1.【决策问题】：待总经理决策事项" +
+                "\n2.【事实底座】：内部数据、外部环境，标注数据更新时间、缺失字段、整体置信度" +
+                "\n3.【六维判断】：产能｜客户｜外部环境｜研发｜业务员效能｜报价利润分别说明影响" +
+                "\n4.【A/B/C可选方案】：每套含方案简述、预期收益、付出成本、潜在风险、资源占用、方案触发条件" +
+                "\n5.【系统参考建议】：方案优先级及理由；必须标注：⚠️本建议仅参考，最终决策由总经理确认" +
+                "\n6.【执行动作】：建议负责人、完成期限、风险预警条件、复盘节点" +
+                "\n严禁替总经理做最终决策；只输出A/B/C备选方案。" +
+                (justSwitched ? "\n【本轮动作】用户刚切换到总经理决策辅助模式，请确认模式已激活，输出六大分析维度简介，并引导用户提出待决策事项。"
+                              : "\n【本轮动作】围绕用户提出的决策议题，严格按报告模板输出；数据缺失项如实列出，不强行下结论。");
     }
 
     /** 排产意图：排产/批次/交期/投产/生产安排 */
