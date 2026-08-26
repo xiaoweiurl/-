@@ -179,6 +179,23 @@ LEFT JOIN (SELECT DISTINCT ON (product_code) product_code, machine_type, machine
            ORDER BY product_code, id DESC) p ON p.product_code = q.huohao;
 
 COMMENT ON VIEW v_product_genealogy IS '货号谱系视图：报价(order_bjd_query) ⨝ 工艺单(order_sw_gongyidan) ⨝ 订单需求(order_xs_list) ⨝ 排产(production_plan)，统一关联键 huohao';
+COMMENT ON COLUMN v_product_genealogy.huohao                IS '生产货号【统一关联键】← order_bjd_query.huohao（= order_xs_list.detailhuohao = production_plan.product_code）';
+COMMENT ON COLUMN v_product_genealogy.khname                IS '最近报价客户 ← order_bjd_query.khname（按 zhdate 最新一条报价取）';
+COMMENT ON COLUMN v_product_genealogy.chima                 IS '尺码 ← order_bjd_query.chima（最近一条报价）';
+COMMENT ON COLUMN v_product_genealogy.last_quotation_dh     IS '最近报价单号 ← order_bjd_query.dh（按 zhdate 最新）';
+COMMENT ON COLUMN v_product_genealogy.last_saleprice        IS '最近产品售价 ← order_bjd_query.saleprice（最近一条报价）';
+COMMENT ON COLUMN v_product_genealogy.last_sales_cost       IS '最近销售成本 ← order_bjd_query.xscb（最近一条报价）';
+COMMENT ON COLUMN v_product_genealogy.process_sewing_weight IS '工艺单缝拼克重(权威) ← order_sw_gongyidan.pfkz（按 bh 最新版本；报价 fpkz 兜底源）';
+COMMENT ON COLUMN v_product_genealogy.process_seconds       IS '工艺单下机秒数(权威) ← order_sw_gongyidan.xjsl（产能计算标准输入）';
+COMMENT ON COLUMN v_product_genealogy.process_theory_output IS '工艺单理论产量 ← order_sw_gongyidan.djcl（产能基准，可对比排产实际算利用率偏差）';
+COMMENT ON COLUMN v_product_genealogy.process_machine_type  IS '工艺单机型 ← order_sw_gongyidan.jix';
+COMMENT ON COLUMN v_product_genealogy.process_needles       IS '工艺单针数 ← order_sw_gongyidan.zs';
+COMMENT ON COLUMN v_product_genealogy.sales_order_cnt       IS '真实订单数 ← order_xs_list COUNT(DISTINCT dh)，按 detailhuohao 聚合';
+COMMENT ON COLUMN v_product_genealogy.sales_total_qty       IS '真实订单数量合计 ← order_xs_list SUM(sl_sum)';
+COMMENT ON COLUMN v_product_genealogy.latest_delivery       IS '最晚交期 ← order_xs_list MAX(jh_date)';
+COMMENT ON COLUMN v_product_genealogy.plan_machine_type     IS '排产机型 ← production_plan.machine_type（按 id 最新一条）';
+COMMENT ON COLUMN v_product_genealogy.plan_machine_count    IS '投入机台数 ← production_plan.machine_count';
+COMMENT ON COLUMN v_product_genealogy.plan_output           IS '单机日产量 ← production_plan.single_machine_output';
 
 -- 5.2 客户360视图：报价维度 + 成交维度一次查全
 CREATE OR REPLACE VIEW v_customer_360 AS
@@ -209,6 +226,17 @@ FULL OUTER JOIN (SELECT khname, COUNT(DISTINCT dh) AS sales_order_cnt,
                  GROUP BY khname) o ON o.khname = q.khname;
 
 COMMENT ON VIEW v_customer_360 IS '客户360视图：报价统计(order_bjd_query) ⨝ 成交统计(order_xs_list)，统一关联键 khname';
+COMMENT ON COLUMN v_customer_360.khname           IS '客户名称【统一关联键】← COALESCE(order_bjd_query.khname, order_xs_list.khname)，仅报价/仅成交客户也会保留';
+COMMENT ON COLUMN v_customer_360.quotation_cnt    IS '报价单号数 ← order_bjd_query COUNT(DISTINCT dh) 按 khname 聚合';
+COMMENT ON COLUMN v_customer_360.avg_saleprice    IS '平均售价 ← order_bjd_query AVG(saleprice)';
+COMMENT ON COLUMN v_customer_360.avg_sales_cost   IS '平均销售成本 ← order_bjd_query AVG(xscb)';
+COMMENT ON COLUMN v_customer_360.avg_unit_profit  IS '平均单品毛利 ← order_bjd_query AVG(mlr_dp)';
+COMMENT ON COLUMN v_customer_360.last_quote_date  IS '最近报价日期 ← order_bjd_query MAX(zhdate)';
+COMMENT ON COLUMN v_customer_360.sales_order_cnt  IS '成交订单数 ← order_xs_list COUNT(DISTINCT dh) 按 khname 聚合';
+COMMENT ON COLUMN v_customer_360.sales_total_qty  IS '成交数量合计 ← order_xs_list SUM(sl_sum)';
+COMMENT ON COLUMN v_customer_360.last_order_date  IS '最近下单日期 ← order_xs_list MAX(zhdate)';
+COMMENT ON COLUMN v_customer_360.latest_delivery  IS '最晚交期 ← order_xs_list MAX(jh_date)（交期风险识别输入）';
+COMMENT ON COLUMN v_customer_360.salespersons     IS '跟进业务员列表 ← order_xs_list STRING_AGG(DISTINCT ywyname)，顿号分隔';
 
 -- 5.3 原料价格视图：采购最低价/最高价/供应商数 + 入库参考价
 CREATE OR REPLACE VIEW v_material_price AS
@@ -228,3 +256,9 @@ WHERE p.material_code IS NOT NULL AND p.material_code <> ''
 GROUP BY p.material_code, w.warehouse_price;
 
 COMMENT ON VIEW v_material_price IS '原料价格视图：采购(raw_material_purchase.material_code) ⨝ 入库(raw_material_warehouse.product_code)，智能报价取 min_price';
+COMMENT ON COLUMN v_material_price.material_code   IS '原料编码【统一关联键】← raw_material_purchase.material_code（= raw_material_warehouse.product_code = product_quotation.raw_material_name1~6）';
+COMMENT ON COLUMN v_material_price.supplier_count  IS '供应商数 ← raw_material_purchase COUNT(DISTINCT supplier)';
+COMMENT ON COLUMN v_material_price.min_price       IS '采购最低价 ← raw_material_purchase MIN(unit_price)【智能报价取价字段】';
+COMMENT ON COLUMN v_material_price.max_price       IS '采购最高价 ← raw_material_purchase MAX(unit_price)（与最低价算节省比例）';
+COMMENT ON COLUMN v_material_price.avg_price       IS '采购均价 ← raw_material_purchase AVG(unit_price)';
+COMMENT ON COLUMN v_material_price.warehouse_price IS '入库参考价 ← raw_material_warehouse AVG(unit_price) 按 product_code 聚合';
