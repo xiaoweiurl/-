@@ -24,8 +24,12 @@ import java.util.regex.Pattern;
  * 覆盖维度：
  * 1. 产能与排产（production_plan 表）：机台数、机型分布、单机日产量、货号产能明细
  * 2. 客户订单维度（order_bjd_query 表）：客户分组统计（单号数/平均售价/平均毛利/首末单日期）
- * 3. 业务员绩效维度：当前库内无业务员字段结构化数据源，注入"数据缺失说明"条目，
- *    由 prompt 规则约束模型如实提示而非编造（禁止行为清单第1条）
+ * 3. 业务员绩效维度（order_xs_list 表 ywyname 字段，V45 起）：业务员分组统计
+ *    （单量/订单数量合计/客户覆盖/首末单日期），V45 前无数据源时注入"数据缺失说明"兜底
+ * 4. 销售订单需求与交期（order_xs_list 表）：真实订单需求(sl_sum)、交期(jh_date)、
+ *    审核/计划状态，与产能供给侧构成"产能-订单匹配"闭环
+ * 5. 工艺单参数（order_sw_gongyidan 表）：按货号查下机克重/下机秒数/制成率/机型/针数/
+ *    理论产量/缝拼克重(pfkz)，工艺类问题的确定性依据
  */
 @Slf4j
 @Service
@@ -33,6 +37,8 @@ public class DecisionDataService {
 
     private static final String QUOTATION_TABLE = "order_bjd_query";
     private static final String PLAN_TABLE = "production_plan";
+    private static final String SALES_ORDER_TABLE = "order_xs_list";
+    private static final String PROCESS_TABLE = "order_sw_gongyidan";
     private static final Pattern PRODUCT_CODE = Pattern.compile("[A-Za-z][A-Za-z0-9]{3,}");
 
     @Autowired
@@ -55,9 +61,11 @@ public class DecisionDataService {
         boolean customerIntent = decision || (planning && finalDoc)
                 || containsAny(message, "客户经营", "客户结构", "客户增减", "份额", "撬单", "保单", "放单", "复购", "流失", "客户订单", "订单匹配", "客户维度");
         boolean perfIntent = containsAny(message, "业务员效能", "业务员绩效", "人效", "业绩", "业务员能力", "客户分配", "业务员负载");
+        boolean processIntent = containsAny(message, "工艺", "克重", "针数", "机型", "制成率", "下机秒数", "理论产量", "打样", "工艺单");
+        boolean deliveryIntent = containsAny(message, "交期", "交货", "延期", "逾期", "未下计划", "终审", "交付风险");
 
         // 通用工厂模式下无任何相关意图时不注入（避免无关数据引发幻觉）
-        if (!decision && !planning && !capacityIntent && !customerIntent && !perfIntent) {
+        if (!decision && !planning && !capacityIntent && !customerIntent && !perfIntent && !processIntent && !deliveryIntent) {
             return out;
         }
 
@@ -67,21 +75,40 @@ public class DecisionDataService {
             if (code != null) {
                 out.addAll(queryCapacityByProductCode(code));
             }
+            // 需求侧：销售订单需求与交期（产能-订单匹配闭环）
+            out.addAll(queryOrderDemand());
         }
         if (customerIntent) {
             out.addAll(queryCustomerOrderStats());
+            // 真实销售订单维度（报价≠成交）
+            out.addAll(querySalesOrderStats());
+        }
+        if (deliveryIntent) {
+            out.addAll(queryOrderDemand());
         }
         if (perfIntent) {
-            // 业务员绩效无结构化数据源（报价单表无业务员字段），注入缺失说明，触发 prompt 禁止行为规则
-            Map<String, Object> miss = new LinkedHashMap<>();
-            miss.put("type", "数据缺失说明");
-            miss.put("summary", "业务员绩效维度：当前结构化数据库中无业务员字段（报价单表仅含客户维度），无法产出业务员个人绩效指标");
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("缺失项", "业务员绩效结构化数据（报价单表无业务员归属字段）");
-            data.put("可代理数据", "客户订单维度统计（按客户分组，可间接反映业务员负责客户的经营情况）");
-            data.put("处理要求", "如实告知用户该维度数据缺失，建议补充业务员-客户归属数据后再做效能分析；禁止编造业务员个人业绩数字");
-            miss.put("data", data);
-            out.add(miss);
+            // V45 起：order_xs_list.ywyname 提供业务员维度真数据；空结果时回退缺失说明
+            List<Map<String, Object>> perf = querySalespersonPerformance();
+            if (!perf.isEmpty()) {
+                out.addAll(perf);
+            } else {
+                Map<String, Object> miss = new LinkedHashMap<>();
+                miss.put("type", "数据缺失说明");
+                miss.put("summary", "业务员绩效维度：销售订单表(order_xs_list)暂无业务员数据，无法产出业务员个人绩效指标");
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("缺失项", "业务员绩效结构化数据（order_xs_list.ywyname 为空或表未同步）");
+                data.put("可代理数据", "客户订单维度统计（按客户分组，可间接反映业务员负责客户的经营情况）");
+                data.put("处理要求", "如实告知用户该维度数据缺失，建议同步销售订单数据后再做效能分析；禁止编造业务员个人业绩数字");
+                miss.put("data", data);
+                out.add(miss);
+            }
+        }
+        // 工艺单参数：有货号且（工艺意图 / 企划 / 决策模式）时注入
+        if (processIntent || decision || (planning && finalDoc)) {
+            String code = extractProductCode(message);
+            if (code != null) {
+                out.addAll(queryProcessParams(code));
+            }
         }
         return out;
     }
@@ -209,6 +236,181 @@ public class DecisionDataService {
             log.info("[结构化数据] 客户订单维度统计: 客户数={}, 单号数={}, 分组数={}", total.get("customers"), total.get("orders"), rows.size());
         } catch (Exception e) {
             log.warn("[结构化数据] 客户订单维度统计查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    // ====== 业务员绩效维度（order_xs_list 按业务员分组统计，V45） ======
+
+    /** 业务员绩效：单量/订单数量合计/客户覆盖/首末单日期（ywyname 分组） */
+    private List<Map<String, Object>> querySalespersonPerformance() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT ywyname, COUNT(DISTINCT dh) AS order_cnt, COALESCE(SUM(sl_sum),0) AS qty, "
+                            + "COUNT(DISTINCT khname) AS customers, "
+                            + "MAX(zhdate) AS last_date, MIN(zhdate) AS first_date "
+                            + "FROM " + SALES_ORDER_TABLE + " WHERE ywyname IS NOT NULL AND ywyname <> '' "
+                            + "GROUP BY ywyname ORDER BY order_cnt DESC LIMIT 20");
+            if (rows.isEmpty()) return out;
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            StringBuilder top = new StringBuilder();
+            int idx = 0;
+            for (Map<String, Object> row : rows) {
+                idx++;
+                String name = String.valueOf(row.get("ywyname"));
+                data.put("业务员" + idx + "[" + name + "]单号数", row.get("order_cnt"));
+                data.put("业务员" + idx + "[" + name + "]订单数量合计", row.get("qty"));
+                data.put("业务员" + idx + "[" + name + "]覆盖客户数", row.get("customers"));
+                data.put("业务员" + idx + "[" + name + "]首单日期", fmtDate(row.get("first_date")));
+                data.put("业务员" + idx + "[" + name + "]最近单日期", fmtDate(row.get("last_date")));
+                if (idx <= 5) {
+                    top.append(name).append("(").append(row.get("order_cnt")).append("单/").append(row.get("qty")).append("件) ");
+                }
+            }
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("type", "业务员绩效统计");
+            entry.put("summary", "业务员绩效总览（销售订单表真实数据）：业务员 " + rows.size()
+                    + " 人，TOP " + top.toString().trim());
+            entry.put("data", data);
+            out.add(entry);
+            log.info("[结构化数据] 业务员绩效统计: 业务员数={}", rows.size());
+        } catch (Exception e) {
+            log.warn("[结构化数据] 业务员绩效统计查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    // ====== 销售订单需求与交期（order_xs_list，V45） ======
+
+    /** 销售订单维度客户统计（真实成交，区别于报价维度） */
+    private List<Map<String, Object>> querySalesOrderStats() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            Map<String, Object> total = jdbcTemplate.queryForMap(
+                    "SELECT COUNT(DISTINCT khname) AS customers, COUNT(DISTINCT dh) AS orders, "
+                            + "COALESCE(SUM(sl_sum),0) AS qty FROM " + SALES_ORDER_TABLE
+                            + " WHERE khname IS NOT NULL AND khname <> ''");
+
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT khname, COUNT(DISTINCT dh) AS order_cnt, COALESCE(SUM(sl_sum),0) AS qty, "
+                            + "MAX(zhdate) AS last_date, MAX(jh_date) AS latest_delivery "
+                            + "FROM " + SALES_ORDER_TABLE + " WHERE khname IS NOT NULL AND khname <> '' "
+                            + "GROUP BY khname ORDER BY qty DESC LIMIT 30");
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("成交客户总数", total.get("customers"));
+            data.put("销售订单总数", total.get("orders"));
+            data.put("订单数量总计", total.get("qty"));
+            StringBuilder top = new StringBuilder();
+            int idx = 0;
+            for (Map<String, Object> row : rows) {
+                idx++;
+                String name = String.valueOf(row.get("khname"));
+                data.put("客户" + idx + "[" + name + "]订单数", row.get("order_cnt"));
+                data.put("客户" + idx + "[" + name + "]数量合计", row.get("qty"));
+                data.put("客户" + idx + "[" + name + "]最近下单", fmtDate(row.get("last_date")));
+                data.put("客户" + idx + "[" + name + "]最晚交期", fmtDate(row.get("latest_delivery")));
+                if (idx <= 5) {
+                    top.append(name).append("(").append(row.get("qty")).append("件) ");
+                }
+            }
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("type", "销售订单维度统计");
+            entry.put("summary", "销售订单总览（真实成交）：客户 " + total.get("customers") + "，订单 "
+                    + total.get("orders") + " 单，数量 " + total.get("qty") + "，TOP客户 " + top.toString().trim());
+            entry.put("data", data);
+            out.add(entry);
+            log.info("[结构化数据] 销售订单维度统计: 客户数={}, 订单数={}", total.get("customers"), total.get("orders"));
+        } catch (Exception e) {
+            log.warn("[结构化数据] 销售订单维度统计查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /** 订单需求与交期：未来待交付订单（产能-订单匹配的需求侧 + 交期风险） */
+    private List<Map<String, Object>> queryOrderDemand() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT dh, khname, detailhuohao, sl_sum, jh_date, sfplan, zxtate, ddtype "
+                            + "FROM " + SALES_ORDER_TABLE
+                            + " WHERE jh_date IS NOT NULL AND jh_date >= CURRENT_DATE "
+                            + "ORDER BY jh_date ASC LIMIT 20");
+            if (rows.isEmpty()) return out;
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("待交付订单数(交期在未来)", rows.size());
+            int idx = 0;
+            java.math.BigDecimal totalQty = java.math.BigDecimal.ZERO;
+            for (Map<String, Object> row : rows) {
+                idx++;
+                if (row.get("sl_sum") instanceof Number) {
+                    totalQty = totalQty.add(new java.math.BigDecimal(row.get("sl_sum").toString()));
+                }
+                if (idx <= 10) {
+                    String key = "订单" + idx + "[" + row.get("dh") + "/" + row.get("khname") + "]";
+                    data.put(key + "货号", row.get("detailhuohao"));
+                    data.put(key + "数量", row.get("sl_sum"));
+                    data.put(key + "交期", fmtDate(row.get("jh_date")));
+                    data.put(key + "是否下计划", row.get("sfplan"));
+                    data.put(key + "执行状态", row.get("zxtate"));
+                }
+            }
+            data.put("待交付数量合计", totalQty);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("type", "订单需求与交期");
+            entry.put("summary", "待交付订单（需求侧）：" + rows.size() + " 单，数量合计 " + totalQty
+                    + "，最近交期 " + fmtDate(rows.get(0).get("jh_date")));
+            entry.put("data", data);
+            out.add(entry);
+            log.info("[结构化数据] 订单需求与交期: 待交付单数={}", rows.size());
+        } catch (Exception e) {
+            log.warn("[结构化数据] 订单需求与交期查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    // ====== 工艺单参数（order_sw_gongyidan，V45） ======
+
+    /** 按货号查询工艺单参数（克重/秒数/制成率/机型/针数/理论产量/缝拼克重） */
+    private List<Map<String, Object>> queryProcessParams(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT bh, huohao, spname, xjkz, xjsl, pfkz, cpkz, zcl, jix, zs, djcl, "
+                            + "hhywy, qd_dys, hd_dys FROM " + PROCESS_TABLE
+                            + " WHERE huohao ILIKE ? LIMIT 10",
+                    "%" + code + "%");
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("编号", row.get("bh"));
+                data.put("生产货号", row.get("huohao"));
+                data.put("品名", row.get("spname"));
+                data.put("下机克重", row.get("xjkz"));
+                data.put("下机秒数", row.get("xjsl"));
+                data.put("缝拼克重(pfkz)", row.get("pfkz"));
+                data.put("成品克重", row.get("cpkz"));
+                data.put("制成率", row.get("zcl"));
+                data.put("机型", row.get("jix"));
+                data.put("针数", row.get("zs"));
+                data.put("理论产量", row.get("djcl"));
+                data.put("业务员", row.get("hhywy"));
+                data.put("前道打样师", row.get("qd_dys"));
+                data.put("后道打样师", row.get("hd_dys"));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "工艺单参数");
+                entry.put("summary", "货号 " + row.get("huohao") + " 工艺单参数（下机克重 " + row.get("xjkz")
+                        + "，下机秒数 " + row.get("xjsl") + "，理论产量 " + row.get("djcl") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 工艺单参数命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 工艺单参数查询失败: {}", e.getMessage());
         }
         return out;
     }

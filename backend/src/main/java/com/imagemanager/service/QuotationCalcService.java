@@ -200,6 +200,12 @@ public class QuotationCalcService {
         BigDecimal rawTotal = get(ex, "rawTotal"); // 原料合计BOM(外部)
         BigDecimal auxTotal = get(ex, "auxTotal"); // 辅料合计BOM(外部)
 
+        // 缝拼克重兜底：行内无 fpkz 时按货号查工艺单 pfkz（order_sw_gongyidan，V45 权威工艺基准）
+        if (fpkz.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal fromProcess = lookupProcessSewingWeight(row);
+            if (fromProcess.compareTo(BigDecimal.ZERO) != 0) fpkz = fromProcess;
+        }
+
         Map<String, BigDecimal> r = new LinkedHashMap<>();
 
         // 日产量 = 24*3600/下机时间 * 利用率
@@ -272,6 +278,21 @@ public class QuotationCalcService {
     }
 
     // ====== BigDecimal 工具（null 安全 + 除零保护） ======
+
+    /** 工艺单缝拼克重兜底查询（order_sw_gongyidan.pfkz，按生产货号精确匹配） */
+    private BigDecimal lookupProcessSewingWeight(Map<String, Object> row) {
+        try {
+            Object huohao = row.get("huohao");
+            if (huohao == null || huohao.toString().isBlank()) return BigDecimal.ZERO;
+            List<BigDecimal> r = jdbcTemplate.queryForList(
+                    "SELECT pfkz FROM order_sw_gongyidan WHERE huohao = ? AND pfkz IS NOT NULL AND pfkz > 0 LIMIT 1",
+                    BigDecimal.class, huohao.toString());
+            return r.isEmpty() ? BigDecimal.ZERO : r.get(0);
+        } catch (Exception e) {
+            log.debug("工艺单缝拼克重兜底查询失败: {}", e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
 
     private BigDecimal get(Map<String, BigDecimal> m, String key) {
         if (m == null) return BigDecimal.ZERO;

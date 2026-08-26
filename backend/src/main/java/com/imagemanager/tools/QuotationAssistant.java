@@ -26,9 +26,20 @@ public interface QuotationAssistant {
             rsdj=染色单价, fpkz=缝拼克重, rsprice=染色成本(表内存储值), qjprice=全检工价, ykgj=腰口工价,
             qdzs=前道规格(文本), hdzs=后道规格(文本)
 
+            【关联表 order_xs_list（销售订单表，字段=含义）】
+            dh=单号, zhdate=下单日期, jh_date=交货日期, state=状态(0编辑/1审核), zxtate=执行状态(0未审核/1复审/其他终审),
+            khname=客户名称, detailhuohao=生产货号(关联order_bjd_query.huohao), detailhuohaocp=成品货号,
+            sl_sum=数量合计, ywyname=业务员, sfplan=是否下计划, ddtype=销售类型, zhuser=制单人
+
+            【关联表 order_sw_gongyidan（丝袜工艺单表，字段=含义）】
+            bh=编号, huohao=生产货号(关联order_bjd_query.huohao), spname=品名, xjkz=下机克重, xjsl=下机秒数,
+            pfkz=缝拼克重(报价fpkz权威数据源), cpkz=成品克重, zcl=制成率, jix=机型, zs=针数,
+            djcl=理论产量, hhywy=业务员, qd_dys=前道打样师, hd_dys=后道打样师
+
             【计算公式】
             日产量=24*3600/下机时间*利用率; 织造成本=机台费/日产量;
-            染色成本=优先取表内rsprice存储值, 无存储值时=缝拼克重fpkz*染色单价rsdj;
+            染色成本=优先取表内rsprice存储值, 无存储值时=缝拼克重fpkz*染色单价rsdj
+            (fpkz取数顺序: 外部输入 > order_bjd_query.fpkz > order_sw_gongyidan.pfkz工艺单兜底);
             原料金额=原料合计*(1-原料利用率+1); 前道合计=织造成本+前道管理费用+染色成本+定型+其他工价+原料金额+缝制工价+腰口工价;
             辅料金额=辅料合计*(1-辅料利用率+1); 后道合计=包装+后道管理费用+辅料金额+全检工价;
             净成本=(织造成本+染色成本+定型+其他工价+原料金额+缝制工价+腰口工价+全检工价+包装)*(1-正品率+1)+辅料金额+前道管理费用+后道管理费用;
