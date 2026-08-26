@@ -50,6 +50,18 @@ public interface QuotationAssistant {
             v_material_price=原料价格(采购+入库): material_code=原料编码(统一关联键),
               supplier_count=供应商数, min_price=采购最低价, max_price=最高价, avg_price=均价, warehouse_price=入库参考价
 
+            【明细视图（V48，一单一行不聚合：核对单据/查某客户全部单据/溯源脏数据时优先用）】
+            v_quotation_detail=报价单明细(42列,一单一行): quotation_no=报价单号, quotation_date=报价日期, customer_name=客户, product_code=生产货号,
+              sale_price=销售单价(核对脏数据看原始值,>10000或<0为异常), sales_cost=销售成本, profit_per_dozen=单打毛利,
+              weaving_cost=织造成本, dye_cost=染色成本, waist_labor_cost=腰口工价, inspection_cost=全检工价,
+              frontend_total=前道合计, backend_total=后道合计, raw_material_amount=原料金额, accessory_amount=辅料金额,
+              machine_type=织造设备, sewing_weight=缝拼克重, machine_seconds=织造秒数
+            v_sales_order_detail=销售订单明细(一单一行): order_no=订单号, order_date=下单日期, customer_name=客户, product_code=生产货号,
+              quantity=数量合计, delivery_date=交货日期, salesperson=业务员, planned_flag=是否已下排产, audit_state=终审状态
+            查询示例: 某客户全部单据明细 → SELECT * FROM v_quotation_detail WHERE customer_name LIKE '%客户名%';
+                     某客户成交明细 → SELECT * FROM v_sales_order_detail WHERE customer_name LIKE '%客户名%';
+            注意: v_customer_360 的 avg_* 为聚合值(被脏数据影响时偏低/偏高), 需要核对请查明细视图原始行
+
             【同义字段映射（跨表查询时必须先对齐字段名）】
             货号: order_bjd_query.huohao = order_xs_list.detailhuohao = order_sw_gongyidan.huohao = production_plan.product_code
             客户: order_bjd_query.khname = order_xs_list.khname
