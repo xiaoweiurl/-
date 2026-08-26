@@ -1195,6 +1195,28 @@ public class KnowledgeImportService {
     private String cellText(DataFormatter formatter, FormulaEvaluator evaluator, Cell cell) {
         if (cell == null) return "";
         try {
+            // 日期格式单元格：优先转为标准日期文本，避免输出 Excel 序列号（如 45214.0）。
+            // DataFormatter 对部分自定义日期格式（如 yyyy"年"m"月" 变体）会回退输出原始序列号，
+            // 导致企划类文档的时间信息全部错误，因此显式用 DateUtil 转换。
+            if (DateUtil.isCellDateFormatted(cell)) {
+                try {
+                    java.util.Date d = null;
+                    CellType type = cell.getCellType();
+                    if (type == CellType.NUMERIC) {
+                        d = cell.getDateCellValue();
+                    } else if (type == CellType.FORMULA
+                            && cell.getCachedFormulaResultType() == CellType.NUMERIC) {
+                        d = DateUtil.getJavaDate(cell.getNumericCellValue());
+                    }
+                    if (d != null) {
+                        String fmt = cell.getCellStyle() != null ? cell.getCellStyle().getDataFormatString() : null;
+                        boolean hasTime = fmt != null && (fmt.contains("h") || fmt.contains("H"));
+                        return new java.text.SimpleDateFormat(hasTime ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd").format(d);
+                    }
+                } catch (Exception ignore) {
+                    // 转换失败落到下方默认格式化
+                }
+            }
             String v = formatter.formatCellValue(cell, evaluator);
             return v == null ? "" : v.trim();
         } catch (Exception e) {

@@ -70,6 +70,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     private com.imagemanager.service.MilvusService milvusService;
 
     @Autowired(required = false)
+    private com.imagemanager.service.DecisionDataService decisionDataService;
+
+    @Autowired(required = false)
     private com.imagemanager.enhance.RagPipeline ragPipeline;
 
     @Autowired(required = false)
@@ -208,6 +211,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                     log.info("识别为模式切换指令，跳过所有数据检索: message='{}'", message);
                 }
 
+                // 提前解析业务子模式（检索阶段即需：决定是否注入排产/客户订单等结构化决策数据；
+                // 后续构建 systemPrompt 时复用本变量，避免重复解析）
+                String resolvedSubMode = isFactory ? resolveBusinessSubMode(finalConvId, message) : null;
+
                 // 联网搜索意图识别：当用户明确要求联网/全网搜索时，强制启用联网搜索
                 boolean webSearchIntent = isWebSearchIntent(message);
 
@@ -261,6 +268,21 @@ public class SmartChatServiceImpl implements SmartChatService {
                         log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
                     } catch (Exception e) {
                         log.warn("供应链数据检索异常: {}", e.getMessage());
+                    }
+                }
+
+                // 3b. 结构化决策数据确定性注入（排产产能 / 客户订单维度 / 业务员绩效缺失说明）
+                // 与报价单确定性查询同思路：产能数字、客户订单统计全部由参数化 SQL 产出，
+                // 使"产能与订单匹配""动态客户经营"板块有确定性数据底座，不流于形式
+                List<Map<String, Object>> structuredResults = Collections.emptyList();
+                if (isFactory && !generalChatIntent && !modeSwitchCmd && decisionDataService != null) {
+                    try {
+                        structuredResults = decisionDataService.searchStructuredForMessage(message, resolvedSubMode);
+                        if (!structuredResults.isEmpty()) {
+                            log.info("结构化决策数据注入 {} 条 (subMode={})", structuredResults.size(), resolvedSubMode);
+                        }
+                    } catch (Exception e) {
+                        log.warn("结构化决策数据检索异常: {}", e.getMessage());
                     }
                 }
 
@@ -447,9 +469,23 @@ public class SmartChatServiceImpl implements SmartChatService {
                 StringBuilder knowledgeContext = new StringBuilder();
 
                 // 供应链/工厂数据上下文（优先级最高，放在最前面）
-                if (!supplyChainResults.isEmpty()) {
-                    knowledgeContext.append("## 【重要】供应链/工厂业务数据（精确数据，优先引用）：\n");
-                    for (Map<String, Object> r : supplyChainResults) {
+                // 企划/决策模式激活时启用三段式结构第1段：【结构化数据库查询结果（强制确定性数据）】
+                boolean structuredMode = resolvedSubMode != null;
+                if (!supplyChainResults.isEmpty() || !structuredResults.isEmpty()) {
+                    if (structuredMode) {
+                        knowledgeContext.append("## 1.【结构化数据库查询结果（强制确定性数据）】\n");
+                        knowledgeContext.append("包含：报价单结构化数据、供应链数据、排产表&产能订单结构化数据、客户订单维度结构化数据、业务员基础资料。\n");
+                        knowledgeContext.append(">规则：只要本段上下文内附带了产能排产、业务员效能、客户订单结构化查询结果，你100%必须基于给到的结构化数据进行分析，" +
+                                "禁止编造任何不在返回结果内的产能数字、订单数据、业务员绩效指标、客户数据；不得脱离给出的数据空谈结论。\n");
+                        knowledgeContext.append(">【产能与订单匹配】模块：仅以上下文注入的排产表、客户订单、产能负荷数据作为唯一依据开展匹配分析、产能缺口评估、交期风险预判。\n");
+                        knowledgeContext.append(">【业务员效能】模块：仅以上下文注入的业务员维度结构化绩效数据开展效能评估；若无注入，禁止输出该板块，" +
+                                "主动提示：缺少业务员绩效结构化查询数据，请先触发结构化数据检索。\n\n");
+                    } else {
+                        knowledgeContext.append("## 【重要】供应链/工厂业务数据（精确数据，优先引用）：\n");
+                    }
+                    List<Map<String, Object>> allStructured = new ArrayList<>(supplyChainResults);
+                    allStructured.addAll(structuredResults);
+                    for (Map<String, Object> r : allStructured) {
                         String type = r.getOrDefault("type", "").toString();
                         String summary = r.getOrDefault("summary", "").toString();
                         knowledgeContext.append(String.format("### [%s] %s\n", type, summary));
@@ -467,8 +503,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                         }
                         knowledgeContext.append("\n");
                     }
-                    knowledgeContext.append("⚠️ 用户询问的是供应链/工厂相关问题，请务必基于以上精确业务数据回答，引用具体数字。" +
-                            "不要用知识库文档中的泛泛内容替代这些精确数据！\n\n");
+                    if (structuredMode) {
+                        knowledgeContext.append("⚠️ 以上为强制确定性数据，数据分析板块每一条结论后面必须标注数据来源（结构化排产数据 / 业务员绩效数据 / 报价单数据 / 知识库）。\n\n");
+                    } else {
+                        knowledgeContext.append("⚠️ 用户询问的是供应链/工厂相关问题，请务必基于以上精确业务数据回答，引用具体数字。" +
+                                "不要用知识库文档中的泛泛内容替代这些精确数据！\n\n");
+                    }
                 }
 
                 // 业务员资料上下文（Milvus 向量检索，工厂模式第二优先级：业务语义补充）
@@ -512,7 +552,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 if (!knowledgeResults.isEmpty()) {
-                    knowledgeContext.append("## 知识库相关文档片段：\n");
+                    if (structuredMode) {
+                        knowledgeContext.append("## 2.【向量知识库召回文档】（业务背景、行业参考补充材料，不能覆盖结构化查询得出的数据结论）：\n");
+                    } else {
+                        knowledgeContext.append("## 知识库相关文档片段：\n");
+                    }
                     for (int i = 0; i < knowledgeResults.size(); i++) {
                         Map<String, Object> r = knowledgeResults.get(i);
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
@@ -572,14 +616,34 @@ public class SmartChatServiceImpl implements SmartChatService {
                     knowledgeContext.append("用户请求在图片库中查找图片，但根据关键词搜索未找到任何匹配的产品图片。请如实告知用户图片库中没有找到相关图片，并建议用户尝试其他关键词或上传相关图片。\n");
                 }
 
+                // 企划/决策模式第3段：用户历史多轮对话提问记录
+                // 生成终稿时必须整合历史所有轮次用户提出的需求/条件/问题/修改意见，不得遗漏
+                if (structuredMode && history != null && !history.isEmpty()) {
+                    StringBuilder userQs = new StringBuilder();
+                    int qn = 0;
+                    for (Map<String, Object> h : history) {
+                        if (!"user".equals(h.get("role"))) continue;
+                        String c = String.valueOf(h.getOrDefault("content", ""));
+                        if (c.isBlank()) continue;
+                        if (c.length() > 200) c = c.substring(0, 200) + "...";
+                        userQs.append(++qn).append(". ").append(c).append("\n");
+                        if (qn >= 20) break;
+                    }
+                    if (qn > 0) {
+                        knowledgeContext.append("## 3.【用户历史多轮对话提问记录】（本次会话历史所有轮次用户提出的需求/条件/问题/修改意见，共 ")
+                                .append(qn).append(" 条）：\n");
+                        knowledgeContext.append(userQs);
+                        knowledgeContext.append("⚠️ 生成最终完整版企划/报告文档时，必须把以上历史所有沟通内容全部纳入，不得遗漏之前用户提出过的任何要求。\n\n");
+                    }
+                }
+
                 // 5. 构建messages(含历史上下文)
                 List<Map<String, Object>> messages = new ArrayList<>();
 
                 // System prompt: 根据mode构建不同的角色定位
                 String systemPrompt;
                 if ("factory".equals(mode)) {
-                    // 两大工作子模式解析：模式A商品企划 / 模式B总经理决策辅助（显式参数 > 手动指令 > 会话记忆 > 自动识别）
-                    String resolvedSubMode = resolveBusinessSubMode(finalConvId, message);
+                    // 两大工作子模式：resolvedSubMode 已在检索阶段解析（显式参数 > 手动指令 > 会话记忆 > 自动识别），此处直接复用
                     boolean justSwitched = detectSubModeSwitch(message) != null || "planning".equals(subMode) || "decision".equals(subMode);
                     // 分层结构化 prompt：身份 → 数据源优先级 → 核心能力(报价SOP/查询/业务/知识) → 防幻觉 → 输出格式 → 子模式层
                     systemPrompt = "你是盈云产品智能中台的【业务与供应链智能助手】，同时服务业务人员和工厂供应链管理人员，" +
@@ -1839,17 +1903,28 @@ public class SmartChatServiceImpl implements SmartChatService {
         return auto;
     }
 
-    /** 两大模式共享的基础约束（文档7条铁律） */
+    /** 两大模式共享的基础约束（文档7条铁律 + 结构化数据强制规则 + 禁止行为清单 + 终稿输出格式） */
     private String buildBusinessBaseConstraints() {
         return "\n\n【基础约束（铁律，两模式通用）】" +
                 "\n1. 禁止编造企业内部业务数据；内部数据仅来自系统注入的上下文，数据缺失必须明确列出【缺失项清单】，不得强行输出确定结论。" +
                 "\n2. 所有关键信息强制标记来源：【外部调研】/【内部数据库-{库名}】/【AI推断】，并附数据更新日期与置信度(0-100)。" +
-                "\n3. 多轮分步交互：禁止一次性输出完整终稿；每轮末尾提供【可选操作菜单】由业务人员选择分支推进，禁止跳过业务步骤。" +
+                "\n3. 多轮分步交互：过程轮次禁止一次性输出完整终稿，每轮末尾提供【可选操作菜单】由业务人员选择分支推进，禁止跳过业务步骤；" +
+                "但当用户明确要求'生成终稿/汇总输出/完整报告/定稿'时，执行第10条一次性输出完整终稿。" +
                 "\n4. 识别重大质量、合规、客户信用风险时执行一票否决，并写明否决理由。" +
                 "\n5. 内部可调用数据库集合（仅使用已注入数据）：历史订单数据库、客户画像数据库、产品研发数据库、工艺设备数据库、报价成本数据库、库存质量数据库。" +
                 "映射关系：报价成本数据库=【报价单计算/供应链数据】；历史订单数据库+客户画像数据库=【业务员资料库】；产品研发数据库+工艺设备数据库=【知识库文档/部件工艺数据】；库存质量数据库=【供应链库存数据】。" +
                 "\n6. 数据清洗不全、外部数据可信度低时，如实告知覆盖范围与局限，不输出确定性业务结论。" +
-                "\n7. 阶段成果输出完成后提示：成果可同步飞书，并附使用说明、测试记录、遗留问题清单。";
+                "\n7. 阶段成果输出完成后提示：成果可同步飞书，并附使用说明、测试记录、遗留问题清单。" +
+                "\n8.【结构化数据强制规则】只要上下文【结构化数据库查询结果】附带了产能排产、客户订单、业务员效能结构化查询结果，" +
+                "必须100%基于给到的结构化数据分析，禁止编造任何不在返回结果内的产能数字、订单数据、业务员绩效指标、客户数据；不得脱离给出的数据空谈结论。" +
+                "\n9.【禁止行为清单】" +
+                "a.未收到【排产表/业务员绩效结构化查询结果】时，禁止输出产能订单匹配分析、业务员效能分析板块，应主动提示：缺少结构化查询数据，请先触发结构化数据检索；" +
+                "b.禁止'需要提升产能、业务员加强跟进客户'这类流于形式、无数据支撑的空话，所有结论必须附带上下文给到的数据依据；" +
+                "c.文档内所有日期时间字段严格使用上下文给出的标准日期文本，禁止输出Excel序列号数字。" +
+                "\n10.【终稿输出格式】用户要求终稿时：整合本次会话历史所有轮次用户提出的全部问题与需求（见上下文【用户历史多轮对话提问记录】），" +
+                "一次性输出完整终稿，不再碎片化分段；结构分板块：基础开发信息、供应链情况、报价分析、产能-订单匹配评估、业务员效能分析、风险提示、落地行动计划；" +
+                "数据分析板块每一条结论后面标注数据来源（结构化排产数据 / 业务员绩效数据 / 知识库）；" +
+                "末尾提示：本文档为标准富文本文档，可点击消息右上角导出按钮下载PDF。";
     }
 
     /** 模式A：业务员互动式商品企划模式 prompt */
@@ -1866,8 +1941,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n步骤5·竞争力与机会评分（固定权重）：客户战略价值15%、市场机会15%、历史订单验证15%、产品差异化15%、制造可行性15%、成本利润10%、开发速度5%、渠道适配5%、经营风险5%。" +
                 "分级：>=80优先打样；65-79补证据立项；50-64观察；<50暂不推进；重大风险一票否决。输出机会排序+淘汰理由。" +
                 "\n步骤6·商品企划共创：确认主题、SKU数量、价位、渠道、优先级；输出【商品企划案草案】：3-5个SKU矩阵、产品定义、成本产能、打样计划、客户提案草案。" +
-                "\n步骤7·多轮深化收口：支持选择视觉、成本、竞品、打样、渠道、话术继续迭代；记录人工修正；输出【商品企划案V1.0】并列明未决业务问题。" +
-                "\n推进规则：仅客户/品牌/品类即可启动；首轮必须给出>=5个深化选项；选定分支定向执行；每轮末尾给可选菜单；严禁跳步与一次性终稿。" +
+                "\n步骤7·多轮深化收口：支持选择视觉、成本、竞品、打样、渠道、话术继续迭代；记录人工修正；当用户要求终稿时，整合历史全部轮次需求一次性输出【商品企划案V1.0】（按基础约束第10条终稿格式），列明未决业务问题，末尾提示可导出PDF。" +
+                "\n推进规则：仅客户/品牌/品类即可启动；首轮必须给出>=5个深化选项；选定分支定向执行；每轮末尾给可选菜单；严禁跳步；过程轮次不输出完整终稿，用户明确要求终稿时一次性输出。" +
                 (justSwitched ? "\n【本轮动作】用户刚切换到商品企划模式，请确认模式已激活，输出欢迎语+【企划任务卡】模板，引导用户输入客户名/品牌名/品类。"
                               : "\n【本轮动作】按当前所处步骤推进；若用户仅给了客户/品牌/品类，输出【企划任务卡】并进入步骤2；若用户已选定分支，定向执行该分支并给出下一菜单。");
     }
@@ -1886,11 +1961,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n\n【报告模板（严格按此结构输出）】" +
                 "\n1.【决策问题】：待总经理决策事项" +
                 "\n2.【事实底座】：内部数据、外部环境，标注数据更新时间、缺失字段、整体置信度" +
-                "\n3.【六维判断】：产能｜客户｜外部环境｜研发｜业务员效能｜报价利润分别说明影响" +
+                "\n3.【六维判断】：产能｜客户｜外部环境｜研发｜业务员效能｜报价利润分别说明影响；每维结论后标注数据来源（结构化排产数据 / 客户订单统计 / 业务员绩效数据 / 知识库）；无结构化数据支撑的维度按禁止行为清单处理，不输出该板块并提示缺失" +
                 "\n4.【A/B/C可选方案】：每套含方案简述、预期收益、付出成本、潜在风险、资源占用、方案触发条件" +
                 "\n5.【系统参考建议】：方案优先级及理由；必须标注：⚠️本建议仅参考，最终决策由总经理确认" +
                 "\n6.【执行动作】：建议负责人、完成期限、风险预警条件、复盘节点" +
-                "\n严禁替总经理做最终决策；只输出A/B/C备选方案。" +
+                "\n严禁替总经理做最终决策；只输出A/B/C备选方案；完整报告输出后提示可点击导出按钮下载PDF。" +
                 (justSwitched ? "\n【本轮动作】用户刚切换到总经理决策辅助模式，请确认模式已激活，输出六大分析维度简介，并引导用户提出待决策事项。"
                               : "\n【本轮动作】围绕用户提出的决策议题，严格按报告模板输出；数据缺失项如实列出，不强行下结论。");
     }

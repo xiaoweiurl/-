@@ -15,6 +15,7 @@ import {
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import PdfExportButton from '@/components/PdfExportButton';
 
 // ============ 类型定义 ============
 interface QuotationItem {
@@ -1237,9 +1238,10 @@ export default function SupplyChainPage() {
                             <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
                               ${msg.isThinking ? 'bg-blue-400' : 'bg-blue-500'}`} />
                           )}
-                          {/* 复制按钮 - 仅assistant消息完成时显示 */}
+                          {/* 复制/导出PDF按钮 - 仅assistant消息完成时显示 */}
                           {msg.role === 'assistant' && !msg.isStreaming && msg.content && (
-                            <div className="absolute -right-1 -top-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                            <div className="absolute -right-1 -top-1 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center gap-0.5">
+                              <PdfExportButton content={msg.content} />
                               <CopyButton text={msg.content} />
                             </div>
                           )}
