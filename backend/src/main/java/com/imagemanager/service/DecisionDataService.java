@@ -202,9 +202,12 @@ public class DecisionDataService {
                     "SELECT COUNT(DISTINCT khname) AS customers, COUNT(DISTINCT dh) AS orders FROM "
                             + QUOTATION_TABLE + " WHERE khname IS NOT NULL AND khname <> ''");
 
+            // 均值仅统计可信区间(0,10000)，防止上游脏数据（订单总额/时间戳混入 saleprice）毒化 LLM 回答
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT khname, COUNT(DISTINCT dh) AS order_cnt, AVG(saleprice) AS avg_price, "
-                            + "AVG(xscb) AS avg_cost, AVG(mlr_dp) AS avg_profit, "
+                    "SELECT khname, COUNT(DISTINCT dh) AS order_cnt, "
+                            + "AVG(saleprice) FILTER (WHERE saleprice > 0 AND saleprice < 10000) AS avg_price, "
+                            + "AVG(xscb) FILTER (WHERE xscb > 0 AND xscb < 10000) AS avg_cost, "
+                            + "AVG(mlr_dp) FILTER (WHERE mlr_dp > -10000 AND mlr_dp < 10000) AS avg_profit, "
                             + "MAX(zhdate) AS last_date, MIN(zhdate) AS first_date "
                             + "FROM " + QUOTATION_TABLE + " WHERE khname IS NOT NULL AND khname <> '' "
                             + "GROUP BY khname ORDER BY order_cnt DESC LIMIT 30");

@@ -428,7 +428,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             List<Map<String, Object>> rows = quotationCalcService.queryByKhnameAll(customer);
                             // 循环外批量预取工艺单缝拼克重（一次 IN 查询，消除逐行查库的 N+1）
                             Map<String, BigDecimal> fpkzBatch = quotationCalcService.batchLookupProcessSewingWeights(
-                                    rows.stream().map(r -> String.valueOf(r.getOrDefault("huohao", ""))).toList());
+                                    rows.stream().map(qrow -> String.valueOf(qrow.getOrDefault("huohao", ""))).toList());
                             List<Map<String, Object>> orders = new ArrayList<>();
                             for (Map<String, Object> row : rows) {
                                 Map<String, Object> o = new LinkedHashMap<>();
@@ -2040,7 +2040,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 循环外批量预取工艺单缝拼克重（一次 IN 查询，消除逐行查库的 N+1）
             Map<String, BigDecimal> fpkzBatch = quotationCalcService.batchLookupProcessSewingWeights(
                     rows.stream().limit(detailLimit)
-                            .map(r -> String.valueOf(r.getOrDefault("huohao", ""))).toList());
+                            .map(qrow -> String.valueOf(qrow.getOrDefault("huohao", ""))).toList());
             int idx = 0;
             for (Map<String, Object> row : rows) {
                 if (idx++ >= detailLimit) break;
