@@ -93,7 +93,7 @@ function safeFilename(name: string): string {
 }
 
 /**
- * PDF 导出按钮：将 Markdown 富文本渲染为浅色打印版式，用 html2pdf.js 导出 A4 PDF。
+ * PDF 导出按钮：将 Markdown 富文本渲染为浅色打印版式，通过隐藏 iframe + 浏览器原生打印导出 A4 PDF。
  * 屏外渲染（left:-12000px），不干扰页面；完成后自动清理 DOM。
  */
 export default function PdfExportButton({ content, title, className = '' }: PdfExportButtonProps) {
@@ -102,22 +102,20 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
   const handleExport = async () => {
     if (exporting || !content) return;
     setExporting(true);
-    // 屏外渲染 + onclone 归位：html2canvas 画布从(0,0)开始，负偏移元素会落在画布外输出空白页，
-    // 因此在克隆文档中把容器移回可视位置（原页面不受影响，用户无感知）
-    const hostId = `pdf-export-host-${Date.now()}`;
+    // 方案：屏外 React 渲染 → 取 HTML 注入隐藏 iframe → 浏览器原生打印（另存为PDF）。
+    // 弃用 html2canvas 截图：全局 Tailwind4 oklch 样式表 + 超长内容 canvas 高度限制
+    // 会导致空白输出；原生打印为真文本（可选中/搜索），无页数与画布限制，最可靠。
     const host = document.createElement('div');
-    host.id = hostId;
     host.style.cssText = 'position:fixed;left:-12000px;top:0;width:760px;background:#ffffff;z-index:-1;';
     document.body.appendChild(host);
     let root: ReturnType<typeof createRoot> | null = null;
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
       const docTitle = (title || extractTitle(content)).trim();
       const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 
       root = createRoot(host);
       root.render(
-        <div style={{ padding: '36px 40px', background: '#ffffff', color: '#1e293b', fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif' }}>
+        <div style={{ padding: '0', background: '#ffffff', color: '#1e293b', fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif' }}>
           {/* 文档头 */}
           <div style={{ borderBottom: '3px solid #2563eb', paddingBottom: '14px', marginBottom: '20px' }}>
             <div style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>{docTitle}</div>
@@ -135,43 +133,57 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
           </div>
         </div>
       );
-      // 等待 React 渲染与字体/表格布局稳定
+      // 等待 React 渲染完成
       await new Promise(r => setTimeout(r, 400));
 
-      // 渲染结果非空校验：React 渲染失败时直接报错，不产出空白PDF
-      if (!host.textContent || host.textContent.trim().length === 0) {
+      const bodyHtml = host.innerHTML;
+      if (!bodyHtml || host.textContent?.trim().length === 0) {
         throw new Error('PDF 内容渲染为空，请重试');
       }
 
-      await html2pdf()
-        .set({
-          margin: [10, 10, 12, 10],
-          filename: `${safeFilename(docTitle)}.pdf`,
-          image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-            // 关键：克隆文档中把屏外容器移回(0,0)，否则内容落在画布外，输出空白页
-            onclone: (doc: Document) => {
-              const el = doc.getElementById(hostId);
-              if (el) {
-                el.style.position = 'absolute';
-                el.style.left = '0';
-                el.style.top = '0';
-                el.style.zIndex = 'auto';
-              }
-            },
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: ['css', 'legacy'] },
-        })
-        .from(host)
-        .save();
+      // 隐藏 iframe 承载打印文档（title 即为浏览器默认 PDF 文件名）
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+      document.body.appendChild(iframe);
+      const win = iframe.contentWindow;
+      if (!win) throw new Error('打印环境初始化失败');
+      const doc = win.document;
+      doc.open();
+      doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${safeFilename(docTitle)}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #1e293b; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+</style></head><body>${bodyHtml}</body></html>`);
+      doc.close();
+
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        try { root?.unmount(); } catch { /* ignore */ }
+        host.remove();
+        iframe.remove();
+        setExporting(false);
+      };
+      win.onafterprint = cleanup;
+      setTimeout(cleanup, 10 * 60 * 1000); // 兜底：用户长时间未关闭对话框也最终清理
+      // 等待 iframe 内样式/布局就绪后唤起打印对话框（目标选"另存为 PDF"即可下载）
+      setTimeout(() => {
+        try {
+          win.focus();
+          win.print();
+        } catch (e) {
+          console.error('唤起打印失败:', e);
+          cleanup();
+        }
+      }, 150);
     } catch (e) {
       console.error('PDF 导出失败:', e);
-    } finally {
       try { root?.unmount(); } catch { /* ignore */ }
       host.remove();
       setExporting(false);
@@ -183,7 +195,7 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
       onClick={handleExport}
       disabled={exporting}
       className={`p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-all disabled:opacity-50 ${className}`}
-      title="导出 PDF"
+      title="导出 PDF（打印对话框中选择'另存为 PDF'）"
     >
       {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
     </button>
