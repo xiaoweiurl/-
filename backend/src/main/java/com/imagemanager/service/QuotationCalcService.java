@@ -7,9 +7,14 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 报价单计算服务（确定性计算引擎）
@@ -200,7 +205,12 @@ public class QuotationCalcService {
         BigDecimal rawTotal = get(ex, "rawTotal"); // 原料合计BOM(外部)
         BigDecimal auxTotal = get(ex, "auxTotal"); // 辅料合计BOM(外部)
 
-        // 缝拼克重兜底：行内无 fpkz 时按货号查工艺单 pfkz（order_sw_gongyidan，V45 权威工艺基准）
+        // 缝拼克重批量预取兜底（调用方循环外一次 IN 查询后注入 fpkzFallback，消除 N+1 逐行查库）
+        if (fpkz.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal prefetched = get(ex, "fpkzFallback");
+            if (prefetched.compareTo(BigDecimal.ZERO) != 0) fpkz = prefetched;
+        }
+        // 缝拼克重单行兜底：仍无 fpkz 时按货号查工艺单 pfkz（order_sw_gongyidan，V45 权威工艺基准）
         if (fpkz.compareTo(BigDecimal.ZERO) == 0) {
             BigDecimal fromProcess = lookupProcessSewingWeight(row);
             if (fromProcess.compareTo(BigDecimal.ZERO) != 0) fpkz = fromProcess;
@@ -291,6 +301,47 @@ public class QuotationCalcService {
         } catch (Exception e) {
             log.debug("工艺单缝拼克重兜底查询失败: {}", e.getMessage());
             return BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * 批量查询工艺单缝拼克重（消除循环内逐行查库的 N+1 问题）
+     * 调用方在循环外一次性传入全部货号，循环内通过 extra.put("fpkzFallback", 值) 注入。
+     * 取数优先级保持不变：外部 fpkz > 表内 fpkz 列 > 本批量结果 > 单行兜底查询。
+     *
+     * @param huohaos 生产货号集合（去重、去空，最多取 500 个防 IN 过大）
+     * @return huohao -> pfkz 映射；查询失败返回空 Map（不影响主流程）
+     */
+    public Map<String, BigDecimal> batchLookupProcessSewingWeights(Collection<String> huohaos) {
+        if (huohaos == null || huohaos.isEmpty()) return Collections.emptyMap();
+        try {
+            List<String> codes = huohaos.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .limit(500)
+                    .collect(Collectors.toList());
+            if (codes.isEmpty()) return Collections.emptyMap();
+            String inClause = codes.stream().map(c -> "?").collect(Collectors.joining(","));
+            // 同一货号可能有多版本工艺单，取最大 pfkz（正值过滤后 MAX 稳定可重现）
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT huohao, MAX(pfkz) AS pfkz FROM order_sw_gongyidan "
+                            + "WHERE huohao IN (" + inClause + ") AND pfkz IS NOT NULL AND pfkz > 0 "
+                            + "GROUP BY huohao",
+                    codes.toArray());
+            Map<String, BigDecimal> result = new HashMap<>();
+            for (Map<String, Object> r : rows) {
+                Object hh = r.get("huohao");
+                Object pfkz = r.get("pfkz");
+                if (hh != null && pfkz != null) {
+                    result.put(hh.toString(), new BigDecimal(pfkz.toString()));
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.debug("批量工艺单缝拼克重查询失败: {}", e.getMessage());
+            return Collections.emptyMap();
         }
     }
 

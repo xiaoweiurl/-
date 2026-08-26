@@ -426,6 +426,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                         if (statData != null && quotationCalcService != null) {
                             String customer = String.valueOf(statData.getOrDefault("客户名称", ""));
                             List<Map<String, Object>> rows = quotationCalcService.queryByKhnameAll(customer);
+                            // 循环外批量预取工艺单缝拼克重（一次 IN 查询，消除逐行查库的 N+1）
+                            Map<String, BigDecimal> fpkzBatch = quotationCalcService.batchLookupProcessSewingWeights(
+                                    rows.stream().map(r -> String.valueOf(r.getOrDefault("huohao", ""))).toList());
                             List<Map<String, Object>> orders = new ArrayList<>();
                             for (Map<String, Object> row : rows) {
                                 Map<String, Object> o = new LinkedHashMap<>();
@@ -441,7 +444,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 o.put("ykgj", row.get("ykgj"));
                                 o.put("qjprice", row.get("qjprice"));
                                 try {
-                                    Map<String, BigDecimal> calc = quotationCalcService.calculate(row, new HashMap<>());
+                                    Map<String, BigDecimal> extra = new HashMap<>();
+                                    BigDecimal prefetched = fpkzBatch.get(String.valueOf(row.getOrDefault("huohao", "")));
+                                    if (prefetched != null) extra.put("fpkzFallback", prefetched);
+                                    Map<String, BigDecimal> calc = quotationCalcService.calculate(row, extra);
                                     o.put("rcl", calc.get("rcl_日产量"));
                                     o.put("zzcb", calc.get("zzcb_织造成本"));
                                     o.put("rs", calc.get("染色成本"));
@@ -2031,10 +2037,17 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             // 明细条目最多5条，避免上下文过大；统计问题靠上面的聚合条目回答
             int detailLimit = (matchedCustomer != null) ? 5 : rows.size();
+            // 循环外批量预取工艺单缝拼克重（一次 IN 查询，消除逐行查库的 N+1）
+            Map<String, BigDecimal> fpkzBatch = quotationCalcService.batchLookupProcessSewingWeights(
+                    rows.stream().limit(detailLimit)
+                            .map(r -> String.valueOf(r.getOrDefault("huohao", ""))).toList());
             int idx = 0;
             for (Map<String, Object> row : rows) {
                 if (idx++ >= detailLimit) break;
-                Map<String, BigDecimal> calc = quotationCalcService.calculate(row, new HashMap<>());
+                Map<String, BigDecimal> extra = new HashMap<>();
+                BigDecimal prefetched = fpkzBatch.get(String.valueOf(row.getOrDefault("huohao", "")));
+                if (prefetched != null) extra.put("fpkzFallback", prefetched);
+                Map<String, BigDecimal> calc = quotationCalcService.calculate(row, extra);
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("报价单号", row.get("dh"));
                 data.put("客户名称", row.get("khname"));

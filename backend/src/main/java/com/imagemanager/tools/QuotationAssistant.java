@@ -36,6 +36,27 @@ public interface QuotationAssistant {
             pfkz=缝拼克重(报价fpkz权威数据源), cpkz=成品克重, zcl=制成率, jix=机型, zs=针数,
             djcl=理论产量, hhywy=业务员, qd_dys=前道打样师, hd_dys=后道打样师
 
+            【关联视图（V46，跨表数据已拉通，直接查视图优于手写JOIN）】
+            v_product_genealogy=货号谱系(报价+工艺单+订单需求+排产): huohao=生产货号(统一关联键),
+              khname=最近报价客户, last_quotation_dh=最近报价单号, last_saleprice=最近售价, last_sales_cost=最近销售成本,
+              process_sewing_weight=工艺缝拼克重, process_seconds=工艺下机秒数, process_theory_output=理论产量,
+              process_machine_type=工艺机型, process_needles=针数,
+              sales_order_cnt=真实订单数, sales_total_qty=订单数量合计, latest_delivery=最晚交期,
+              plan_machine_type=排产机型, plan_machine_count=投入机台数, plan_output=单机日产量
+            v_customer_360=客户360(报价+成交): khname=客户名称(统一关联键),
+              quotation_cnt=报价单号数, avg_saleprice=平均售价, avg_sales_cost=平均销售成本, avg_unit_profit=平均单品毛利,
+              last_quote_date=最近报价, sales_order_cnt=成交订单数, sales_total_qty=成交数量合计,
+              last_order_date=最近下单, latest_delivery=最晚交期, salespersons=跟进业务员
+            v_material_price=原料价格(采购+入库): material_code=原料编码(统一关联键),
+              supplier_count=供应商数, min_price=采购最低价, max_price=最高价, avg_price=均价, warehouse_price=入库参考价
+
+            【同义字段映射（跨表查询时必须先对齐字段名）】
+            货号: order_bjd_query.huohao = order_xs_list.detailhuohao = order_sw_gongyidan.huohao = production_plan.product_code
+            客户: order_bjd_query.khname = order_xs_list.khname
+            机型: order_bjd_query.zzsb = order_sw_gongyidan.jix = production_plan.machine_type
+            下机时间: order_bjd_query.zhis = order_sw_gongyidan.xjsl = production_plan.seconds
+            缝拼克重: order_bjd_query.fpkz = order_sw_gongyidan.pfkz = production_plan.sewing_weight
+
             【计算公式】
             日产量=24*3600/下机时间*利用率; 织造成本=机台费/日产量;
             染色成本=优先取表内rsprice存储值, 无存储值时=缝拼克重fpkz*染色单价rsdj
