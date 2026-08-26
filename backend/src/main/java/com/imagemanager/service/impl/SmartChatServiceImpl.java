@@ -435,6 +435,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 o.put("sbdj", row.get("sbdj"));
                                 o.put("lyl", row.get("lyl"));
                                 o.put("zpl", row.get("zpl"));
+                                // 上游新增字段：缝拼克重/染色单价/腰口工价/全检工价（原始值透传）
+                                o.put("fpkz", row.get("fpkz"));
+                                o.put("rsdj", row.get("rsdj"));
+                                o.put("ykgj", row.get("ykgj"));
+                                o.put("qjprice", row.get("qjprice"));
                                 try {
                                     Map<String, BigDecimal> calc = quotationCalcService.calculate(row, new HashMap<>());
                                     o.put("rcl", calc.get("rcl_日产量"));
@@ -2042,6 +2047,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                 data.put("原料利用率", row.get("yllyl"));
                 data.put("辅料利用率", row.get("fllyl"));
                 data.put("运费", row.get("yunfei"));
+                // 上游新增字段（染色/缝拼/腰口/全检，作为核算输入项展示）
+                data.put("缝拼克重", row.get("fpkz"));
+                data.put("染色单价", row.get("rsdj"));
+                data.put("染色成本(表内)", row.get("rsprice"));
+                data.put("腰口工价", row.get("ykgj"));
+                data.put("全检工价", row.get("qjprice"));
                 data.putAll(calc);
                 Map<String, Object> r = new LinkedHashMap<>();
                 r.put("type", "报价单计算");

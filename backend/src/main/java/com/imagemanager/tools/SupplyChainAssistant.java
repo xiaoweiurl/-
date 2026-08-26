@@ -48,7 +48,7 @@ public interface SupplyChainAssistant {
             - queryQuotationByDh(报价单号)：按报价单号精确查询报价单
             - queryQuotationByCustomer(客户名称)：按客户模糊查询报价单
             - queryQuotationByHuohao(货号)：按生产/成品货号模糊查询
-            - calculateQuotation(报价单号)：查询报价单并按公式自动计算日产量/织造成本/前道合计/后道合计/净成本/税金/销售成本等全部指标
+            - calculateQuotation(报价单号)：查询报价单并按公式自动计算日产量/织造成本/染色成本/腰口工价/全检工价/前道合计/后道合计/净成本/税金/销售成本等全部指标
             当用户问"报价单、净成本、销售成本、利润、某客户/某货号的报价"时，优先调用这些工具，
             计算结果由系统用确定性代码得出，直接引用即可，不要自己手算。
 

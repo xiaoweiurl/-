@@ -75,6 +75,8 @@ interface QuotationOrderRow {
   dh: string; chima?: string; huohao?: string;
   sbdj?: number | string; lyl?: number | string; zpl?: number | string;
   rcl?: number | string; zzcb?: number | string; rs?: number | string;
+  ykgj?: number | string; qjprice?: number | string;
+  fpkz?: number | string; rsdj?: number | string;
   yl?: number | string; qd?: number | string; fl?: number | string; hd?: number | string;
   jcb?: number | string; shuijin?: number | string; shuijinSg?: number | string; xscb?: number | string;
 }
@@ -1134,17 +1136,19 @@ export default function SupplyChainPage() {
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">共 {msg.quotationList.total} 个</span>
                             </div>
                             <div className="max-h-96 overflow-auto rounded-lg border border-slate-700/60">
-                              <table className="w-full min-w-[1100px] text-[11px]">
+                              <table className="w-full min-w-[1200px] text-[11px]">
                                 <thead className="sticky top-0 bg-slate-800 text-slate-300">
                                   <tr>
                                     <th className="px-2 py-1.5 text-left font-medium">报价单号</th>
                                     <th className="px-2 py-1.5 text-left font-medium">尺码</th>
                                     <th className="px-2 py-1.5 text-right font-medium">日产量</th>
                                     <th className="px-2 py-1.5 text-right font-medium">织造成本</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">腰口工价</th>
                                     <th className="px-2 py-1.5 text-right font-medium">染色成本</th>
                                     <th className="px-2 py-1.5 text-right font-medium">原料金额</th>
                                     <th className="px-2 py-1.5 text-right font-medium">前道合计</th>
                                     <th className="px-2 py-1.5 text-right font-medium">辅料金额</th>
+                                    <th className="px-2 py-1.5 text-right font-medium">全检工价</th>
                                     <th className="px-2 py-1.5 text-right font-medium">后道合计</th>
                                     <th className="px-2 py-1.5 text-right font-medium">净成本</th>
                                     <th className="px-2 py-1.5 text-right font-medium">理论税金</th>
@@ -1159,10 +1163,12 @@ export default function SupplyChainPage() {
                                       <td className="px-2 py-1 text-slate-300">{o.chima ?? '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.rcl != null ? Number(o.rcl).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.zzcb != null ? Number(o.zzcb).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.ykgj != null ? Number(o.ykgj).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.rs != null ? Number(o.rs).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.yl != null ? Number(o.yl).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.qd != null ? Number(o.qd).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.fl != null ? Number(o.fl).toFixed(2) : '-'}</td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-300">{o.qjprice != null ? Number(o.qjprice).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-slate-300">{o.hd != null ? Number(o.hd).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-red-300">{o.jcb != null ? Number(o.jcb).toFixed(2) : '-'}</td>
                                       <td className="px-2 py-1 text-right font-mono text-amber-300">{o.shuijin != null ? Number(o.shuijin).toFixed(2) : '-'}</td>

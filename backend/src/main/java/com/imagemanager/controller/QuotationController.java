@@ -54,7 +54,8 @@ public class QuotationController {
     /**
      * 确定性核算（不经过大模型）
      * body: {"dh": "BJ2024001", "fpkz": 0.25, "rsdj": 8, "rawTotal": 12.5, "auxTotal": 3.2}
-     * 其中 fpkz/rsdj/rawTotal/auxTotal 为可选外部输入（表中没有的 BOM/染色参数）
+     * 其中 fpkz/rsdj 为可选外部覆盖输入（优先于表内列 fpkz/rsdj）；rawTotal/auxTotal 为 BOM 合计外部输入。
+     * 表内新列：fpkz=缝拼克重, rsdj=染色单价, rsprice=染色成本(存储值优先), qjprice=全检工价, ykgj=腰口工价
      */
     @PostMapping("/calculate")
     public ApiResponse<Map<String, BigDecimal>> calculate(@RequestBody Map<String, Object> body) {

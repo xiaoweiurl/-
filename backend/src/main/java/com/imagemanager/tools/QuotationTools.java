@@ -85,7 +85,7 @@ public class QuotationTools {
         return "客户 " + customer + " 共 " + dhs.size() + " 单: " + String.join(", ", dhs);
     }
 
-    @Tool("按报价单号(dh)查询并用后端公式引擎计算全部派生指标(日产量/织造成本/原料金额/前道合计/后道合计/净成本/税金/销售成本)。当用户要求计算、核算、验证某单的成本或报价时使用。")
+    @Tool("按报价单号(dh)查询并用后端公式引擎计算全部派生指标(日产量/织造成本/染色成本/腰口工价/全检工价/原料金额/前道合计/后道合计/净成本/税金/销售成本)。当用户要求计算、核算、验证某单的成本或报价时使用。")
     public String calculateByDh(String dh) {
         List<Map<String, Object>> rows = calcService.queryByDh(dh);
         if (rows.isEmpty()) {
@@ -104,7 +104,8 @@ public class QuotationTools {
     private String formatRows(List<Map<String, Object>> rows) {
         if (rows.isEmpty()) return "未查询到数据";
         String[] cols = {"dh", "khname", "huohao", "houhaocp", "chima", "zpl", "jcb", "yunfei",
-                "xscb", "saleprice", "countprice", "hdprice", "sumprice", "flsum", "zzcb", "rcl"};
+                "xscb", "saleprice", "countprice", "hdprice", "sumprice", "flsum", "zzcb", "rcl",
+                "rsdj", "fpkz", "rsprice", "qjprice", "ykgj"};
         StringBuilder sb = new StringBuilder();
         sb.append("共 ").append(rows.size()).append(" 条:\n");
         int n = 0;

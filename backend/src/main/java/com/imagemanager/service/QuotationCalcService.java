@@ -23,12 +23,12 @@ import java.util.Map;
  * 计算公式（与业务方确认）：
  * 日产量 rcl      = 24*3600/下机时间 * 利用率
  * 织造成本 zzcb   = 机台费/日产量
- * 染色成本        = 缝拼克重*染色单价（外部输入，可选）
+ * 染色成本        = 表内存储值 rsprice 优先；否则 = 缝拼克重 fpkz × 染色单价 rsdj（两者现为表内列，外部输入可覆盖）
  * 原料金额 sumprice = 原料合计*(1-原料利用率+1)，原料合计为BOM明细合计（外部输入，缺省用表内 sumprice）
- * 前道合计 countprice = 织造成本+前道管理费用+染色成本+定型+其他工价+原料金额+缝制工价
+ * 前道合计 countprice = 织造成本+前道管理费用+染色成本+定型+其他工价+原料金额+缝制工价+腰口工价
  * 辅料金额 flsum  = 辅料合计*(1-辅料利用率+1)，辅料合计为BOM明细合计（外部输入，缺省用表内 flsum）
- * 后道合计 hdprice = 包装+后道管理费用+辅料金额
- * 净成本 jcb      = (织造成本+染色成本+定型+其他工价+原料金额+缝制工价+包装)*(1-正品率+1)+辅料金额+前道管理费用+后道管理费用
+ * 后道合计 hdprice = 包装+后道管理费用+辅料金额+全检工价
+ * 净成本 jcb      = (织造成本+染色成本+定型+其他工价+原料金额+缝制工价+腰口工价+全检工价+包装)*(1-正品率+1)+辅料金额+前道管理费用+后道管理费用
  * 理论税金 shuijin = 净成本*0.08
  * 实际税金 shuijin_sg = 默认理论税金（可修改）
  * 销售成本 xscb   = 净成本+运费+实际税金
@@ -164,7 +164,9 @@ public class QuotationCalcService {
     /**
      * 基于一行数据计算全部派生指标
      * @param row 表行数据（key 为列名）
-     * @param extra 可选外部输入：fpkz(缝拼克重) rsdj(染色单价) rawTotal(原料合计) auxTotal(辅料合计)
+     * @param extra 可选外部输入（优先于表内列）：fpkz(缝拼克重) rsdj(染色单价) rawTotal(原料合计) auxTotal(辅料合计)
+     *              表内新列（上游实体新增）：fpkz 缝拼克重 / rsdj 染色单价 / rsprice 染色成本(存储值优先) /
+     *              qjprice 全检工价 / ykgj 腰口工价 / qdzs,hdzs 规格文本(不参与计算)
      * @return 计算结果（有序 Map，含中间量与最终指标）
      */
     public Map<String, BigDecimal> calculate(Map<String, Object> row, Map<String, BigDecimal> extra) {
@@ -187,8 +189,14 @@ public class QuotationCalcService {
         BigDecimal zpl = get(in, "zpl");          // 正品率
         BigDecimal yunfei = get(in, "yunfei");    // 运费
 
-        BigDecimal fpkz = get(ex, "fpkz");        // 缝拼克重(外部)
-        BigDecimal rsdj = get(ex, "rsdj");        // 染色单价(外部)
+        // 新增表内列（上游 C# 实体新增）：外部 extra 输入优先，缺省回退表内列
+        BigDecimal fpkzRow = get(in, "fpkz");        // 缝拼克重(表内列)
+        BigDecimal rsdjRow = get(in, "rsdj");        // 染色单价(表内列)
+        BigDecimal rspriceRow = get(in, "rsprice");  // 染色成本(表内列，上游已算好)
+        BigDecimal qjprice = get(in, "qjprice");     // 全检工价(表内列)
+        BigDecimal ykgj = get(in, "ykgj");           // 腰口工价(表内列)
+        BigDecimal fpkz = ex.containsKey("fpkz") ? get(ex, "fpkz") : fpkzRow;  // 缝拼克重
+        BigDecimal rsdj = ex.containsKey("rsdj") ? get(ex, "rsdj") : rsdjRow;  // 染色单价
         BigDecimal rawTotal = get(ex, "rawTotal"); // 原料合计BOM(外部)
         BigDecimal auxTotal = get(ex, "auxTotal"); // 辅料合计BOM(外部)
 
@@ -205,9 +213,12 @@ public class QuotationCalcService {
         BigDecimal zzcb = rcl.compareTo(BigDecimal.ZERO) != 0 ? div(sbdj, rcl) : BigDecimal.ZERO;
         r.put("zzcb_织造成本", zzcb);
 
-        // 染色成本 = 缝拼克重*染色单价
-        BigDecimal dyeCost = mul(fpkz, rsdj);
+        // 染色成本 = 表内存储值 rsprice 优先；无存储值时 = 缝拼克重*染色单价
+        BigDecimal dyeCost = rspriceRow.compareTo(BigDecimal.ZERO) != 0
+                ? rspriceRow : mul(fpkz, rsdj);
         r.put("染色成本", dyeCost);
+        r.put("ykgj_腰口工价", ykgj);
+        r.put("qjprice_全检", qjprice);
 
         // 原料金额 = 原料合计*(1-原料利用率+1)，无BOM合计则用表内值
         BigDecimal rawAmount = rawTotal.compareTo(BigDecimal.ZERO) != 0
@@ -219,16 +230,16 @@ public class QuotationCalcService {
                 ? mul(auxTotal, factor(fllyl)) : flsumStored;
         r.put("flsum_辅料金额", auxAmount);
 
-        // 前道合计 = 织造成本+前道管理费用+染色成本+定型+其他工价+原料金额+缝制工价
-        BigDecimal countprice = sum(zzcb, qdglf, dyeCost, dxprice, otherprice, rawAmount, fpprice);
+        // 前道合计 = 织造成本+前道管理费用+染色成本+定型+其他工价+原料金额+缝制工价+腰口工价
+        BigDecimal countprice = sum(zzcb, qdglf, dyeCost, dxprice, otherprice, rawAmount, fpprice, ykgj);
         r.put("countprice_前道合计", countprice);
 
-        // 后道合计 = 包装+后道管理费用+辅料金额
-        BigDecimal hdprice = sum(bzprice, hdglf, auxAmount);
+        // 后道合计 = 包装+后道管理费用+辅料金额+全检工价
+        BigDecimal hdprice = sum(bzprice, hdglf, auxAmount, qjprice);
         r.put("hdprice_后道合计", hdprice);
 
-        // 净成本 = (织造成本+染色成本+定型+其他工价+原料金额+缝制工价+包装)*(1-正品率+1)+辅料金额+前道管理费用+后道管理费用
-        BigDecimal base = sum(zzcb, dyeCost, dxprice, otherprice, rawAmount, fpprice, bzprice);
+        // 净成本 = (织造成本+染色成本+定型+其他工价+原料金额+缝制工价+腰口工价+全检工价+包装)*(1-正品率+1)+辅料金额+前道管理费用+后道管理费用
+        BigDecimal base = sum(zzcb, dyeCost, dxprice, otherprice, rawAmount, fpprice, bzprice, ykgj, qjprice);
         BigDecimal jcb = add(mul(base, factor(zpl)), sum(auxAmount, qdglf, hdglf));
         r.put("jcb_净成本", jcb);
 
