@@ -102,7 +102,11 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
   const handleExport = async () => {
     if (exporting || !content) return;
     setExporting(true);
+    // 屏外渲染 + onclone 归位：html2canvas 画布从(0,0)开始，负偏移元素会落在画布外输出空白页，
+    // 因此在克隆文档中把容器移回可视位置（原页面不受影响，用户无感知）
+    const hostId = `pdf-export-host-${Date.now()}`;
     const host = document.createElement('div');
+    host.id = hostId;
     host.style.cssText = 'position:fixed;left:-12000px;top:0;width:760px;background:#ffffff;z-index:-1;';
     document.body.appendChild(host);
     let root: ReturnType<typeof createRoot> | null = null;
@@ -134,12 +138,32 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
       // 等待 React 渲染与字体/表格布局稳定
       await new Promise(r => setTimeout(r, 400));
 
+      // 渲染结果非空校验：React 渲染失败时直接报错，不产出空白PDF
+      if (!host.textContent || host.textContent.trim().length === 0) {
+        throw new Error('PDF 内容渲染为空，请重试');
+      }
+
       await html2pdf()
         .set({
           margin: [10, 10, 12, 10],
           filename: `${safeFilename(docTitle)}.pdf`,
           image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            // 关键：克隆文档中把屏外容器移回(0,0)，否则内容落在画布外，输出空白页
+            onclone: (doc: Document) => {
+              const el = doc.getElementById(hostId);
+              if (el) {
+                el.style.position = 'absolute';
+                el.style.left = '0';
+                el.style.top = '0';
+                el.style.zIndex = 'auto';
+              }
+            },
+          },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak: { mode: ['css', 'legacy'] },
         })
