@@ -34,6 +34,9 @@ interface QuotationItem {
 interface WarehouseItem {
   id: number; productCode: string; color: string; batchNo: string;
   unit: string; unitPrice: number;
+  huohao?: string; size?: string; component?: string; supplier?: string; materialName?: string;
+  specification?: string; materialColor?: string; twistDirection?: string;
+  usagePerUnit?: number; lossRate?: number; remark?: string;
 }
 
 interface PurchaseItem {
@@ -884,11 +887,22 @@ export default function SupplyChainPage() {
         apiType = 'warehouse';
         data = warehouse;
         columns = [
+          { key: 'huohao', label: '货号' },
           { key: 'productCode', label: '原料编码' },
           { key: 'color', label: '颜色' },
-          { key: 'batchNo', label: '批次号' },
+          { key: 'size', label: '尺码' },
+          { key: 'component', label: '部件' },
+          { key: 'supplier', label: '供应商' },
+          { key: 'materialName', label: '物料名称' },
+          { key: 'specification', label: '规格' },
+          { key: 'materialColor', label: '物料颜色' },
+          { key: 'batchNo', label: '批号' },
+          { key: 'twistDirection', label: '捻向' },
           { key: 'unit', label: '单位' },
+          { key: 'usagePerUnit', label: '单件用量', align: 'right', format: formatMoney },
+          { key: 'lossRate', label: '损耗(%)', align: 'right', format: formatMoney },
           { key: 'unitPrice', label: '单价', align: 'right', format: formatMoneyShort },
+          { key: 'remark', label: '备注' },
         ];
         break;
       case 'purchase':

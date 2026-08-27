@@ -36,6 +36,13 @@ public interface QuotationAssistant {
             pfkz=缝拼克重(报价fpkz权威数据源), cpkz=成品克重, zcl=制成率, jix=机型, zs=针数,
             djcl=理论产量, hhywy=业务员, qd_dys=前道打样师, hd_dys=后道打样师
 
+            【关联表 raw_material_warehouse（原料入库表，字段=含义，BOM级库存台账）】
+            huohao=生产货号(关联order_bjd_query.huohao), color=颜色, size=尺码, component=部件(如裤身/腰口/缝线),
+            supplier=供应商, material_name=物料名称, specification=规格(如77D/24F), material_color=物料颜色,
+            batch_no=批号, twist_direction=捻向, unit=单位, usage_per_unit=单件用量, loss_rate=损耗率(%),
+            unit_price=单价, company=公司, remark=备注
+            用途: 按货号查BOM构成(哪些部件用哪种料/用量/损耗), 与raw_material_purchase按物料名+供应商联动算采购成本
+
             【关联视图（V46，跨表数据已拉通，直接查视图优于手写JOIN）】
             v_product_genealogy=货号谱系(报价+工艺单+订单需求+排产): huohao=生产货号(统一关联键),
               khname=最近报价客户, last_quotation_dh=最近报价单号, last_saleprice=最近售价, last_sales_cost=最近销售成本,

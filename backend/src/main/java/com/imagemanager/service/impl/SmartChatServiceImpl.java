@@ -2634,32 +2634,50 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (keywords.isEmpty()) return;
 
             StringBuilder sql = new StringBuilder();
-            sql.append("SELECT product_code, color, batch_no, unit, unit_price FROM raw_material_warehouse WHERE ");
+            sql.append("SELECT huohao, color, size, component, supplier, material_name, specification, " +
+                "material_color, product_code, batch_no, twist_direction, unit, usage_per_unit, " +
+                "loss_rate, unit_price, remark FROM raw_material_warehouse WHERE ");
             List<Object> params = new ArrayList<>();
             for (int i = 0; i < keywords.size(); i++) {
                 if (i > 0) sql.append(" OR ");
-                sql.append("(COALESCE(product_code, '') ILIKE ? OR COALESCE(batch_no, '') ILIKE ?)");
+                sql.append("(COALESCE(product_code, '') ILIKE ? OR COALESCE(huohao, '') ILIKE ? " +
+                    "OR COALESCE(material_name, '') ILIKE ? OR COALESCE(supplier, '') ILIKE ? " +
+                    "OR COALESCE(batch_no, '') ILIKE ?)");
                 String pattern = "%" + keywords.get(i) + "%";
                 params.add(pattern);
                 params.add(pattern);
+                params.add(pattern);
+                params.add(pattern);
+                params.add(pattern);
             }
-            sql.append(" LIMIT 20");
+            sql.append(" ORDER BY huohao NULLS LAST, product_code LIMIT 20");
 
             List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("productCode", rs.getString("product_code"));
+                    row.put("huohao", rs.getString("huohao"));
                     row.put("color", rs.getString("color"));
+                    row.put("size", rs.getString("size"));
+                    row.put("component", rs.getString("component"));
+                    row.put("supplier", rs.getString("supplier"));
+                    row.put("materialName", rs.getString("material_name"));
+                    row.put("specification", rs.getString("specification"));
+                    row.put("materialColor", rs.getString("material_color"));
+                    row.put("productCode", rs.getString("product_code"));
                     row.put("batchNo", rs.getString("batch_no"));
+                    row.put("twistDirection", rs.getString("twist_direction"));
                     row.put("unit", rs.getString("unit"));
+                    row.put("usagePerUnit", rs.getBigDecimal("usage_per_unit"));
+                    row.put("lossRate", rs.getBigDecimal("loss_rate"));
                     row.put("unitPrice", rs.getBigDecimal("unit_price"));
+                    row.put("remark", rs.getString("remark"));
                     return row;
                 }, params.toArray());
 
             if (!rows.isEmpty()) {
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("type", "原料入库");
-                result.put("summary", "找到 " + rows.size() + " 条原料入库记录");
+                result.put("summary", "找到 " + rows.size() + " 条原料入库/用料BOM记录（含货号/部件/物料/单件用量/损耗）");
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("count", rows.size());
                 data.put("items", rows);

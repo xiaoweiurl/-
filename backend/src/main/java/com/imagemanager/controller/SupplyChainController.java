@@ -139,10 +139,20 @@ public class SupplyChainController {
 
         Specification<RawMaterialWarehouse> spec = Specification.where(null);
         if (keyword != null && !keyword.isEmpty()) {
+            String kw = "%" + keyword.toLowerCase() + "%";
             spec = spec.and((root, query, cb) -> cb.or(
-                cb.like(cb.lower(root.get("productCode")), "%" + keyword.toLowerCase() + "%"),
-                cb.like(cb.lower(root.get("batchNo")), "%" + keyword.toLowerCase() + "%"),
-                cb.like(cb.lower(root.get("color")), "%" + keyword.toLowerCase() + "%")
+                cb.like(cb.lower(root.get("huohao")), kw),
+                cb.like(cb.lower(root.get("productCode")), kw),
+                cb.like(cb.lower(root.get("batchNo")), kw),
+                cb.like(cb.lower(root.get("color")), kw),
+                cb.like(cb.lower(root.get("size")), kw),
+                cb.like(cb.lower(root.get("component")), kw),
+                cb.like(cb.lower(root.get("supplier")), kw),
+                cb.like(cb.lower(root.get("materialName")), kw),
+                cb.like(cb.lower(root.get("specification")), kw),
+                cb.like(cb.lower(root.get("materialColor")), kw),
+                cb.like(cb.lower(root.get("twistDirection")), kw),
+                cb.like(cb.lower(root.get("remark")), kw)
             ));
         }
 
@@ -433,11 +443,21 @@ public class SupplyChainController {
                     org.apache.poi.ss.usermodel.Row row = sheet.getRow(i);
                     if (row == null) continue;
                     RawMaterialWarehouse w = new RawMaterialWarehouse();
-                    w.setProductCode(getCellStr(row, 0));
+                    // 列序与标准导入模板一致：货号/颜色/尺码/部件/供应商/物料名称/规格/物料颜色/批号/捻向/单位/单件用量/损耗(%)/备注
+                    w.setHuohao(getCellStr(row, 0));
                     w.setColor(getCellStr(row, 1));
-                    w.setBatchNo(getCellStr(row, 2));
-                    w.setUnit(getCellStr(row, 3));
-                    w.setUnitPrice(getCellDecimal(row, 4));
+                    w.setSize(getCellStr(row, 2));
+                    w.setComponent(getCellStr(row, 3));
+                    w.setSupplier(getCellStr(row, 4));
+                    w.setMaterialName(getCellStr(row, 5));
+                    w.setSpecification(getCellStr(row, 6));
+                    w.setMaterialColor(getCellStr(row, 7));
+                    w.setBatchNo(getCellStr(row, 8));
+                    w.setTwistDirection(getCellStr(row, 9));
+                    w.setUnit(getCellStr(row, 10));
+                    w.setUsagePerUnit(getCellDecimal(row, 11));
+                    w.setLossRate(getCellDecimal(row, 12));
+                    w.setRemark(getCellStr(row, 13));
                     rawMaterialWarehouseRepository.save(w);
                     count++;
                 }
