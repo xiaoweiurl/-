@@ -528,8 +528,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                                 if (mr.score >= minScore) {
                                     MemorySearchResult r = new MemorySearchResult();
                                     r.setContent(mr.content);
-                                    r.setScore(mr.score);
-                                    r.setSourceDocId(mr.docId);
+                                    r.setScore((double) mr.score);
+                                    // doc_id 兼容两种格式：标准 UUID（常规知识文档）与 32 位 hex（业务员资料批量导入，SHA-256 前 32 位，直写 Milvus 不落 PG）
+                                    r.setSourceDocId(tryParseUuid(mr.docId));
+                                    r.setSource("KNOWLEDGE_BASE");
+                                    r.setDomainCode("knowledge_base");
+                                    r.setDomainName("知识库");
+                                    r.setConfidence(mr.score >= 0.75f ? "high" : "medium");
                                     results.add(r);
                                 }
                             }
@@ -733,7 +738,31 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             return Collections.emptyList();
         }
     }
-    
+
+    /**
+     * 兼容解析 UUID：
+     * 1. 标准 8-4-4-4-12 带连字符格式（常规知识文档，PG uuid 主键）
+     * 2. 32 位无连字符 hex（业务员资料批量导入的 doc_id = 文件内容 SHA-256 前 32 位，直写 Milvus 不落 PG；
+     *    Java UUID.fromString 不识别该格式会抛 IllegalArgumentException，PG uuid 列则可自动补连字符）
+     * 解析失败返回 null，不抛异常（避免整体检索路径降级）
+     */
+    private static UUID tryParseUuid(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        String t = s.trim();
+        try {
+            return UUID.fromString(t);
+        } catch (IllegalArgumentException ignore) {
+            if (t.matches("[0-9a-fA-F]{32}")) {
+                return UUID.fromString(
+                        t.substring(0, 8) + "-" + t.substring(8, 12) + "-" + t.substring(12, 16)
+                                + "-" + t.substring(16, 20) + "-" + t.substring(20, 32));
+            }
+            return null;
+        }
+    }
+
     /**
      * 从查询中提取核心关键词（去除停用词、保留名词/品牌名/品类名）
      */
@@ -857,20 +886,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             
             results = jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
                 MemorySearchResult r = new MemorySearchResult();
-                String idStr = rs.getString("id");
-                if (idStr != null) {
-                    r.setId(UUID.fromString(idStr));
-                }
+                r.setId(tryParseUuid(rs.getString("id")));
                 r.setContent(rs.getString("chunk_text"));
                 r.setChunkText(rs.getString("chunk_text"));
-                String docIdStr = rs.getString("source_doc_id");
-                if (docIdStr != null) {
-                    try {
-                        r.setSourceDocId(UUID.fromString(docIdStr));
-                    } catch (IllegalArgumentException e) {
-                        // source_doc_id 不是标准UUID格式，跳过
-                    }
-                }
+                r.setSourceDocId(tryParseUuid(rs.getString("source_doc_id")));
                 r.setScore(0.8); // 关键词精确匹配，给高分
                 r.setSource("KNOWLEDGE_BASE");
                 r.setDomainCode("knowledge_base");
