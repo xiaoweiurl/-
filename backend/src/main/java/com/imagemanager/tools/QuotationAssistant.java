@@ -41,7 +41,7 @@ public interface QuotationAssistant {
             supplier=供应商, material_name=物料名称, specification=规格(如77D/24F), material_color=物料颜色,
             batch_no=批号, twist_direction=捻向, unit=单位, usage_per_unit=单件用量, loss_rate=损耗率(%),
             unit_price=单价, company=公司, remark=备注
-            用途: 按货号查BOM构成(哪些部件用哪种料/用量/损耗), 与raw_material_purchase按物料名+供应商联动算采购成本
+            用途: 按货号查BOM构成(哪些部件用哪种料/用量/损耗); ERP无采购数据, 本表unit_price即价格基准源, 供智能报价与供应商对比取价
 
             【关联视图（V46，跨表数据已拉通，直接查视图优于手写JOIN）】
             v_product_genealogy=货号谱系(报价+工艺单+订单需求+排产): huohao=生产货号(统一关联键),
@@ -54,8 +54,10 @@ public interface QuotationAssistant {
               quotation_cnt=报价单号数, avg_saleprice=平均售价, avg_sales_cost=平均销售成本, avg_unit_profit=平均单品毛利,
               last_quote_date=最近报价, sales_order_cnt=成交订单数, sales_total_qty=成交数量合计,
               last_order_date=最近下单, latest_delivery=最晚交期, salespersons=跟进业务员
-            v_material_price=原料价格(采购+入库): material_code=原料编码(统一关联键),
-              supplier_count=供应商数, min_price=采购最低价, max_price=最高价, avg_price=均价, warehouse_price=入库参考价
+            v_material_price=原料价格(价格源=原料入库表,采购表已停用): material_code=原料编码(统一关联键),
+              supplier_count=入库供应商数, min_price=最低入库价(智能报价取价), max_price=最高入库价, avg_price=入库均价,
+              record_count=入库记录数(价格样本量), suppliers=供应商列表
+            注意: raw_material_purchase(原料采购表)已停用,ERP无采购数据,不要查询该表算价格
 
             【明细视图（V48，一单一行不聚合：核对单据/查某客户全部单据/溯源脏数据时优先用）】
             v_quotation_detail=报价单明细(42列,一单一行): quotation_no=报价单号, quotation_date=报价日期, customer_name=客户, product_code=生产货号,

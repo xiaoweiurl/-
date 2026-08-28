@@ -5,21 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-
+/**
+ * 原料采购表 Repository【已停用取价职责】
+ * ERP 无采购数据，价格基准源已切换 raw_material_warehouse（见 V50 迁移）。
+ * 仅保留基础 CRUD 能力，供采购管理页面手工录入/查看历史结构使用。
+ * 原按物料编码取最低价/最便宜供应商的方法已删除（无调用方，业务已切换入库表）。
+ */
 @Repository
 public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterialPurchase, Integer>, JpaSpecificationExecutor<RawMaterialPurchase> {
-    List<RawMaterialPurchase> findByMaterialCode(String materialCode);
-
-    @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT p.supplier) FROM RawMaterialPurchase p")
-    long countDistinctSupplier();
-
-    @org.springframework.data.jpa.repository.Query("SELECT MIN(p.unitPrice) FROM RawMaterialPurchase p WHERE p.materialCode = :materialCode")
-    java.math.BigDecimal findMinPriceByMaterialCode(@org.springframework.data.repository.query.Param("materialCode") String materialCode);
-
-    @org.springframework.data.jpa.repository.Query("SELECT p.supplier FROM RawMaterialPurchase p WHERE p.materialCode = :materialCode AND p.unitPrice = (SELECT MIN(p2.unitPrice) FROM RawMaterialPurchase p2 WHERE p2.materialCode = :materialCode)")
-    java.util.List<String> findCheapestSupplierByMaterialCode(@org.springframework.data.repository.query.Param("materialCode") String materialCode);
-
-    @org.springframework.data.jpa.repository.Query("SELECT p.unit FROM RawMaterialPurchase p WHERE p.materialCode = :materialCode AND p.unitPrice = (SELECT MIN(p2.unitPrice) FROM RawMaterialPurchase p2 WHERE p2.materialCode = :materialCode)")
-    java.util.List<String> findCheapestUnitByMaterialCode(@org.springframework.data.repository.query.Param("materialCode") String materialCode);
 }

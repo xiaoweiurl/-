@@ -2431,21 +2431,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                 searchQuotationByKeyword(query, results);
             }
 
-            // 2. 原料采购价格查询
-            searchRawMaterialPurchase(query, results);
-
-            // 3. 原料入库信息
+            // 2. 原料入库信息（含价格，ERP 无采购数据后价格基准源=入库表）
             searchRawMaterialWarehouse(query, results);
 
-            // 4. 生产计划查询
+            // 3. 生产计划查询
             if (productCode != null) {
                 searchProductionPlan(productCode, results);
             }
 
-            // 5. 辅料采购查询
+            // 4. 辅料采购查询
             searchAccessoryPurchase(query, results);
 
-            // 6. 如果用户问的是供应商对比，额外查询
+            // 5. 如果用户问的是供应商对比，额外查询
             if (query.contains("对比") || query.contains("比较") || query.contains("最便宜") || query.contains("最低价")) {
                 searchSupplierComparison(query, results);
             }
@@ -2580,53 +2577,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 查询原料采购价格
-     */
-    private void searchRawMaterialPurchase(String query, List<Map<String, Object>> results) {
-        try {
-            List<String> keywords = KeywordExtractor.extractKeywords(query);
-            if (keywords.isEmpty()) return;
-
-            StringBuilder sql = new StringBuilder();
-            sql.append("SELECT material_code, unit, supplier, batch_no, unit_price FROM raw_material_purchase WHERE ");
-            List<Object> params = new ArrayList<>();
-            for (int i = 0; i < keywords.size(); i++) {
-                if (i > 0) sql.append(" OR ");
-                sql.append("(COALESCE(material_code, '') ILIKE ? OR COALESCE(supplier, '') ILIKE ?)");
-                String pattern = "%" + keywords.get(i) + "%";
-                params.add(pattern);
-                params.add(pattern);
-            }
-            sql.append(" LIMIT 20");
-
-            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
-                (rs, rowNum) -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("materialCode", rs.getString("material_code"));
-                    row.put("unit", rs.getString("unit"));
-                    row.put("supplier", rs.getString("supplier"));
-                    row.put("batchNo", rs.getString("batch_no"));
-                    row.put("unitPrice", rs.getBigDecimal("unit_price"));
-                    return row;
-                }, params.toArray());
-
-            if (!rows.isEmpty()) {
-                Map<String, Object> result = new LinkedHashMap<>();
-                result.put("type", "原料采购");
-                result.put("summary", "找到 " + rows.size() + " 条原料采购记录");
-                Map<String, Object> data = new LinkedHashMap<>();
-                data.put("count", rows.size());
-                data.put("items", rows);
-                result.put("data", data);
-                results.add(result);
-            }
-        } catch (Exception e) {
-            log.warn("查询原料采购失败: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * 查询原料入库信息
+     * 查询原料入库信息（ERP 无采购数据，价格基准源=入库表）
      */
     private void searchRawMaterialWarehouse(String query, List<Map<String, Object>> results) {
         try {
@@ -2774,25 +2725,25 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 供应商对比 - 按原料编码汇总各供应商报价
+     * 供应商对比 - 按原料编码汇总价格（查 v_material_price 视图，价格源=原料入库表）
      */
     private void searchSupplierComparison(String query, List<Map<String, Object>> results) {
         try {
-            // 按原料编码汇总供应商报价，找最低价
+            // 按原料编码汇总入库价格，找最低价（视图已按 product_code 聚合）
             String sql = "SELECT material_code, " +
-                "COUNT(*) as supplier_count, " +
-                "MIN(unit_price) as min_price, " +
-                "MAX(unit_price) as max_price, " +
-                "AVG(unit_price) as avg_price " +
-                "FROM raw_material_purchase " +
-                "WHERE material_code IS NOT NULL " +
-                "GROUP BY material_code " +
+                "supplier_count, " +
+                "min_price, " +
+                "max_price, " +
+                "avg_price, " +
+                "record_count " +
+                "FROM v_material_price " +
                 "ORDER BY material_code LIMIT 20";
             List<Map<String, Object>> rows = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("materialCode", rs.getString("material_code"));
                     row.put("supplierCount", rs.getInt("supplier_count"));
+                    row.put("recordCount", rs.getInt("record_count"));
                     row.put("minPrice", rs.getBigDecimal("min_price"));
                     row.put("maxPrice", rs.getBigDecimal("max_price"));
                     row.put("avgPrice", rs.getBigDecimal("avg_price"));
@@ -2811,7 +2762,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (!rows.isEmpty()) {
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("type", "供应商对比");
-                result.put("summary", "共 " + rows.size() + " 种原料有多个供应商报价");
+                result.put("summary", "共 " + rows.size() + " 种原料有入库价格记录（价格源：原料入库表）");
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("items", rows);
                 result.put("data", data);

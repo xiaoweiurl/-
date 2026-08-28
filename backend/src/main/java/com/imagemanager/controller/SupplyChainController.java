@@ -337,8 +337,8 @@ public class SupplyChainController {
         // 原料种类 = 原料入库中不同原料编码数
         long materialCount = rawMaterialWarehouseRepository.countDistinctProductCode();
         stats.put("materialCount", materialCount);
-        // 供应商数 = 原料采购中不同供应商数 + 辅料采购中不同供应商数
-        long supplierCount = rawMaterialPurchaseRepository.countDistinctSupplier() + accessoryPurchaseRepository.countDistinctSupplier();
+        // 供应商数 = 原料入库中不同供应商数 + 辅料采购中不同供应商数（ERP 无采购数据，价格源=入库表）
+        long supplierCount = rawMaterialWarehouseRepository.countDistinctSupplier() + accessoryPurchaseRepository.countDistinctSupplier();
         stats.put("supplierCount", supplierCount);
         // 平均利润率 = 从智能报价中计算
         try {
@@ -614,17 +614,17 @@ public class SupplyChainController {
             BigDecimal quotePrice = totalCost.multiply(
                     BigDecimal.ONE.add(BigDecimal.valueOf(profitMargin / 100.0)));
 
-            // 查找最优供应商
+            // 查找最优供应商（价格源：原料入库表 raw_material_warehouse，ERP 无采购数据，采购表已停用）
             java.util.List<Map<String, Object>> supplierSuggestions = new java.util.ArrayList<>();
             for (int i = 0; i < 6; i++) {
                 if (matNames[i] != null) {
-                    List<RawMaterialPurchase> purchases = rawMaterialPurchaseRepository.findByMaterialCode(matNames[i]);
+                    List<RawMaterialWarehouse> warehouseRecords = rawMaterialWarehouseRepository.findByProductCode(matNames[i]);
                     BigDecimal bestPrice = null;
                     String bestSupplier = null;
-                    for (RawMaterialPurchase rp : purchases) {
-                        if (rp.getUnitPrice() != null && (bestPrice == null || rp.getUnitPrice().compareTo(bestPrice) < 0)) {
-                            bestPrice = rp.getUnitPrice();
-                            bestSupplier = rp.getSupplier();
+                    for (RawMaterialWarehouse wh : warehouseRecords) {
+                        if (wh.getUnitPrice() != null && (bestPrice == null || wh.getUnitPrice().compareTo(bestPrice) < 0)) {
+                            bestPrice = wh.getUnitPrice();
+                            bestSupplier = wh.getSupplier();
                         }
                     }
                     if (bestPrice != null) {
@@ -691,18 +691,17 @@ public class SupplyChainController {
                         // 报价表单价(元/克)，计算时: mᵢ × pᵢ/1000 其中 pᵢ=单价×1000(元/千克)
                         BigDecimal unitPricePerGram = matQuotationPrices[i];
                         
-                        // 从采购表获取最低采购价作为参考
-                        BigDecimal purchaseRefPrice = rawMaterialPurchaseRepository.findMinPriceByMaterialCode(matNames[i]);
+                        // 从原料入库表获取最低入库价作为参考（ERP 无采购数据，价格源=raw_material_warehouse）
+                        BigDecimal purchaseRefPrice = null;
                         String bestSupplier = "";
                         String purchaseUnit = "";
-                        if (purchaseRefPrice != null) {
-                            java.util.List<String> cheapestSuppliers = rawMaterialPurchaseRepository.findCheapestSupplierByMaterialCode(matNames[i]);
-                            if (!cheapestSuppliers.isEmpty()) {
-                                bestSupplier = cheapestSuppliers.get(0);
-                            }
-                            java.util.List<String> cheapestUnits = rawMaterialPurchaseRepository.findCheapestUnitByMaterialCode(matNames[i]);
-                            if (!cheapestUnits.isEmpty()) {
-                                purchaseUnit = cheapestUnits.get(0);
+                        List<RawMaterialWarehouse> whRecords = rawMaterialWarehouseRepository.findByProductCode(matNames[i]);
+                        for (RawMaterialWarehouse wh : whRecords) {
+                            if (wh.getUnitPrice() == null) continue;
+                            if (purchaseRefPrice == null || wh.getUnitPrice().compareTo(purchaseRefPrice) < 0) {
+                                purchaseRefPrice = wh.getUnitPrice();
+                                bestSupplier = wh.getSupplier() != null ? wh.getSupplier() : "";
+                                purchaseUnit = wh.getUnit() != null ? wh.getUnit() : "";
                             }
                         }
                         
@@ -816,24 +815,27 @@ public class SupplyChainController {
             HttpServletRequest request) {
         try {
             getCurrentUser(request);
-            List<RawMaterialPurchase> purchases;
+            // 价格源：原料入库表 raw_material_warehouse（ERP 无采购数据，采购表已停用）
+            List<RawMaterialWarehouse> records;
             if (materialCode != null && !materialCode.isEmpty()) {
-                purchases = rawMaterialPurchaseRepository.findByMaterialCode(materialCode);
+                records = rawMaterialWarehouseRepository.findByProductCode(materialCode);
             } else {
-                purchases = rawMaterialPurchaseRepository.findAll();
+                records = rawMaterialWarehouseRepository.findAll();
             }
 
             // 按原料编码分组
             Map<String, java.util.List<Map<String, Object>>> grouped = new java.util.LinkedHashMap<>();
-            for (RawMaterialPurchase p : purchases) {
-                String code = p.getMaterialCode();
+            for (RawMaterialWarehouse p : records) {
+                String code = p.getProductCode();
+                if (code == null || code.isEmpty()) continue;
+                if (p.getUnitPrice() == null) continue; // 无价格记录不参与对比
                 if (!grouped.containsKey(code)) {
                     grouped.put(code, new java.util.ArrayList<>());
                 }
                 grouped.get(code).add(Map.of(
                         "supplier", p.getSupplier() != null ? p.getSupplier() : "",
                         "batchNo", p.getBatchNo() != null ? p.getBatchNo() : "",
-                        "unitPrice", p.getUnitPrice() != null ? p.getUnitPrice() : BigDecimal.ZERO,
+                        "unitPrice", p.getUnitPrice(),
                         "unit", p.getUnit() != null ? p.getUnit() : ""
                 ));
             }

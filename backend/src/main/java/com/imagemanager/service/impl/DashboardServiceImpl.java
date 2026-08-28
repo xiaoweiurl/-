@@ -7,7 +7,6 @@ import com.imagemanager.repository.AlbumRepository;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ProductRepository;
 import com.imagemanager.repository.ProductQuotationRepository;
-import com.imagemanager.repository.RawMaterialPurchaseRepository;
 import com.imagemanager.repository.AccessoryPurchaseRepository;
 import com.imagemanager.repository.ProductionPlanRepository;
 import com.imagemanager.repository.RawMaterialWarehouseRepository;
@@ -48,7 +47,6 @@ public class DashboardServiceImpl implements DashboardService {
     private final AlbumRepository albumRepository;
     private final ProductRepository productRepository;
     private final ProductQuotationRepository productQuotationRepository;
-    private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
     private final AccessoryPurchaseRepository accessoryPurchaseRepository;
     private final ProductionPlanRepository productionPlanRepository;
     private final RawMaterialWarehouseRepository rawMaterialWarehouseRepository;
@@ -450,11 +448,14 @@ public class DashboardServiceImpl implements DashboardService {
         try {
             long totalProducts = productRepository.count();
             long totalQuotations = productQuotationRepository.count();
-            long rawSuppliers = rawMaterialPurchaseRepository.countDistinctSupplier();
+            // 供应商数：原料来自入库表（ERP 无采购数据，采购表已停用）+ 辅料采购表
+            long rawSuppliers = rawMaterialWarehouseRepository.countDistinctSupplier();
             long accSuppliers = accessoryPurchaseRepository.countDistinctSupplier();
             long activeSuppliers = rawSuppliers + accSuppliers;
-            long monthlyPurchases = rawMaterialPurchaseRepository.count() + accessoryPurchaseRepository.count();
-            long totalRawMaterials = rawMaterialWarehouseRepository.count();
+            // 采购/入库单数：原料入库记录数 + 辅料采购记录数
+            long monthlyPurchases = rawMaterialWarehouseRepository.count() + accessoryPurchaseRepository.count();
+            // 原料种类数（按编码去重，避免与记录数重复）
+            long totalRawMaterials = rawMaterialWarehouseRepository.countDistinctProductCode();
             long productionPlans = productionPlanRepository.count();
 
             return new DashboardStatsResponse.SupplyChainStats(
