@@ -93,7 +93,30 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.ollama.timeout:60000}")
     private int ollamaTimeout;
 
-    /** MiniMax API（Anthropic兼容端点）：用于阶段一联网搜索（仅传用户原始问题，内部数据隔离） */
+    /** DeepSeek 开放API：阶段一联网检索编排（提取客户名+产品名 → 调search_web工具 → 过滤摘要） */
+    @Value("${app.deepseek.api-key:}")
+    private String deepseekApiKey;
+
+    @Value("${app.deepseek.base-url:https://api.deepseek.com}")
+    private String deepseekBaseUrl;
+
+    @Value("${app.deepseek.model:deepseek-chat}")
+    private String deepseekModel;
+
+    @Value("${app.deepseek.timeout-ms:60000}")
+    private int deepseekTimeoutMs;
+
+    /** search_web 工具的搜索后端: bing(默认,国内可达免key) / duckduckgo / searxng */
+    @Value("${app.web-search.provider:bing}")
+    private String webSearchProvider;
+
+    @Value("${app.web-search.max-results:8}")
+    private int webSearchMaxResults;
+
+    @Value("${app.web-search.searxng.base-url:http://localhost:8888}")
+    private String searxngBaseUrl;
+
+    /** MiniMax API（Anthropic兼容端点）：阶段一联网搜索——官方服务端 web_search 工具（web_search_20250305） */
     @Value("${app.minimax.api-key:}")
     private String minimaxApiKey;
 
