@@ -243,6 +243,64 @@ public class SmartChatServiceImpl implements SmartChatService {
                 log.info("意图识别: mode={}, isFactory={}, generalChatIntent={}, webSearchIntent={}, planningResearchIntent={}, externalKnowledgeIntent={}, supplyChainIntent={}, positionIntent={}",
                         mode, isFactory, generalChatIntent, webSearchIntent, planningResearchIntent, externalKnowledgeIntent, supplyChainIntent, positionIntent);
 
+                // ===== 企划主题切换守卫：防止同一会话多个品牌/品类企划的上下文相互污染 =====
+                // 场景: 用户先问"阿迪达斯 内衣"并深入几轮(企划进行中未终稿), 又提出"宝娜斯 保暖袜"——
+                // 历史中的旧主题调研数据/参数/结论会混入新主题生成, 导致输出混乱与幻觉。
+                // 守卫规则:
+                //   ①新主题+企划进行中(上轮助手仍输出操作菜单即未终稿)+用户未确认切换 → 拦截:
+                //     不走检索/LLM, 直接提示"先把当前企划跑完(回复'生成终稿')或回复'开始新企划'确认放弃并切换";
+                //   ②用户回复"开始新企划"(裸指令, 不含主题) → 自动接管被拦截的新主题:
+                //     生成改写消息供联网检索与LLM使用, 并注入【上下文隔离声明】;
+                //   ③已终稿后提新主题 / 消息自带确认词(如"新企划 宝娜斯 保暖袜") → 不拦截, 仅注入隔离声明
+                String planningIsolationNotice = "";
+                String planningOverrideMessage = null;
+                if ("planning".equals(resolvedSubMode) && history != null && !history.isEmpty()) {
+                    String curBrand = extractBrandName(message);
+                    String curCats = extractCategoryWords(message);
+                    String curTopic = (!curBrand.isEmpty() && !curCats.isEmpty()) ? curBrand + "×" + curCats : null;
+                    String lastTopic = findLastPlanningTopic(history);
+                    boolean inProgress = isPlanningInProgress(history);
+                    boolean confirmNew = isNewPlanningConfirm(message);
+                    if (curTopic != null && lastTopic != null && !lastTopic.equals(curTopic)) {
+                        if (inProgress && !confirmNew) {
+                            // ①拦截: 提示先跑完当前企划, 或确认放弃切换(不走检索/LLM)
+                            String guardPrompt = "⚠️ **检测到企划主题切换请求**\n\n"
+                                    + "当前进行中的企划：**" + lastTopic + "**（尚未生成终稿）\n"
+                                    + "你新提出的主题：**" + curTopic + "**\n\n"
+                                    + "为避免两个主题的调研数据、产品参数、成本数字相互混淆（历史对话中的旧主题数据会污染新主题的结论），请先二选一：\n\n"
+                                    + "**1. 继续当前企划** —— 回复菜单编号继续深入，或回复「生成终稿」直接输出《" + lastTopic + "》完整企划案\n"
+                                    + "**2. 放弃并开启新主题** —— 回复「开始新企划」，我将清空旧主题上下文，围绕 **" + curTopic + "** 从零启动全新企划";
+                            // 保存被拦截的用户消息与守卫提示到历史(供"开始新企划"裸指令接管时回溯新主题)
+                            saveChatMessage(userId, finalConvId, "user", message, company, null, mode);
+                            chatMemoryManager.addUserMessage(finalConvId, message);
+                            saveChatMessage(userId, finalConvId, "assistant", guardPrompt, company, null, mode);
+                            chatMemoryManager.addAssistantMessage(finalConvId, guardPrompt);
+                            emitter.send(SseEmitter.event().name("message").data(
+                                    objectMapper.writeValueAsString(Map.of("type", "content", "content", guardPrompt))));
+                            emitter.send(SseEmitter.event().name("message").data(
+                                    objectMapper.writeValueAsString(Map.of("type", "done"))));
+                            emitter.complete();
+                            log.info("[planning-guard] 拦截企划主题切换: 进行中主题={} → 新主题={}, 已提示先跑完当前企划或回复'开始新企划'确认切换",
+                                    lastTopic, curTopic);
+                            return;
+                        }
+                        // ③不拦截(已终稿或消息自带确认词): 注入隔离声明后继续
+                        planningIsolationNotice = buildPlanningIsolationNotice(lastTopic, curTopic);
+                        log.info("[planning-guard] 企划主题切换(不拦截): {} → {}, inProgress={}, confirmNew={}, 已注入上下文隔离声明",
+                                lastTopic, curTopic, inProgress, confirmNew);
+                    } else if (curTopic == null && confirmNew && lastTopic != null) {
+                        // ②裸指令"开始新企划": 接管被拦截的新主题——改写消息供联网检索与LLM使用
+                        planningOverrideMessage = "开始全新企划：" + lastTopic.replace("×", " ")
+                                + "。说明：用户已确认放弃之前的企划主题，本主题为全新独立企划，请围绕本主题从零开始。";
+                        planningIsolationNotice = buildPlanningIsolationNotice(null, lastTopic);
+                        // 改写后的消息含品牌+品类, 重新判定联网意图, 确保触发新主题官网参数采集
+                        planningResearchIntent = isPlanningResearchIntent(planningOverrideMessage);
+                        webSearchIntent = isWebSearchIntent(planningOverrideMessage);
+                        log.info("[planning-guard] '开始新企划'裸指令接管被拦截主题: {}, 已生成改写消息并注入隔离声明, planningResearchIntent={}",
+                                lastTopic, planningResearchIntent);
+                    }
+                }
+
                 // 3. 供应链/工厂数据检索
                 // 设计原则【实体驱动，而非关键词驱动】：
                 //   - 精确报价检索只判断"问题中是否包含库里真实存在的实体"（报价单号/客户名称），
@@ -497,6 +555,10 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 4. 构建知识上下文（供应链数据优先放置在前面，确保AI优先参考）
                 StringBuilder knowledgeContext = new StringBuilder();
+                // 企划主题切换时注入上下文隔离声明(最高优先级, 置于上下文最前)
+                if (!planningIsolationNotice.isEmpty()) {
+                    knowledgeContext.append(planningIsolationNotice);
+                }
 
                 // 供应链/工厂数据上下文（优先级最高，放在最前面）
                 // 企划/决策模式激活时启用三段式结构第1段：【结构化数据库查询结果（强制确定性数据）】
@@ -750,7 +812,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if ("planning".equals(resolvedSubMode) && (planningResearchIntent || webSearchIntent)) {
                     try {
                         // 阶段一：用户原始问题 → 通用模板转写 → MiniMax联网检索（数据隔离，无内部数据外传）
-                        String webSummary = searchWebForMarketInfo(message);
+                        // 注: "开始新企划"裸指令场景使用改写消息(含被拦截的新主题), 确保采集新主题官网参数
+                        String webSummary = searchWebForMarketInfo(
+                                planningOverrideMessage != null ? planningOverrideMessage : message);
                         if (webSummary != null && !webSummary.isBlank()) {
                             // 阶段二：网络摘要注入本地LLM上下文，与内部数据共同参与企划方案生成
                             knowledgeContext.append("\n\n## 【网络搜索参考数据】〔数据源优先级 L4·外部参考数据〕\n")
@@ -772,7 +836,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 当前用户消息(带知识上下文)
-                String userContent = message;
+                String userContent = planningOverrideMessage != null ? planningOverrideMessage : message;
                 if (!knowledgeContext.isEmpty()) {
                     boolean hasSupplyChain = !supplyChainResults.isEmpty();
                     boolean hasPositionCards = !positionCardResults.isEmpty();
@@ -949,7 +1013,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 9. 更新对话标题（如果是新对话的第一条消息）
-                updateConversationTitleFromMessage(convId, message);
+                updateConversationTitleFromMessage(convId,
+                        planningOverrideMessage != null ? planningOverrideMessage : message);
 
                 emitter.complete();
             } catch (Exception e) {
@@ -2568,6 +2633,80 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * 企划守卫：从历史对话定位最近一次企划主题（品牌×品类）。
+     * 从后往前找第一条"品牌+品类"都提取成功的用户消息；找不到返回 null。
+     */
+    private String findLastPlanningTopic(List<Map<String, Object>> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            Map<String, Object> m = history.get(i);
+            if (!"user".equals(String.valueOf(m.get("role")))) {
+                continue;
+            }
+            String content = String.valueOf(m.getOrDefault("content", ""));
+            String brand = extractBrandName(content);
+            String cats = extractCategoryWords(content);
+            if (!brand.isEmpty() && !cats.isEmpty()) {
+                return brand + "×" + cats;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 企划守卫：判断上一轮企划是否仍在进行中。
+     * 依据：最后一条助手回复含【可选操作菜单】即未终稿（模式A过程轮次末尾必输出菜单，终稿不输出）。
+     */
+    private boolean isPlanningInProgress(List<Map<String, Object>> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            Map<String, Object> m = history.get(i);
+            if (!"assistant".equals(String.valueOf(m.get("role")))) {
+                continue;
+            }
+            String content = String.valueOf(m.getOrDefault("content", ""));
+            return content.contains("可选操作菜单");
+        }
+        return false;
+    }
+
+    /**
+     * 企划守卫：识别"放弃当前企划/开启新企划"确认词。
+     * 命中后若消息自带新主题则直接切换；若为裸指令则由守卫接管被拦截的新主题。
+     */
+    private boolean isNewPlanningConfirm(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String[] confirmWords = {
+                "开始新企划", "开启新企划", "新企划", "新的企划",
+                "换个品牌", "换个主题", "换主题", "换品牌", "换个品类",
+                "放弃之前", "放弃当前", "不管之前", "不管刚才", "重新开始", "重新企划"
+        };
+        for (String w : confirmWords) {
+            if (message.contains(w)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 企划守卫：构建上下文隔离声明（注入 knowledgeContext 最前，最高优先级）。
+     * 告知本地LLM：旧主题数据全部作废，禁止沿用/引用/类比/混入新主题。
+     *
+     * @param oldTopic 旧主题（null 表示未知，仅声明历史企划作废）
+     * @param newTopic 新主题
+     */
+    private String buildPlanningIsolationNotice(String oldTopic, String newTopic) {
+        String oldPart = oldTopic != null ? "「" + oldTopic + "」" : "此前的";
+        return "\n\n## 【上下文隔离声明·最高优先级】\n"
+                + "用户已开启全新企划主题「" + newTopic + "」。此前会话中" + oldPart + "企划的全部内容已作废：\n"
+                + "历史对话中与旧主题相关的所有调研数据、产品参数、价格带、成本数字、评分与结论，"
+                + "一律禁止沿用、引用、类比或混入当前企划；历史消息仅保留流程格式与交互方式的参考价值。\n"
+                + "若历史消息中的旧主题数据与当前上下文（内部数据/联网采集报告）冲突，以当前新主题数据为准；"
+                + "确需引用旧主题数据做对比时，必须显式声明「以下为旧主题历史数据，仅供对比」。\n";
     }
 
     /**
