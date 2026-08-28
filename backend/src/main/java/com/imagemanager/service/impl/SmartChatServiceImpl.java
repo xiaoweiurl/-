@@ -229,12 +229,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 后续构建 systemPrompt 时复用本变量，避免重复解析）
                 String resolvedSubMode = isFactory ? resolveBusinessSubMode(finalConvId, message) : null;
 
-                // 联网搜索意图识别：当用户明确要求联网/全网搜索时，强制启用联网搜索
-                boolean webSearchIntent = isWebSearchIntent(message);
+                // 联网搜索意图识别：仅【企划智能体（factory 模式·子模式 planning）】启用联网搜索；
+                // 其他模式（总经理决策/通用业务/设计师等）一律不联网、也不做联网意图判断
+                boolean webSearchIntent = "planning".equals(resolvedSubMode) && isWebSearchIntent(message);
 
                 // 企划/市场调研意图识别：品牌+品类+渠道+定位+季节等组合问题（如"宝娜斯 丝袜 中国 抖音电商 中高端 2026秋冬"）
-                // 自动触发联网搜索获取最新市场动态，无需用户明确说"联网/全网搜索"；网络数据仅作参考
-                boolean planningResearchIntent = isPlanningResearchIntent(message);
+                // 仅在企划子模式下自动触发联网搜索获取最新市场动态，无需用户明确说"联网/全网搜索"；网络数据仅作参考
+                boolean planningResearchIntent = "planning".equals(resolvedSubMode) && isPlanningResearchIntent(message);
 
                 // 外部知识意图识别：当问题需要外部/通用知识时，跳过知识库检索直接联网搜索
                 boolean externalKnowledgeIntent = !isFactory && isExternalKnowledgeIntent(message);
@@ -717,9 +718,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "5. 保持专业、简洁、有帮助的回答风格。" +
                             "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             buildUniversalLogicRules() +
-                            "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
-                            (webSearchIntent ? "7. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "") +
-                            (planningResearchIntent && !webSearchIntent ? "\n\n【本次特殊指令】检测到企划/市场调研类问题，系统已自动联网检索最新市场动态（见上下文【网络搜索参考数据】段落）。网络数据仅作外部背景参考，核心结论以内部知识库与业务数据为准，冲突时标注「数据差异说明」。" : "");
+                            "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。";
                 }
                 messages.add(Map.of("role", "system", "content", systemPrompt));
 
@@ -743,12 +742,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
-                // ===== 阶段一：联网搜索（数据隔离执行）=====
-                // planningResearchIntent 已在意图识别阶段定义（见 webSearchIntent 附近）
+                // ===== 阶段一：联网搜索（数据隔离执行，仅企划智能体）=====
+                // planningResearchIntent / webSearchIntent 已在意图识别阶段定义（仅 planning 子模式可能为 true）
                 // 保密约束[CRITICAL]：searchWebForMarketInfo 只允许传入用户原始问题(message)。
                 // knowledgeContext/supplyChainResults/业务数据/历史对话等内部数据严禁拼入网络请求，
                 // 两阶段物理隔离——网络端点只看到用户自己输入的公开问题，内部数据仅在阶段二（本地模型）参与。
-                if (planningResearchIntent || webSearchIntent) {
+                if ("planning".equals(resolvedSubMode) && (planningResearchIntent || webSearchIntent)) {
                     try {
                         // 阶段一：用户原始问题 → 通用模板转写 → MiniMax联网检索（数据隔离，无内部数据外传）
                         String webSummary = searchWebForMarketInfo(message);
@@ -917,18 +916,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 chatMemoryManager.addUserMessage(convId, message);
 
                 // 7. 流式调用本地模型（Ollama）
-                // 联网搜索策略（阶段一已在前置步骤完成联网检索并注入【网络搜索参考数据】段落，本参数仅作标记）：
-                // - 企划/市场调研意图（planningResearchIntent）：自动联网获取最新市场动态，网络数据仅参考
-                // - 工厂模式：供应链无数据时启用联网搜索
-                // - 设计师模式：联网搜索意图/通用闲聊时联网搜索；外部知识意图且知识库无结果时联网搜索
-                boolean enableWebSearch;
-                if (isFactory) {
-                    enableWebSearch = webSearchIntent || generalChatIntent || planningResearchIntent || supplyChainResults.isEmpty();
-                } else {
-                    // 外部知识意图：先查知识库，有结果就不联网，无结果才联网
-                    boolean needWebForExternal = externalKnowledgeIntent && knowledgeContext.isEmpty() && positionCardResults.isEmpty() && chatHistoryQAResults.isEmpty();
-                    enableWebSearch = webSearchIntent || generalChatIntent || planningResearchIntent || needWebForExternal;
-                }
+                // 联网策略：仅企划智能体（factory/planning 子模式）允许联网检索（阶段一 MiniMax web_search 已在前面完成）；
+                // 其他模式与子模式一律不联网、也不判断联网意图。
+                boolean enableWebSearch = "planning".equals(resolvedSubMode);
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
                 try {
@@ -2702,15 +2692,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 }
                                 sourceCount++;
                                 String title = r.path("title").asText("");
-                                String url = r.path("url").asText("");
+                                String srcUrl = r.path("url").asText("");
                                 String pageAge = r.path("page_age").asText("");
                                 String ageSuffix = pageAge.isBlank() ? "" : " (" + pageAge + ")";
                                 sources.append(sourceCount).append(". ").append(title)
                                         .append(ageSuffix)
-                                        .append(" — ").append(url).append("\n");
+                                        .append(" — ").append(srcUrl).append("\n");
                                 sourcesForInject.append(sourceCount).append(". ").append(title)
                                         .append(ageSuffix)
-                                        .append(" 来源域名: ").append(extractDomain(url)).append("\n");
+                                        .append(" 来源域名: ").append(extractDomain(srcUrl)).append("\n");
                             }
                         }
                     }
