@@ -166,11 +166,14 @@ app:
     # 请求超时（毫秒）
     timeout: ${RERANKER_TIMEOUT:5000}
   
-  # MiniMax 配置（已废弃，改用 Ollama，保留配置以兼容旧代码）
+  # MiniMax 配置：主对话已改用 Ollama 本地模型；MiniMax Anthropic 兼容端点现用于
+  # 智能体联网搜索（阶段一数据隔离：仅传用户原始问题，内部业务数据不外传）
   minimax:
     api-key: ${MINIMAX_API_KEY:}
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com}
     model: ${MINIMAX_MODEL:MiniMax-M3}
+    # 联网搜索专用模型（为空时回落 minimax.model）
+    web-search-model: ${MINIMAX_WEB_SEARCH_MODEL:}
     embedding:
       base-url: ${MINIMAX_EMBEDDING_URL:https://api.minimaxi.com/v1/embeddings}
       model: ${MINIMAX_EMBEDDING_MODEL:embo-01}

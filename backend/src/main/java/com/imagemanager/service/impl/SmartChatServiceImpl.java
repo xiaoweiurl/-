@@ -93,6 +93,20 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Value("${app.ollama.timeout:60000}")
     private int ollamaTimeout;
 
+    /** MiniMax API（Anthropic兼容端点）：用于阶段一联网搜索（仅传用户原始问题，内部数据隔离） */
+    @Value("${app.minimax.api-key:}")
+    private String minimaxApiKey;
+
+    @Value("${app.minimax.base-url:https://api.minimaxi.com}")
+    private String minimaxBaseUrl;
+
+    @Value("${app.minimax.model:MiniMax-M3}")
+    private String minimaxModel;
+
+    /** 联网搜索专用模型，为空时回落 minimax.model */
+    @Value("${app.minimax.web-search-model:}")
+    private String minimaxWebSearchModel;
+
     /** 业务子模式会话记忆：convId -> "planning"(模式A商品企划) / "decision"(模式B总经理决策辅助) */
     private final java.util.concurrent.ConcurrentHashMap<String, String> businessSubModeMap = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -218,11 +232,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 联网搜索意图识别：当用户明确要求联网/全网搜索时，强制启用联网搜索
                 boolean webSearchIntent = isWebSearchIntent(message);
 
+                // 企划/市场调研意图识别：品牌+品类+渠道+定位+季节等组合问题（如"宝娜斯 丝袜 中国 抖音电商 中高端 2026秋冬"）
+                // 自动触发联网搜索获取最新市场动态，无需用户明确说"联网/全网搜索"；网络数据仅作参考
+                boolean planningResearchIntent = isPlanningResearchIntent(message);
+
                 // 外部知识意图识别：当问题需要外部/通用知识时，跳过知识库检索直接联网搜索
                 boolean externalKnowledgeIntent = !isFactory && isExternalKnowledgeIntent(message);
 
-                log.info("意图识别: mode={}, isFactory={}, generalChatIntent={}, webSearchIntent={}, externalKnowledgeIntent={}, supplyChainIntent={}, positionIntent={}",
-                        mode, isFactory, generalChatIntent, webSearchIntent, externalKnowledgeIntent, supplyChainIntent, positionIntent);
+                log.info("意图识别: mode={}, isFactory={}, generalChatIntent={}, webSearchIntent={}, planningResearchIntent={}, externalKnowledgeIntent={}, supplyChainIntent={}, positionIntent={}",
+                        mode, isFactory, generalChatIntent, webSearchIntent, planningResearchIntent, externalKnowledgeIntent, supplyChainIntent, positionIntent);
 
                 // 3. 供应链/工厂数据检索
                 // 设计原则【实体驱动，而非关键词驱动】：
@@ -664,7 +682,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "\n1.(L2)【报价单计算/供应链/工厂业务数据】：报价、成本、库存、产能、供应商等一切精确数字的唯一权威来源，必须引用具体数字和供应商名称。" +
                             "\n2.(L2)【业务员资料库】：客户背景、历史成交价、采购偏好、产品款式细节、工艺说明、业务往来记录。与供应链数据结合使用：精确数字以供应链数据为准，业务语义信息优先引用业务员资料库（注明来源文件）；两者互补时必须分点综合呈现，不得只用单一数据源。" +
                             "\n3.(L3)【知识库文档】：必须基于文档原文回答，注明出处文档名称，不歪曲不过度推断；片段不足时明确说明并建议补充上传。" +
-                            "\n4.(L4)【网络搜索】：仅当用户明确要求查询互联网信息时使用，此时以网络结果为主、内部数据为辅。" +
+                            "\n4.(L4)【网络搜索参考数据】：分两种场景——用户明确要求联网查询时，以网络结果为主、内部数据为辅；企划/市场调研类问题系统已自动联网获取品牌/客户最新动态与产品信息（见上下文【网络搜索参考数据】段落），此类网络数据仅作背景参考，企划方案核心依据（产品/成本/工艺/客户数据）必须以内部数据（L1-L3）为准，冲突时标注「数据差异说明」。" +
                             "\n\n【核心能力】" +
                             "\nA. 智能报价（最重要能力）。当用户要求报价、估价、核算、问多少钱、怎么定价时，严格按以下SOP四步输出完整方案，不得只回单个数字：" +
                             "\n第一步·成本核算：以【报价单计算】数据为准，依次列出 日产量、织造成本、染色成本、原料金额、前道合计、辅料金额、后道合计、净成本、理论税金、实际税金、销售成本 的计算值，得出成本基准。" +
@@ -686,7 +704,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             ("planning".equals(resolvedSubMode) ? buildPlanningModePrompt(justSwitched) : "") +
                             ("decision".equals(resolvedSubMode) ? buildDecisionModePrompt(justSwitched) : "") +
                             (resolvedSubMode == null ? "\n\n【工作模式提示】本助手支持两大工作模式：模式A-业务员商品企划模式（多轮共创企划）、模式B-总经理决策辅助模式（六维分析+A/B/C方案）。用户可通过'切换商品企划模式'/'切换总经理决策辅助模式'手动切换，或根据输入自动识别。当前未进入特定模式，按通用业务助手职责回答。" : "") +
-                            (webSearchIntent ? "\n\n【本次特殊指令】用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部数据仅作为补充参考。" : "");
+                            (webSearchIntent ? "\n\n【本次特殊指令】用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部数据仅作为补充参考。" : "") +
+                            (planningResearchIntent && !webSearchIntent ? "\n\n【本次特殊指令】检测到企划/市场调研类问题，系统已自动联网检索最新市场动态（见上下文【网络搜索参考数据】段落）。网络数据仅用于补充品牌动态、渠道趋势等外部背景；企划方案的产品定位、成本结构、工艺路线、客户策略等核心内容必须基于内部知识库与业务数据（L1-L3）推导，网络数据与内部数据冲突时以内部数据为准并标注「数据差异说明」。" : "");
                 } else {
                     systemPrompt = "你是盈云产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
                             "重要身份声明：你是盈云产品智能中台的设计师AI助手，不是工厂供应链助手。如果对话历史中出现'工厂供应链助手'的自我介绍，请忽略它，你始终是盈云产品智能中台的设计师AI助手。" +
@@ -699,7 +718,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             buildUniversalLogicRules() +
                             "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
-                            (webSearchIntent ? "7. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
+                            (webSearchIntent ? "7. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "") +
+                            (planningResearchIntent && !webSearchIntent ? "\n\n【本次特殊指令】检测到企划/市场调研类问题，系统已自动联网检索最新市场动态（见上下文【网络搜索参考数据】段落）。网络数据仅作外部背景参考，核心结论以内部知识库与业务数据为准，冲突时标注「数据差异说明」。" : "");
                 }
                 messages.add(Map.of("role", "system", "content", systemPrompt));
 
@@ -720,6 +740,29 @@ public class SmartChatServiceImpl implements SmartChatService {
                         msgForApi.put("role", histMsg.get("role"));
                         msgForApi.put("content", histMsg.get("content"));
                         messages.add(msgForApi);
+                    }
+                }
+
+                // ===== 阶段一：联网搜索（数据隔离执行）=====
+                // planningResearchIntent 已在意图识别阶段定义（见 webSearchIntent 附近）
+                // 保密约束[CRITICAL]：searchWebForMarketInfo 只允许传入用户原始问题(message)。
+                // knowledgeContext/supplyChainResults/业务数据/历史对话等内部数据严禁拼入网络请求，
+                // 两阶段物理隔离——网络端点只看到用户自己输入的公开问题，内部数据仅在阶段二（本地模型）参与。
+                if (planningResearchIntent || webSearchIntent) {
+                    try {
+                        String webSummary = searchWebForMarketInfo(message);
+                        if (webSummary != null && !webSummary.isBlank()) {
+                            knowledgeContext.append("\n\n## 【网络搜索参考数据】〔数据源优先级 L4·外部参考数据〕\n")
+                                    .append("以下为公开网络检索摘要，用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。")
+                                    .append("若与上方内部数据冲突，以内部数据为准，并按通用业务逻辑规则标注「数据差异说明」：\n")
+                                    .append(webSummary.trim()).append("\n");
+                            log.info("[web-search] 联网摘要已注入上下文, 长度={}字符, 触发方式={}",
+                                    webSummary.length(), planningResearchIntent ? "企划意图自动触发" : "用户明确要求联网");
+                        } else {
+                            log.info("[web-search] 未获取到联网摘要, 继续以内部数据生成回答");
+                        }
+                    } catch (Exception webEx) {
+                        log.warn("[web-search] 阶段一联网搜索异常(不影响主流程): {}", webEx.getMessage());
                     }
                 }
 
@@ -867,17 +910,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 6b. 更新ChatMemory（内存级多轮对话记忆，LangChain4j ChatMemory）
                 chatMemoryManager.addUserMessage(convId, message);
 
-                // 7. 流式调用DeepSeek V4 Pro
-                // 联网搜索策略：
+                // 7. 流式调用本地模型（Ollama）
+                // 联网搜索策略（阶段一已在前置步骤完成联网检索并注入【网络搜索参考数据】段落，本参数仅作标记）：
+                // - 企划/市场调研意图（planningResearchIntent）：自动联网获取最新市场动态，网络数据仅参考
                 // - 工厂模式：供应链无数据时启用联网搜索
-                // - 设计师模式：联网搜索意图/通用闲聊时直接联网搜索；外部知识意图且知识库无结果时联网搜索
+                // - 设计师模式：联网搜索意图/通用闲聊时联网搜索；外部知识意图且知识库无结果时联网搜索
                 boolean enableWebSearch;
                 if (isFactory) {
-                    enableWebSearch = webSearchIntent || generalChatIntent || supplyChainResults.isEmpty();
+                    enableWebSearch = webSearchIntent || generalChatIntent || planningResearchIntent || supplyChainResults.isEmpty();
                 } else {
                     // 外部知识意图：先查知识库，有结果就不联网，无结果才联网
                     boolean needWebForExternal = externalKnowledgeIntent && knowledgeContext.isEmpty() && positionCardResults.isEmpty() && chatHistoryQAResults.isEmpty();
-                    enableWebSearch = webSearchIntent || generalChatIntent || needWebForExternal;
+                    enableWebSearch = webSearchIntent || generalChatIntent || planningResearchIntent || needWebForExternal;
                 }
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
@@ -1928,7 +1972,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         return "\n\n【LLM通用逻辑规则（凌驾于所有能力规则，逐条强制执行）】" +
                 "\n\n一、输入处理规则" +
                 "\n- 自动识别本轮全部输入材料并归类：①需求描述（用户当前指令）②数据表（供应链/工厂业务数据、业务员资料库）③规则文档（系统业务规则、SOP、知识库文档、岗位知识卡片）④外部参考数据（网络搜索、历史专业问答）⑤历史对话（用户历史多轮提问记录与已确认设定）。" +
-                "\n- 采信优先级（从高到低，与上下文注入段落的〔数据源优先级〕标注一致）：L1 内部业务规则（系统提示词业务规则与铁律、岗位知识卡片经验规则）> L2 本地业务数据（供应链/工厂业务数据、业务员资料库、结构化查询结果、图片库）> L3 内部知识文档（向量知识库召回文档）> L4 外部参考数据（网络搜索、历史专业问答）> L5 用户指令与历史对话设定（用户口头描述的数字与说法）。" +
+                "\n- 采信优先级（从高到低，与上下文注入段落的〔数据源优先级〕标注一致）：L1 内部业务规则（系统提示词业务规则与铁律、岗位知识卡片经验规则）> L2 本地业务数据（供应链/工厂业务数据、业务员资料库、结构化查询结果、图片库）> L3 内部知识文档（向量知识库召回文档）> L4 外部参考数据（网络搜索——用于获取品牌/客户最新动态与产品信息，仅作背景参考，不得作为内部业务结论的依据；历史专业问答）> L5 用户指令与历史对话设定（用户口头描述的数字与说法）。" +
                 "\n- 数据冲突时必须明确标注「数据差异说明」：逐项列出冲突字段、各数据源的值、采信结果与采信理由；禁止静默覆盖任何一个数据源的值。" +
                 "\n\n二、上下文延续规则" +
                 "\n- 多轮对话自动继承本会话所有已确认的设定、参数、逻辑模块（以【用户历史多轮对话提问记录】为准）；用户未明确推翻的条目全部沿用，不得遗漏或擅自重置。" +
@@ -2313,6 +2357,197 @@ public class SmartChatServiceImpl implements SmartChatService {
         }
 
         return false;
+    }
+
+    /**
+     * 企划/市场调研意图识别：无需用户明确说"联网/全网搜索"，命中即自动联网。
+     * 典型场景："宝娜斯 丝袜 中国 抖音电商 中高端 2026秋冬"（品牌+品类+渠道+定位+季节组合）。
+     *
+     * 触发规则（命中任一）：
+     * 1. 企划动作词：企划/策划/规划/方案/调研/趋势/洞察/市场分析/新品开发/上市计划等
+     * 2. 季节年份：2024-2039 + 春/夏/秋/冬（如"2026秋冬"）
+     * 3. 渠道/定位/市场词（需消息长度>8）：抖音/电商/直播/天猫/中高端/竞品/价格带/目标客群等
+     *
+     * 排除项：含产品编码或报价核算强信号的纯内部业务查询（报价/成本/单价/入库/排产等），
+     * 这类问题必须走内部数据，联网反而引入噪声。
+     */
+    private boolean isPlanningResearchIntent(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String lower = message.toLowerCase().trim();
+
+        // 排除：纯内部业务查询强信号（产品编码查询、报价核算、库存排产等）
+        String[] internalSignals = {
+                "报价", "多少钱", "核算", "单价", "净成本", "成本多少",
+                "入库", "库存", "排产", "原料用量", "采购价", "供应商对比"
+        };
+        for (String s : internalSignals) {
+            if (lower.contains(s)) {
+                return false;
+            }
+        }
+
+        // 组1：企划动作词（强信号，直接触发）
+        String[] planningWords = {
+                "企划", "策划", "规划", "方案", "调研", "趋势", "洞察",
+                "市场分析", "新品开发", "开发计划", "上市计划", "商品计划",
+                "品牌动态", "行业趋势", "市场趋势", "消费者洞察", "竞品分析"
+        };
+        for (String w : planningWords) {
+            if (lower.contains(w)) {
+                return true;
+            }
+        }
+
+        // 组2：季节年份组合（如"2026秋冬"、"2025春夏"）
+        if (lower.matches(".*20[2-3]\\d.{0,3}(春|夏|秋|冬).*")) {
+            return true;
+        }
+
+        // 组3：渠道/定位/市场上下文词（需一定信息量，避免单词误触发）
+        if (lower.length() > 8) {
+            String[] marketWords = {
+                    "抖音", "电商", "直播", "天猫", "淘宝", "拼多多", "京东",
+                    "中高端", "高端", "低端", "价格带", "目标客群", "市场份额",
+                    "消费者", "人群定位", "品牌定位"
+            };
+            for (String w : marketWords) {
+                if (lower.contains(w)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 阶段一：联网搜索（数据隔离执行）
+     *
+     * 保密约束[CRITICAL]：本方法只允许传入用户原始问题(message)。用户问题本身是用户主动
+     * 输入的公开信息（如"宝娜斯 丝袜 中国 抖音电商 中高端 2026秋冬"），可用于网络检索；
+     * 但 knowledgeContext、供应链/报价等业务数据、知识库文档、历史对话等内部数据严禁
+     * 拼入网络请求——网络搜索端点是外部服务，内部数据不得外传。
+     *
+     * 设计：两阶段隔离——
+     *   阶段一（本方法）：仅用户问题 → 外部搜索端点 → 返回网络事实摘要
+     *   阶段二（主流程）：网络摘要 + 内部数据 → 本地模型生成企划方案（网络数据仅参考）
+     *
+     * 实现：MiniMax API Anthropic 兼容端点 + web_search_20250305 服务端搜索工具，非流式调用。
+     * 失败时返回空字符串（优雅降级，不影响主流程继续用内部数据回答）。
+     */
+    private String searchWebForMarketInfo(String message) {
+        if (minimaxApiKey == null || minimaxApiKey.isBlank()) {
+            log.info("[web-search] 未配置 app.minimax.api-key，跳过联网搜索（企划方案仅基于内部数据生成）");
+            return "";
+        }
+        String model = (minimaxWebSearchModel != null && !minimaxWebSearchModel.isBlank())
+                ? minimaxWebSearchModel : minimaxModel;
+        HttpURLConnection conn = null;
+        try {
+            String url = buildEndpointUrl(minimaxBaseUrl, "/anthropic/v1/messages");
+
+            // 请求体仅含用户原始问题——严禁拼接 knowledgeContext/业务数据/历史对话（内部数据保密）
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", model);
+            body.put("max_tokens", 2048);
+            body.put("stream", false);
+            body.put("system",
+                    "你是市场信息检索助手，可通过web_search工具联网检索。请针对用户问题检索并汇总公开网络信息：" +
+                    "品牌/公司最新动态、产品线与新品信息、市场趋势、渠道（如抖音电商）表现、竞品与价格带信息。" +
+                    "输出要求：1.按主题分点输出事实信息并尽量标注来源与时间；" +
+                    "2.只输出真实检索到的内容，检索不到的明确说明'未检索到'，禁止编造；" +
+                    "3.不要输出建议或方案，只提供检索到的事实参考信息。");
+            List<Map<String, Object>> tools = new ArrayList<>();
+            Map<String, Object> tool = new HashMap<>();
+            tool.put("type", "web_search_20250305");
+            tool.put("name", "web_search");
+            tool.put("max_uses", 5);
+            tools.add(tool);
+            body.put("tools", tools);
+            Map<String, Object> userMsg = new HashMap<>();
+            userMsg.put("role", "user");
+            userMsg.put("content", message);
+            body.put("messages", List.of(userMsg));
+
+            log.info("[web-search] 开始联网检索(阶段一, 数据隔离): query长度={}字符, model={}", message.length(), model);
+
+            conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            // 双认证头兼容：MiniMax 用 Bearer，Anthropic 标准用 x-api-key
+            conn.setRequestProperty("Authorization", "Bearer " + minimaxApiKey);
+            conn.setRequestProperty("x-api-key", minimaxApiKey);
+            conn.setRequestProperty("anthropic-version", "2023-06-01");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(60000);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
+            }
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                String err = readStreamFully(conn.getErrorStream());
+                log.warn("[web-search] 联网搜索端点返回 {}: {}", responseCode, abbreviate(err, 300));
+                return "";
+            }
+
+            String resp = readStreamFully(conn.getInputStream());
+            // Anthropic非流式响应: {"content":[{"type":"text","text":"..."},{"type":"web_search_tool_result",...}]}
+            JsonNode root = objectMapper.readTree(resp);
+            JsonNode contentArr = root.path("content");
+            StringBuilder sb = new StringBuilder();
+            if (contentArr.isArray()) {
+                for (JsonNode block : contentArr) {
+                    if ("text".equals(block.path("type").asText())) {
+                        String text = block.path("text").asText("");
+                        if (!text.isBlank()) {
+                            if (sb.length() > 0) {
+                                sb.append("\n");
+                            }
+                            sb.append(text.trim());
+                        }
+                    }
+                }
+            }
+            log.info("[web-search] 联网检索完成, 摘要长度={}字符", sb.length());
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("[web-search] 联网搜索失败(降级为不联网, 主流程不受影响): {}", e.getMessage());
+            return "";
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    /** 完整读取输入流为字符串（UTF-8） */
+    private String readStreamFully(java.io.InputStream in) throws java.io.IOException {
+        if (in == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(in, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    /** 截断字符串用于日志输出 */
+    private String abbreviate(String s, int maxLen) {
+        if (s == null) {
+            return "";
+        }
+        String flat = s.replace("\n", " ");
+        return flat.length() <= maxLen ? flat : flat.substring(0, maxLen) + "...";
     }
 
     /**
