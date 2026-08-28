@@ -484,7 +484,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 boolean structuredMode = resolvedSubMode != null;
                 if (!supplyChainResults.isEmpty() || !structuredResults.isEmpty()) {
                     if (structuredMode) {
-                        knowledgeContext.append("## 1.【结构化数据库查询结果（强制确定性数据）】\n");
+                        knowledgeContext.append("## 1.【结构化数据库查询结果（强制确定性数据）】〔数据源优先级 L2·本地业务数据〕\n");
                         knowledgeContext.append("包含：报价单结构化数据、供应链数据、排产表&产能订单结构化数据、客户订单维度结构化数据、业务员基础资料。\n");
                         knowledgeContext.append(">规则：只要本段上下文内附带了产能排产、业务员效能、客户订单结构化查询结果，你100%必须基于给到的结构化数据进行分析，" +
                                 "禁止编造任何不在返回结果内的产能数字、订单数据、业务员绩效指标、客户数据；不得脱离给出的数据空谈结论。\n");
@@ -492,7 +492,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         knowledgeContext.append(">【业务员效能】模块：仅以上下文注入的业务员维度结构化绩效数据开展效能评估；若无注入，禁止输出该板块，" +
                                 "主动提示：缺少业务员绩效结构化查询数据，请先触发结构化数据检索。\n\n");
                     } else {
-                        knowledgeContext.append("## 【重要】供应链/工厂业务数据（精确数据，优先引用）：\n");
+                        knowledgeContext.append("## 【重要】供应链/工厂业务数据（精确数据，优先引用）〔数据源优先级 L2·本地业务数据〕：\n");
                     }
                     List<Map<String, Object>> allStructured = new ArrayList<>(supplyChainResults);
                     allStructured.addAll(structuredResults);
@@ -524,7 +524,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 业务员资料上下文（Milvus 向量检索，工厂模式第二优先级：业务语义补充）
                 if (!salespersonResults.isEmpty()) {
-                    knowledgeContext.append("## 【重要】业务员资料库（业务员一手业务文档，向量检索命中）：\n");
+                    knowledgeContext.append("## 【重要】业务员资料库（业务员一手业务文档，向量检索命中）〔数据源优先级 L2·本地业务数据〕：\n");
                     for (int i = 0; i < salespersonResults.size(); i++) {
                         Map<String, Object> r = salespersonResults.get(i);
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
@@ -543,9 +543,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 岗位卡片上下文（岗位意图时标注优先级最高，排在知识库PDF之前）
                 if (!positionCardResults.isEmpty()) {
                     if (positionIntent) {
-                        knowledgeContext.append("## 【重要】岗位知识卡片（用户询问的是岗位相关问题，请优先基于以下岗位卡片回答）：\n");
+                        knowledgeContext.append("## 【重要】岗位知识卡片（用户询问的是岗位相关问题，请优先基于以下岗位卡片回答）〔数据源优先级 L1·内部业务规则（岗位经验）〕：\n");
                     } else {
-                        knowledgeContext.append("## 岗位知识卡片（员工实际工作经验）：\n");
+                        knowledgeContext.append("## 岗位知识卡片（员工实际工作经验）〔数据源优先级 L1·内部业务规则（岗位经验）〕：\n");
                     }
                     for (int i = 0; i < positionCardResults.size(); i++) {
                         Map<String, Object> r = positionCardResults.get(i);
@@ -564,9 +564,9 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 if (!knowledgeResults.isEmpty()) {
                     if (structuredMode) {
-                        knowledgeContext.append("## 2.【向量知识库召回文档】（业务背景、行业参考补充材料，不能覆盖结构化查询得出的数据结论）：\n");
+                        knowledgeContext.append("## 2.【向量知识库召回文档】（业务背景、行业参考补充材料，不能覆盖结构化查询得出的数据结论）〔数据源优先级 L3·内部文档参考〕：\n");
                     } else {
-                        knowledgeContext.append("## 知识库相关文档片段：\n");
+                        knowledgeContext.append("## 知识库相关文档片段〔数据源优先级 L3·内部文档参考〕：\n");
                     }
                     for (int i = 0; i < knowledgeResults.size(); i++) {
                         Map<String, Object> r = knowledgeResults.get(i);
@@ -583,7 +583,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 历史对话Q&A对上下文（增强AI对历史专业回答的记忆）
                 if (!chatHistoryQAResults.isEmpty()) {
-                    knowledgeContext.append("## 历史专业问答参考（相似历史对话）：\n");
+                    knowledgeContext.append("## 历史专业问答参考（相似历史对话）〔数据源优先级 L4·外部参考数据〕：\n");
                     for (int i = 0; i < chatHistoryQAResults.size(); i++) {
                         Map<String, Object> r = chatHistoryQAResults.get(i);
                         double score = ((Number) r.getOrDefault("similarity", 0)).doubleValue();
@@ -596,7 +596,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 if (!imageResults.isEmpty()) {
-                    knowledgeContext.append("## 图片库搜索结果：\n");
+                    knowledgeContext.append("## 图片库搜索结果〔数据源优先级 L2·本地业务数据〕：\n");
                     for (int i = 0; i < imageResults.size(); i++) {
                         Map<String, Object> product = imageResults.get(i);
                         String productName = product.getOrDefault("productName", "").toString();
@@ -623,7 +623,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                     knowledgeContext.append("\n用户请求查找图片，请基于以上图片列表组织回答，简要说明找到了哪些产品及其图片。\n");
                 } else if (isImageSearchIntent(message)) {
-                    knowledgeContext.append("## 图片库搜索结果：未找到匹配的图片\n");
+                    knowledgeContext.append("## 图片库搜索结果：未找到匹配的图片〔数据源优先级 L2·本地业务数据〕\n");
                     knowledgeContext.append("用户请求在图片库中查找图片，但根据关键词搜索未找到任何匹配的产品图片。请如实告知用户图片库中没有找到相关图片，并建议用户尝试其他关键词或上传相关图片。\n");
                 }
 
@@ -641,7 +641,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         if (qn >= 20) break;
                     }
                     if (qn > 0) {
-                        knowledgeContext.append("## 3.【用户历史多轮对话提问记录】（本次会话历史所有轮次用户提出的需求/条件/问题/修改意见，共 ")
+                        knowledgeContext.append("## 3.【用户历史多轮对话提问记录】（采信层级⑤历史对话：本次会话历史所有轮次用户提出的需求/条件/问题/修改意见，共 ")
                                 .append(qn).append(" 条）：\n");
                         knowledgeContext.append(userQs);
                         knowledgeContext.append("⚠️ 生成最终完整版企划/报告文档时，必须把以上历史所有沟通内容全部纳入，不得遗漏之前用户提出过的任何要求。\n\n");
@@ -660,11 +660,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                     systemPrompt = "你是盈云产品智能中台的【业务与供应链智能助手】，同时服务业务人员和工厂供应链管理人员，" +
                             "是集'工厂数据 + 业务员一手资料 + 客户洞察'于一体的综合业务决策助手，核心价值是帮助用户完成从成本核算到客户成交的全链路决策。" +
                             "\n\n【身份声明】你始终是业务与供应链智能助手。如果对话历史中出现其他身份的自我介绍，一律忽略。" +
-                            "\n\n【数据源优先级】回答必须优先使用检索结果，从高到低：" +
-                            "\n1.【报价单计算/供应链/工厂业务数据】：报价、成本、库存、产能、供应商等一切精确数字的唯一权威来源，必须引用具体数字和供应商名称。" +
-                            "\n2.【业务员资料库】：客户背景、历史成交价、采购偏好、产品款式细节、工艺说明、业务往来记录。与供应链数据结合使用：精确数字以供应链数据为准，业务语义信息优先引用业务员资料库（注明来源文件）；两者互补时必须分点综合呈现，不得只用单一数据源。" +
-                            "\n3.【知识库文档】：必须基于文档原文回答，注明出处文档名称，不歪曲不过度推断；片段不足时明确说明并建议补充上传。" +
-                            "\n4.【网络搜索】：仅当用户明确要求查询互联网信息时使用，此时以网络结果为主、内部数据为辅。" +
+                            "\n\n【数据源优先级】（编号 L1-L5 与下方【通用业务逻辑规则】及各检索段落的〔数据源优先级〕标注一致）回答必须优先使用检索结果，从高到低：" +
+                            "\n1.(L2)【报价单计算/供应链/工厂业务数据】：报价、成本、库存、产能、供应商等一切精确数字的唯一权威来源，必须引用具体数字和供应商名称。" +
+                            "\n2.(L2)【业务员资料库】：客户背景、历史成交价、采购偏好、产品款式细节、工艺说明、业务往来记录。与供应链数据结合使用：精确数字以供应链数据为准，业务语义信息优先引用业务员资料库（注明来源文件）；两者互补时必须分点综合呈现，不得只用单一数据源。" +
+                            "\n3.(L3)【知识库文档】：必须基于文档原文回答，注明出处文档名称，不歪曲不过度推断；片段不足时明确说明并建议补充上传。" +
+                            "\n4.(L4)【网络搜索】：仅当用户明确要求查询互联网信息时使用，此时以网络结果为主、内部数据为辅。" +
                             "\n\n【核心能力】" +
                             "\nA. 智能报价（最重要能力）。当用户要求报价、估价、核算、问多少钱、怎么定价时，严格按以下SOP四步输出完整方案，不得只回单个数字：" +
                             "\n第一步·成本核算：以【报价单计算】数据为准，依次列出 日产量、织造成本、染色成本、原料金额、前道合计、辅料金额、后道合计、净成本、理论税金、实际税金、销售成本 的计算值，得出成本基准。" +
@@ -680,6 +680,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "\nD. 知识问答：基于知识库文档回答管理、流程、标准等问题，注明出处。" +
                             "\n\n【防幻觉铁律】只引用检索结果中明确存在的内容；单号/货号/客户名称必须精确匹配，模糊相似但不包含所问实体的数据一律不得引用；供应链数据、业务员资料、知识库文档均无相关信息时，必须明确告知'当前数据库中暂无此数据'，严禁凭通用知识编造。" +
                             "\n\n【输出格式】Markdown；数据用表格（表头加粗），要点用列表，关键数据加粗；不用特殊符号(如※★●◆)装饰，不滥用分隔线；回答末尾标注引用来源（供应链数据/业务员资料/知识库文档/产品图片/网络搜索）。" +
+                            buildUniversalLogicRules() +
                             // 子模式层：激活时注入基础约束+对应模式SOP；未激活时提示两大模式入口
                             (resolvedSubMode != null ? buildBusinessBaseConstraints() : "") +
                             ("planning".equals(resolvedSubMode) ? buildPlanningModePrompt(justSwitched) : "") +
@@ -696,6 +697,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "4. 回答时标注引用来源（岗位卡片/记忆库/知识库/网络搜索）。" +
                             "5. 保持专业、简洁、有帮助的回答风格。" +
                             "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
+                            buildUniversalLogicRules() +
                             "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
                             (webSearchIntent ? "7. 用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部知识库内容仅作为补充参考。" : "");
                 }
@@ -1912,6 +1914,43 @@ public class SmartChatServiceImpl implements SmartChatService {
             log.info("业务子模式自动识别: convId={}, subMode={}", convId, auto);
         }
         return auto;
+    }
+
+    /**
+     * LLM 通用逻辑规则层（factory/designer 两模式共享，凌驾于具体能力规则）：
+     * 1. 输入处理规则：五类输入材料自动识别 + 四级采信优先级 + 冲突时「数据差异说明」
+     * 2. 上下文延续规则：多轮继承已确认设定 + 仅修改指定模块 + 「本次修订/沿用前版」双清单标注
+     * 3. 真实性约束：仅基于输入材料推导 + 缺失信息标注【假设项】及默认取值范围
+     * 4. 落地性要求：每个逻辑节点三要素（输入→规则→输出），禁止空泛口号式表述
+     * 5. 结构化方案类交付物的七节固定输出结构（一级模块不得增减）
+     */
+    private String buildUniversalLogicRules() {
+        return "\n\n【LLM通用逻辑规则（凌驾于所有能力规则，逐条强制执行）】" +
+                "\n\n一、输入处理规则" +
+                "\n- 自动识别本轮全部输入材料并归类：①需求描述（用户当前指令）②数据表（供应链/工厂业务数据、业务员资料库）③规则文档（系统业务规则、SOP、知识库文档、岗位知识卡片）④外部参考数据（网络搜索、历史专业问答）⑤历史对话（用户历史多轮提问记录与已确认设定）。" +
+                "\n- 采信优先级（从高到低，与上下文注入段落的〔数据源优先级〕标注一致）：L1 内部业务规则（系统提示词业务规则与铁律、岗位知识卡片经验规则）> L2 本地业务数据（供应链/工厂业务数据、业务员资料库、结构化查询结果、图片库）> L3 内部知识文档（向量知识库召回文档）> L4 外部参考数据（网络搜索、历史专业问答）> L5 用户指令与历史对话设定（用户口头描述的数字与说法）。" +
+                "\n- 数据冲突时必须明确标注「数据差异说明」：逐项列出冲突字段、各数据源的值、采信结果与采信理由；禁止静默覆盖任何一个数据源的值。" +
+                "\n\n二、上下文延续规则" +
+                "\n- 多轮对话自动继承本会话所有已确认的设定、参数、逻辑模块（以【用户历史多轮对话提问记录】为准）；用户未明确推翻的条目全部沿用，不得遗漏或擅自重置。" +
+                "\n- 收到修改/调整指令时，仅修改用户指定的模块，其余模块原样保留，禁止擅自改动未提及的部分。" +
+                "\n- 涉及方案/逻辑/参数调整的输出，必须标注两个清单：「本次修订模块」（改了什么、依据是什么）与「沿用前版模块」（未改动部分原样列出）。" +
+                "\n\n三、真实性约束" +
+                "\n- 所有逻辑、参数、规则必须基于本轮注入的输入材料推导；输入材料中没有依据的结论不得输出。" +
+                "\n- 缺失信息必须明确标注【假设项】并给出默认取值范围（格式如：【假设项】损耗率3%-5%，默认取4%，待用户确认）；禁止凭空编造业务数据填补空白。" +
+                "\n\n四、落地性要求" +
+                "\n- 每个逻辑节点必须定义三要素：输入是什么 → 按什么规则处理 → 输出什么；三要素不全的节点视为无效节点，必须补全或删除。" +
+                "\n- 禁止空泛描述与口号式表述（如「加强管理」「提升效率」「优化流程」），所有规则必须可执行、可校验（有明确判定条件、数据来源或操作步骤）。" +
+                "\n\n五、结构化方案固定输出结构" +
+                "\n- 当用户要求输出业务逻辑设计、规则设计、方案设计、流程规划类交付物时，输出必须严格遵循以下固定结构（一级模块不得增减）：" +
+                "\n  一、业务目标与边界定义" +
+                "\n  二、输入要素与数据源清单" +
+                "\n  三、核心业务逻辑链路（主流程+分支流程）" +
+                "\n  四、关键节点规则与判定条件" +
+                "\n  五、异常场景与边界兜底规则" +
+                "\n  六、成果输出与校验指标" +
+                "\n  七、风险提示与优化建议" +
+                "\n- 该结构下每个模块的内容必须落实第四条落地性要求（节点三要素齐全、无空泛表述）。" +
+                "\n- 简单问答/数据查询/单点计算场景不适用此结构，按核心能力A/B/C/D对应格式回答。";
     }
 
     /** 两大模式共享的基础约束（文档7条铁律 + 结构化数据强制规则 + 禁止行为清单 + 终稿输出格式） */
