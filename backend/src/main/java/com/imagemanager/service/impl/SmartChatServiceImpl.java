@@ -755,11 +755,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                         if (webSummary != null && !webSummary.isBlank()) {
                             // 阶段二：网络摘要注入本地LLM上下文，与内部数据共同参与企划方案生成
                             knowledgeContext.append("\n\n## 【网络搜索参考数据】〔数据源优先级 L4·外部参考数据〕\n")
-                                    .append("以下为按用户问题全网检索（以品牌官网等官方渠道公开数据为准）获得的摘要，")
-                                    .append("用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。")
-                                    .append("若与上方内部数据冲突，以内部数据为准，并按通用业务逻辑规则标注「数据差异说明」。\n")
-                                    .append("引用规则：末尾【检索来源清单】为网络数据的编号来源，引用网络信息时在数据支撑中标注")
-                                    .append("【外部调研】(来源N,置信度估算)；引用内部数据时按内部数据源（内部数据库/知识库文档/岗位知识）标注：\n")
+                                    .append("以下为按用户问题联网检索（优先品牌公司官网）获得的公开市场情报，")
+                                    .append("用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。\n")
+                                    .append("输出引用规则：引用网络信息时在数据支撑中标注【外部调研】(网络检索)；")
+                                    .append("引用内部数据时标注【内部数据库-XXX】或【知识库文档-XXX】；自身推导标注【AI推断】(依据,置信度)。\n")
+                                    .append("冲突处理：若网络数据与上方内部数据（L1-L3）冲突，一律以内部数据为准，")
+                                    .append("并按通用业务逻辑规则标注「数据差异说明」，不得静默采用网络数据覆盖内部结论。\n")
                                     .append(webSummary.trim()).append("\n");
                             log.info("[web-search] 联网摘要已注入上下文, 长度={}字符, 触发方式={}",
                                     webSummary.length(), planningResearchIntent ? "企划意图自动触发" : "用户明确要求联网");
@@ -1986,6 +1987,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n\n三、真实性约束" +
                 "\n- 所有逻辑、参数、规则必须基于本轮注入的输入材料推导；输入材料中没有依据的结论不得输出。" +
                 "\n- 缺失信息必须明确标注【假设项】并给出默认取值范围（格式如：【假设项】损耗率3%-5%，默认取4%，待用户确认）；禁止凭空编造业务数据填补空白。" +
+                "\n- 【关键数字四要素】(源自《企业数字中台_本周两大模块工作方案》)所有关键数字必须同时显示四要素：来源（内部数据库/外部调研/AI推断）、数据日期、缺失项说明、置信度；四要素不全的关键数字不得作为决策依据。" +
+                "\n- 【外部数据交叉验证】外部网络数据可靠性不一，涉及价格带、市场趋势、竞品动态的关键结论必须有>=2个独立来源交叉印证；仅有单一来源且无法验证时，必须标注「单一来源，未经交叉验证」并降低置信度。" +
+                "\n- 【人机决策边界】AI仅承担信息汇总、分析测算与方案建议职责，不替代人做最终决策；输出涉及立项、报价确认、客户承诺、重大资源投入类建议时，必须标注「最终决策由业务/管理人员确认」。" +
                 "\n\n四、落地性要求" +
                 "\n- 每个逻辑节点必须定义三要素：输入是什么 → 按什么规则处理 → 输出什么；三要素不全的节点视为无效节点，必须补全或删除。" +
                 "\n- 禁止空泛描述与口号式表述（如「加强管理」「提升效率」「优化流程」），所有规则必须可执行、可校验（有明确判定条件、数据来源或操作步骤）。" +
@@ -2003,6 +2007,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n  a. 当前工作模式（模式A企划/模式B决策）的多轮交互规则照常执行：过程轮次每轮末尾仍必须输出【可选操作菜单】（编号选项+功能说明，提示用户回复对应编号推进），禁止跳过业务步骤；" +
                 "\n  b. 数据来源标注规则照常执行：正文内每条关键信息/结论的数据支撑仍按【外部调研】(来源N或日期,置信度)/【内部数据库-{库名}】/【AI推断】格式内联标注，并在回答末尾汇总【引用来源】清单；" +
                 "\n  c. 过程轮次不输出完整七节终稿（仍受基础约束第3条约束），用户明确要求终稿/完整报告时才一次性输出七节结构全文。" +
+                "\n  d. 模式专属交付物结构优先：模式A商品企划的《商品企划案V1.0》（基础开发信息/调研结论/机会评分/商品结构/风险与下一步）与模式B决策辅助的六节决策报告（决策问题→事实底座→六维判断→A/B/C方案→系统建议→执行动作）遵循各自模式模板；通用七节结构仅在两模式模板未覆盖的场景生效。" +
                 "\n- 简单问答/数据查询/单点计算场景不适用此结构，按核心能力A/B/C/D对应格式回答。";
     }
 
@@ -2568,10 +2573,12 @@ public class SmartChatServiceImpl implements SmartChatService {
             topic = "相关行业与品牌的最新公开信息";
         }
 
-        // 3. 固定模板：动作指令 + 数据源要求 + 输出要求 + 防幻觉约束
+        // 3. 固定模板：动作指令 + 数据源要求（品牌公司官网为准，排除电商平台）+ 输出要求（纯文字产品参数，无链接）+ 防幻觉约束
         return "帮我去全网检索" + topic + "。" +
-                "检索要求：优先以品牌官网、官方旗舰店、官方账号等官方渠道的公开数据为准，辅以权威媒体和行业平台的公开信息；" +
-                "请综合判断最后给出答案，按主题分点输出，并标注信息来源；" +
+                "检索要求：请优先到品牌公司官网（官网首页/产品中心/新闻中心/公司介绍页）获取该品牌的产品线、产品名称与产品参数（品类/材质/克重/工艺/尺码/颜色/定价区间等），" +
+                "辅以权威媒体和行业平台的公开信息；" +
+                "不要抓取淘宝、天猫、京东、拼多多、唯品会等电商平台的商品详情页数据，不要使用比价聚合站与微博等社交媒体的零售信息；" +
+                "请综合判断最后给出答案，直接用文字分点输出检索到的产品与产品参数，不要输出任何URL链接；" +
                 "检索不到的内容明确说明'未检索到'，禁止编造。";
     }
 
@@ -2611,10 +2618,12 @@ public class SmartChatServiceImpl implements SmartChatService {
             body.put("max_tokens", 2048);
             body.put("stream", false);
             body.put("system",
-                    "你是联网市场信息检索助手，请通过web_search工具执行用户给出的检索指令。" +
-                    "输出纪律：1.只输出真实检索到的事实信息（品牌/公司动态、产品线与新品、市场趋势、渠道表现、竞品与价格带），标注来源与时间；" +
-                    "2.检索不到的明确说明'未检索到'，禁止编造；" +
-                    "3.只提供事实参考信息，不要输出建议或方案。");
+                    "你是品牌官网信息检索助手，请通过web_search工具执行用户给出的检索指令。" +
+                    "输出纪律：1.优先检索品牌公司官网（官网域名下的产品中心/新闻中心/公司介绍页），只输出真实检索到的官网事实（品牌定位/公司动态、产品线与新品名称、产品参数：品类/材质/克重/工艺/尺码/颜色/定价区间、渠道与市场动作）；" +
+                    "2.淘宝/天猫/京东/拼多多/唯品会等电商平台商品页、比价聚合站、微博等社交媒体零售贴的数据不得作为事实依据；" +
+                    "3.所有内容用纯文字分点输出，严禁输出任何URL链接；" +
+                    "4.检索不到的明确说明'未检索到'，禁止编造；" +
+                    "5.只提供事实参考信息，不要输出建议或方案。");
             List<Map<String, Object>> tools = new ArrayList<>();
             Map<String, Object> tool = new HashMap<>();
             tool.put("type", "web_search_20250305");
@@ -2661,7 +2670,8 @@ public class SmartChatServiceImpl implements SmartChatService {
             JsonNode contentArr = root.path("content");
             StringBuilder sb = new StringBuilder();
             StringBuilder queries = new StringBuilder();
-            StringBuilder sources = new StringBuilder();
+            StringBuilder sources = new StringBuilder();          // 控制台清单: 标题+完整URL(调试核对)
+            StringBuilder sourcesForInject = new StringBuilder(); // 注入清单: 标题+域名(纯文字, 无链接)
             int sourceCount = 0;
             if (contentArr.isArray()) {
                 for (JsonNode block : contentArr) {
@@ -2694,17 +2704,22 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 String title = r.path("title").asText("");
                                 String url = r.path("url").asText("");
                                 String pageAge = r.path("page_age").asText("");
+                                String ageSuffix = pageAge.isBlank() ? "" : " (" + pageAge + ")";
                                 sources.append(sourceCount).append(". ").append(title)
-                                        .append(pageAge.isBlank() ? "" : " (" + pageAge + ")")
+                                        .append(ageSuffix)
                                         .append(" — ").append(url).append("\n");
+                                sourcesForInject.append(sourceCount).append(". ").append(title)
+                                        .append(ageSuffix)
+                                        .append(" 来源域名: ").append(extractDomain(url)).append("\n");
                             }
                         }
                     }
                 }
             }
-            // 摘要末尾附编号来源清单（对应编号+数据来源），供本地模型引用与控制台核对
-            if (sources.length() > 0) {
-                sb.append("\n\n【检索来源清单】\n").append(sources.toString().trim());
+            // 注入内容纯文字化: 模型文本剥离URL(防模型违规输出链接), 来源清单用域名版(无链接)
+            String answerText = stripUrls(sb.toString());
+            if (sourcesForInject.length() > 0) {
+                answerText = answerText + "\n\n【检索来源清单】\n" + sourcesForInject.toString().trim();
             }
 
             // ===== 控制台打印联网检索全链路（供验证 web_search_20250305 是否真实调用及返回内容）=====
@@ -2716,16 +2731,16 @@ public class SmartChatServiceImpl implements SmartChatService {
                 log.info("[web-search] MiniMax实际执行的检索词: {}", queries);
             }
             if (sourceCount > 0) {
-                log.info("[web-search] 检索到的数据来源({}条, 对应编号见下):\n{}", sourceCount, sources.toString().trim());
+                log.info("[web-search] 检索到的数据来源({}条, 完整链接仅供调试核对):\n{}", sourceCount, sources.toString().trim());
             } else {
                 log.info("[web-search] 本次未返回编号来源清单(web_search_tool_result为空)");
             }
-            if (sb.length() > 0) {
-                log.info("[web-search] 联网检索返回内容(已注入本地模型, 摘要长度={}字符):\n{}", sb.length(), sb);
+            if (!answerText.isBlank()) {
+                log.info("[web-search] 联网检索返回内容(已注入本地模型, 纯文字化, 长度={}字符):\n{}", answerText.length(), answerText);
             } else {
                 log.warn("[web-search] 联网检索未返回文本内容, 原始响应: {}", abbreviate(resp, 500));
             }
-            return sb.toString();
+            return answerText;
         } catch (Exception e) {
             log.warn("[web-search] 联网搜索失败(降级为不联网, 主流程不受影响): {}", e.getMessage());
             return "";
@@ -2734,6 +2749,37 @@ public class SmartChatServiceImpl implements SmartChatService {
                 conn.disconnect();
             }
         }
+    }
+
+    /**
+     * 剥离文本中的 URL（http/https），替换为省略占位。
+     * 用于注入本地模型前的纯文字化：模型输入与输出均不得携带链接。
+     */
+    private String stripUrls(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.replaceAll("https?://\\S+", "…");
+    }
+
+    /** 提取 URL 的域名（如 https://detail.tmall.com/item.htm → detail.tmall.com），解析失败返回原始串 */
+    private String extractDomain(String url) {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        String u = url.trim();
+        try {
+            if (u.startsWith("http://") || u.startsWith("https://")) {
+                int start = u.indexOf("//") + 2;
+                int end = u.indexOf('/', start);
+                String host = end > start ? u.substring(start, end) : u.substring(start);
+                int portIdx = host.indexOf(':');
+                return portIdx > 0 ? host.substring(0, portIdx) : host;
+            }
+        } catch (Exception ignore) {
+            // fallthrough
+        }
+        return u;
     }
 
     /** 完整读取输入流为字符串（UTF-8） */
