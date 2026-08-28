@@ -750,10 +750,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 两阶段物理隔离——网络端点只看到用户自己输入的公开问题，内部数据仅在阶段二（本地模型）参与。
                 if (planningResearchIntent || webSearchIntent) {
                     try {
+                        // 阶段一：用户原始问题 → 通用模板转写 → MiniMax联网检索（数据隔离，无内部数据外传）
                         String webSummary = searchWebForMarketInfo(message);
                         if (webSummary != null && !webSummary.isBlank()) {
+                            // 阶段二：网络摘要注入本地LLM上下文，与内部数据共同参与企划方案生成
                             knowledgeContext.append("\n\n## 【网络搜索参考数据】〔数据源优先级 L4·外部参考数据〕\n")
-                                    .append("以下为公开网络检索摘要，用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。")
+                                    .append("以下为按用户问题全网检索（以品牌官网等官方渠道公开数据为准）获得的摘要，")
+                                    .append("用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。")
                                     .append("若与上方内部数据冲突，以内部数据为准，并按通用业务逻辑规则标注「数据差异说明」：\n")
                                     .append(webSummary.trim()).append("\n");
                             log.info("[web-search] 联网摘要已注入上下文, 长度={}字符, 触发方式={}",
@@ -2423,6 +2426,83 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
+     * 通用网络检索提问模板：把用户原始问题转写成规范的 MiniMax 检索指令。
+     *
+     * 示例：
+     *   原始问题："宝娜斯 丝袜 中国 抖音电商 中高端 2026秋冬"
+     *   模板产出："帮我去全网检索宝娜丝丝袜中国抖音电商中高端2026秋冬。请以品牌官网、官方旗舰店、
+     *             官方账号等官方渠道的公开数据为准，然后综合判断最后给出答案……"
+     *
+     * 模板结构（固定四段）：
+     *   1. 动作指令：帮我去全网检索{主题}
+     *   2. 数据源要求：以官网等官方渠道公开数据为准，辅以权威媒体/行业平台
+     *   3. 输出要求：综合判断后给出答案，分点标注来源
+     *   4. 防幻觉约束：检索不到的明确说明，禁止编造
+     *
+     * 保密约束[CRITICAL]：主题(topic)只来源于用户原始问题本身——本方法严禁接收/拼接
+     * knowledgeContext、供应链/报价业务数据、知识库文档、历史对话等任何内部数据。
+     *
+     * 主题清洗规则：
+     *   - 去掉请求性前缀（帮我/请/麻烦/我想等），避免与模板动作指令重复
+     *   - 去掉句末疑问符号
+     *   - 短问题（≤40字符，典型为关键词堆叠"品牌 品类 渠道 定位 季节"）压缩为紧凑检索串；
+     *     长问题（自然语言句子）保留原样，避免破坏可读性
+     */
+    private String buildWebSearchQuery(String message) {
+        // 1. 基础清洗：去首尾空白、去请求性前缀、去疑问符号
+        String topic = message == null ? "" : message.trim();
+        String[] requestPrefixes = {"请帮我", "帮帮我", "麻烦你", "麻烦帮我", "请你", "请", "麻烦", "我想", "我要", "给我", "帮我"};
+        for (String p : requestPrefixes) {
+            if (topic.startsWith(p)) {
+                topic = topic.substring(p.length()).trim();
+                break;
+            }
+        }
+        // 剥离用户已写的检索动作词（模板会统一补"帮我去全网检索"，避免指令重复）
+        String[] searchActionPrefixes = {
+                "去全网检索", "全网检索", "去全网搜索", "全网搜索", "去全网搜", "全网搜",
+                "联网检索", "联网搜索", "联网查", "上网检索", "上网搜索", "上网查", "上网搜",
+                "网上检索", "网上搜索", "网上查", "网上搜", "从网上", "从互联网", "在线搜索",
+                "查一下", "查查", "搜一下", "搜索一下", "检索一下"
+        };
+        boolean stripped = true;
+        while (stripped) {
+            stripped = false;
+            for (String p : searchActionPrefixes) {
+                if (topic.startsWith(p)) {
+                    topic = topic.substring(p.length()).trim();
+                    stripped = true;
+                    break;
+                }
+            }
+        }
+        // 剥离开头轻动词（"做个方案"→"方案"，检索主题更聚焦）
+        String[] lightVerbs = {"做一份", "做一个", "做个", "制定一份", "制定个", "制定一个", "制定", "写一份", "写个", "写一个", "出一份", "出个", "出一套", "策划一份", "策划个"};
+        for (String v : lightVerbs) {
+            if (topic.startsWith(v)) {
+                topic = topic.substring(v.length()).trim();
+                break;
+            }
+        }
+        topic = topic.replace("？", "").replace("?", "").trim();
+
+        // 2. 短问题（关键词堆叠）压缩为紧凑检索串；长句子保留原样
+        if (!topic.isEmpty() && topic.length() <= 40) {
+            topic = topic.replaceAll("\\s+", "");
+        }
+
+        if (topic.isEmpty()) {
+            topic = "相关行业与品牌的最新公开信息";
+        }
+
+        // 3. 固定模板：动作指令 + 数据源要求 + 输出要求 + 防幻觉约束
+        return "帮我去全网检索" + topic + "。" +
+                "检索要求：优先以品牌官网、官方旗舰店、官方账号等官方渠道的公开数据为准，辅以权威媒体和行业平台的公开信息；" +
+                "请综合判断最后给出答案，按主题分点输出，并标注信息来源；" +
+                "检索不到的内容明确说明'未检索到'，禁止编造。";
+    }
+
+    /**
      * 阶段一：联网搜索（数据隔离执行）
      *
      * 保密约束[CRITICAL]：本方法只允许传入用户原始问题(message)。用户问题本身是用户主动
@@ -2431,7 +2511,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 拼入网络请求——网络搜索端点是外部服务，内部数据不得外传。
      *
      * 设计：两阶段隔离——
-     *   阶段一（本方法）：仅用户问题 → 外部搜索端点 → 返回网络事实摘要
+     *   阶段一（本方法）：仅用户问题(经通用模板转写) → 外部搜索端点 → 返回网络事实摘要
      *   阶段二（主流程）：网络摘要 + 内部数据 → 本地模型生成企划方案（网络数据仅参考）
      *
      * 实现：MiniMax API Anthropic 兼容端点 + web_search_20250305 服务端搜索工具，非流式调用。
@@ -2448,17 +2528,20 @@ public class SmartChatServiceImpl implements SmartChatService {
         try {
             String url = buildEndpointUrl(minimaxBaseUrl, "/anthropic/v1/messages");
 
-            // 请求体仅含用户原始问题——严禁拼接 knowledgeContext/业务数据/历史对话（内部数据保密）
+            // 用通用提问模板把用户原始问题转写为规范检索指令
+            // 保密约束：buildWebSearchQuery 只基于用户原始问题构造，严禁拼接内部数据
+            String searchQuery = buildWebSearchQuery(message);
+
+            // 请求体仅含模板转写后的检索指令——严禁拼接 knowledgeContext/业务数据/历史对话（内部数据保密）
             Map<String, Object> body = new HashMap<>();
             body.put("model", model);
             body.put("max_tokens", 2048);
             body.put("stream", false);
             body.put("system",
-                    "你是市场信息检索助手，可通过web_search工具联网检索。请针对用户问题检索并汇总公开网络信息：" +
-                    "品牌/公司最新动态、产品线与新品信息、市场趋势、渠道（如抖音电商）表现、竞品与价格带信息。" +
-                    "输出要求：1.按主题分点输出事实信息并尽量标注来源与时间；" +
-                    "2.只输出真实检索到的内容，检索不到的明确说明'未检索到'，禁止编造；" +
-                    "3.不要输出建议或方案，只提供检索到的事实参考信息。");
+                    "你是联网市场信息检索助手，请通过web_search工具执行用户给出的检索指令。" +
+                    "输出纪律：1.只输出真实检索到的事实信息（品牌/公司动态、产品线与新品、市场趋势、渠道表现、竞品与价格带），标注来源与时间；" +
+                    "2.检索不到的明确说明'未检索到'，禁止编造；" +
+                    "3.只提供事实参考信息，不要输出建议或方案。");
             List<Map<String, Object>> tools = new ArrayList<>();
             Map<String, Object> tool = new HashMap<>();
             tool.put("type", "web_search_20250305");
@@ -2468,10 +2551,11 @@ public class SmartChatServiceImpl implements SmartChatService {
             body.put("tools", tools);
             Map<String, Object> userMsg = new HashMap<>();
             userMsg.put("role", "user");
-            userMsg.put("content", message);
+            userMsg.put("content", searchQuery);
             body.put("messages", List.of(userMsg));
 
-            log.info("[web-search] 开始联网检索(阶段一, 数据隔离): query长度={}字符, model={}", message.length(), model);
+            log.info("[web-search] 开始联网检索(阶段一, 数据隔离): 原始问题长度={}, 模板query={}, model={}",
+                    message == null ? 0 : message.length(), searchQuery, model);
 
             conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
             conn.setRequestMethod("POST");
