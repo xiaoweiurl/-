@@ -1996,6 +1996,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n- 【兼容规则（重要）】此七节结构仅约束交付物正文的组织方式，不得吞并或取代以下既有输出要求，两者必须同时满足：" +
                 "\n  a. 当前工作模式（模式A企划/模式B决策）的多轮交互规则照常执行：过程轮次每轮末尾仍必须输出【可选操作菜单】（编号选项+功能说明，提示用户回复对应编号推进），禁止跳过业务步骤；" +
                 "\n  b. 数据来源标注规则照常执行：正文内每条关键信息/结论的数据支撑仍按【外部调研】(来源N或日期,置信度)/【内部数据库-{库名}】/【AI推断】格式内联标注，并在回答末尾汇总【引用来源】清单；" +
+                "\n  b1. 外部引用核对铁律：标注【外部调研】(来源N)前，必须核对【网络搜索参考数据】中该来源N的正文或摘要确实包含所引用的数据/结论；来源N的内容与引用结论无关或不含该数据时，禁止标注该来源，应改标【AI推断】或注明'未检索到直接证据'。严禁仅因来源编号存在就虚构引用关系；" +
                 "\n  c. 过程轮次不输出完整七节终稿（仍受基础约束第3条约束），用户明确要求终稿/完整报告时才一次性输出七节结构全文。" +
                 "\n  d. 模式专属交付物结构优先：模式A商品企划的《商品企划案V1.0》（基础开发信息/调研结论/机会评分/商品结构/风险与下一步）与模式B决策辅助的六节决策报告（决策问题→事实底座→六维判断→A/B/C方案→系统建议→执行动作）遵循各自模式模板；通用七节结构仅在两模式模板未覆盖的场景生效。" +
                 "\n- 简单问答/数据查询/单点计算场景不适用此结构，按核心能力A/B/C/D对应格式回答。";
@@ -2811,8 +2812,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             JsonNode contentArr = root.path("content");
             StringBuilder sb = new StringBuilder();
             StringBuilder queries = new StringBuilder();
-            StringBuilder sources = new StringBuilder();          // 控制台清单: 标题+完整URL(调试核对)
-            StringBuilder sourcesForInject = new StringBuilder(); // 注入清单: 标题+完整URL(溯源)
+            StringBuilder sources = new StringBuilder();          // 控制台清单: 标题+URL+网页摘要(数据准确性核对)
+            StringBuilder sourcesForInject = new StringBuilder(); // 注入清单: 标题+URL+网页摘要(供本地模型交叉验证, 防幻觉引用)
+            java.util.Set<String> seenUrls = new java.util.LinkedHashSet<>(); // URL去重(MiniMax多次检索常重复命中同页)
             int sourceCount = 0;
             if (contentArr.isArray()) {
                 for (JsonNode block : contentArr) {
@@ -2841,31 +2843,45 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 if (!"web_search_result".equals(r.path("type").asText())) {
                                     continue;
                                 }
-                                sourceCount++;
                                 String title = r.path("title").asText("");
                                 String srcUrl = r.path("url").asText("");
                                 String pageAge = r.path("page_age").asText("");
+                                // content字段=MiniMax抓取到的该网页正文摘要——数据准确性的直接证据, 必须保留
+                                String snippet = r.path("content").asText("").replaceAll("\\s+", " ").trim();
+                                if (srcUrl.isBlank() || !seenUrls.add(srcUrl)) {
+                                    continue;
+                                }
+                                sourceCount++;
                                 String ageSuffix = pageAge.isBlank() ? "" : " (" + pageAge + ")";
                                 sources.append(sourceCount).append(". ").append(title)
                                         .append(ageSuffix)
-                                        .append(" — ").append(srcUrl).append("\n");
-                                // 注入清单同样保留完整URL：采集模板要求"每条参数标注来源页面URL"作溯源
+                                        .append(" — ").append(srcUrl);
+                                if (!snippet.isBlank()) {
+                                    sources.append("\n   摘要: ").append(abbreviate(snippet, 300));
+                                }
+                                sources.append("\n");
+                                // 注入清单保留URL+摘要: 采集模板要求溯源URL; 摘要让本地模型核对来源实际内容, 防止"标注了来源但来源不含该数据"的幻觉引用
                                 sourcesForInject.append(sourceCount).append(". ").append(title)
                                         .append(ageSuffix)
-                                        .append(" — ").append(srcUrl).append("\n");
+                                        .append(" — ").append(srcUrl);
+                                if (!snippet.isBlank()) {
+                                    sourcesForInject.append("\n   摘要: ").append(abbreviate(snippet, 200));
+                                }
+                                sourcesForInject.append("\n");
                             }
                         }
                     }
                 }
             }
-            // 注入内容：采集报告正文保留溯源URL（采集模板要求"每条参数标注来源页面URL，无来源不得输出"），
-            // 附【检索来源清单】（含完整URL）供本地模型交叉验证官网/电商来源分级
+            // 注入内容：采集报告正文(text块, MiniMax读完网页后生成的具体参数) + 【检索来源清单】(各来源URL+网页摘要, 供溯源核对)
             String answerText = sb.toString();
             if (sourcesForInject.length() > 0) {
-                answerText = answerText + "\n\n【检索来源清单】\n" + sourcesForInject.toString().trim();
+                answerText = answerText + "\n\n【检索来源清单】（引用外部数据前必须核对对应来源摘要中确实包含该数据，来源不含的禁止标注为该来源）\n"
+                        + sourcesForInject.toString().trim();
             }
 
-            // ===== 控制台打印联网检索全链路（供验证 web_search_20250305 是否真实调用及返回内容）=====
+            // ===== 控制台打印联网检索全链路 =====
+            // 数据流说明: ①MiniMax执行检索词→②各来源网页(下方清单, 含抓到的正文摘要)→③MiniMax消化后生成的采集报告(下方"注入内容")→④注入本地LLM
             String toolState = queries.length() > 0
                     ? "已调用(web_search_20250305, " + queries.toString().split(" \\| ").length + "次)"
                     : "未调用(模型未触发web_search工具)";
@@ -2873,15 +2889,15 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (queries.length() > 0) {
                 log.info("[web-search] MiniMax实际执行的检索词: {}", queries);
             }
-            if (sourceCount > 0) {
-                log.info("[web-search] 检索到的数据来源({}条, 完整链接仅供调试核对):\n{}", sourceCount, sources.toString().trim());
-            } else {
-                log.info("[web-search] 本次未返回编号来源清单(web_search_tool_result为空)");
-            }
             if (!answerText.isBlank()) {
-                log.info("[web-search] 联网检索返回内容(已注入本地模型, 含官网溯源URL, 长度={}字符):\n{}", answerText.length(), answerText);
+                log.info("[web-search] ③联网采集报告(④已注入本地模型, 长度={}字符):\n{}", answerText.length(), answerText);
             } else {
                 log.warn("[web-search] 联网检索未返回文本内容, 原始响应: {}", abbreviate(resp, 500));
+            }
+            if (sourceCount > 0) {
+                log.info("[web-search] ②检索来源明细(去重后{}条, 标题+URL+网页摘要, 供准确性核对):\n{}", sourceCount, sources.toString().trim());
+            } else {
+                log.info("[web-search] 本次未返回编号来源清单(web_search_tool_result为空)");
             }
             return answerText;
         } catch (Exception e) {
