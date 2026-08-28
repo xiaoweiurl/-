@@ -454,8 +454,8 @@ public class DashboardServiceImpl implements DashboardService {
             long activeSuppliers = rawSuppliers + accSuppliers;
             // 采购/入库单数：原料入库记录数 + 辅料采购记录数
             long monthlyPurchases = rawMaterialWarehouseRepository.count() + accessoryPurchaseRepository.count();
-            // 原料种类数（按编码去重，避免与记录数重复）
-            long totalRawMaterials = rawMaterialWarehouseRepository.countDistinctProductCode();
+            // 原料种类数：按物料名称去重（报表无物料编码列，Excel「物料名称」是主标识）
+            long totalRawMaterials = rawMaterialWarehouseRepository.countDistinctMaterialName();
             long productionPlans = productionPlanRepository.count();
 
             return new DashboardStatsResponse.SupplyChainStats(

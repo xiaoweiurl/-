@@ -2725,29 +2725,34 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 供应商对比 - 按原料编码汇总价格（查 v_material_price 视图，价格源=原料入库表）
+     * 供应商对比 - 按物料名称汇总价格（查 v_material_price 视图，数据源=原料统计报表，价格仅手工维护时才有）
      */
     private void searchSupplierComparison(String query, List<Map<String, Object>> results) {
         try {
-            // 按原料编码汇总入库价格，找最低价（视图已按 product_code 聚合）
-            String sql = "SELECT material_code, " +
+            // 按物料名称汇总入库价格，找最低价（视图已按 material_name+specification 聚合）
+            String sql = "SELECT material_name, " +
+                "specification, " +
                 "supplier_count, " +
+                "priced_count, " +
                 "min_price, " +
                 "max_price, " +
                 "avg_price, " +
                 "record_count " +
                 "FROM v_material_price " +
-                "ORDER BY material_code LIMIT 20";
+                "ORDER BY record_count DESC LIMIT 20";
             List<Map<String, Object>> rows = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("materialCode", rs.getString("material_code"));
+                    row.put("materialName", rs.getString("material_name"));
+                    String spec = rs.getString("specification");
+                    row.put("specification", spec != null ? spec : "");
                     row.put("supplierCount", rs.getInt("supplier_count"));
                     row.put("recordCount", rs.getInt("record_count"));
+                    row.put("pricedCount", rs.getInt("priced_count"));
                     row.put("minPrice", rs.getBigDecimal("min_price"));
                     row.put("maxPrice", rs.getBigDecimal("max_price"));
                     row.put("avgPrice", rs.getBigDecimal("avg_price"));
-                    // 计算节省比例
+                    // 计算节省比例（仅当手工维护过单价时才有意义）
                     BigDecimal maxP = rs.getBigDecimal("max_price");
                     BigDecimal minP = rs.getBigDecimal("min_price");
                     if (maxP != null && minP != null && maxP.compareTo(BigDecimal.ZERO) > 0) {
@@ -2761,10 +2766,17 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             if (!rows.isEmpty()) {
                 Map<String, Object> result = new LinkedHashMap<>();
-                result.put("type", "供应商对比");
-                result.put("summary", "共 " + rows.size() + " 种原料有入库价格记录（价格源：原料入库表）");
+                long priced = rows.stream().filter(r -> {
+                    Object p = r.get("minPrice");
+                    return p != null && ((BigDecimal) p).compareTo(BigDecimal.ZERO) > 0;
+                }).count();
+                String summary = priced > 0
+                    ? "共 " + rows.size() + " 种物料有入库记录，其中 " + priced + " 种已维护单价（价格源：原料统计报表+人工维护单价）"
+                    : "共 " + rows.size() + " 种物料有入库记录，但均未维护单价（Excel报表本身不含单价列，请在原料入库页手工补充单价后再对比）";
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("items", rows);
+                result.put("type", "供应商对比");
+                result.put("summary", summary);
                 result.put("data", data);
                 results.add(result);
             }

@@ -36,12 +36,14 @@ public interface QuotationAssistant {
             pfkz=缝拼克重(报价fpkz权威数据源), cpkz=成品克重, zcl=制成率, jix=机型, zs=针数,
             djcl=理论产量, hhywy=业务员, qd_dys=前道打样师, hd_dys=后道打样师
 
-            【关联表 raw_material_warehouse（原料入库表，字段=含义，BOM级库存台账）】
+            【关联表 raw_material_warehouse（原料统计报表，字段=含义，BOM级台账）】
             huohao=生产货号(关联order_bjd_query.huohao), color=颜色, size=尺码, component=部件(如裤身/腰口/缝线),
             supplier=供应商, material_name=物料名称, specification=规格(如77D/24F), material_color=物料颜色,
             batch_no=批号, twist_direction=捻向, unit=单位, usage_per_unit=单件用量, loss_rate=损耗率(%),
-            unit_price=单价, company=公司, remark=备注
-            用途: 按货号查BOM构成(哪些部件用哪种料/用量/损耗); ERP无采购数据, 本表unit_price即价格基准源, 供智能报价与供应商对比取价
+            remark=备注, company=公司
+            注意: 本表=Excel导入的原料统计报表(14列,见上), 报表本身不含单价/物料编码列;
+            unit_price 是系统预留的手工维护列(默认空), 仅人工在页面补充后才能参与算价
+            用途: 按货号查BOM构成(哪些部件用哪种料/用量/损耗); 用量×单价算原料成本(单价缺失时提示用户补充)
 
             【关联视图（V46，跨表数据已拉通，直接查视图优于手写JOIN）】
             v_product_genealogy=货号谱系(报价+工艺单+订单需求+排产): huohao=生产货号(统一关联键),
@@ -54,10 +56,12 @@ public interface QuotationAssistant {
               quotation_cnt=报价单号数, avg_saleprice=平均售价, avg_sales_cost=平均销售成本, avg_unit_profit=平均单品毛利,
               last_quote_date=最近报价, sales_order_cnt=成交订单数, sales_total_qty=成交数量合计,
               last_order_date=最近下单, latest_delivery=最晚交期, salespersons=跟进业务员
-            v_material_price=原料价格(价格源=原料入库表,采购表已停用): material_code=原料编码(统一关联键),
-              supplier_count=入库供应商数, min_price=最低入库价(智能报价取价), max_price=最高入库价, avg_price=入库均价,
-              record_count=入库记录数(价格样本量), suppliers=供应商列表
-            注意: raw_material_purchase(原料采购表)已停用,ERP无采购数据,不要查询该表算价格
+            v_material_price=原料价格(数据源=原料统计报表,按物料名称+规格聚合): material_name=物料名称(聚合主键),
+              specification=规格(与名称共同构成物料键), supplier_count=供应商数, priced_count=已维护单价的记录数,
+              min_price=最低价(智能报价取价,单价缺失时为NULL), max_price=最高价, avg_price=均价,
+              record_count=入库记录总数, suppliers=供应商列表
+            注意: raw_material_purchase(原料采购表)已停用,ERP无采购数据,不要查询该表算价格;
+              原料统计报表不含单价列, 单价需人工维护, min_price为NULL表示该物料尚未维护单价,应提示用户补充
 
             【明细视图（V48，一单一行不聚合：核对单据/查某客户全部单据/溯源脏数据时优先用）】
             v_quotation_detail=报价单明细(42列,一单一行): quotation_no=报价单号, quotation_date=报价日期, customer_name=客户, product_code=生产货号,

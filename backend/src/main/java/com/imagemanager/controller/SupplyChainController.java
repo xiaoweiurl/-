@@ -334,10 +334,10 @@ public class SupplyChainController {
         // 产品数量 = 报价单中不同产品编码数
         long productCount = productQuotationRepository.count();
         stats.put("productCount", productCount);
-        // 原料种类 = 原料入库中不同原料编码数
-        long materialCount = rawMaterialWarehouseRepository.countDistinctProductCode();
+        // 原料种类 = 原料统计报表中不同「物料名称」数（报表无物料编码列）
+        long materialCount = rawMaterialWarehouseRepository.countDistinctMaterialName();
         stats.put("materialCount", materialCount);
-        // 供应商数 = 原料入库中不同供应商数 + 辅料采购中不同供应商数（ERP 无采购数据，价格源=入库表）
+        // 供应商数 = 原料统计报表中不同供应商数 + 辅料采购中不同供应商数（ERP 无采购数据，价格源=统计报表）
         long supplierCount = rawMaterialWarehouseRepository.countDistinctSupplier() + accessoryPurchaseRepository.countDistinctSupplier();
         stats.put("supplierCount", supplierCount);
         // 平均利润率 = 从智能报价中计算
@@ -614,32 +614,9 @@ public class SupplyChainController {
             BigDecimal quotePrice = totalCost.multiply(
                     BigDecimal.ONE.add(BigDecimal.valueOf(profitMargin / 100.0)));
 
-            // 查找最优供应商（价格源：原料入库表 raw_material_warehouse，ERP 无采购数据，采购表已停用）
-            java.util.List<Map<String, Object>> supplierSuggestions = new java.util.ArrayList<>();
-            for (int i = 0; i < 6; i++) {
-                if (matNames[i] != null) {
-                    List<RawMaterialWarehouse> warehouseRecords = rawMaterialWarehouseRepository.findByProductCode(matNames[i]);
-                    BigDecimal bestPrice = null;
-                    String bestSupplier = null;
-                    for (RawMaterialWarehouse wh : warehouseRecords) {
-                        if (wh.getUnitPrice() != null && (bestPrice == null || wh.getUnitPrice().compareTo(bestPrice) < 0)) {
-                            bestPrice = wh.getUnitPrice();
-                            bestSupplier = wh.getSupplier();
-                        }
-                    }
-                    if (bestPrice != null) {
-                        BigDecimal currentPrice = matPrices[i] != null ? matPrices[i] : BigDecimal.ZERO;
-                        BigDecimal savings = currentPrice.subtract(bestPrice).multiply(matUsages[i] != null ? matUsages[i] : BigDecimal.ONE);
-                        supplierSuggestions.add(Map.of(
-                                "materialCode", matNames[i],
-                                "currentPrice", currentPrice,
-                                "bestPrice", bestPrice,
-                                "bestSupplier", bestSupplier != null ? bestSupplier : "",
-                                "savings", savings
-                        ));
-                    }
-                }
-            }
+            // 供应商推荐：报价单原料列为编码(如XF1202020), 而原料统计报表无编码列(物料以「物料名称+规格」标识),
+            // 两者无关联键; 且报表Excel无单价列(单价仅手工维护)——无可靠比价数据源,不再输出推荐
+            java.util.List<Map<String, Object>> supplierSuggestions = java.util.Collections.emptyList();
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("productCode", productCode);
@@ -691,19 +668,11 @@ public class SupplyChainController {
                         // 报价表单价(元/克)，计算时: mᵢ × pᵢ/1000 其中 pᵢ=单价×1000(元/千克)
                         BigDecimal unitPricePerGram = matQuotationPrices[i];
                         
-                        // 从原料入库表获取最低入库价作为参考（ERP 无采购数据，价格源=raw_material_warehouse）
+                        // 采购参考价：报价单原料编码无法关联报表物料(报表无编码列,物料以「物料名称+规格」标识),
+                        // 且报表Excel本身无单价列(仅手工维护),参考价置空
                         BigDecimal purchaseRefPrice = null;
                         String bestSupplier = "";
                         String purchaseUnit = "";
-                        List<RawMaterialWarehouse> whRecords = rawMaterialWarehouseRepository.findByProductCode(matNames[i]);
-                        for (RawMaterialWarehouse wh : whRecords) {
-                            if (wh.getUnitPrice() == null) continue;
-                            if (purchaseRefPrice == null || wh.getUnitPrice().compareTo(purchaseRefPrice) < 0) {
-                                purchaseRefPrice = wh.getUnitPrice();
-                                bestSupplier = wh.getSupplier() != null ? wh.getSupplier() : "";
-                                purchaseUnit = wh.getUnit() != null ? wh.getUnit() : "";
-                            }
-                        }
                         
                         // 原料成本 = mᵢ(克) × pᵢ(元/千克) / 1000
                         // 等价于 mᵢ × unitPrice(元/克)
@@ -815,24 +784,27 @@ public class SupplyChainController {
             HttpServletRequest request) {
         try {
             getCurrentUser(request);
-            // 价格源：原料入库表 raw_material_warehouse（ERP 无采购数据，采购表已停用）
+            // 价格源：原料统计报表 raw_material_warehouse（Excel 导入；报表本身无单价列，
+            // 仅手工维护过单价的记录参与价格对比。参数 materialCode 兼容旧前端，语义=物料名称关键词）
             List<RawMaterialWarehouse> records;
             if (materialCode != null && !materialCode.isEmpty()) {
-                records = rawMaterialWarehouseRepository.findByProductCode(materialCode);
+                records = rawMaterialWarehouseRepository.findByMaterialNameContainingIgnoreCase(materialCode);
             } else {
                 records = rawMaterialWarehouseRepository.findAll();
             }
 
-            // 按原料编码分组
+            // 按「物料名称+规格」分组（报表无物料编码列）
             Map<String, java.util.List<Map<String, Object>>> grouped = new java.util.LinkedHashMap<>();
             for (RawMaterialWarehouse p : records) {
-                String code = p.getProductCode();
-                if (code == null || code.isEmpty()) continue;
-                if (p.getUnitPrice() == null) continue; // 无价格记录不参与对比
-                if (!grouped.containsKey(code)) {
-                    grouped.put(code, new java.util.ArrayList<>());
+                String mname = p.getMaterialName();
+                if (mname == null || mname.isEmpty()) continue;
+                if (p.getUnitPrice() == null) continue; // 未手工维护单价的记录不参与价格对比
+                String spec = p.getSpecification() != null ? p.getSpecification() : "";
+                String key = mname + (spec.isEmpty() ? "" : " / " + spec);
+                if (!grouped.containsKey(key)) {
+                    grouped.put(key, new java.util.ArrayList<>());
                 }
-                grouped.get(code).add(Map.of(
+                grouped.get(key).add(Map.of(
                         "supplier", p.getSupplier() != null ? p.getSupplier() : "",
                         "batchNo", p.getBatchNo() != null ? p.getBatchNo() : "",
                         "unitPrice", p.getUnitPrice(),

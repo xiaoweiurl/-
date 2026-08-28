@@ -9,11 +9,10 @@ import lombok.Builder;
 import java.math.BigDecimal;
 
 /**
- * 原料入库/用料BOM实体（价格基准源）
- * 对应 V49 表结构：货号/颜色/尺码/部件/供应商/物料名称/规格/物料颜色/批号/捻向/单位/单件用量/损耗/备注
+ * 原料统计报表/用料BOM实体（Excel 导入 14 列：货号/颜色/尺码/部件/供应商/物料名称/规格/物料颜色/批号/捻向/单位/单件用量/损耗/备注）
  * huohao=成品货号【关联键】→ order_bjd_query.huohao / order_xs_list.detailhuohao
- * product_code=原料编码【关联键】→ product_quotation.raw_material_name1~6
- * ERP 无采购数据（raw_material_purchase 已停用），本表 unit_price 即智能报价/供应商对比的取价基准（见 V50 迁移）
+ * 注意：Excel 报表不含「单价」「物料编码」列！unit_price / product_code 是系统预留的手工维护列，默认为空；
+ * 物料唯一标识 = 物料名称+规格（见 V51 视图 v_material_price）
  */
 @Data
 @NoArgsConstructor
@@ -30,7 +29,7 @@ public class RawMaterialWarehouse {
     @Column(name = "huohao")
     private String huohao;
 
-    /** 原料编码（关联原料采购表 material_code） */
+    /** 原料编码（手工维护预留列：Excel 报表不含此列，默认空；勿关联采购表——已停用） */
     @Column(name = "product_code")
     private String productCode;
 
@@ -76,7 +75,7 @@ public class RawMaterialWarehouse {
     @Column(name = "loss_rate")
     private BigDecimal lossRate;
 
-    /** 入库单价 */
+    /** 单价（手工维护预留列：Excel 报表不含此列，默认空；有值时参与 v_material_price 比价） */
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
 
