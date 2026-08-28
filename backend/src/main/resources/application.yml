@@ -166,26 +166,8 @@ app:
     # 请求超时（毫秒）
     timeout: ${RERANKER_TIMEOUT:5000}
   
-  # DeepSeek 配置：智能体阶段一联网检索编排（function calling 模式）
-  # 流程：用户问题 → DeepSeek 提取客户名+产品名 → 调 search_web 工具(Java实现) → 过滤汇总 → 摘要交本地 Ollama
-  # 保密：DeepSeek 请求体只含用户原始问题，内部知识库/业务数据不外传
-  deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}
-    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    model: ${DEEPSEEK_MODEL:deepseek-chat}
-    timeout-ms: ${DEEPSEEK_TIMEOUT_MS:60000}
-
-  # search_web 工具的搜索后端（DeepSeek function calling 调用，Java 实现）
-  # provider 可选: bing(默认,国内可达免key) / duckduckgo(需出网) / searxng(自建聚合搜索)
-  web-search:
-    provider: ${WEB_SEARCH_PROVIDER:bing}
-    max-results: ${WEB_SEARCH_MAX_RESULTS:8}
-    searxng:
-      base-url: ${SEARXNG_BASE_URL:http://localhost:8888}
-
-  # MiniMax 配置：Anthropic 兼容端点 + 官方服务端 web_search 工具（web_search_20250305，Beta）
-  # 用于智能体阶段一联网检索：用户问题 → MiniMax 服务端自动搜索+汇总 → 摘要交本地 Ollama
-  # 保密：请求体只含用户原始问题，内部知识库/业务数据不外传
+  # MiniMax 配置：主对话已改用 Ollama 本地模型；MiniMax Anthropic 兼容端点现用于
+  # 智能体联网搜索（阶段一数据隔离：仅传用户原始问题，内部业务数据不外传）
   minimax:
     api-key: ${MINIMAX_API_KEY:}
     base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com}
