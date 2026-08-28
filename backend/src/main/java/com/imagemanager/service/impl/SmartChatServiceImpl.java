@@ -757,7 +757,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                             knowledgeContext.append("\n\n## 【网络搜索参考数据】〔数据源优先级 L4·外部参考数据〕\n")
                                     .append("以下为按用户问题全网检索（以品牌官网等官方渠道公开数据为准）获得的摘要，")
                                     .append("用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。")
-                                    .append("若与上方内部数据冲突，以内部数据为准，并按通用业务逻辑规则标注「数据差异说明」：\n")
+                                    .append("若与上方内部数据冲突，以内部数据为准，并按通用业务逻辑规则标注「数据差异说明」。\n")
+                                    .append("引用规则：末尾【检索来源清单】为网络数据的编号来源，引用网络信息时在数据支撑中标注")
+                                    .append("【外部调研】(来源N,置信度估算)；引用内部数据时按内部数据源（内部数据库/知识库文档/岗位知识）标注：\n")
                                     .append(webSummary.trim()).append("\n");
                             log.info("[web-search] 联网摘要已注入上下文, 长度={}字符, 触发方式={}",
                                     webSummary.length(), planningResearchIntent ? "企划意图自动触发" : "用户明确要求联网");
@@ -1975,7 +1977,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         return "\n\n【LLM通用逻辑规则（凌驾于所有能力规则，逐条强制执行）】" +
                 "\n\n一、输入处理规则" +
                 "\n- 自动识别本轮全部输入材料并归类：①需求描述（用户当前指令）②数据表（供应链/工厂业务数据、业务员资料库）③规则文档（系统业务规则、SOP、知识库文档、岗位知识卡片）④外部参考数据（网络搜索、历史专业问答）⑤历史对话（用户历史多轮提问记录与已确认设定）。" +
-                "\n- 采信优先级（从高到低，与上下文注入段落的〔数据源优先级〕标注一致）：L1 内部业务规则（系统提示词业务规则与铁律、岗位知识卡片经验规则）> L2 本地业务数据（供应链/工厂业务数据、业务员资料库、结构化查询结果、图片库）> L3 内部知识文档（向量知识库召回文档）> L4 外部参考数据（网络搜索——用于获取品牌/客户最新动态与产品信息，仅作背景参考，不得作为内部业务结论的依据；历史专业问答）> L5 用户指令与历史对话设定（用户口头描述的数字与说法）。" +
+                "\n- 采信优先级（从高到低，与上下文注入段落的〔数据源优先级〕标注一致）：L1 内部业务规则（系统提示词业务规则与铁律、岗位知识卡片经验规则）> L2 本地业务数据（供应链/工厂业务数据、业务员资料库、结构化查询结果、图片库）> L3 内部知识文档（向量知识库召回文档）> L4 外部参考数据（网络搜索——用于获取品牌/客户最新动态与产品信息，仅作背景参考，不得作为内部业务结论的依据；引用时标注【外部调研】(来源N,置信度估算)；历史专业问答）> L5 用户指令与历史对话设定（用户口头描述的数字与说法）。" +
                 "\n- 数据冲突时必须明确标注「数据差异说明」：逐项列出冲突字段、各数据源的值、采信结果与采信理由；禁止静默覆盖任何一个数据源的值。" +
                 "\n\n二、上下文延续规则" +
                 "\n- 多轮对话自动继承本会话所有已确认的设定、参数、逻辑模块（以【用户历史多轮对话提问记录】为准）；用户未明确推翻的条目全部沿用，不得遗漏或擅自重置。" +
@@ -1988,7 +1990,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n- 每个逻辑节点必须定义三要素：输入是什么 → 按什么规则处理 → 输出什么；三要素不全的节点视为无效节点，必须补全或删除。" +
                 "\n- 禁止空泛描述与口号式表述（如「加强管理」「提升效率」「优化流程」），所有规则必须可执行、可校验（有明确判定条件、数据来源或操作步骤）。" +
                 "\n\n五、结构化方案固定输出结构" +
-                "\n- 当用户要求输出业务逻辑设计、规则设计、方案设计、流程规划类交付物时，输出必须严格遵循以下固定结构（一级模块不得增减）：" +
+                "\n- 当用户要求输出业务逻辑设计、规则设计、方案设计、流程规划类交付物时，输出正文必须严格遵循以下固定结构（一级模块不得增减）：" +
                 "\n  一、业务目标与边界定义" +
                 "\n  二、输入要素与数据源清单" +
                 "\n  三、核心业务逻辑链路（主流程+分支流程）" +
@@ -1997,6 +1999,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n  六、成果输出与校验指标" +
                 "\n  七、风险提示与优化建议" +
                 "\n- 该结构下每个模块的内容必须落实第四条落地性要求（节点三要素齐全、无空泛表述）。" +
+                "\n- 【兼容规则（重要）】此七节结构仅约束交付物正文的组织方式，不得吞并或取代以下既有输出要求，两者必须同时满足：" +
+                "\n  a. 当前工作模式（模式A企划/模式B决策）的多轮交互规则照常执行：过程轮次每轮末尾仍必须输出【可选操作菜单】（编号选项+功能说明，提示用户回复对应编号推进），禁止跳过业务步骤；" +
+                "\n  b. 数据来源标注规则照常执行：正文内每条关键信息/结论的数据支撑仍按【外部调研】(来源N或日期,置信度)/【内部数据库-{库名}】/【AI推断】格式内联标注，并在回答末尾汇总【引用来源】清单；" +
+                "\n  c. 过程轮次不输出完整七节终稿（仍受基础约束第3条约束），用户明确要求终稿/完整报告时才一次性输出七节结构全文。" +
                 "\n- 简单问答/数据查询/单点计算场景不适用此结构，按核心能力A/B/C/D对应格式回答。";
     }
 
@@ -2370,6 +2376,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 1. 企划动作词：企划/策划/规划/方案/调研/趋势/洞察/市场分析/新品开发/上市计划等
      * 2. 季节年份：2024-2039 + 春/夏/秋/冬（如"2026秋冬"）
      * 3. 渠道/定位/市场词（需消息长度>8）：抖音/电商/直播/天猫/中高端/竞品/价格带/目标客群等
+     * 4. 品牌+品类组合：外文品牌（如"addidas 内衣"）或已知中文品牌（如"阿迪达斯内衣"）+ 服装/袜类品类词
      *
      * 排除项：含产品编码或报价核算强信号的纯内部业务查询（报价/成本/单价/入库/排产等），
      * 这类问题必须走内部数据，联网反而引入噪声。
@@ -2422,6 +2429,72 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
         }
 
+        // 组4：品牌+品类组合（如"addidas 内衣"、"阿迪达斯内衣"、"浪莎袜业"）
+        // 品牌词（外文品牌字母串或已知中文品牌）+ 服装/袜类品类词 → 属市场/企划类问题，自动联网
+        if (containsBrandCategoryCombo(lower)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 品牌+品类组合判定（供企划意图识别调用）：
+     * 消息中同时出现「品类词（内衣/丝袜/袜子等）」和「品牌词」即认为命中。
+     * 品牌词两种来源：
+     * 1. 已知中文品牌清单（阿迪达斯/耐克/浪莎/宝娜斯等）
+     * 2. 连续≥3个英文字母的外文品牌串（addidas/adidas/nike/uniqlo等），
+     *    排除 SKU/BOM/AQL 等业务缩写与常见英文虚词，避免内部编码误触发
+     */
+    private boolean containsBrandCategoryCombo(String lower) {
+        String[] categoryWords = {
+                "内衣", "丝袜", "袜子", "袜业", "文胸", "内裤", "打底裤", "光腿神器",
+                "睡衣", "家居服", "泳衣", "泳装", "运动服", "卫衣", "服饰", "服装", "家纺", "羊绒衫"
+        };
+        boolean hasCategory = false;
+        for (String c : categoryWords) {
+            if (lower.contains(c)) {
+                hasCategory = true;
+                break;
+            }
+        }
+        if (!hasCategory) {
+            return false;
+        }
+
+        // 已知中文品牌
+        String[] knownBrands = {
+                "阿迪达斯", "耐克", "优衣库", "李宁", "安踏", "特步", "鸿星尔克", "361",
+                "彪马", "迪卡侬", "浪莎", "梦娜", "宝娜斯", "耐尔", "振汉",
+                "南极人", "恒源祥", "猫人", "三枪", "都市丽人", "爱慕", "曼妮芬",
+                "蕉内", "蕉下", "有棵树", "全棉时代"
+        };
+        for (String b : knownBrands) {
+            if (lower.contains(b)) {
+                return true;
+            }
+        }
+
+        // 外文品牌：连续≥3个英文字母（排除业务缩写与常见英文虚词）
+        String[] stopTokens = {
+                "sku", "bom", "aql", "fob", "oem", "odm", "pdf", "ppt", "excel", "word",
+                "api", "llm", "gpt", "the", "and", "for", "you", "what", "why", "how",
+                "who", "sop", "crm", "erp", "saas", "top", "new"
+        };
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[a-zA-Z]{3,}").matcher(lower);
+        while (m.find()) {
+            String token = m.group().toLowerCase();
+            boolean isStop = false;
+            for (String s : stopTokens) {
+                if (s.equals(token)) {
+                    isStop = true;
+                    break;
+                }
+            }
+            if (!isStop) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -2580,13 +2653,20 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
 
             String resp = readStreamFully(conn.getInputStream());
-            // Anthropic非流式响应: {"content":[{"type":"text","text":"..."},{"type":"web_search_tool_result",...}]}
+            // MiniMax Anthropic兼容响应, content 按执行顺序包含三类内容块：
+            //   text                    模型文本（搜索前引导语 + 搜索后最终答案）
+            //   server_tool_use         服务端工具调用记录（name=web_search, input.query=实际检索词）→ 工具真实调用的凭证
+            //   web_search_tool_result  服务端返回的搜索结果（content=web_search_result列表: title/url/page_age/content）
             JsonNode root = objectMapper.readTree(resp);
             JsonNode contentArr = root.path("content");
             StringBuilder sb = new StringBuilder();
+            StringBuilder queries = new StringBuilder();
+            StringBuilder sources = new StringBuilder();
+            int sourceCount = 0;
             if (contentArr.isArray()) {
                 for (JsonNode block : contentArr) {
-                    if ("text".equals(block.path("type").asText())) {
+                    String blockType = block.path("type").asText("");
+                    if ("text".equals(blockType)) {
                         String text = block.path("text").asText("");
                         if (!text.isBlank()) {
                             if (sb.length() > 0) {
@@ -2594,10 +2674,57 @@ public class SmartChatServiceImpl implements SmartChatService {
                             }
                             sb.append(text.trim());
                         }
+                    } else if ("server_tool_use".equals(blockType)
+                            && "web_search".equals(block.path("name").asText())) {
+                        String q = block.path("input").path("query").asText("");
+                        if (!q.isBlank()) {
+                            if (queries.length() > 0) {
+                                queries.append(" | ");
+                            }
+                            queries.append(q);
+                        }
+                    } else if ("web_search_tool_result".equals(blockType)) {
+                        JsonNode results = block.path("content");
+                        if (results.isArray()) {
+                            for (JsonNode r : results) {
+                                if (!"web_search_result".equals(r.path("type").asText())) {
+                                    continue;
+                                }
+                                sourceCount++;
+                                String title = r.path("title").asText("");
+                                String url = r.path("url").asText("");
+                                String pageAge = r.path("page_age").asText("");
+                                sources.append(sourceCount).append(". ").append(title)
+                                        .append(pageAge.isBlank() ? "" : " (" + pageAge + ")")
+                                        .append(" — ").append(url).append("\n");
+                            }
+                        }
                     }
                 }
             }
-            log.info("[web-search] 联网检索完成, 摘要长度={}字符", sb.length());
+            // 摘要末尾附编号来源清单（对应编号+数据来源），供本地模型引用与控制台核对
+            if (sources.length() > 0) {
+                sb.append("\n\n【检索来源清单】\n").append(sources.toString().trim());
+            }
+
+            // ===== 控制台打印联网检索全链路（供验证 web_search_20250305 是否真实调用及返回内容）=====
+            String toolState = queries.length() > 0
+                    ? "已调用(web_search_20250305, " + queries.toString().split(" \\| ").length + "次)"
+                    : "未调用(模型未触发web_search工具)";
+            log.info("[web-search] web_search工具调用状态: {}", toolState);
+            if (queries.length() > 0) {
+                log.info("[web-search] MiniMax实际执行的检索词: {}", queries);
+            }
+            if (sourceCount > 0) {
+                log.info("[web-search] 检索到的数据来源({}条, 对应编号见下):\n{}", sourceCount, sources.toString().trim());
+            } else {
+                log.info("[web-search] 本次未返回编号来源清单(web_search_tool_result为空)");
+            }
+            if (sb.length() > 0) {
+                log.info("[web-search] 联网检索返回内容(已注入本地模型, 摘要长度={}字符):\n{}", sb.length(), sb);
+            } else {
+                log.warn("[web-search] 联网检索未返回文本内容, 原始响应: {}", abbreviate(resp, 500));
+            }
             return sb.toString();
         } catch (Exception e) {
             log.warn("[web-search] 联网搜索失败(降级为不联网, 主流程不受影响): {}", e.getMessage());
