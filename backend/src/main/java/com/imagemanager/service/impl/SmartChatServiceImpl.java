@@ -754,9 +754,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                         if (webSummary != null && !webSummary.isBlank()) {
                             // 阶段二：网络摘要注入本地LLM上下文，与内部数据共同参与企划方案生成
                             knowledgeContext.append("\n\n## 【网络搜索参考数据】〔数据源优先级 L4·外部参考数据〕\n")
-                                    .append("以下为按用户问题联网检索（优先品牌公司官网）获得的公开市场情报，")
-                                    .append("用于获取品牌/客户的最新动态与产品信息（仅作背景参考，非内部数据）。\n")
-                                    .append("输出引用规则：引用网络信息时在数据支撑中标注【外部调研】(网络检索)；")
+                                    .append("以下为按用户问题联网采集的品牌官方产品参数报告（优先品牌官网产品中心，官网缺失时以行业平台/官方旗舰店兜底，")
+                                    .append("每条参数附来源页面URL作溯源；仅作背景参考，非内部数据）。\n")
+                                    .append("输出引用规则：引用网络信息时在数据支撑中标注【外部调研】(来源URL,置信度)；")
                                     .append("引用内部数据时标注【内部数据库-XXX】或【知识库文档-XXX】；自身推导标注【AI推断】(依据,置信度)。\n")
                                     .append("冲突处理：若网络数据与上方内部数据（L1-L3）冲突，一律以内部数据为准，")
                                     .append("并按通用业务逻辑规则标注「数据差异说明」，不得静默采用网络数据覆盖内部结论。\n")
@@ -2494,6 +2494,125 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
+     * 从企划问题中提取品牌名（客户名）。
+     * 企划输入格式约定："客户名/品牌名/品类启动企划"（如"宝娜斯 保暖袜"）。
+     * 提取顺序：
+     * 1. 已知中文品牌清单（返回标准品牌名）
+     * 2. 外文品牌串（连续≥3个字母，排除业务缩写，返回原始大小写形式）
+     * 提取不到返回空串。
+     */
+    private String extractBrandName(String message) {
+        if (message == null || message.isBlank()) {
+            return "";
+        }
+        String lower = message.toLowerCase();
+        String[] knownBrands = {
+                "阿迪达斯", "耐克", "优衣库", "李宁", "安踏", "特步", "鸿星尔克", "361",
+                "彪马", "迪卡侬", "浪莎", "梦娜", "宝娜斯", "耐尔", "振汉",
+                "南极人", "恒源祥", "猫人", "三枪", "都市丽人", "爱慕", "曼妮芬",
+                "蕉内", "蕉下", "有棵树", "全棉时代"
+        };
+        for (String b : knownBrands) {
+            if (lower.contains(b)) {
+                return b;
+            }
+        }
+        String[] stopTokens = {
+                "sku", "bom", "aql", "fob", "oem", "odm", "pdf", "ppt", "excel", "word",
+                "api", "llm", "gpt", "the", "and", "for", "you", "what", "why", "how",
+                "who", "sop", "crm", "erp", "saas", "top", "new"
+        };
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[A-Za-z]{3,}").matcher(message);
+        while (m.find()) {
+            String token = m.group();
+            String tl = token.toLowerCase();
+            boolean isStop = false;
+            for (String s : stopTokens) {
+                if (s.equals(tl)) {
+                    isStop = true;
+                    break;
+                }
+            }
+            if (!isStop) {
+                return token;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * 从企划问题中提取品类词（保暖袜/丝袜/打底裤/内衣等），多个品类用"、"连接。
+     * 长词优先排列避免子串误匹配；提取不到返回空串。
+     */
+    private String extractCategoryWords(String message) {
+        if (message == null || message.isBlank()) {
+            return "";
+        }
+        String[] categoryWords = {
+                "保暖袜", "光腿神器", "加绒打底裤", "打底裤", "连裤袜", "堆堆袜", "船袜",
+                "丝袜", "袜子", "袜业", "内衣", "文胸", "内裤", "睡衣", "家居服",
+                "泳衣", "泳装", "运动服", "卫衣", "羊绒衫", "服饰", "服装", "家纺"
+        };
+        StringBuilder sb = new StringBuilder();
+        for (String c : categoryWords) {
+            if (message.contains(c)) {
+                // 子串去重：已选长词若包含当前短词的语义（如"保暖袜"已选则"袜子"不再追加"袜子"，但"连裤袜"独立保留）
+                if ("袜子".equals(c) && (sb.toString().contains("保暖袜") || sb.toString().contains("丝袜") || sb.toString().contains("连裤袜"))) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append("、");
+                }
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 品牌官方产品参数精准采集任务模板（用户指定）：
+     * 围绕指定品牌从官网提取产品官方规格/材质/工艺等硬参数；官网有数据时禁止电商，
+     * 电商仅作官网缺失时的兜底；溯源URL为必填字段（模板要求，故采集报告保留URL）。
+     *
+     * @param brand         提取到的品牌名（客户名）
+     * @param categories    提取到的目标品类（"、"连接）
+     * @param targetProduct 指定产品（可选，留空则全品类采集）
+     */
+    private String buildOfficialProductParamQuery(String brand, String categories, String targetProduct) {
+        return "# 任务：品牌官方产品参数精准采集\n" +
+                "## 核心目标\n" +
+                "围绕指定品牌，优先从品牌官方网站提取产品的官方规格、材质、工艺等硬参数；官网有数据时禁止使用电商平台内容，电商仅作为官网缺失时的兜底补充，禁止输出促销、评价、品牌故事等无效信息。\n\n" +
+                "## 数据源优先级（严格按顺序执行，高优先级有数据则禁用低优先级）\n" +
+                "1.【第一优先级·唯一权威】品牌官方网站：优先抓取官网「产品中心」「产品系列」「产品详情」「技术参数」「规格说明」页；采信官方发布的产品名称、型号/货号、材质成分、尺寸规格、工艺技术、功能参数、官方定价；严格排除公司介绍、新闻动态、招商加盟、品牌故事、企业荣誉等非产品参数内容。\n" +
+                "2.【第二优先级·补充】行业垂直平台、第三方检测/认证平台的产品参数页。\n" +
+                "3.【第三优先级·兜底】品牌官方旗舰店（天猫/京东/1688）：仅提取「产品参数」「规格表」板块的硬参数；严格排除促销活动、价格波动、买家评价、店铺服务、营销文案。\n\n" +
+                "## 本次采集目标\n" +
+                "- 品牌名称：" + brand + "\n" +
+                "- 目标品类：" + categories + "\n" +
+                "- 指定产品（可选，留空则全品类采集）：" + targetProduct + "\n\n" +
+                "## 采集信息维度（每个产品只提取以下字段，多余信息不输出）\n" +
+                "1. 基础信息：产品名称、所属系列、型号/货号\n" +
+                "2. 核心参数：材质成分（精确到原料配比）、规格尺寸（克重/厚度/尺码）、工艺技术、核心功能\n" +
+                "3. 官方信息：官方建议零售价、适用场景\n" +
+                "4. 溯源信息：参数对应的官网完整URL\n\n" +
+                "## 检索执行规则\n" +
+                "1. 第一步先定位并验证品牌官方网站，识别官方域名与官网标识，排除所有第三方B2B、百科、新闻站点\n" +
+                "2. 第二步优先进入官网产品中心，逐个产品详情页提取参数，不通过搜索结果摘要直接推断\n" +
+                "3. 仅当官网完全无对应产品参数时，才降级使用第二、第三优先级数据源\n" +
+                "4. 不同渠道参数不一致时，以官网为准，并标注「参数差异说明」\n\n" +
+                "## 过滤规则（严格执行）\n" +
+                "排除所有电商平台的促销、优惠券、发货、售后、评价、店铺信息；排除新闻稿、品牌宣传、招商、企业介绍、招聘类内容；排除排行榜、推荐、问答等UGC内容；禁止复制营销话术、宣传口号，只输出客观参数。\n\n" +
+                "## 输出格式（严格结构化）\n" +
+                "### 一、品牌官网定位结果\n- 官方网站地址：\n- 官网产品中心入口：\n\n" +
+                "### 二、产品参数明细（按产品分列）\n" +
+                "#### 产品1：【产品名称】\n- 型号/货号：\n- 所属系列：\n- 材质成分：\n- 规格参数：\n- 官方工艺：\n- 官方定价：\n- 数据来源URL：\n\n" +
+                "#### 产品2：【产品名称】\n……\n\n" +
+                "### 三、数据质量说明\n- 官网完整覆盖的产品数：\n- 官网缺失、采用补充数据源的产品：\n- 参数差异说明：\n- 未采集到的信息项：\n\n" +
+                "## 质量要求\n" +
+                "所有参数必须标注来源页面URL，无来源的参数不得输出；官网存在的信息，禁止用电商数据替代；信息缺失必须明确说明，禁止编造参数；输出精简，只保留硬参数，不输出任何描述性、营销性语句。";
+    }
+
+    /**
      * 通用网络检索提问模板：把用户原始问题转写成规范的 MiniMax 检索指令。
      *
      * 示例：
@@ -2517,6 +2636,35 @@ public class SmartChatServiceImpl implements SmartChatService {
      *     长问题（自然语言句子）保留原样，避免破坏可读性
      */
     private String buildWebSearchQuery(String message) {
+        // 0. 企划输入格式"客户名/品牌名/品类启动企划"：
+        //    品牌名+品类都提取到时，使用《品牌官方产品参数精准采集》任务模板（官网优先、电商兜底、溯源URL必填）
+        String brand = extractBrandName(message);
+        String categories = extractCategoryWords(message);
+        if (!brand.isEmpty() && !categories.isEmpty()) {
+            // 指定产品（可选）：去掉品牌/品类/渠道修饰词后的剩余词组（如"280D"），过长或含年份则视为无
+            String rest = message.replace(brand, "");
+            for (String c : categories.split("、")) {
+                rest = rest.replace(c, "");
+            }
+            String[] fillerWords = {
+                    "中国", "电商", "抖音", "快手", "天猫", "淘宝", "京东", "拼多多", "唯品会",
+                    "旗舰店", "品牌店", "品牌", "中高端", "高端", "中端", "低端", "最新", "新款",
+                    "冬季", "夏季", "春季", "秋季", "秋冬", "春夏", "启动企划", "企划", "帮我", "检索", "搜索"
+            };
+            for (String f : fillerWords) {
+                rest = rest.replace(f, "");
+            }
+            rest = rest.replaceAll("[\\s，,。\\.：:/、？?]+", "").trim();
+            String targetProduct = "";
+            if (rest.length() >= 2 && rest.length() <= 12
+                    && !rest.matches("\\d+") && !rest.matches(".*20\\d{2}.*")) {
+                targetProduct = rest;
+            }
+            log.info("[web-search] 提取企划要素：品牌={}，品类={}，指定产品={}",
+                    brand, categories, targetProduct.isEmpty() ? "(全品类)" : targetProduct);
+            return buildOfficialProductParamQuery(brand, categories, targetProduct);
+        }
+
         // 1. 基础清洗：去首尾空白、去请求性前缀、去疑问符号
         String topic = message == null ? "" : message.trim();
         String[] requestPrefixes = {"请帮我", "帮帮我", "麻烦你", "麻烦帮我", "请你", "请", "麻烦", "我想", "我要", "给我", "帮我"};
@@ -2563,12 +2711,12 @@ public class SmartChatServiceImpl implements SmartChatService {
             topic = "相关行业与品牌的最新公开信息";
         }
 
-        // 3. 固定模板：动作指令 + 数据源要求（品牌公司官网为准，排除电商平台）+ 输出要求（纯文字产品参数，无链接）+ 防幻觉约束
+        // 3. 固定模板（降级：品牌/品类提取不全时使用）：动作指令 + 数据源要求（官网为准）+ 输出要求（硬参数+来源URL溯源）+ 防幻觉约束
         return "帮我去全网检索" + topic + "。" +
                 "检索要求：请优先到品牌公司官网（官网首页/产品中心/新闻中心/公司介绍页）获取该品牌的产品线、产品名称与产品参数（品类/材质/克重/工艺/尺码/颜色/定价区间等），" +
                 "辅以权威媒体和行业平台的公开信息；" +
                 "不要抓取淘宝、天猫、京东、拼多多、唯品会等电商平台的商品详情页数据，不要使用比价聚合站与微博等社交媒体的零售信息；" +
-                "请综合判断最后给出答案，直接用文字分点输出检索到的产品与产品参数，不要输出任何URL链接；" +
+                "请综合判断最后给出答案，用文字分点输出检索到的产品与产品参数，每条参数标注来源页面URL作溯源；" +
                 "检索不到的内容明确说明'未检索到'，禁止编造。";
     }
 
@@ -2605,15 +2753,17 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 请求体仅含模板转写后的检索指令——严禁拼接 knowledgeContext/业务数据/历史对话（内部数据保密）
             Map<String, Object> body = new HashMap<>();
             body.put("model", model);
-            body.put("max_tokens", 2048);
+            // 采集报告为结构化长输出（按产品分列参数明细），max_tokens 给足避免截断
+            body.put("max_tokens", 8192);
             body.put("stream", false);
             body.put("system",
-                    "你是品牌官网信息检索助手，请通过web_search工具执行用户给出的检索指令。" +
-                    "输出纪律：1.优先检索品牌公司官网（官网域名下的产品中心/新闻中心/公司介绍页），只输出真实检索到的官网事实（品牌定位/公司动态、产品线与新品名称、产品参数：品类/材质/克重/工艺/尺码/颜色/定价区间、渠道与市场动作）；" +
-                    "2.淘宝/天猫/京东/拼多多/唯品会等电商平台商品页、比价聚合站、微博等社交媒体零售贴的数据不得作为事实依据；" +
-                    "3.所有内容用纯文字分点输出，严禁输出任何URL链接；" +
-                    "4.检索不到的明确说明'未检索到'，禁止编造；" +
-                    "5.只提供事实参考信息，不要输出建议或方案。");
+                    "你是品牌官方产品参数采集助手，请通过web_search工具严格执行用户给出的《品牌官方产品参数精准采集》任务。" +
+                    "执行纪律：1.严格按任务中的数据源优先级执行——品牌官网为唯一权威来源，官网有参数时禁止用电商数据替代，电商仅作官网缺失时的兜底；" +
+                    "2.先定位并验证品牌官方域名（排除百科/B2B/新闻站），再进入官网产品中心逐个详情页提取，不得仅凭搜索结果摘要推断参数；" +
+                    "3.只输出官方发布的客观硬参数（产品名称/型号货号/材质成分/规格尺寸/工艺技术/官方定价），严禁输出促销、评价、营销话术、品牌故事、公司介绍；" +
+                    "4.每条参数必须标注来源页面完整URL作溯源，无来源的参数不得输出；" +
+                    "5.严格按任务中的三段输出格式返回（品牌官网定位结果/产品参数明细/数据质量说明）；" +
+                    "6.检索不到的信息明确标注'未检索到'，禁止编造。");
             List<Map<String, Object>> tools = new ArrayList<>();
             Map<String, Object> tool = new HashMap<>();
             tool.put("type", "web_search_20250305");
@@ -2638,7 +2788,8 @@ public class SmartChatServiceImpl implements SmartChatService {
             conn.setRequestProperty("anthropic-version", "2023-06-01");
             conn.setDoOutput(true);
             conn.setConnectTimeout(10000);
-            conn.setReadTimeout(60000);
+            // 采集任务为"多次检索+长结构化输出"，读超时放宽到 180s
+            conn.setReadTimeout(180000);
 
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
@@ -2661,7 +2812,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder sb = new StringBuilder();
             StringBuilder queries = new StringBuilder();
             StringBuilder sources = new StringBuilder();          // 控制台清单: 标题+完整URL(调试核对)
-            StringBuilder sourcesForInject = new StringBuilder(); // 注入清单: 标题+域名(纯文字, 无链接)
+            StringBuilder sourcesForInject = new StringBuilder(); // 注入清单: 标题+完整URL(溯源)
             int sourceCount = 0;
             if (contentArr.isArray()) {
                 for (JsonNode block : contentArr) {
@@ -2698,16 +2849,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 sources.append(sourceCount).append(". ").append(title)
                                         .append(ageSuffix)
                                         .append(" — ").append(srcUrl).append("\n");
+                                // 注入清单同样保留完整URL：采集模板要求"每条参数标注来源页面URL"作溯源
                                 sourcesForInject.append(sourceCount).append(". ").append(title)
                                         .append(ageSuffix)
-                                        .append(" 来源域名: ").append(extractDomain(srcUrl)).append("\n");
+                                        .append(" — ").append(srcUrl).append("\n");
                             }
                         }
                     }
                 }
             }
-            // 注入内容纯文字化: 模型文本剥离URL(防模型违规输出链接), 来源清单用域名版(无链接)
-            String answerText = stripUrls(sb.toString());
+            // 注入内容：采集报告正文保留溯源URL（采集模板要求"每条参数标注来源页面URL，无来源不得输出"），
+            // 附【检索来源清单】（含完整URL）供本地模型交叉验证官网/电商来源分级
+            String answerText = sb.toString();
             if (sourcesForInject.length() > 0) {
                 answerText = answerText + "\n\n【检索来源清单】\n" + sourcesForInject.toString().trim();
             }
@@ -2726,7 +2879,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 log.info("[web-search] 本次未返回编号来源清单(web_search_tool_result为空)");
             }
             if (!answerText.isBlank()) {
-                log.info("[web-search] 联网检索返回内容(已注入本地模型, 纯文字化, 长度={}字符):\n{}", answerText.length(), answerText);
+                log.info("[web-search] 联网检索返回内容(已注入本地模型, 含官网溯源URL, 长度={}字符):\n{}", answerText.length(), answerText);
             } else {
                 log.warn("[web-search] 联网检索未返回文本内容, 原始响应: {}", abbreviate(resp, 500));
             }
@@ -2739,37 +2892,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 conn.disconnect();
             }
         }
-    }
-
-    /**
-     * 剥离文本中的 URL（http/https），替换为省略占位。
-     * 用于注入本地模型前的纯文字化：模型输入与输出均不得携带链接。
-     */
-    private String stripUrls(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-        return text.replaceAll("https?://\\S+", "…");
-    }
-
-    /** 提取 URL 的域名（如 https://detail.tmall.com/item.htm → detail.tmall.com），解析失败返回原始串 */
-    private String extractDomain(String url) {
-        if (url == null || url.isBlank()) {
-            return "";
-        }
-        String u = url.trim();
-        try {
-            if (u.startsWith("http://") || u.startsWith("https://")) {
-                int start = u.indexOf("//") + 2;
-                int end = u.indexOf('/', start);
-                String host = end > start ? u.substring(start, end) : u.substring(start);
-                int portIdx = host.indexOf(':');
-                return portIdx > 0 ? host.substring(0, portIdx) : host;
-            }
-        } catch (Exception ignore) {
-            // fallthrough
-        }
-        return u;
     }
 
     /** 完整读取输入流为字符串（UTF-8） */
