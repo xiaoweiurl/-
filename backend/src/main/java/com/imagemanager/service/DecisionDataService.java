@@ -30,6 +30,9 @@ import java.util.regex.Pattern;
  *    审核/计划状态，与产能供给侧构成"产能-订单匹配"闭环
  * 5. 工艺单参数（order_sw_gongyidan 表）：按货号查下机克重/下机秒数/制成率/机型/针数/
  *    理论产量/缝拼克重(pfkz)，工艺类问题的确定性依据
+ * 6. 货号全链路关联（V49）：以生产货号为统一关联键，拉通丝袜工艺单(order_sw_gongyidan)
+ *    + 内衣工艺单(order_jfk_gongyidan) + 销售订单(order_xs_list: 业务员ywyname/客户khname)
+ *    + 产品报价信息(order_bjd_query)，品名/客户名等字段仅当数据非空时带出
  */
 @Slf4j
 @Service
@@ -39,6 +42,7 @@ public class DecisionDataService {
     private static final String PLAN_TABLE = "production_plan";
     private static final String SALES_ORDER_TABLE = "order_xs_list";
     private static final String PROCESS_TABLE = "order_sw_gongyidan";
+    private static final String JFK_PROCESS_TABLE = "order_jfk_gongyidan";
     private static final Pattern PRODUCT_CODE = Pattern.compile("[A-Za-z][A-Za-z0-9]{3,}");
 
     @Autowired
@@ -103,11 +107,12 @@ public class DecisionDataService {
                 out.add(miss);
             }
         }
-        // 工艺单参数：有货号且（工艺意图 / 企划 / 决策模式）时注入
+        // 货号全链路关联：有货号且（工艺意图 / 企划 / 决策模式）时注入
+        // （丝袜工艺单 + 内衣工艺单 + 销售订单[业务员/客户名/品名] + 产品报价信息）
         if (processIntent || decision || (planning && finalDoc)) {
             String code = extractProductCode(message);
             if (code != null) {
-                out.addAll(queryProcessParams(code));
+                out.addAll(queryHuohaoFullChain(code));
             }
         }
         return out;
@@ -416,6 +421,143 @@ public class DecisionDataService {
             log.warn("[结构化数据] 工艺单参数查询失败: {}", e.getMessage());
         }
         return out;
+    }
+
+    // ====== 货号全链路关联（丝袜工艺单 + 内衣工艺单 + 销售订单 + 产品报价信息，V49） ======
+
+    /**
+     * 货号全链路关联查询：以生产货号为统一关联键，拉通
+     * ①丝袜工艺单(order_sw_gongyidan) ②内衣工艺单(order_jfk_gongyidan)
+     * ③销售订单(order_xs_list: 业务员ywyname/客户khname/品名/数量/交期)
+     * ④产品报价信息(order_bjd_query 最近记录: 客户/售价/销售成本/尺码)
+     * 品名/客户名等字段仅当数据非空时带出。
+     */
+    private List<Map<String, Object>> queryHuohaoFullChain(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        out.addAll(queryProcessParams(code));       // ①丝袜工艺单
+        out.addAll(queryJfkProcessParams(code));    // ②内衣工艺单
+        out.addAll(querySalesOrdersByHuohao(code)); // ③销售订单（业务员/客户/品名）
+        out.addAll(queryProductQuoteInfo(code));    // ④产品报价信息
+        return out;
+    }
+
+    /** 按货号查询内衣工艺单（order_jfk_gongyidan：品名/设计师/单位/染色厂/打样师/打样版号），非空字段才带出 */
+    private List<Map<String, Object>> queryJfkProcessParams(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT bh, hhtype, huohao, spname, designer, dw, rsjgh, qd_dys, hd_dys, dybanhao, remark FROM "
+                            + JFK_PROCESS_TABLE + " WHERE huohao ILIKE ? LIMIT 10",
+                    "%" + code + "%");
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "编号", row.get("bh"));
+                putIfNonBlank(data, "生产货号", row.get("huohao"));
+                putIfNonBlank(data, "货号类别", row.get("hhtype"));
+                putIfNonBlank(data, "品名", row.get("spname"));
+                putIfNonBlank(data, "设计师", row.get("designer"));
+                putIfNonBlank(data, "单位", row.get("dw"));
+                putIfNonBlank(data, "染色厂", row.get("rsjgh"));
+                putIfNonBlank(data, "前道打样师", row.get("qd_dys"));
+                putIfNonBlank(data, "后道打样师", row.get("hd_dys"));
+                putIfNonBlank(data, "打样版号", row.get("dybanhao"));
+                putIfNonBlank(data, "备注", row.get("remark"));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "内衣工艺单");
+                entry.put("summary", "货号 " + row.get("huohao") + " 内衣工艺单（品名 " + row.get("spname")
+                        + "，设计师 " + row.get("designer") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 内衣工艺单命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 内衣工艺单查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /** 按生产货号查询销售订单（order_xs_list：单号/客户名/业务员/成品货号/数量/交期），非空字段才带出 */
+    private List<Map<String, Object>> querySalesOrdersByHuohao(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT dh, zhdate, jh_date, khname, detailhuohao, detailhuohaocp, sl_sum, ywyname, ddtype "
+                            + "FROM " + SALES_ORDER_TABLE
+                            + " WHERE detailhuohao ILIKE ? ORDER BY zhdate DESC NULLS LAST LIMIT 20",
+                    "%" + code + "%");
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "订单号", row.get("dh"));
+                putIfNonBlank(data, "下单日期", row.get("zhdate"));
+                putIfNonBlank(data, "交货日期", row.get("jh_date"));
+                putIfNonBlank(data, "客户名", row.get("khname"));
+                putIfNonBlank(data, "生产货号", row.get("detailhuohao"));
+                putIfNonBlank(data, "成品货号", row.get("detailhuohaocp"));
+                putIfNonBlank(data, "订单数量", row.get("sl_sum"));
+                putIfNonBlank(data, "业务员", row.get("ywyname"));
+                putIfNonBlank(data, "销售类型", row.get("ddtype"));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "销售订单");
+                entry.put("summary", "货号 " + row.get("detailhuohao") + " 销售订单（业务员 " + row.get("ywyname")
+                        + "，客户 " + row.get("khname") + "，数量 " + row.get("sl_sum") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 销售订单命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 销售订单查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /** 按生产货号查询产品报价信息（order_bjd_query 最近记录：客户/售价/销售成本/尺码），非空字段才带出 */
+    private List<Map<String, Object>> queryProductQuoteInfo(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT dh, zhdate, khname, huohao, houhaocp, chima, saleprice, xscb, jcb, zpl "
+                            + "FROM " + QUOTATION_TABLE
+                            + " WHERE huohao ILIKE ? ORDER BY zhdate DESC NULLS LAST LIMIT 5",
+                    "%" + code + "%");
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "报价单号", row.get("dh"));
+                putIfNonBlank(data, "报价日期", row.get("zhdate"));
+                putIfNonBlank(data, "客户名", row.get("khname"));
+                putIfNonBlank(data, "生产货号", row.get("huohao"));
+                putIfNonBlank(data, "后道产品", row.get("houhaocp"));
+                putIfNonBlank(data, "尺码", row.get("chima"));
+                putIfNonBlank(data, "售价", round2(row.get("saleprice")));
+                putIfNonBlank(data, "销售成本", round2(row.get("xscb")));
+                putIfNonBlank(data, "基础成本", round2(row.get("jcb")));
+                putIfNonBlank(data, "正品率", round2(row.get("zpl")));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "产品报价信息");
+                entry.put("summary", "货号 " + row.get("huohao") + " 产品报价（客户 " + row.get("khname")
+                        + "，售价 " + row.get("saleprice") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 产品报价信息命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 产品报价信息查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /** 仅当值非空（非null、非空白、非字符串"null"）时放入，满足品名/客户名等字段不为空才带出的要求 */
+    private void putIfNonBlank(Map<String, Object> data, String key, Object value) {
+        if (value == null) return;
+        String s = String.valueOf(value).trim();
+        if (!s.isEmpty() && !"null".equalsIgnoreCase(s)) {
+            data.put(key, value);
+        }
     }
 
     // ====== 工具方法 ======

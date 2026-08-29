@@ -81,6 +81,132 @@ public class QuotationCalcService {
         return jdbcTemplate.queryForList(sql, keyword, keyword);
     }
 
+    // ====== 货号全链路关联（V49：丝袜工艺单 + 内衣工艺单 + 销售订单 + 产品报价信息） ======
+
+    /**
+     * 按生产货号查询内衣工艺单（order_jfk_gongyidan：品名/设计师/单位/染色厂/打样师/打样版号）。
+     * 表不存在时返回空列表（兼容旧环境）。
+     */
+    public List<Map<String, Object>> queryJfkProcessByHuohao(String huohao) {
+        try {
+            return jdbcTemplate.queryForList(
+                    "SELECT bh, hhtype, huohao, spname, designer, dw, rsjgh, qd_dys, hd_dys, dybanhao, remark "
+                            + "FROM order_jfk_gongyidan WHERE huohao ILIKE ? LIMIT 20",
+                    "%" + huohao + "%");
+        } catch (Exception e) {
+            log.warn("内衣工艺单查询失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 按生产货号查询销售订单（order_xs_list：单号/客户名/业务员/成品货号/数量/交期/销售类型）。
+     * detailhuohao 为关联键；非空字段由调用方渲染时过滤。
+     */
+    public List<Map<String, Object>> querySalesOrdersByHuohao(String huohao) {
+        try {
+            return jdbcTemplate.queryForList(
+                    "SELECT dh, zhdate, jh_date, khname, detailhuohao, detailhuohaocp, sl_sum, ywyname, ddtype "
+                            + "FROM order_xs_list WHERE detailhuohao ILIKE ? ORDER BY zhdate DESC NULLS LAST LIMIT 20",
+                    "%" + huohao + "%");
+        } catch (Exception e) {
+            log.warn("销售订单(按货号)查询失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 按生产货号查询丝袜工艺单（order_sw_gongyidan 核心工艺参数字段）。
+     */
+    public List<Map<String, Object>> querySwProcessByHuohao(String huohao) {
+        try {
+            return jdbcTemplate.queryForList(
+                    "SELECT bh, huohao, spname, xjkz, xjsl, pfkz, cpkz, zcl, jix, zs, djcl, hhywy "
+                            + "FROM order_sw_gongyidan WHERE huohao ILIKE ? LIMIT 20",
+                    "%" + huohao + "%");
+        } catch (Exception e) {
+            log.warn("丝袜工艺单(按货号)查询失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 货号全链路一次性拉通：丝袜工艺单 + 内衣工艺单 + 销售订单 + 产品报价信息。
+     * 返回四段结构化文本，空段标注"无记录"，供 @Tool 直接回传给大模型。
+     */
+    public String queryHuohaoFullChainText(String huohao) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("【货号全链路：").append(huohao).append("】\n");
+
+        List<Map<String, Object>> sw = querySwProcessByHuohao(huohao);
+        sb.append("\n一、丝袜工艺单(order_sw_gongyidan)：");
+        if (sw.isEmpty()) { sb.append("无记录"); } else {
+            for (Map<String, Object> r : sw) {
+                sb.append("\n- 品名=").append(nz(r.get("spname")))
+                  .append(", 下机克重=").append(nz(r.get("xjkz")))
+                  .append(", 下机秒数=").append(nz(r.get("xjsl")))
+                  .append(", 缝拼克重=").append(nz(r.get("pfkz")))
+                  .append(", 制成率=").append(nz(r.get("zcl")))
+                  .append(", 机型=").append(nz(r.get("jix")))
+                  .append(", 针数=").append(nz(r.get("zs")))
+                  .append(", 理论产量=").append(nz(r.get("djcl")))
+                  .append(", 业务员=").append(nz(r.get("hhywy")));
+            }
+        }
+
+        List<Map<String, Object>> jfk = queryJfkProcessByHuohao(huohao);
+        sb.append("\n\n二、内衣工艺单(order_jfk_gongyidan)：");
+        if (jfk.isEmpty()) { sb.append("无记录"); } else {
+            for (Map<String, Object> r : jfk) {
+                sb.append("\n- 品名=").append(nz(r.get("spname")))
+                  .append(", 货号类别=").append(nz(r.get("hhtype")))
+                  .append(", 设计师=").append(nz(r.get("designer")))
+                  .append(", 单位=").append(nz(r.get("dw")))
+                  .append(", 染色厂=").append(nz(r.get("rsjgh")))
+                  .append(", 前道打样师=").append(nz(r.get("qd_dys")))
+                  .append(", 后道打样师=").append(nz(r.get("hd_dys")))
+                  .append(", 打样版号=").append(nz(r.get("dybanhao")));
+            }
+        }
+
+        List<Map<String, Object>> xs = querySalesOrdersByHuohao(huohao);
+        sb.append("\n\n三、销售订单(order_xs_list，业务员/客户名/品名/数量/交期)：");
+        if (xs.isEmpty()) { sb.append("无记录"); } else {
+            for (Map<String, Object> r : xs) {
+                sb.append("\n- 订单号=").append(nz(r.get("dh")))
+                  .append(", 客户名=").append(nz(r.get("khname")))
+                  .append(", 业务员=").append(nz(r.get("ywyname")))
+                  .append(", 成品货号=").append(nz(r.get("detailhuohaocp")))
+                  .append(", 数量=").append(nz(r.get("sl_sum")))
+                  .append(", 下单日期=").append(nz(r.get("zhdate")))
+                  .append(", 交货日期=").append(nz(r.get("jh_date")))
+                  .append(", 销售类型=").append(nz(r.get("ddtype")));
+            }
+        }
+
+        List<Map<String, Object>> bj = queryByHuohao(huohao);
+        sb.append("\n\n四、产品报价信息(order_bjd_query)：");
+        if (bj.isEmpty()) { sb.append("无记录"); } else {
+            int shown = 0;
+            for (Map<String, Object> r : bj) {
+                if (shown++ >= 5) { sb.append("\n- ...其余 ").append(bj.size() - 5).append(" 条略"); break; }
+                sb.append("\n- 报价单号=").append(nz(r.get("dh")))
+                  .append(", 客户名=").append(nz(r.get("khname")))
+                  .append(", 售价=").append(nz(r.get("saleprice")))
+                  .append(", 销售成本=").append(nz(r.get("xscb")))
+                  .append(", 净成本=").append(nz(r.get("jcb")))
+                  .append(", 尺码=").append(nz(r.get("chima")))
+                  .append(", 正品率=").append(nz(r.get("zpl")));
+            }
+        }
+        return sb.toString();
+    }
+
+    /** null 安全字符串化（null→"—"） */
+    private String nz(Object v) {
+        return v == null ? "—" : String.valueOf(v);
+    }
+
     // ====== 客户名称反向匹配与统计 ======
 
     private volatile List<String> khnameCache;

@@ -36,6 +36,17 @@ public interface QuotationAssistant {
             pfkz=缝拼克重(报价fpkz权威数据源), cpkz=成品克重, zcl=制成率, jix=机型, zs=针数,
             djcl=理论产量, hhywy=业务员, qd_dys=前道打样师, hd_dys=后道打样师
 
+            【关联表 order_jfk_gongyidan（内衣工艺单表，字段=含义）】
+            bh=编号, hhtype=货号类别, huohao=生产货号(关联order_bjd_query.huohao), spname=品名,
+            designer=设计师, dw=单位, rsjgh=染色厂, qd_dys=前道打样师, hd_dys=后道打样师,
+            dybanhao=打样版号, remark=备注
+
+            【货号全链路（V49，以生产货号为统一关联键一码拉通）】
+            生产货号 huohao → ①丝袜工艺单(工艺参数/品名) + ②内衣工艺单(品名/设计师/染色厂/打样版号)
+              + ③销售订单 order_xs_list.detailhuohao(业务员ywyname/客户khname/数量sl_sum/交期jh_date)
+              + ④报价单 order_bjd_query.huohao(客户/售价/成本)
+            回答某货号综合情况时按此链路带出：品名、客户名、业务员、产品信息（字段为空则不展示）
+
             【关联表 raw_material_warehouse（原料统计报表，字段=含义，BOM级台账）】
             huohao=生产货号(关联order_bjd_query.huohao), color=颜色, size=尺码, component=部件(如裤身/腰口/缝线),
             supplier=供应商, material_name=物料名称, specification=规格(如77D/24F), material_color=物料颜色,
@@ -76,8 +87,10 @@ public interface QuotationAssistant {
             注意: v_customer_360 的 avg_* 为聚合值(被脏数据影响时偏低/偏高), 需要核对请查明细视图原始行
 
             【同义字段映射（跨表查询时必须先对齐字段名）】
-            货号: order_bjd_query.huohao = order_xs_list.detailhuohao = order_sw_gongyidan.huohao = production_plan.product_code
+            货号: order_bjd_query.huohao = order_xs_list.detailhuohao = order_sw_gongyidan.huohao = order_jfk_gongyidan.huohao = production_plan.product_code
             客户: order_bjd_query.khname = order_xs_list.khname
+            品名: order_sw_gongyidan.spname = order_jfk_gongyidan.spname
+            业务员: order_xs_list.ywyname = order_sw_gongyidan.hhywy(工艺单登记业务员)
             机型: order_bjd_query.zzsb = order_sw_gongyidan.jix = production_plan.machine_type
             下机时间: order_bjd_query.zhis = order_sw_gongyidan.xjsl = production_plan.seconds
             缝拼克重: order_bjd_query.fpkz = order_sw_gongyidan.pfkz = production_plan.sewing_weight
@@ -96,6 +109,8 @@ public interface QuotationAssistant {
             2. 涉及成本/报价计算必须调用 calculateByDh，用后端计算结果回答，不要自己心算。
             3. 比率字段(正品率/利用率等)按小数(0~1)理解。
             4. 回答用中文，金额保留2~4位小数，结构清晰。
+            5. 询问某货号的工艺/订单/业务员/产品信息等综合情况时，调用 queryHuohaoFullChain 一次拉通
+               丝袜工艺单+内衣工艺单+销售订单+报价信息，回答时品名/客户名/业务员为空的字段不展示。
             """)
     @UserMessage("{{question}}")
     String chat(@V("question") String question);

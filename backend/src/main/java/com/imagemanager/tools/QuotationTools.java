@@ -42,6 +42,11 @@ public class QuotationTools {
         return formatRows(rows);
     }
 
+    @Tool("按生产货号查询货号全链路：丝袜工艺单(工艺参数/品名) + 内衣工艺单(品名/设计师/染色厂/打样版号) + 销售订单(业务员ywyname/客户名/数量/交期) + 产品报价信息(客户/售价/成本)。当用户询问某货号的工艺、订单、业务员跟进情况、产品信息等综合情况时使用，一次拉通四张表。")
+    public String queryHuohaoFullChain(String huohao) {
+        return calcService.queryHuohaoFullChainText(huohao);
+    }
+
     @Tool("统计每个客户的报价单数量并按数量降序排行。当用户问'哪个客户单号最多/单量排行/客户单量对比/谁下单最多'等全局聚合问题时使用。")
     public String rankCustomersByOrderCount(int topN) {
         List<Map<String, Object>> rows = calcService.customerOrderRanking(topN);
