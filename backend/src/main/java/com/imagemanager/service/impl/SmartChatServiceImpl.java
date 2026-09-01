@@ -606,16 +606,23 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 业务员资料上下文（Milvus 向量检索，工厂模式第二优先级：业务语义补充）
                 if (!salespersonResults.isEmpty()) {
                     knowledgeContext.append("## 【重要】业务员资料库（业务员一手业务文档，向量检索命中）〔数据源优先级 L2·本地业务数据〕：\n");
+                    knowledgeContext.append("说明：同一资料文档命中的多个相关切片已按原文顺序拼接为完整段落，切片数越多代表该文档与问题越相关。\n");
                     for (int i = 0; i < salespersonResults.size(); i++) {
                         Map<String, Object> r = salespersonResults.get(i);
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
                         String content = r.getOrDefault("content", "").toString();
                         String fileName = r.getOrDefault("fileName", "未知文件").toString();
-                        // 按相关度动态截断：高分保留更多内容
-                        int maxLen = score >= 0.7 ? 1000 : 600;
-                        if (content.length() > maxLen) content = content.substring(0, maxLen) + "...";
-                        knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%% | 来源: %s)\n%s\n\n",
-                                i + 1, score * 100, fileName, content));
+                        int mergedChunks = ((Number) r.getOrDefault("mergedChunks", 1)).intValue();
+                        int hitChunks = ((Number) r.getOrDefault("hitChunks", mergedChunks)).intValue();
+                        // 截断职责已在检索层按全局字符预算完成，注入层全量保留拼接内容，
+                        // 仅留单组兜底保护（防止极端超长切片撑爆上下文）
+                        int maxLen = 4800;
+                        if (content.length() > maxLen) content = content.substring(0, maxLen) + "...[超长截断]";
+                        String chunkInfo = mergedChunks > 1
+                                ? String.format(" | 已拼接%d个相关切片/共命中%d片", mergedChunks, hitChunks)
+                                : "";
+                        knowledgeContext.append(String.format("### 资料%d (相关度: %.1f%% | 来源: %s%s)\n%s\n\n",
+                                i + 1, score * 100, fileName, chunkInfo, content));
                     }
                     knowledgeContext.append("⚠️ 以上来自业务员资料库（Milvus向量检索），包含业务员的客户资料、产品明细、价格表等一手业务知识。" +
                             "请与【供应链/工厂业务数据】结合使用：精确数字以供应链数据为准，业务员资料用于补充客户背景、产品细节、工艺说明等业务语义信息。\n\n");
@@ -1880,33 +1887,115 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 精确性控制（业务问题 → 给大模型的上下文）：
      * 1. 查询文本经 bge-m3 向量化后做 HNSW COSINE TopK 检索（Milvus 内 ef=128 精排）
      * 2. score < MIN_SCORE 的切片直接过滤，防止无关内容进入上下文引发幻觉
-     * 3. 同一 doc_id 只保留最高分片段，避免单个文件刷屏挤掉其他文件的有效信息
+     * 3. 同文档多切片聚合拼接（V50）：命中切片按 docId 分组，组内按相关性(score)选出
+     *    最强 MAX_CHUNKS_PER_DOC 片，再按 chunkIndex 升序拼回原文阅读顺序，整组交给本地 LLM，
+     *    解决"只留单切片导致该文档内容检索不完全"的问题
+     * 4. 智能预算控制：文档组按组内最高分降序处理，全局共享 TOTAL_CHAR_BUDGET 字符预算；
+     *    切片很多时优先保留相关性更强的切片，预算不足则截断低分组并显式标注，
+     *    防止超长上下文撑爆本地 LLM
      */
     private List<Map<String, Object>> searchSalespersonKnowledge(String query) {
         if (milvusService == null || !milvusService.isEnabled()) {
             return Collections.emptyList();
         }
         final double MIN_SCORE = 0.35;
-        final int TOP_K = 8;
+        final int TOP_K = 24;                 // 多召回，覆盖同文档多切片场景
+        final int MAX_CHUNKS_PER_DOC = 6;     // 单文档最多拼接切片数（按相关性挑选）
+        final int MAX_GROUPS = 6;             // 最多保留文档组数
+        final int TOTAL_CHAR_BUDGET = 8000;   // 全局拼接字符预算（本地 LLM 上下文保护）
         try {
             float[] queryEmbedding = getEmbedding(query);
             List<com.imagemanager.service.MilvusService.MilvusSearchResult> hits =
                     milvusService.search(queryEmbedding, TOP_K);
-            List<Map<String, Object>> out = new ArrayList<>();
-            java.util.Set<String> seenDocIds = new java.util.HashSet<>();
+
+            // 1. 过滤弱相关/空内容，按 docId 分组（同文档切片聚合）
+            Map<String, List<com.imagemanager.service.MilvusService.MilvusSearchResult>> byDoc =
+                    new LinkedHashMap<>();
             for (com.imagemanager.service.MilvusService.MilvusSearchResult r : hits) {
                 if (r.score < MIN_SCORE) continue;
                 if (r.content == null || r.content.isBlank()) continue;
-                // 同一文档只保留首个（最高分）片段
-                if (r.docId != null && !seenDocIds.add(r.docId)) continue;
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("content", r.content);
-                item.put("fileName", r.fileName != null ? r.fileName : "未知文件");
-                item.put("docType", r.docType != null ? r.docType : "");
-                item.put("docId", r.docId != null ? r.docId : "");
-                item.put("score", r.score);
-                out.add(item);
+                String key = r.docId != null ? r.docId : ("__no_doc_" + r.fileName + "_" + r.chunkIndex);
+                byDoc.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
             }
+
+            // 2. 组内智能挑选：按 score 降序保留最强 N 片，再按 chunkIndex 升序还原原文顺序
+            List<Map<String, Object>> groups = new ArrayList<>();
+            for (Map.Entry<String, List<com.imagemanager.service.MilvusService.MilvusSearchResult>> e
+                    : byDoc.entrySet()) {
+                List<com.imagemanager.service.MilvusService.MilvusSearchResult> chunks = e.getValue();
+                chunks.sort((a, b) -> Float.compare(b.score, a.score));
+                int hitCount = chunks.size();
+                List<com.imagemanager.service.MilvusService.MilvusSearchResult> picked =
+                        new ArrayList<>(chunks.subList(0, Math.min(hitCount, MAX_CHUNKS_PER_DOC)));
+                picked.sort(Comparator.comparingInt(c -> c.chunkIndex));
+                Map<String, Object> group = new LinkedHashMap<>();
+                group.put("chunks", picked);
+                group.put("hitCount", hitCount);
+                group.put("topScore", chunks.get(0).score); // chunks 保持 score 降序，get(0) 为组内最高分
+                groups.add(group);
+            }
+
+            // 3. 组按组内最高分降序（相关性更强的文档优先拿到预算）
+            groups.sort((a, b) -> Float.compare((Float) b.get("topScore"), (Float) a.get("topScore")));
+
+            // 4. 全量拼接：逐组按原文顺序拼接切片，共享字符预算，超预算智能截断并标注
+            List<Map<String, Object>> out = new ArrayList<>();
+            int usedChars = 0;
+            int processedGroups = 0;
+            for (Map<String, Object> g : groups) {
+                if (processedGroups >= MAX_GROUPS || usedChars >= TOTAL_CHAR_BUDGET) break;
+                @SuppressWarnings("unchecked")
+                List<com.imagemanager.service.MilvusService.MilvusSearchResult> picked =
+                        (List<com.imagemanager.service.MilvusService.MilvusSearchResult>) g.get("chunks");
+                int hitCount = (Integer) g.get("hitCount");
+
+                StringBuilder merged = new StringBuilder();
+                int mergedChunks = 0;
+                boolean truncated = false;
+                for (com.imagemanager.service.MilvusService.MilvusSearchResult c : picked) {
+                    String piece = c.content.trim();
+                    int sepLen = merged.length() > 0 ? 2 : 0;
+                    int budgetLeft = TOTAL_CHAR_BUDGET - usedChars - merged.length() - sepLen;
+                    if (budgetLeft <= 200) {
+                        // 剩余预算太小（放不下一个有意义的切片），停止纳入本片及后续
+                        truncated = true;
+                        break;
+                    }
+                    if (merged.length() > 0) merged.append("\n\n");
+                    if (piece.length() > budgetLeft) {
+                        // 预算只够本片一部分：截断保留头部并显式标注
+                        merged.append(piece, 0, budgetLeft - 20).append(" ……[切片截断]");
+                        mergedChunks++;
+                        truncated = true;
+                        break;
+                    }
+                    merged.append(piece);
+                    mergedChunks++;
+                }
+                usedChars += merged.length();
+                if (truncated || mergedChunks < hitCount) {
+                    merged.append("\n[说明：该资料共命中 ").append(hitCount)
+                          .append(" 个切片，按相关性已纳入 ").append(mergedChunks)
+                          .append(" 片；其余切片相关性较低或超出上下文预算，未纳入]");
+                }
+                if (merged.length() == 0) continue;
+
+                com.imagemanager.service.MilvusService.MilvusSearchResult first = picked.get(0);
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("content", merged.toString());
+                item.put("fileName", first.fileName != null ? first.fileName : "未知文件");
+                item.put("docType", first.docType != null ? first.docType : "");
+                item.put("docId", first.docId != null ? first.docId : "");
+                item.put("score", g.get("topScore"));
+                item.put("mergedChunks", mergedChunks);
+                item.put("hitChunks", hitCount);
+                out.add(item);
+                processedGroups++;
+                log.info("[业务员资料] 文档聚合: file={}, 命中切片={}, 拼接切片={}, 最高分={}, 拼接字符={}",
+                        first.fileName, hitCount, mergedChunks, g.get("topScore"), merged.length());
+            }
+            log.info("[业务员资料] 检索聚合完成: 命中文档组={}, 输出组={}, 总字符={}/{}",
+                    groups.size(), out.size(), usedChars, TOTAL_CHAR_BUDGET);
             return out;
         } catch (Exception e) {
             log.warn("业务员资料 Milvus 检索失败: {}", e.getMessage());

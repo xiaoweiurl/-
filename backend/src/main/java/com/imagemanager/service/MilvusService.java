@@ -259,6 +259,7 @@ public class MilvusService {
         public String fileName;
         public String docType;
         public String content;
+        public int chunkIndex = -1;
         public float score;
     }
 
@@ -339,7 +340,7 @@ public class MilvusService {
                     .annsField("embedding")
                     .data(vectors)
                     .topK(topK)
-                    .outputFields(List.of("doc_id", "file_name", "doc_type", "content"))
+                    .outputFields(List.of("doc_id", "file_name", "doc_type", "chunk_index", "content"))
                     .searchParams(Map.of("ef", 128))
                     .build());
 
@@ -360,6 +361,10 @@ public class MilvusService {
                     row.fileName = fileName != null ? fileName.toString() : null;
                     Object docType = entity.get("doc_type");
                     row.docType = docType != null ? docType.toString() : null;
+                    Object chunkIndex = entity.get("chunk_index");
+                    if (chunkIndex instanceof Number) {
+                        row.chunkIndex = ((Number) chunkIndex).intValue();
+                    }
                     Object content = entity.get("content");
                     row.content = content != null ? content.toString() : null;
                 }
