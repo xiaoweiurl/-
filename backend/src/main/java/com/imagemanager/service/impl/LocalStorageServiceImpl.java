@@ -79,6 +79,24 @@ public class LocalStorageServiceImpl implements FileStorageService {
     }
     
     @Override
+    public String uploadFileForKey(MultipartFile file, String directory, String fileName) {
+        try {
+            String dir = (directory == null || directory.isEmpty()) ? "images" : directory;
+            String fullPath = dir + "/" + fileName;
+
+            Path targetPath = uploadPath.resolve(fullPath);
+            Files.createDirectories(targetPath.getParent());
+            Files.copy(file.getInputStream(), targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+            log.info("文件上传成功(指定key): {}", fullPath);
+            return fullPath;
+        } catch (IOException e) {
+            log.error("文件上传失败(指定key)", e);
+            throw new RuntimeException("文件上传失败: " + e.getMessage());
+        }
+    }
+
+    @Override
     public String uploadFile(byte[] data, String fileName, String contentType) {
         try {
             String fullPath = "images/" + fileName;

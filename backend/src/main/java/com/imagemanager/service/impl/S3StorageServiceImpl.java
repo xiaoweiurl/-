@@ -233,6 +233,32 @@ public class S3StorageServiceImpl implements FileStorageService {
     }
 
     @Override
+    public String uploadFileForKey(MultipartFile file, String directory, String fileName) {
+        checkInitialized();
+        try {
+            String dir = (directory == null || directory.isEmpty()) ? "images" : directory;
+            String key = dir + "/" + fileName;
+            String bucket = storageConfig.getS3BucketName();
+
+            byte[] data = file.getBytes();
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
+                    .contentLength((long) data.length)
+                    .build();
+
+            s3Client.putObject(putRequest, RequestBody.fromBytes(data));
+            log.info("[Storage] 文件已上传到 S3(指定key): bucket={}, key={}, size={}", bucket, key, data.length);
+
+            return key;
+        } catch (Exception e) {
+            log.error("[Storage] uploadFileForKey 上传失败", e);
+            throw new RuntimeException("文件上传到S3失败: " + e.getMessage());
+        }
+    }
+
+    @Override
     public String uploadFile(byte[] data, String fileName, String contentType) {
         checkInitialized();
         try {

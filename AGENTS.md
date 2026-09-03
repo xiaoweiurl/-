@@ -531,10 +531,10 @@ export const ROLE_PERMISSIONS = {
 - `GET /api/products/{id}` - 获取商品详情
 - `GET /api/products/{id}/images` - 获取商品所有图片
 
-#### 商品库（Goods Library，Next.js 原生实现）
-文件夹式商品管理，Next.js API 路由 + `src/lib/db.ts` 直连 PG + S3 对象存储（`src/lib/goods-library.ts`）：
+#### 商品库（Goods Library）
+文件夹式商品管理，Java 后端（`GoodsLibraryController` + `GoodsLibraryServiceImpl`：JdbcTemplate + FileStorageService）+ Next.js 通配代理（`/api/goods-library/[[...path]]` → `/goods-library/*`）：
 
-- `GET /api/goods-library` - 获取商品文件夹列表（含主图签名 URL 作封面）
+- `GET /api/goods-library` - 获取商品文件夹列表（含主图签名 URL 作封面，keyword 模糊搜索）
 - `POST /api/goods-library` - 创建商品文件夹（发起人/打样员/品名/货号/客户/订单号，均可空；文件夹名=货号+品名）
 - `GET /api/goods-library/{id}` - 获取商品详情（含四类图片签名 URL）
 - `PUT /api/goods-library/{id}` - 更新信息/备注（货号或品名变更时文件夹自动重命名）
@@ -544,7 +544,7 @@ export const ROLE_PERMISSIONS = {
 
 **数据表** `goods_library`（迁移脚本 V53）：第一层信息字段 + main/side/detail/product 四个 OSS key + 备注五字段（selling_points/competitors/features/target_audience/usage_scenarios）
 
-**OSS 键规范**：`goods-library/{文件夹名}/{slot}.{ext}`（文件夹名按对象存储字符规范做安全替换，SDK 自动加 UUID 前缀）
+**OSS 键规范**：`goods-library/{文件夹名安全形式}/{slot}.{ext}`（FileStorageService 扩展方法 `uploadFileForKey` 支持指定完整 key；中文按 S3 字符规范安全替换）
 
 **前端页面**：`/goods-library`（文件夹网格，封面=主图）、`/goods-library/{id}`（图片管理+信息+备注）
 
