@@ -47,6 +47,7 @@ interface ModelUsage {
 const CAPABILITY_NAMES: Record<string, string> = {
   'smart-chat': 'AI 智能对话',
   'factory-chat': '工厂供应链助手',
+  'marketing-chat': '市场营销对话',
   'web-search': '联网搜索引擎',
   'embedding': '向量 Embedding',
   'ai-recognize': 'AI 智能识别',

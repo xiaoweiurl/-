@@ -40,6 +40,7 @@ import {
   Cloud,
   Database,
   Server,
+  Package,
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';
 import {
@@ -770,6 +771,11 @@ export default function Sidebar({
       id: 'knowledge',
       label: '知识库',
       icon: BookOpen,
+    },
+    {
+      id: 'goods-library',
+      label: '商品库',
+      icon: Package,
     },
     {
       id: 'ai-image',

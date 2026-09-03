@@ -45,6 +45,7 @@
 13. **供应链管理**: 产品报价、原料入库、原料采购、生产计划、辅料采购的完整数据管理
 14. **智能报价**: 基于原料用量×采购最低价自动计算总成本和建议报价
 15. **供应商对比**: 按原料编码汇总供应商报价，展示最低价/最高价/节省比例
+16. **商品库**: 文件夹式商品管理（货号+品名命名），图片（主图/侧面图/细节/产品图）上传至 OSS，支持卖点/竞品/功能/对应人群/使用场景备注
 
 ## 项目结构
 
@@ -529,6 +530,23 @@ export const ROLE_PERMISSIONS = {
 - `GET /api/products/main-images` - 获取商品主图列表
 - `GET /api/products/{id}` - 获取商品详情
 - `GET /api/products/{id}/images` - 获取商品所有图片
+
+#### 商品库（Goods Library，Next.js 原生实现）
+文件夹式商品管理，Next.js API 路由 + `src/lib/db.ts` 直连 PG + S3 对象存储（`src/lib/goods-library.ts`）：
+
+- `GET /api/goods-library` - 获取商品文件夹列表（含主图签名 URL 作封面）
+- `POST /api/goods-library` - 创建商品文件夹（发起人/打样员/品名/货号/客户/订单号，均可空；文件夹名=货号+品名）
+- `GET /api/goods-library/{id}` - 获取商品详情（含四类图片签名 URL）
+- `PUT /api/goods-library/{id}` - 更新信息/备注（货号或品名变更时文件夹自动重命名）
+- `DELETE /api/goods-library/{id}` - 删除商品（同步删除 OSS 图片）
+- `POST /api/goods-library/{id}/images` - 上传图片（multipart：slot=main/side/detail/product + file，替换时自动删旧图）
+- `DELETE /api/goods-library/{id}/images?slot={slot}` - 删除指定槽位图片
+
+**数据表** `goods_library`（迁移脚本 V53）：第一层信息字段 + main/side/detail/product 四个 OSS key + 备注五字段（selling_points/competitors/features/target_audience/usage_scenarios）
+
+**OSS 键规范**：`goods-library/{文件夹名}/{slot}.{ext}`（文件夹名按对象存储字符规范做安全替换，SDK 自动加 UUID 前缀）
+
+**前端页面**：`/goods-library`（文件夹网格，封面=主图）、`/goods-library/{id}`（图片管理+信息+备注）
 
 #### AI 识别
 - `POST /api/ai/recognize` - AI 识别图片

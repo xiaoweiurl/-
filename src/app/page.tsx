@@ -1484,6 +1484,12 @@ export default function Home() {
       return;
     }
 
+    // 如果点击商品库，跳转到商品库页面
+    if (item === 'goods-library') {
+      router.push('/goods-library');
+      return;
+    }
+
     // 如果点击AI对话，跳转到聊天页面
     if (item === 'chat') {
       router.push('/chat');

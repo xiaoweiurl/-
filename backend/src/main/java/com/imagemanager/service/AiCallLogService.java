@@ -29,6 +29,7 @@ public class AiCallLogService {
     /** 能力标识常量（与前端能力清单一一对应） */
     public static final String CAP_SMART_CHAT = "smart-chat";
     public static final String CAP_FACTORY_CHAT = "factory-chat";
+    public static final String CAP_MARKETING_CHAT = "marketing-chat";
     public static final String CAP_WEB_SEARCH = "web-search";
     public static final String CAP_EMBEDDING = "embedding";
     public static final String CAP_AI_RECOGNIZE = "ai-recognize";
@@ -74,7 +75,8 @@ public class AiCallLogService {
                     capability, model, success ? "success" : "fail",
                     (int) Math.min(latencyMs, Integer.MAX_VALUE), tokens, detail);
         } catch (Exception e) {
-            log.debug("[AI调用日志] 写入失败(静默): {}", e.getMessage());
+            // warn 级别保证"表不存在/连接失败"等问题可诊断，同时不阻断主业务
+            log.warn("[AI调用日志] 写入失败(不阻断业务): capability={}, error={}", capability, e.getMessage());
         }
     }
 

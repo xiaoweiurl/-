@@ -30,6 +30,10 @@ public class MarketingChatServiceImpl implements MarketingChatService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** AI 调用日志（可选注入——Bean 不存在时不影响主流程） */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.imagemanager.service.AiCallLogService aiCallLogService;
+
     public MarketingChatServiceImpl(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -86,9 +90,24 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 // 3. 保存用户消息
                 saveChatMessage(userId, "user", message, company);
 
-                // 4. 调用 Ollama 流式接口
+                // 4. 调用 Ollama 流式接口（记录真实调用日志）
                 StringBuilder fullResponse = new StringBuilder();
-                streamChatV2(emitter, messages, fullResponse);
+                long chatCallStart = System.currentTimeMillis();
+                try {
+                    streamChatV2(emitter, messages, fullResponse);
+                    if (aiCallLogService != null) {
+                        aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_MARKETING_CHAT,
+                                ollamaChatModel, true,
+                                System.currentTimeMillis() - chatCallStart, null, "marketing-chat userId=" + userId);
+                    }
+                } catch (Exception chatEx) {
+                    if (aiCallLogService != null) {
+                        aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_MARKETING_CHAT,
+                                ollamaChatModel, false,
+                                System.currentTimeMillis() - chatCallStart, null, "marketing-chat userId=" + userId);
+                    }
+                    throw chatEx;
+                }
 
                 // 5. 保存AI回复
                 saveChatMessage(userId, "assistant", fullResponse.toString(), company);
