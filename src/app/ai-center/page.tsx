@@ -22,10 +22,6 @@ interface AICapability {
   borderColor: string;
   status: 'online' | 'offline' | 'beta';
   category: string;
-  callsToday: number;
-  callsTotal: number;
-  avgLatency: number;
-  successRate: number;
   route: string;
   features: string[];
 }
@@ -41,27 +37,38 @@ interface ModelUsage {
   model: string;
   calls: number;
   tokens: number;
-  cost: number;
+  capability?: string;
+  todayCalls?: number;
+  avgLatency?: number;
+  successRate?: number;
 }
+
+// ===== 能力标识 → 中文名映射（与后端 AiCallLogService 的能力常量一致） =====
+const CAPABILITY_NAMES: Record<string, string> = {
+  'smart-chat': 'AI 智能对话',
+  'factory-chat': '工厂供应链助手',
+  'web-search': '联网搜索引擎',
+  'embedding': '向量 Embedding',
+  'ai-recognize': 'AI 智能识别',
+  'ai-image': 'AI 智能生图',
+  'quotation': '智能报价引擎',
+};
+const capName = (cap: string) => CAPABILITY_NAMES[cap] || cap;
 
 // ===== AI 能力数据 =====
 const AI_CAPABILITIES: AICapability[] = [
   {
     id: 'smart-chat',
     name: 'AI 智能对话',
-    description: '基于 DeepSeek V4 Pro 的多模态智能对话，支持思考模式、联网搜索、知识库检索',
+    description: '基于 qwen3.6 本地大模型的多轮智能对话，支持思考模式、联网搜索、知识库检索',
     icon: <MessageSquare className="w-6 h-6" />,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/10',
     borderColor: 'border-blue-500/20',
     status: 'online',
     category: '对话能力',
-    callsToday: 128,
-    callsTotal: 3847,
-    avgLatency: 2300,
-    successRate: 98.5,
     route: '/chat',
-    features: ['DeepSeek V4 Pro', '思考模式', '联网搜索', '知识库检索', '多轮对话'],
+    features: ['qwen3.6 本地模型', '思考模式', '联网搜索', '知识库检索', '多轮对话'],
   },
   {
     id: 'ai-image',
@@ -73,27 +80,19 @@ const AI_CAPABILITIES: AICapability[] = [
     borderColor: 'border-purple-500/20',
     status: 'online',
     category: '生成能力',
-    callsToday: 56,
-    callsTotal: 1823,
-    avgLatency: 8500,
-    successRate: 96.2,
     route: '/ai-image',
     features: ['文生图', '图生图', '多模型选择', '高分辨率', '批量生成', '风格控制'],
   },
   {
     id: 'ai-recognize',
     name: 'AI 智能识别',
-    description: '基于豆包 Vision 模型的图片内容识别，自动分类、标签提取、场景理解',
+    description: '基于 qwen3.6:35b 多模态模型的图片内容识别，自动分类、标签提取、场景理解',
     icon: <Eye className="w-6 h-6" />,
     color: 'text-cyan-400',
     bgColor: 'bg-cyan-500/10',
     borderColor: 'border-cyan-500/20',
     status: 'online',
     category: '识别能力',
-    callsToday: 89,
-    callsTotal: 4521,
-    avgLatency: 1800,
-    successRate: 97.8,
     route: '/',
     features: ['图片分类', '标签提取', '场景理解', '自动归类', '批量识别'],
   },
@@ -107,44 +106,32 @@ const AI_CAPABILITIES: AICapability[] = [
     borderColor: 'border-orange-500/20',
     status: 'online',
     category: '对话能力',
-    callsToday: 34,
-    callsTotal: 956,
-    avgLatency: 2600,
-    successRate: 97.1,
     route: '/supply-chain',
     features: ['成本计算', '智能报价', '供应商分析', '联网搜索', '十步成本法'],
   },
   {
     id: 'knowledge-search',
     name: '知识库语义检索',
-    description: '基于向量嵌入的语义搜索引擎，支持文档自动切片、向量化存储和精准语义匹配',
+    description: '基于 bge-m3 向量模型的语义搜索引擎，支持文档自动切片、向量化存储和精准语义匹配',
     icon: <BookOpen className="w-6 h-6" />,
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
     borderColor: 'border-emerald-500/20',
     status: 'online',
     category: '检索能力',
-    callsToday: 67,
-    callsTotal: 2341,
-    avgLatency: 450,
-    successRate: 99.2,
     route: '/knowledge',
     features: ['语义检索', '文档切片', '向量化存储', '多格式支持', 'RAG增强'],
   },
   {
     id: 'web-search',
     name: '联网搜索引擎',
-    description: '实时互联网搜索能力，自动判断何时需要联网，整合搜索结果为 AI 提供最新信息',
+    description: '基于 MiniMax-M3 的实时联网搜索，自动判断何时需要联网，整合搜索结果为 AI 提供最新信息',
     icon: <Globe className="w-6 h-6" />,
     color: 'text-sky-400',
     bgColor: 'bg-sky-500/10',
     borderColor: 'border-sky-500/20',
     status: 'online',
     category: '检索能力',
-    callsToday: 92,
-    callsTotal: 3256,
-    avgLatency: 2200,
-    successRate: 94.3,
     route: '/chat',
     features: ['实时搜索', '智能判断', '结果整合', '多源聚合', '时效性保障'],
   },
@@ -158,33 +145,10 @@ const AI_CAPABILITIES: AICapability[] = [
     borderColor: 'border-amber-500/20',
     status: 'online',
     category: '业务能力',
-    callsToday: 23,
-    callsTotal: 678,
-    avgLatency: 800,
-    successRate: 99.1,
     route: '/supply-chain',
     features: ['十步成本法', '自动计算', '供应商对比', '利润分析', '批量报价'],
   },
 ];
-
-// ===== 模拟趋势数据 =====
-const generateTrendData = (): CallTrend[] => {
-  const data: CallTrend[] = [];
-  const now = new Date();
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const total = Math.floor(200 + Math.random() * 300);
-    const success = Math.floor(total * (0.94 + Math.random() * 0.06));
-    data.push({
-      date: `${d.getMonth() + 1}/${d.getDate()}`,
-      calls: total,
-      success,
-      fail: total - success,
-    });
-  }
-  return data;
-};
 
 // ===== 组件 =====
 export default function AICenterPage() {
@@ -200,10 +164,32 @@ export default function AICenterPage() {
     totalCount: 0,
   });
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [usageData, setUsageData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // 根据能力ID获取真实统计数据
+  // 前端能力ID → 后端调用日志 capability 标识的映射
+  const CAP_ID_TO_LOG_KEY: Record<string, string> = {
+    'smart-chat': 'smart-chat',
+    'factory-chat': 'factory-chat',
+    'web-search': 'web-search',
+    'ai-recognize': 'ai-recognize',
+    'knowledge-search': 'embedding',
+    'smart-quote': 'quotation',
+    'ai-image': 'ai-image',
+  };
+
+  // 根据能力ID获取真实统计数据（优先 ai_call_log 真实调用记录，兜底 dashboard 统计）
   const getCapStats = (capId: string) => {
+    const logKey = CAP_ID_TO_LOG_KEY[capId];
+    const row = (usageData?.todayUsage ?? []).find((r: any) => r.capability === logKey);
+    if (row) {
+      return { callsToday: Number(row.today ?? 0), callsTotal: Number(row.total ?? 0) };
+    }
+    if (usageData) {
+      // 用量接口可用但该能力暂无调用记录 → 真实为 0
+      return { callsToday: 0, callsTotal: 0 };
+    }
+    // 用量接口不可用，兜底 dashboard 统计
     const ai = dashboardData?.aiStats;
     if (!ai) return null;
     switch (capId) {
@@ -218,38 +204,71 @@ export default function AICenterPage() {
     }
   };
 
-  // 动态模型用量数据
-  const modelUsage: ModelUsage[] = dashboardData?.aiStats ? [
-    { model: 'DeepSeek V4 Pro', calls: dashboardData.aiStats.totalChatCalls ?? 0, tokens: 0, cost: 0 },
-    { model: '豆包 Vision', calls: dashboardData.aiStats.embeddingCompleted ?? 0, tokens: 0, cost: 0 },
-    { model: 'MiniMax Embedding', calls: dashboardData.aiStats.embeddingCompleted ?? 0, tokens: 0, cost: 0 },
-    { model: 'Qwen3.6 多模态', calls: dashboardData.aiStats.todayChatCalls ?? 0, tokens: 0, cost: 0 },
-  ] : [];
+  // 模型用量数据（全部来自后端 ai_call_log 真实调用记录）
+  const modelUsage: ModelUsage[] = usageData?.modelUsage ? usageData.modelUsage.map((m: any) => ({
+    model: m.model,
+    calls: Number(m.calls ?? 0),
+    tokens: Number(m.tokens ?? 0),
+    capability: m.capability,
+    todayCalls: Number(m.today_calls ?? 0),
+    avgLatency: Number(m.avg_latency ?? 0),
+    successRate: Number(m.success_rate ?? 0),
+  })) : [];
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 从dashboard API获取真实统计数据
-        const res = await fetch('/api/dashboard/stats');
-        if (res.ok) {
-          const data = await res.json();
-          const payload = data?.data || data;
+        // 并行拉取：仪表盘统计 + AI 用量监控（真实调用记录）
+        const [dashRes, usageRes] = await Promise.all([
+          fetch('/api/dashboard/stats').catch(() => null),
+          fetch('/api/ai-usage/overview').catch(() => null),
+        ]);
+
+        let payload: any = null;
+        if (dashRes && dashRes.ok) {
+          const data = await dashRes.json();
+          payload = data?.data || data;
           setDashboardData(payload);
+        }
 
-          // 用真实数据计算统计
-          const ai = payload?.aiStats;
-          const supplyChain = payload?.supplyChain;
-          const onlineCount = AI_CAPABILITIES.filter(c => c.status === 'online').length;
+        let usage: any = null;
+        if (usageRes && usageRes.ok) {
+          const u = await usageRes.json();
+          usage = u?.data || null;
+          setUsageData(usage);
+        }
 
-          setStats({
-            totalCallsToday: ai?.todayChatCalls ?? 0,
-            totalCallsAll: ai?.totalChatCalls ?? 0,
-            avgSuccessRate: 97.8,
-            avgLatency: 2300,
-            onlineCount,
-            totalCount: AI_CAPABILITIES.length,
-          });
+        const onlineCount = AI_CAPABILITIES.filter(c => c.status === 'online').length;
+
+        // 核心指标全部用真实调用记录计算
+        const todayUsage: any[] = usage?.todayUsage ?? [];
+        const todayTotal = todayUsage.reduce((s: number, r: any) => s + Number(r.today ?? 0), 0);
+        const allTotal = todayUsage.reduce((s: number, r: any) => s + Number(r.total ?? 0), 0);
+        const health: any[] = usage?.health ?? [];
+        const healthCalls = health.reduce((s: number, h: any) => s + Number(h.calls ?? 0), 0);
+        const avgRate = health.length > 0
+          ? health.reduce((s: number, h: any) => s + Number(h.success_rate ?? 0), 0) / health.length : 0;
+        const avgLat = healthCalls > 0
+          ? Math.round(health.reduce((s: number, h: any) => s + Number(h.avg_latency ?? 0) * Number(h.calls ?? 0), 0) / healthCalls) : 0;
+
+        setStats({
+          totalCallsToday: todayTotal,
+          totalCallsAll: allTotal,
+          avgSuccessRate: avgRate,
+          avgLatency: avgLat,
+          onlineCount,
+          totalCount: AI_CAPABILITIES.length,
+        });
+
+        // 7日真实调用趋势
+        if (usage?.trend) {
+          setTrendData(usage.trend.map((t: any) => ({
+            date: t.date,
+            calls: Number(t.calls ?? 0),
+            success: Number(t.success ?? 0),
+            fail: Number(t.fail ?? 0),
+          })));
         }
       } catch {
         // 后端不可用，保留默认值
@@ -258,10 +277,6 @@ export default function AICenterPage() {
       } finally {
         setLoading(false);
       }
-
-      // 趋势数据暂时保留模拟（后端暂无趋势接口）
-      const trend = generateTrendData();
-      setTrendData(trend);
     };
     fetchData();
   }, []);
@@ -277,7 +292,7 @@ export default function AICenterPage() {
         {[
           { label: '今日调用', value: formatNumber(stats.totalCallsToday), sub: `累计 ${formatNumber(stats.totalCallsAll)}`, icon: <Zap className="w-5 h-5" />, color: 'from-blue-500 to-cyan-500', glow: 'shadow-blue-500/20' },
           { label: '服务可用率', value: `${stats.avgSuccessRate.toFixed(1)}%`, sub: `${stats.onlineCount}/${stats.totalCount} 能力在线`, icon: <CheckCircle className="w-5 h-5" />, color: 'from-green-500 to-emerald-500', glow: 'shadow-green-500/20' },
-          { label: '平均响应', value: formatLatency(stats.avgLatency), sub: 'P99 < 5s', icon: <Clock className="w-5 h-5" />, color: 'from-amber-500 to-orange-500', glow: 'shadow-amber-500/20' },
+          { label: '平均响应', value: formatLatency(stats.avgLatency), sub: '近24小时真实均值', icon: <Clock className="w-5 h-5" />, color: 'from-amber-500 to-orange-500', glow: 'shadow-amber-500/20' },
           { label: 'AI 能力数', value: stats.totalCount.toString(), sub: '持续扩展中', icon: <Sparkles className="w-5 h-5" />, color: 'from-purple-500 to-violet-500', glow: 'shadow-purple-500/20' },
         ].map((card, i) => (
           <div key={i} className={`bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 hover:shadow-lg ${card.glow} transition-all duration-300 group`}>
@@ -298,16 +313,21 @@ export default function AICenterPage() {
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
             <Activity className="w-5 h-5 text-blue-400" />
-            近14天调用趋势
+            近7天调用趋势
           </h3>
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />成功</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500/60" />失败</span>
           </div>
         </div>
+        {trendData.length === 0 ? (
+          <div className="h-52 flex items-center justify-center text-xs text-slate-500">
+            暂无调用记录 —— 产生 AI 调用后将自动展示近7天趋势
+          </div>
+        ) : (
         <div className="h-52 flex items-end gap-1.5">
           {trendData.map((d, i) => {
-            const maxCalls = Math.max(...trendData.map(t => t.calls));
+            const maxCalls = Math.max(...trendData.map(t => t.calls), 1);
             const successH = (d.success / maxCalls) * 100;
             const failH = (d.fail / maxCalls) * 100;
             return (
@@ -332,6 +352,7 @@ export default function AICenterPage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* 快捷入口：能力分类 */}
@@ -355,43 +376,48 @@ export default function AICenterPage() {
         ))}
       </div>
 
-      {/* 模型用量排行 */}
+      {/* 模型用量排行（真实调用记录） */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
         <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4">
           <Database className="w-5 h-5 text-cyan-400" />
           模型调用排行
         </h3>
-        <div className="space-y-3">
-          {modelUsage.map((m, i) => {
-            const maxCalls = Math.max(...modelUsage.map(x => x.calls));
-            const pct = (m.calls / maxCalls) * 100;
-            return (
-              <div key={i} className="group">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-500 w-5">{i + 1}</span>
-                    <span className="text-sm text-slate-200 font-medium">{m.model}</span>
+        {modelUsage.length === 0 ? (
+          <div className="py-8 text-center text-xs text-slate-500">
+            暂无调用记录 —— 数据来自系统真实调用日志，产生 AI 调用后将自动展示
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {modelUsage.map((m, i) => {
+              const maxCalls = Math.max(...modelUsage.map(x => x.calls), 1);
+              const pct = (m.calls / maxCalls) * 100;
+              return (
+                <div key={i} className="group">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-500 w-5">{i + 1}</span>
+                      <span className="text-sm text-slate-200 font-medium">{m.model}</span>
+                      <span className="text-[10px] text-slate-500">{capName(m.capability ?? '')}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="text-slate-400">{formatNumber(m.calls)} 次调用</span>
+                      <span className="text-slate-500">{formatLatency(m.avgLatency ?? 0)}</span>
+                      <span className={`font-medium ${(m.successRate ?? 0) >= 95 ? 'text-green-400' : (m.successRate ?? 0) >= 80 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {(m.successRate ?? 0).toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="text-slate-400">{formatNumber(m.calls)} 次调用</span>
-                    {m.tokens > 0 && <span className="text-slate-500">{formatNumber(m.tokens)} tokens</span>}
-                    <span className="text-amber-400 font-medium">¥{m.cost.toFixed(2)}</span>
+                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                 </div>
-                <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
-          <span className="text-xs text-slate-500">总成本估算</span>
-          <span className="text-sm font-bold text-amber-400">¥{modelUsage.reduce((s, m) => s + m.cost, 0).toFixed(2)}</span>
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -488,163 +514,181 @@ export default function AICenterPage() {
   };
 
   // ===== 渲染：用量监控 =====
-  const renderMonitor = () => (
+  const renderMonitor = () => {
+    const health: any[] = usageData?.health ?? [];
+    const recent: any[] = usageData?.recent ?? [];
+    const todayUsage: any[] = usageData?.todayUsage ?? [];
+    const rateLimits: any[] = usageData?.rateLimits ?? [];
+    const allNormal = health.length > 0 && health.every((h: any) => h.level === 'normal');
+    const hasError = health.some((h: any) => h.level === 'error');
+    const todayTotal = todayUsage.reduce((s: number, r: any) => s + Number(r.today ?? 0), 0);
+    const emptyHint = (
+      <div className="py-8 text-center text-xs text-slate-500">
+        暂无调用记录 —— 数据来自系统真实调用日志，产生 AI 调用后将自动展示
+      </div>
+    );
+    return (
     <div className="space-y-6">
-      {/* 实时状态 */}
+      {/* 实时状态（近24h真实成功率/平均延迟，按实际调用的模型分组） */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
             <Server className="w-5 h-5 text-green-400" />
             服务健康状态
+            <span className="text-[10px] font-normal text-slate-500">近24小时真实调用</span>
           </h3>
-          <span className="flex items-center gap-1.5 text-xs text-green-400">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            全部正常
-          </span>
+          {health.length > 0 && (
+            <span className={`flex items-center gap-1.5 text-xs ${hasError ? 'text-red-400' : allNormal ? 'text-green-400' : 'text-amber-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${hasError ? 'bg-red-400' : allNormal ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
+              {hasError ? '存在异常' : allNormal ? '全部正常' : '部分降级'}
+            </span>
+          )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { name: 'DeepSeek API', status: 'normal', latency: '1.2s', uptime: '99.9%' },
-            { name: '豆包 Vision', status: 'normal', latency: '0.8s', uptime: '99.7%' },
-            { name: 'MiniMax Embedding', status: 'normal', latency: '0.3s', uptime: '99.95%' },
-            { name: 'Web Search', status: 'normal', latency: '1.8s', uptime: '98.5%' },
-          ].map((s, i) => (
-            <div key={i} className="bg-slate-900/50 rounded-lg border border-slate-700/30 p-3 flex items-center gap-3">
-              <div className={`w-2.5 h-2.5 rounded-full ${s.status === 'normal' ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-slate-200 truncate">{s.name}</div>
-                <div className="text-[10px] text-slate-500">{s.latency} · {s.uptime}</div>
-              </div>
-              <CheckCircle className="w-4 h-4 text-green-500/50" />
-            </div>
-          ))}
-        </div>
+        {health.length === 0 ? emptyHint : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {health.map((s: any, i: number) => {
+              const rate = Number(s.success_rate ?? 0);
+              const level = s.level ?? 'normal';
+              return (
+                <div key={i} className="bg-slate-900/50 rounded-lg border border-slate-700/30 p-3 flex items-center gap-3">
+                  <div className={`w-2.5 h-2.5 rounded-full ${level === 'normal' ? 'bg-green-400 animate-pulse' : level === 'warning' ? 'bg-amber-400' : 'bg-red-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-slate-200 truncate">{s.model}</div>
+                    <div className="text-[10px] text-slate-500">
+                      {formatLatency(Number(s.avg_latency ?? 0))} · 成功率 {rate}% · {formatNumber(Number(s.calls ?? 0))}次
+                    </div>
+                  </div>
+                  {level === 'normal'
+                    ? <CheckCircle className="w-4 h-4 text-green-500/50" />
+                    : level === 'warning'
+                      ? <AlertTriangle className="w-4 h-4 text-amber-500/60" />
+                      : <XCircle className="w-4 h-4 text-red-500/60" />}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* 模型用量明细 */}
+      {/* 模型用量明细（真实分组统计） */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
         <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4">
           <PieChart className="w-5 h-5 text-violet-400" />
           模型用量明细
         </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-700/50">
-                <th className="text-left py-3 px-3 text-slate-400 font-medium">模型</th>
-                <th className="text-right py-3 px-3 text-slate-400 font-medium">调用次数</th>
-                <th className="text-right py-3 px-3 text-slate-400 font-medium">Token 消耗</th>
-                <th className="text-right py-3 px-3 text-slate-400 font-medium">费用</th>
-                <th className="text-right py-3 px-3 text-slate-400 font-medium">占比</th>
-              </tr>
-            </thead>
-            <tbody>
-              {modelUsage.map((m, i) => {
-                const totalCalls = modelUsage.reduce((s, x) => s + x.calls, 0);
-                const pct = ((m.calls / totalCalls) * 100).toFixed(1);
-                return (
-                  <tr key={i} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
-                    <td className="py-3 px-3 text-slate-200 font-medium">{m.model}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-300">{formatNumber(m.calls)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-400">{m.tokens > 0 ? formatNumber(m.tokens) : '-'}</td>
-                    <td className="py-3 px-3 text-right font-mono text-amber-400">¥{m.cost.toFixed(2)}</td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+        {modelUsage.length === 0 ? emptyHint : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700/50">
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">模型</th>
+                  <th className="text-left py-3 px-3 text-slate-400 font-medium">能力</th>
+                  <th className="text-right py-3 px-3 text-slate-400 font-medium">调用次数</th>
+                  <th className="text-right py-3 px-3 text-slate-400 font-medium">今日</th>
+                  <th className="text-right py-3 px-3 text-slate-400 font-medium">平均延迟</th>
+                  <th className="text-right py-3 px-3 text-slate-400 font-medium">成功率</th>
+                  <th className="text-right py-3 px-3 text-slate-400 font-medium">占比</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modelUsage.map((m, i) => {
+                  const totalCalls = modelUsage.reduce((s, x) => s + x.calls, 0);
+                  const pct = totalCalls > 0 ? ((m.calls / totalCalls) * 100).toFixed(1) : '0.0';
+                  return (
+                    <tr key={i} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
+                      <td className="py-3 px-3 text-slate-200 font-medium">{m.model}</td>
+                      <td className="py-3 px-3 text-slate-400 text-xs">{capName(m.capability ?? '')}</td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-300">{formatNumber(m.calls)}</td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-400">{formatNumber(m.todayCalls ?? 0)}</td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-400">{formatLatency(m.avgLatency ?? 0)}</td>
+                      <td className={`py-3 px-3 text-right font-mono ${(m.successRate ?? 0) >= 95 ? 'text-green-400' : (m.successRate ?? 0) >= 80 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {(m.successRate ?? 0).toFixed(1)}%
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-400 w-10 text-right">{pct}%</span>
                         </div>
-                        <span className="text-xs text-slate-400 w-10 text-right">{pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* 最近调用日志 */}
+      {/* 最近调用日志（真实记录） */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
         <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4">
           <Clock className="w-5 h-5 text-sky-400" />
           最近调用记录
         </h3>
-        <div className="space-y-2">
-          {[
-            { time: '16:42:31', capability: 'AI 智能对话', model: 'DeepSeek V4 Pro', status: 'success', latency: '2.3s', tokens: 1847 },
-            { time: '16:41:58', capability: '知识库语义检索', model: 'MiniMax Embedding', status: 'success', latency: '0.3s', tokens: 423 },
-            { time: '16:41:22', capability: 'AI 智能生图', model: 'nano-banana', status: 'success', latency: '8.1s', tokens: 0 },
-            { time: '16:40:45', capability: '联网搜索引擎', model: 'Web Search', status: 'success', latency: '1.9s', tokens: 0 },
-            { time: '16:40:12', capability: 'AI 智能对话', model: 'DeepSeek V4 Pro', status: 'success', latency: '3.1s', tokens: 2341 },
-            { time: '16:39:55', capability: '工厂供应链助手', model: 'DeepSeek V4 Pro', status: 'success', latency: '2.7s', tokens: 1567 },
-            { time: '16:39:21', capability: 'AI 智能识别', model: '豆包 Vision', status: 'fail', latency: '1.2s', tokens: 0 },
-            { time: '16:38:47', capability: '知识库检索', model: 'MiniMax Embedding', status: 'success', latency: '0.4s', tokens: 312 },
-          ].map((log, i) => (
-            <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-700/20 transition-colors text-xs">
-              <span className="text-slate-500 font-mono w-16 shrink-0">{log.time}</span>
-              <span className="text-slate-200 w-32 truncate">{log.capability}</span>
-              <span className="text-slate-400 w-32 truncate">{log.model}</span>
-              <span className={`shrink-0 ${log.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-                {log.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-              </span>
-              <span className="text-slate-400 font-mono w-12 text-right">{log.latency}</span>
-              <span className="text-slate-500 font-mono w-16 text-right">{log.tokens > 0 ? `${log.tokens} tok` : '-'}</span>
-            </div>
-          ))}
-        </div>
+        {recent.length === 0 ? emptyHint : (
+          <div className="space-y-2">
+            {recent.map((log: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-700/20 transition-colors text-xs">
+                <span className="text-slate-500 font-mono w-16 shrink-0">{log.time}</span>
+                <span className="text-slate-200 w-32 truncate">{capName(log.capability ?? '')}</span>
+                <span className="text-slate-400 w-32 truncate">{log.model}</span>
+                <span className={`shrink-0 ${log.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                  {log.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                </span>
+                <span className="text-slate-400 font-mono w-14 text-right">{formatLatency(Number(log.latency_ms ?? 0))}</span>
+                <span className="text-slate-500 font-mono w-16 text-right">{Number(log.tokens ?? 0) > 0 ? `${log.tokens} tok` : '-'}</span>
+                <span className="text-slate-600 flex-1 truncate text-right">{log.detail ?? ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 配额与限制 */}
+      {/* 今日用量与系统限流（全部真实） */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
           <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2 mb-3">
             <Shield className="w-4 h-4 text-blue-400" />
-            API 配额
+            今日用量
+            <span className="text-[10px] font-normal text-slate-500">今日 {formatNumber(todayTotal)} 次</span>
           </h3>
-          <div className="space-y-3">
-            {[
-              { name: 'DeepSeek V4 Pro', used: 2847, total: 10000 },
-              { name: '豆包 Vision', used: 1521, total: 5000 },
-              { name: 'MiniMax Embedding', used: 4521, total: 20000 },
-              { name: '图片生成', used: 1235, total: 3000 },
-            ].map((q, i) => (
-              <div key={i}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-slate-300">{q.name}</span>
-                  <span className="text-slate-400">{formatNumber(q.used)} / {formatNumber(q.total)}</span>
-                </div>
-                <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      (q.used / q.total) > 0.9 ? 'bg-red-500' :
-                      (q.used / q.total) > 0.7 ? 'bg-amber-500' :
-                      'bg-blue-500'
-                    }`}
-                    style={{ width: `${(q.used / q.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          {todayUsage.length === 0 ? emptyHint : (
+            <div className="space-y-3">
+              {todayUsage.map((q: any, i: number) => {
+                const maxToday = Math.max(...todayUsage.map((x: any) => Number(x.today ?? 0)), 1);
+                return (
+                  <div key={i}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-slate-300">{capName(q.capability ?? '')}</span>
+                      <span className="text-slate-400">今日 {formatNumber(Number(q.today ?? 0))} · 累计 {formatNumber(Number(q.total ?? 0))}</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                        style={{ width: `${(Number(q.today ?? 0) / maxToday) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
           <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-amber-400" />
             速率限制
+            <span className="text-[10px] font-normal text-slate-500">系统真实限流配置</span>
           </h3>
           <div className="space-y-2.5">
-            {[
-              { name: '对话接口', limit: '100次/分钟', current: '23次/分钟' },
-              { name: '图片生成', limit: '5次/分钟', current: '1次/分钟' },
-              { name: '图片识别', limit: '20次/分钟', current: '8次/分钟' },
-              { name: '向量检索', limit: '50次/分钟', current: '12次/分钟' },
-              { name: '联网搜索', limit: '30次/分钟', current: '5次/分钟' },
-            ].map((r, i) => (
+            {rateLimits.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg bg-slate-900/30">
                 <span className="text-slate-300">{r.name}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">{r.current}</span>
+                  <span className="text-slate-400">当前窗口 {r.current ?? 0} 次</span>
+                  {Number(r.rejected ?? 0) > 0 && <span className="text-red-400">拒绝 {r.rejected} 次</span>}
                   <span className="text-slate-500">/ {r.limit}</span>
                 </div>
               </div>
@@ -653,7 +697,8 @@ export default function AICenterPage() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0e1a]">

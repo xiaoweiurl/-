@@ -81,6 +81,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Autowired(required = false)
     private com.imagemanager.cache.LlmCacheService llmCacheService;
 
+    @Autowired(required = false)
+    private com.imagemanager.service.AiCallLogService aiCallLogService;
+
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
@@ -992,8 +995,22 @@ public class SmartChatServiceImpl implements SmartChatService {
                 boolean enableWebSearch = "planning".equals(resolvedSubMode);
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
+                long chatCallStart = System.currentTimeMillis();
+                String chatCapability = "factory".equals(mode)
+                        ? com.imagemanager.service.AiCallLogService.CAP_FACTORY_CHAT
+                        : com.imagemanager.service.AiCallLogService.CAP_SMART_CHAT;
                 try {
                     streamChat(emitter, messages, fullResponse, fullReasoning, enableWebSearch);
+                    if (aiCallLogService != null) {
+                        aiCallLogService.record(chatCapability, null, true,
+                                System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
+                    }
+                } catch (Exception chatEx) {
+                    if (aiCallLogService != null) {
+                        aiCallLogService.record(chatCapability, null, false,
+                                System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
+                    }
+                    throw chatEx;
                 } finally {
                     // 8. 无论流是否成功，都保存已收集的AI回复（含思维链）
                     if (fullResponse.length() > 0) {
@@ -2964,7 +2981,38 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 实现：MiniMax API Anthropic 兼容端点 + web_search_20250305 服务端搜索工具，非流式调用。
      * 失败时返回空字符串（优雅降级，不影响主流程继续用内部数据回答）。
      */
+    /**
+     * 联网搜索（带调用日志埋点的包装方法）
+     * 未配置 MiniMax apiKey 时不算调用、不记录；记录真实成功/失败与耗时
+     */
     private String searchWebForMarketInfo(String message) {
+        boolean willCall = minimaxApiKey != null && !minimaxApiKey.isBlank();
+        long t0 = System.currentTimeMillis();
+        String result;
+        try {
+            result = searchWebForMarketInfoImpl(message);
+        } catch (RuntimeException e) {
+            if (willCall && aiCallLogService != null) {
+                aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_WEB_SEARCH, null, false,
+                        System.currentTimeMillis() - t0, null, brief(message));
+            }
+            throw e;
+        }
+        if (willCall && aiCallLogService != null) {
+            aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_WEB_SEARCH, null,
+                    result != null && !result.isBlank(),
+                    System.currentTimeMillis() - t0, null, brief(message));
+        }
+        return result;
+    }
+
+    /** 截断简述（调用日志 detail 字段用） */
+    private String brief(String s) {
+        if (s == null) return null;
+        return s.length() > 80 ? s.substring(0, 80) : s;
+    }
+
+    private String searchWebForMarketInfoImpl(String message) {
         if (minimaxApiKey == null || minimaxApiKey.isBlank()) {
             log.info("[web-search] 未配置 app.minimax.api-key，跳过联网搜索（企划方案仅基于内部数据生成）");
             return "";
@@ -4076,7 +4124,20 @@ public class SmartChatServiceImpl implements SmartChatService {
     /**
      * 调用Ollama Embedding API获取文本向量
      */
+    /**
+     * 文本向量化（带调用日志埋点的包装方法）：记录真实成功/失败与耗时
+     */
     private float[] getEmbedding(String text) {
+        long t0 = System.currentTimeMillis();
+        float[] result = getEmbeddingImpl(text);
+        if (aiCallLogService != null) {
+            aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_EMBEDDING, null,
+                    result != null, System.currentTimeMillis() - t0, null, brief(text));
+        }
+        return result;
+    }
+
+    private float[] getEmbeddingImpl(String text) {
         try {
             String url = ollamaBaseUrl + "/api/embed";
 

@@ -43,6 +43,58 @@ public class RateLimiter {
     
     // 存储每个客户端的请求记录
     private static final Map<String, RateLimitRecord> records = new ConcurrentHashMap<>();
+
+    // ===== 按类型的全局窗口计数（用量监控真实数据源） =====
+    /** 每种类型的窗口计数器：[0]=当前窗口通过数, [1]=当前窗口拒绝数 */
+    private static final Map<String, WindowCounter> typeCounters = new ConcurrentHashMap<>();
+
+    private static class WindowCounter {
+        volatile long windowStart = System.currentTimeMillis();
+        final AtomicLong passed = new AtomicLong(0);
+        final AtomicLong rejected = new AtomicLong(0);
+    }
+
+    /**
+     * 各类型的当前窗口真实计数快照。
+     * @return type -> [当前窗口通过数, 当前窗口拒绝数]
+     */
+    public static Map<String, long[]> snapshot() {
+        Map<String, long[]> out = new ConcurrentHashMap<>();
+        long now = System.currentTimeMillis();
+        for (LimitType type : LimitType.values()) {
+            WindowCounter c = typeCounters.get(type.name());
+            if (c == null) {
+                out.put(type.name(), new long[]{0, 0});
+                continue;
+            }
+            long windowMs = type.getWindowMinutes() * 60 * 1000L;
+            if (now - c.windowStart > windowMs) {
+                out.put(type.name(), new long[]{0, 0});
+            } else {
+                out.put(type.name(), new long[]{c.passed.get(), c.rejected.get()});
+            }
+        }
+        return out;
+    }
+
+    /** 按类型累计通过/拒绝（窗口过期自动重置） */
+    private static void countForType(LimitType type, boolean allowed) {
+        WindowCounter c = typeCounters.computeIfAbsent(type.name(), k -> new WindowCounter());
+        long windowMs = type.getWindowMinutes() * 60 * 1000L;
+        long now = System.currentTimeMillis();
+        synchronized (c) {
+            if (now - c.windowStart > windowMs) {
+                c.windowStart = now;
+                c.passed.set(0);
+                c.rejected.set(0);
+            }
+            if (allowed) {
+                c.passed.incrementAndGet();
+            } else {
+                c.rejected.incrementAndGet();
+            }
+        }
+    }
     
     // 清理过期记录的间隔（毫秒）
     private static final long CLEANUP_INTERVAL = 60 * 1000; // 1分钟
@@ -74,15 +126,17 @@ public class RateLimiter {
             
             // 检查是否超出限制
             if (record.count.get() >= limitType.getMaxRequests()) {
-                log.warn("速率限制触发: clientId={}, type={}, count={}", 
+                log.warn("速率限制触发: clientId={}, type={}, count={}",
                         clientId, limitType, record.count.get());
+                countForType(limitType, false);
                 return false;
             }
-            
+
             // 增加计数
             record.count.incrementAndGet();
             record.lastRequest.set(now);
-            
+            countForType(limitType, true);
+
             return true;
         }
     }
