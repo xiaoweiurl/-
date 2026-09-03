@@ -58,18 +58,37 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     }
 
     @Override
-    public Map<String, Object> createGoods(Map<String, String> body, String userId) {
-        String folderName = folderName(body.get("goods_no"), body.get("product_name"));
+    public Map<String, Object> createGoods(Map<String, String> fields, Map<String, MultipartFile> images, String userId) {
+        String folderName = folderName(fields.get("goods_no"), fields.get("product_name"));
         Map<String, Object> created = jdbcTemplate.queryForMap(
                 "INSERT INTO goods_library (folder_name, initiator, sampler, product_name, goods_no," +
                         " customer, order_no, user_id) VALUES (?,?,?,?,?,?,?,?) RETURNING *",
                 folderName,
-                nz(body.get("initiator")), nz(body.get("sampler")), nz(body.get("product_name")),
-                nz(body.get("goods_no")), nz(body.get("customer")), nz(body.get("order_no")),
+                nz(fields.get("initiator")), nz(fields.get("sampler")), nz(fields.get("product_name")),
+                nz(fields.get("goods_no")), nz(fields.get("customer")), nz(fields.get("order_no")),
                 (userId == null || userId.isBlank()) ? null : userId);
-        toFrontendMap(created, true);
-        log.info("[GoodsLibrary] 创建商品文件夹: id={}, folder={}", created.get("id"), folderName);
-        return created;
+        Object idObj = created.get("id");
+        if (idObj == null) {
+            throw new IllegalStateException("创建失败：未获取到商品ID");
+        }
+        long id = ((Number) idObj).longValue();
+        log.info("[GoodsLibrary] 创建商品文件夹: id={}, folder={}", id, folderName);
+
+        // 一次性上传创建时携带的四类图片（均允许为空）
+        if (images != null) {
+            Map<String, Object> row = mustGet(id);
+            for (String slot : SLOTS) {
+                MultipartFile file = images.get(slot);
+                if (file == null || file.isEmpty()) continue;
+                validateImageFile(file);
+                String storedKey = fileStorageService.uploadFileForKey(
+                        file, "goods-library/" + safeFolderName(folderName, id), slot + extOf(file.getOriginalFilename()));
+                jdbcTemplate.update("UPDATE goods_library SET " + slot + "_image_key = ?, updated_at = now() WHERE id = ?",
+                        storedKey, id);
+                log.info("[GoodsLibrary] 创建时上传图片: id={}, slot={}, key={}", id, slot, storedKey);
+            }
+        }
+        return getGoods(id);
     }
 
     @Override
@@ -130,13 +149,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择要上传的图片");
         }
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("仅支持图片文件");
-        }
-        if (file.getSize() > MAX_IMAGE_SIZE) {
-            throw new IllegalArgumentException("图片大小不能超过 20MB");
-        }
+        validateImageFile(file);
 
         String keyColumn = slot + "_image_key";
         Object oldKeyObj = row.get(keyColumn);
@@ -186,11 +199,22 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
 
     // ==================== 内部辅助 ====================
 
+    /** 图片文件基础校验：类型 + 大小 */
+    private void validateImageFile(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("仅支持图片文件");
+        }
+        if (file.getSize() > MAX_IMAGE_SIZE) {
+            throw new IllegalArgumentException("图片大小不能超过 20MB");
+        }
+    }
+
     private Map<String, Object> mustGet(long id) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT * FROM goods_library WHERE id=?", id);
         if (rows.isEmpty()) {
-            throw new IllegalArgumentException("商品不存在");
+            throw new IllegalArgumentException("商品不存在(id=" + id + ")");
         }
         return rows.get(0);
     }

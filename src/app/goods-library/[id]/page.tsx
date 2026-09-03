@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import {
   ArrowLeft, Loader2, Trash2, Upload, X, ZoomIn,
   User, PenTool, Hash, CreditCard, Building2, FileText, Save,
@@ -90,11 +92,11 @@ export default function GoodsDetailPage() {
           usage_scenarios: d.usage_scenarios || '',
         });
       } else {
-        alert(data.message || '商品不存在');
+        toast.error(data.message || '商品不存在');
         router.push('/goods-library');
       }
     } catch {
-      alert('加载失败');
+      toast.error('加载失败');
     } finally {
       setLoading(false);
     }
@@ -115,11 +117,12 @@ export default function GoodsDetailPage() {
       const data = await res.json();
       if (data.success) {
         await fetchDetail();
+        toast.success('保存成功');
       } else {
-        alert(data.message || '保存失败');
+        toast.error(data.message || '保存失败');
       }
     } catch {
-      alert('保存失败，请重试');
+      toast.error('保存失败，请重试');
     } finally {
       setSaving(false);
     }
@@ -138,11 +141,12 @@ export default function GoodsDetailPage() {
       const data = await res.json();
       if (data.success) {
         await fetchDetail();
+        toast.success('上传成功');
       } else {
-        alert(data.message || '上传失败');
+        toast.error(data.message || '上传失败');
       }
     } catch {
-      alert('上传失败，请重试');
+      toast.error('上传失败，请重试');
     } finally {
       setUploadingSlot(null);
       const input = fileInputs.current[slot];
@@ -158,11 +162,12 @@ export default function GoodsDetailPage() {
       const data = await res.json();
       if (data.success) {
         await fetchDetail();
+        toast.success('图片已删除');
       } else {
-        alert(data.message || '删除失败');
+        toast.error(data.message || '删除失败');
       }
     } catch {
-      alert('删除失败，请重试');
+      toast.error('删除失败，请重试');
     } finally {
       setUploadingSlot(null);
     }
@@ -174,12 +179,13 @@ export default function GoodsDetailPage() {
       const res = await fetch(`/api/goods-library/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
+        toast.success('商品文件夹已删除');
         router.push('/goods-library');
       } else {
-        alert(data.message || '删除失败');
+        toast.error(data.message || '删除失败');
       }
     } catch {
-      alert('删除失败，请重试');
+      toast.error('删除失败，请重试');
     }
   };
 
@@ -191,7 +197,20 @@ export default function GoodsDetailPage() {
     );
   }
 
-  if (!detail) return null;
+  if (!detail) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center gap-4 text-slate-500">
+        <ImageIcon className="w-10 h-10 text-slate-700" />
+        <p className="text-sm">商品文件夹不存在或已被删除</p>
+        <button
+          onClick={() => router.push('/goods-library')}
+          className="px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm hover:bg-blue-600/30 transition-colors"
+        >
+          返回商品库
+        </button>
+      </div>
+    );
+  }
 
   const imageUrlOf = (slot: SlotKey) => detail[`${slot}_image_url` as keyof GoodsDetail] as string | null;
 
@@ -393,6 +412,8 @@ export default function GoodsDetailPage() {
           </button>
         </div>
       )}
+
+      <Toaster position="top-center" richColors closeButton />
     </div>
   );
 }

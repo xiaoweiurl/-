@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import {
   FolderOpen, Plus, Search, Loader2, Trash2, ArrowLeft,
-  User, PenTool, Hash, CreditCard, Building2, FileText,
+  User, PenTool, Hash, CreditCard, Building2, FileText, ImagePlus, X,
 } from 'lucide-react';
 
 interface GoodsFolder {
@@ -35,6 +37,17 @@ const FORM_FIELDS = [
   { key: 'order_no', label: '订单号', icon: FileText },
 ] as const;
 
+/** 图片槽位（均可空，创建时可一次性上传，图片以槽位名命名） */
+const IMAGE_SLOTS = [
+  { key: 'main', label: '主图', field: 'mainImage' },
+  { key: 'side', label: '侧面图', field: 'sideImage' },
+  { key: 'detail', label: '细节', field: 'detailImage' },
+  { key: 'product', label: '产品图', field: 'productImage' },
+] as const;
+
+type SlotKey = (typeof IMAGE_SLOTS)[number]['key'];
+const EMPTY_SLOT_FILES: Record<SlotKey, File | null> = { main: null, side: null, detail: null, product: null };
+
 export default function GoodsLibraryPage() {
   const router = useRouter();
   const [folders, setFolders] = useState<GoodsFolder[]>([]);
@@ -42,8 +55,26 @@ export default function GoodsLibraryPage() {
   const [keyword, setKeyword] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [slotFiles, setSlotFiles] = useState<Record<SlotKey, File | null>>(EMPTY_SLOT_FILES);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // 本地图片预览 URL（随文件选择生成，变更时释放旧 URL）
+  const slotPreviews = useMemo(() => {
+    const map: Partial<Record<SlotKey, string>> = {};
+    for (const { key } of IMAGE_SLOTS) {
+      const f = slotFiles[key];
+      if (f) map[key] = URL.createObjectURL(f);
+    }
+    return map;
+  }, [slotFiles]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(slotPreviews).forEach(url => url && URL.revokeObjectURL(url));
+    };
+  }, [slotPreviews]);
 
   const fetchFolders = useCallback(async (kw?: string) => {
     try {
@@ -70,22 +101,27 @@ export default function GoodsLibraryPage() {
   const handleCreate = async () => {
     setCreating(true);
     try {
-      const res = await fetch('/api/goods-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      // 一次性提交：文本字段 + 四类图片（multipart）
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      for (const { key, field } of IMAGE_SLOTS) {
+        const f = slotFiles[key];
+        if (f) fd.append(field, f);
+      }
+      const res = await fetch('/api/goods-library', { method: 'POST', body: fd });
       const data = await res.json();
       if (data.success) {
         setShowCreate(false);
         setForm(EMPTY_FORM);
+        setSlotFiles(EMPTY_SLOT_FILES);
+        toast.success('商品文件夹创建成功');
         // 创建成功直接进入该商品文件夹，继续完善图片与备注
         router.push(`/goods-library/${data.data.id}`);
       } else {
-        alert(data.message || '创建失败');
+        toast.error(data.message || '创建失败');
       }
     } catch (e) {
-      alert('创建失败，请重试');
+      toast.error('创建失败，请重试');
     } finally {
       setCreating(false);
     }
@@ -100,11 +136,12 @@ export default function GoodsLibraryPage() {
       const data = await res.json();
       if (data.success) {
         setFolders(prev => prev.filter(f => f.id !== id));
+        toast.success('已删除');
       } else {
-        alert(data.message || '删除失败');
+        toast.error(data.message || '删除失败');
       }
     } catch {
-      alert('删除失败，请重试');
+      toast.error('删除失败，请重试');
     } finally {
       setDeletingId(null);
     }
@@ -247,6 +284,52 @@ export default function GoodsLibraryPage() {
               ))}
             </div>
 
+            {/* 商品图片（均可空，创建时一次性上传） */}
+            <div className="mt-5">
+              <div className="text-xs text-slate-400 mb-2">商品图片（均可空，将分别以 主图/侧面图/细节/产品图 命名）</div>
+              <div className="grid grid-cols-4 gap-3">
+                {IMAGE_SLOTS.map(({ key, label }) => (
+                  <div key={key}>
+                    <input
+                      ref={el => { fileInputs.current[key] = el; }}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) setSlotFiles(prev => ({ ...prev, [key]: f }));
+                        e.target.value = '';
+                      }}
+                    />
+                    {slotFiles[key] && slotPreviews[key] ? (
+                      <div className="relative group aspect-square rounded-lg overflow-hidden border border-blue-500/30">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={slotPreviews[key]} alt={label} className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => setSlotFiles(prev => ({ ...prev, [key]: null }))}
+                          className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/80 text-slate-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                          title="移除"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <div className="absolute bottom-0 inset-x-0 bg-slate-900/70 text-[10px] text-center text-slate-300 py-0.5">
+                          {label}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fileInputs.current[key]?.click()}
+                        className="w-full aspect-square rounded-lg border border-dashed border-slate-600 hover:border-blue-500/50 hover:bg-blue-500/5 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-400 transition-all"
+                      >
+                        <ImagePlus className="w-5 h-5" />
+                        <span className="text-[11px]">{label}</span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* 文件夹名预览 */}
             <div className="mt-4 px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs text-slate-400">
               文件夹名称：
@@ -275,12 +358,14 @@ export default function GoodsLibraryPage() {
                 className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-medium shadow-[0_0_15px_rgba(59,130,246,0.25)] hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] disabled:opacity-50 transition-all"
               >
                 {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                创建并完善图片
+                创建商品文件夹
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <Toaster position="top-center" richColors closeButton />
     </div>
   );
 }

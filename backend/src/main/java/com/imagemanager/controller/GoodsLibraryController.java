@@ -3,9 +3,11 @@ package com.imagemanager.controller;
 import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.service.GoodsLibraryService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,13 +37,24 @@ public class GoodsLibraryController {
     }
 
     /**
-     * 创建商品文件夹（第一层信息：发起人/打样员/品名/货号/客户/订单号，均允许为空）
+     * 创建商品文件夹（multipart：第一层信息字段 + 四类图片一次性上传，均允许为空）
+     * 文本字段：initiator/sampler/product_name/goods_no/customer/order_no
+     * 图片字段：mainImage/sideImage/detailImage/productImage
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<Map<String, Object>> createGoods(
-            @RequestBody Map<String, String> body,
+            @RequestParam Map<String, String> fields,
+            @RequestParam(value = "mainImage", required = false) MultipartFile mainImage,
+            @RequestParam(value = "sideImage", required = false) MultipartFile sideImage,
+            @RequestParam(value = "detailImage", required = false) MultipartFile detailImage,
+            @RequestParam(value = "productImage", required = false) MultipartFile productImage,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
-        return ApiResponse.success("创建成功", goodsLibraryService.createGoods(body, sessionId));
+        Map<String, MultipartFile> images = new HashMap<>(4);
+        if (mainImage != null) images.put("main", mainImage);
+        if (sideImage != null) images.put("side", sideImage);
+        if (detailImage != null) images.put("detail", detailImage);
+        if (productImage != null) images.put("product", productImage);
+        return ApiResponse.success("创建成功", goodsLibraryService.createGoods(fields, images, sessionId));
     }
 
     /**

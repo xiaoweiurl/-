@@ -16,8 +16,8 @@ public interface GoodsLibraryService {
     /** 获取商品文件夹列表（含主图签名 URL 作封面），keyword 按文件夹名/货号/品名/客户模糊过滤 */
     List<Map<String, Object>> listGoods(String keyword);
 
-    /** 创建商品文件夹 */
-    Map<String, Object> createGoods(Map<String, String> body, String userId);
+    /** 创建商品文件夹（可同时携带四类图片一次性上传，键为槽位 main/side/detail/product） */
+    Map<String, Object> createGoods(Map<String, String> fields, Map<String, MultipartFile> images, String userId);
 
     /** 获取商品详情（含四类图片签名 URL） */
     Map<String, Object> getGoods(long id);
