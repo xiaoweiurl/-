@@ -5,6 +5,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -60,6 +62,11 @@ public class AiCallLogService {
      * @param tokens     Token 消耗（无则传 null）
      * @param detail     简述（自动截断 300 字符）
      */
+    /**
+     * REQUIRES_NEW 独立事务：HikariCP auto-commit=false，无事务时 INSERT 会被连接池回滚；
+     * 且日志提交应与主业务事务解耦（主业务回滚不应带走调用日志）
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(String capability, String model, boolean success, long latencyMs,
                        Integer tokens, String detail) {
         try {

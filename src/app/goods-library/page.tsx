@@ -24,7 +24,7 @@ interface GoodsFolder {
 
 const EMPTY_FORM = {
   initiator: '', sampler: '', product_name: '',
-  goods_no: '', customer: '', order_no: '',
+  goods_no: '', customer: '', order_no: '', remark: '',
 };
 
 /** 第一层表格字段（均可空） */
@@ -328,6 +328,18 @@ export default function GoodsLibraryPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* 备注（可空，可填写卖点、竞品、功能、对应人群、使用场景等） */}
+            <div className="mt-5">
+              <div className="text-xs text-slate-400 mb-2">备注（可空，可填写卖点、竞品、功能、对应人群、使用场景等）</div>
+              <textarea
+                value={form.remark}
+                onChange={e => setForm(prev => ({ ...prev, remark: e.target.value }))}
+                rows={3}
+                placeholder={'卖点：\n竞品：\n功能：\n对应人群：\n使用场景：'}
+                className="w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/60 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
+              />
             </div>
 
             {/* 文件夹名预览 */}

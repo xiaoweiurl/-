@@ -5,6 +5,8 @@ import com.imagemanager.service.GoodsLibraryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.sql.Timestamp;
@@ -25,17 +27,21 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     private static final Map<String, String> SLOT_LABELS = Map.of(
             "main", "主图", "side", "侧面图", "detail", "细节", "product", "产品图");
     private static final List<String> INFO_FIELDS = List.of(
-            "initiator", "sampler", "product_name", "goods_no", "customer", "order_no",
-            "selling_points", "competitors", "features", "target_audience", "usage_scenarios");
+            "initiator", "sampler", "product_name", "goods_no", "customer", "order_no", "remark");
     private static final long MAX_IMAGE_SIZE = 20L * 1024 * 1024;
     private static final int PRESIGN_EXPIRE_SECONDS = 24 * 3600;
 
     private final JdbcTemplate jdbcTemplate;
     private final FileStorageService fileStorageService;
+    private final TransactionTemplate txTemplate;
 
-    public GoodsLibraryServiceImpl(JdbcTemplate jdbcTemplate, FileStorageService fileStorageService) {
+    public GoodsLibraryServiceImpl(JdbcTemplate jdbcTemplate, FileStorageService fileStorageService,
+                                   PlatformTransactionManager transactionManager) {
         this.jdbcTemplate = jdbcTemplate;
         this.fileStorageService = fileStorageService;
+        // 编程式事务：HikariCP auto-commit=false 且本类方法不声明 @Transactional（避免 OSS 网络调用拖长事务），
+        // 因此所有写库操作必须通过 TransactionTemplate 显式提交，否则连接归还时会被回滚
+        this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -60,32 +66,38 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     @Override
     public Map<String, Object> createGoods(Map<String, String> fields, Map<String, MultipartFile> images, String userId) {
         String folderName = folderName(fields.get("goods_no"), fields.get("product_name"));
-        Map<String, Object> created = jdbcTemplate.queryForMap(
+        // 事务内仅执行 INSERT 并立即提交（返回即落库），OSS 网络上传放在事务外
+        Map<String, Object> created = txTemplate.execute(status -> jdbcTemplate.queryForMap(
                 "INSERT INTO goods_library (folder_name, initiator, sampler, product_name, goods_no," +
-                        " customer, order_no, user_id) VALUES (?,?,?,?,?,?,?,?) RETURNING *",
+                        " customer, order_no, remark, user_id) VALUES (?,?,?,?,?,?,?,?,?) RETURNING *",
                 folderName,
                 nz(fields.get("initiator")), nz(fields.get("sampler")), nz(fields.get("product_name")),
                 nz(fields.get("goods_no")), nz(fields.get("customer")), nz(fields.get("order_no")),
-                (userId == null || userId.isBlank()) ? null : userId);
-        Object idObj = created.get("id");
+                nz(fields.get("remark")),
+                (userId == null || userId.isBlank()) ? null : userId));
+        Object idObj = created == null ? null : created.get("id");
         if (idObj == null) {
             throw new IllegalStateException("创建失败：未获取到商品ID");
         }
         long id = ((Number) idObj).longValue();
         log.info("[GoodsLibrary] 创建商品文件夹: id={}, folder={}", id, folderName);
 
-        // 一次性上传创建时携带的四类图片（均允许为空）
+        // 一次性上传创建时携带的四类图片（均允许为空）；图片失败不影响已创建的文件夹
         if (images != null) {
-            Map<String, Object> row = mustGet(id);
             for (String slot : SLOTS) {
                 MultipartFile file = images.get(slot);
                 if (file == null || file.isEmpty()) continue;
-                validateImageFile(file);
-                String storedKey = fileStorageService.uploadFileForKey(
-                        file, "goods-library/" + safeFolderName(folderName, id), slot + extOf(file.getOriginalFilename()));
-                jdbcTemplate.update("UPDATE goods_library SET " + slot + "_image_key = ?, updated_at = now() WHERE id = ?",
-                        storedKey, id);
-                log.info("[GoodsLibrary] 创建时上传图片: id={}, slot={}, key={}", id, slot, storedKey);
+                try {
+                    validateImageFile(file);
+                    String storedKey = fileStorageService.uploadFileForKey(
+                            file, "goods-library/" + safeFolderName(folderName, id), slot + extOf(file.getOriginalFilename()));
+                    String col = slot + "_image_key";
+                    txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
+                            "UPDATE goods_library SET " + col + " = ?, updated_at = now() WHERE id = ?", storedKey, id));
+                    log.info("[GoodsLibrary] 创建时上传图片: id={}, slot={}, key={}", id, slot, storedKey);
+                } catch (Exception e) {
+                    log.error("[GoodsLibrary] 创建时上传图片失败: id={}, slot={}, err={}", id, slot, e.getMessage());
+                }
             }
         }
         return getGoods(id);
@@ -110,16 +122,14 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         }
         String folderName = folderName(merged.get("goods_no"), merged.get("product_name"));
 
-        jdbcTemplate.update(
+        txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                 "UPDATE goods_library SET folder_name=?, initiator=?, sampler=?, product_name=?, goods_no=?," +
-                        " customer=?, order_no=?, selling_points=?, competitors=?, features=?," +
-                        " target_audience=?, usage_scenarios=?, updated_at=now() WHERE id=?",
+                        " customer=?, order_no=?, remark=?, updated_at=now() WHERE id=?",
                 folderName,
                 merged.get("initiator"), merged.get("sampler"), merged.get("product_name"),
                 merged.get("goods_no"), merged.get("customer"), merged.get("order_no"),
-                merged.get("selling_points"), merged.get("competitors"), merged.get("features"),
-                merged.get("target_audience"), merged.get("usage_scenarios"),
-                id);
+                merged.get("remark"),
+                id));
         log.info("[GoodsLibrary] 更新商品: id={}, folder={}", id, folderName);
         return getGoods(id);
     }
@@ -127,7 +137,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     @Override
     public void deleteGoods(long id) {
         Map<String, Object> row = mustGet(id);
-        jdbcTemplate.update("DELETE FROM goods_library WHERE id=?", id);
+        txTemplate.executeWithoutResult(s -> jdbcTemplate.update("DELETE FROM goods_library WHERE id=?", id));
         for (String slot : SLOTS) {
             Object key = row.get(slot + "_image_key");
             if (key != null) {
@@ -159,8 +169,8 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         String fileName = slot + extOf(file.getOriginalFilename());
         String storedKey = fileStorageService.uploadFileForKey(file, "goods-library/" + folder, fileName);
 
-        jdbcTemplate.update("UPDATE goods_library SET " + keyColumn + " = ?, updated_at = now() WHERE id = ?",
-                storedKey, id);
+        txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
+                "UPDATE goods_library SET " + keyColumn + " = ?, updated_at = now() WHERE id = ?", storedKey, id));
 
         // 替换场景：旧 key 与新 key 不同（扩展名变化）时删除旧文件
         if (oldKey != null && !oldKey.equals(storedKey)) {
@@ -193,7 +203,8 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
                 log.warn("[GoodsLibrary] 删除 OSS 图片失败: key={}, err={}", key, e.getMessage());
             }
         }
-        jdbcTemplate.update("UPDATE goods_library SET " + keyColumn + " = NULL, updated_at = now() WHERE id = ?", id);
+        txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
+                "UPDATE goods_library SET " + keyColumn + " = NULL, updated_at = now() WHERE id = ?", id));
         log.info("[GoodsLibrary] 删除图片: id={}, slot={}", id, slot);
     }
 

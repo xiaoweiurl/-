@@ -542,7 +542,9 @@ export const ROLE_PERMISSIONS = {
 - `POST /api/goods-library/{id}/images` - 上传图片（multipart：slot=main/side/detail/product + file，替换时自动删旧图）
 - `DELETE /api/goods-library/{id}/images?slot={slot}` - 删除指定槽位图片
 
-**数据表** `goods_library`（迁移脚本 V53）：第一层信息字段 + main/side/detail/product 四个 OSS key + 备注五字段（selling_points/competitors/features/target_audience/usage_scenarios）
+**数据表** `goods_library`（迁移脚本 V53）：第一层信息字段 + main/side/detail/product 四个 OSS key + 单个备注字段 `remark`（自由文本，可填写卖点/竞品/功能/对应人群/使用场景等）
+
+**⚠️ 事务陷阱（重要）**：`application.yml` 中 HikariCP `auto-commit: false`，无 Spring 事务时 JdbcTemplate 写操作会被连接池回滚（INSERT 看似成功实际未落库）。本模块所有写库操作使用 `TransactionTemplate` 编程式事务（OSS 网络调用留在事务外）；`AiCallLogService.record` 使用 `@Transactional(REQUIRES_NEW)` 独立事务。
 
 **OSS 键规范**：`goods-library/{文件夹名安全形式}/{slot}.{ext}`（FileStorageService 扩展方法 `uploadFileForKey` 支持指定完整 key；中文按 S3 字符规范安全替换）
 

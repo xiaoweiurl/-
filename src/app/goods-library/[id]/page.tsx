@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import {
   ArrowLeft, Loader2, Trash2, Upload, X, ZoomIn,
   User, PenTool, Hash, CreditCard, Building2, FileText, Save,
-  Image as ImageIcon, Sparkles, Swords, Cog, Users, MapPin,
+  Image as ImageIcon, Sparkles,
 } from 'lucide-react';
 
 interface GoodsDetail {
@@ -19,11 +19,7 @@ interface GoodsDetail {
   goods_no: string | null;
   customer: string | null;
   order_no: string | null;
-  selling_points: string | null;
-  competitors: string | null;
-  features: string | null;
-  target_audience: string | null;
-  usage_scenarios: string | null;
+  remark: string | null;
   main_image_url: string | null;
   side_image_url: string | null;
   detail_image_url: string | null;
@@ -46,15 +42,6 @@ const INFO_FIELDS = [
   { key: 'goods_no', label: '货号', icon: CreditCard },
   { key: 'customer', label: '客户', icon: Building2 },
   { key: 'order_no', label: '订单号', icon: FileText },
-] as const;
-
-/** 备注字段（均可空） */
-const REMARK_FIELDS = [
-  { key: 'selling_points', label: '卖点', icon: Sparkles },
-  { key: 'competitors', label: '竞品', icon: Swords },
-  { key: 'features', label: '功能', icon: Cog },
-  { key: 'target_audience', label: '对应人群', icon: Users },
-  { key: 'usage_scenarios', label: '使用场景', icon: MapPin },
 ] as const;
 
 type SlotKey = (typeof IMAGE_SLOTS)[number]['slot'];
@@ -86,11 +73,7 @@ export default function GoodsDetailPage() {
           product_name: d.product_name || '', goods_no: d.goods_no || '',
           customer: d.customer || '', order_no: d.order_no || '',
         });
-        setRemarkForm({
-          selling_points: d.selling_points || '', competitors: d.competitors || '',
-          features: d.features || '', target_audience: d.target_audience || '',
-          usage_scenarios: d.usage_scenarios || '',
-        });
+        setRemarkForm({ remark: d.remark || '' });
       } else {
         toast.error(data.message || '商品不存在');
         router.push('/goods-library');
@@ -376,23 +359,13 @@ export default function GoodsDetailPage() {
               保存备注
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {REMARK_FIELDS.map(({ key, label, icon: Icon }) => (
-              <div key={key} className={key === 'usage_scenarios' ? 'md:col-span-2' : ''}>
-                <label className="flex items-center gap-1.5 text-xs text-slate-400 mb-1.5">
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </label>
-                <textarea
-                  value={remarkForm[key] || ''}
-                  onChange={e => setRemarkForm(prev => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={`请输入${label}（可空）`}
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all resize-none"
-                />
-              </div>
-            ))}
-          </div>
+          <textarea
+            value={remarkForm.remark || ''}
+            onChange={e => setRemarkForm({ remark: e.target.value })}
+            placeholder={'可填写卖点、竞品、功能、对应人群、使用场景等（可空）\n\n卖点：\n竞品：\n功能：\n对应人群：\n使用场景：'}
+            rows={6}
+            className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all resize-none"
+          />
         </div>
       </div>
 
