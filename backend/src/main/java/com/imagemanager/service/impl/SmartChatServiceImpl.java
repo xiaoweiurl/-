@@ -904,6 +904,29 @@ public class SmartChatServiceImpl implements SmartChatService {
                         }
                     }
                 }
+                // 收集商品库文件夹图片（品名+货号命中的商品库条目，data中含签名URL），传给多模态模型
+                for (Map<String, Object> entry : structuredResults) {
+                    if (!"商品库文件夹".equals(entry.get("type"))) continue;
+                    Object dataObj = entry.get("data");
+                    if (!(dataObj instanceof Map)) continue;
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> goodsData = (Map<String, Object>) dataObj;
+                    for (Map.Entry<String, Object> ge : goodsData.entrySet()) {
+                        String slotKey = ge.getKey();
+                        if (!slotKey.endsWith("URL") || ge.getValue() == null) continue;
+                        String imageUrl = ge.getValue().toString();
+                        if (!imageUrl.startsWith("http") || imageBase64List.size() >= 5) continue;
+                        try {
+                            String base64 = downloadImageAsBase64(imageUrl);
+                            if (base64 != null) {
+                                imageBase64List.add(base64);
+                                log.info("商品库图片传入多模态: folder={}, slot={}", goodsData.get("文件夹名称"), slotKey);
+                            }
+                        } catch (Exception ex) {
+                            log.warn("下载商品库图片失败: url={}, error={}", imageUrl, ex.getMessage());
+                        }
+                    }
+                }
                 // 也检查图片库搜索结果
                 if (!imageResults.isEmpty()) {
                     for (Map<String, Object> product : imageResults) {
@@ -2189,8 +2212,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n7. 阶段成果输出完成后提示：成果可同步飞书，并附使用说明、测试记录、遗留问题清单。" +
                 "\n8.【结构化数据强制规则】只要上下文【结构化数据库查询结果】附带了产能排产、客户订单、销售订单、业务员效能、工艺单参数结构化查询结果，" +
                 "必须100%基于给到的结构化数据分析，禁止编造任何不在返回结果内的产能数字、订单数据、业务员绩效指标、客户数据、工艺参数；不得脱离给出的数据空谈结论。" +
-                "\n8.1【商品库图片规则】上下文附带【商品库文件夹】条目时：商品信息（品名/货号/客户/订单号/备注）须与工艺单、销售订单、报价数据综合分析后一并作答；" +
-                "条目中附带的 主图/侧面图/细节图/产品图图片URL 为 24 小时有效的签名地址，当用户询问商品外观、图片、款式或适合展示时，使用 markdown 图片语法（如 ![主图](URL)）展示对应图片，禁止编造或替换图片地址。" +
+                "\n8.1【商品库图片强制展示规则】上下文附带【商品库文件夹】条目时：商品信息（品名/货号/客户/订单号/备注）须与工艺单、销售订单、报价数据综合分析后一并作答；" +
+                "条目中附带的 主图/侧面图/细节图/产品图图片URL 为 24 小时有效的签名地址，【强制】凡条目中含图片URL字段，必须在回答末尾的『商品图片』小节中用 markdown 图片语法逐张展示（如 ![主图](URL)、![侧面图](URL)），URL 必须原样完整输出、禁止省略/截断/转义/替换/编造；" +
+                "同时图片已作为视觉输入传入你的多模态模型，你可以直接观察图片内容，回答颜色、款式、花型、细节工艺等外观问题，描述必须基于实际看到的图片，禁止凭空想象。" +
                 "\n9.【禁止行为清单】" +
                 "a.未收到【排产表/业务员绩效结构化查询结果】时，禁止输出产能订单匹配分析、业务员效能分析板块，应主动提示：缺少结构化查询数据，请先触发结构化数据检索；" +
                 "b.禁止'需要提升产能、业务员加强跟进客户'这类流于形式、无数据支撑的空话，所有结论必须附带上下文给到的数据依据；" +
