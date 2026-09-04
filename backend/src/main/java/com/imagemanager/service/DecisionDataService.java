@@ -468,9 +468,31 @@ public class DecisionDataService {
         out.addAll(querySalesOrdersByHuohao(code)); // ③销售订单（业务员/客户/品名）
         out.addAll(queryProductQuoteInfo(code));    // ④产品报价信息
         out.addAll(queryGoodsLibraryByHuohao(code));// ⑤商品库文件夹（品名+货号命名，含图片签名URL）
-        out.addAll(queryRawMaterialBom(code));      // ⑥采购原料BOM（原料品种/供应商/单件用量/损耗率）
-        out.addAll(queryBujMachineCapacity(code));  // ⑦机台产能（机型/针数/克重/理论产量，按部件）
-        out.addAll(queryGongxuProcessPrice(code));  // ⑧工序工价（工序参数+技术工价/工价/临时工价）
+        List<Map<String, Object>> bom = queryRawMaterialBom(code);        // ⑥采购原料BOM
+        List<Map<String, Object>> capacity = queryBujMachineCapacity(code); // ⑦机台产能
+        List<Map<String, Object>> gongxu = queryGongxuProcessPrice(code);   // ⑧工序工价
+        out.addAll(bom);
+        out.addAll(capacity);
+        out.addAll(gongxu);
+        // 维度完整性检查：全链路已命中（货号确实存在）但某个 ERP 维度无记录时，
+        // 注入缺失说明条目，让 LLM 如实告知"无数据"，避免用户误以为未关联
+        if (!out.isEmpty()) {
+            List<String> missing = new ArrayList<>();
+            if (bom.isEmpty()) missing.add("采购原料BOM（" + RAW_MATERIAL_TABLE + " 无此货号记录）");
+            if (capacity.isEmpty()) missing.add("机台产能（" + BUJ_COMPONENT_TABLE + " 无此货号记录）");
+            if (gongxu.isEmpty()) missing.add("工序工价（" + GONGXU_PROCESS_TABLE + "/" + GONGXU_PRICE_TABLE + " 无此货号记录）");
+            if (!missing.isEmpty()) {
+                Map<String, Object> miss = new LinkedHashMap<>();
+                miss.put("type", "数据缺失说明");
+                miss.put("summary", "货号 " + code + " 以下维度暂无ERP数据：" + String.join("；", missing));
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("缺失维度", String.join("；", missing));
+                data.put("处理要求", "如实告知用户该货号这些维度暂无数据（可能表未同步或该货号确实未录入），禁止编造工序/工价/原料/机台数据");
+                miss.put("data", data);
+                out.add(miss);
+                log.info("[结构化数据] 货号 {} 缺失维度: {}", code, missing);
+            }
+        }
         return out;
     }
 
@@ -620,6 +642,8 @@ public class DecisionDataService {
             }
             if (!rows.isEmpty()) {
                 log.info("[结构化数据] 采购原料BOM命中: code={}, 条数={}", code, rows.size());
+            } else {
+                log.info("[结构化数据] 采购原料BOM未命中: code={}", code);
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 采购原料BOM查询失败: {}", e.getMessage());
@@ -666,6 +690,8 @@ public class DecisionDataService {
             }
             if (!rows.isEmpty()) {
                 log.info("[结构化数据] 机台产能命中: code={}, 条数={}", code, rows.size());
+            } else {
+                log.info("[结构化数据] 机台产能未命中: code={}", code);
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 机台产能查询失败: {}", e.getMessage());
@@ -722,6 +748,8 @@ public class DecisionDataService {
             }
             if (!rows.isEmpty()) {
                 log.info("[结构化数据] 工序工价命中: code={}, 条数={}", code, rows.size());
+            } else {
+                log.info("[结构化数据] 工序工价未命中: code={}", code);
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 工序工价查询失败: {}", e.getMessage());
@@ -748,6 +776,10 @@ public class DecisionDataService {
                 putIfNonBlank(data, "成品货号", row.get("detailhuohaocp"));
                 putIfNonBlank(data, "订单数量", row.get("sl_sum"));
                 putIfNonBlank(data, "业务员", row.get("ywyname"));
+                // 业务员为订单关键归属字段：未录入时显式标注，避免与"未关联"混淆
+                if (!data.containsKey("业务员")) {
+                    data.put("业务员", "（订单未录入业务员）");
+                }
                 putIfNonBlank(data, "销售类型", row.get("ddtype"));
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("type", "销售订单");
