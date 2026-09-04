@@ -46,7 +46,7 @@ public class PositionKnowledgeCard {
     private String reportTo;        // 汇报上级
 
     @Column(name = "team", length = 100)
-    private String team;            // 所属团队: 品牌运营/产品开发/供应链/财务/投资委员会
+    private String team;            // 所属团队: 品牌运营(携创云织)/产品开发(盈云)/供应链/财务/投资委员会
 
     @Column(name = "position_nature", length = 50)
     private String positionNature;  // 岗位性质: 全职/兼职/顾问/Agent辅助

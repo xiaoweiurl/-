@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft, Megaphone, Scissors, Cloud, ChevronRight, Sparkles, Building2, CheckCircle2, Zap, Shield, Globe, Cpu, TrendingUp, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { BRANDS } from '@/lib/brand';
+import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
 
 interface LoginResponse {
   success: boolean;
@@ -29,13 +29,13 @@ interface LoginResponse {
   };
 }
 
-type Step = 'login' | 'portal';
+type Step = 'login' | 'company' | 'portal';
 type PortalType = 'designer' | 'factory' | 'marketing' | null;
 
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>('login');
-  const [selectedBrand] = React.useState<'bonasi'>('bonasi');
+  const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>('yingyun');
   const [portal, setPortal] = React.useState<PortalType>(null);
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -57,16 +57,18 @@ export default function LoginPage() {
       setStep('portal');
     }
 
-    // 品牌统一为宝娜斯
-    localStorage.setItem('selected_brand', 'bonasi');
+    // 恢复 selectedBrand 状态
+    const saved = localStorage.getItem('selected_brand');
+    if (saved === 'bonasi' || saved === 'yingyun') {
+      setSelectedBrand(saved);
+    }
   }, []);
 
   // 当从子页面返回(step=portal)时，恢复用户信息
   React.useEffect(() => {
     if (step === 'portal' && !loggedInUser) {
       const username = localStorage.getItem('user_id') || '';
-      // 系统统一为宝娜斯，不再区分公司
-      const company = '宝娜斯';
+      const company = localStorage.getItem('user_company') || '';
       // 构造最小用户信息以支持 portal 页面显示
       setLoggedInUser({
         sessionId: localStorage.getItem('session_id') || '',
@@ -193,11 +195,25 @@ export default function LoginPage() {
           localStorage.setItem('user_company', result.data.user.company);
         }
         setLoggedInUser(result.data);
-        // 公司统一为宝娜斯，登录成功直接进入门户选择
-        localStorage.setItem('selected_brand', 'bonasi');
-        localStorage.setItem('user_company', '宝娜斯');
-        setStep('portal');
-        toast.success('登录成功', { description: `欢迎回来，${result.data.user?.username || '用户'}！` });
+        const userCompany = result.data.user?.company;
+        console.log('[Login] doLogin result:', {
+          hasUser: !!result.data.user,
+          userId: result.data.user?.id,
+          username: result.data.user?.username,
+          company: result.data.user?.company,
+          fullUser: result.data.user,
+        });
+        if (userCompany && userCompany.trim() !== '') {
+          const brandKey = userCompany === '宝娜斯' ? 'bonasi' : 'yingyun';
+          setSelectedBrand(brandKey);
+          localStorage.setItem('selected_brand', brandKey);
+          localStorage.setItem('user_company', userCompany);
+          setStep('portal');
+          toast.success('登录成功', { description: `欢迎回来，${result.data.user?.username || '用户'}！` });
+        } else {
+          setStep('company');
+          toast.success('验证通过', { description: '请选择您所属的公司' });
+        }
       } else {
         toast.error('登录失败', { description: result.error || '用户名或密码错误' });
       }
@@ -224,6 +240,25 @@ export default function LoginPage() {
   const handleConfirmDuplicateLogin = async () => {
     setShowDuplicateLoginDialog(false);
     await doLogin(true);
+  };
+
+  const handleSelectCompany = async (companyKey: BrandKey) => {
+    setSelectedBrand(companyKey);
+    const companyName = companyKey === 'bonasi' ? '宝娜斯' : '盈云';
+    try {
+      const userId = loggedInUser?.user?.id;
+      if (userId) {
+        await fetch('/api/auth/bind-company', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, company: companyName }),
+        });
+      }
+    } catch { /* 降级 */ }
+    localStorage.setItem('selected_brand', companyKey);
+    localStorage.setItem('user_company', companyName);
+    setStep('portal');
   };
 
   const handleSelectPortal = (portalType: PortalType) => {
@@ -347,7 +382,7 @@ export default function LoginPage() {
                 {[
                   { icon: Cpu, title: 'AI 智能识别', desc: '自动分类 · 标签提取 · 语义搜索' },
                   { icon: TrendingUp, title: '供应链管理', desc: '智能报价 · 供应商对比 · 成本分析' },
-                  { icon: Layers, title: '一体化管理', desc: '宝娜斯 · 数据协同 · 统一管理' },
+                  { icon: Layers, title: '多品牌协同', desc: '宝娜斯 & 盈云 · 数据隔离 · 统一管理' },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3.5 group cursor-default">
                     <div className="w-9 h-9 rounded-lg bg-white/[0.07] backdrop-blur-sm flex items-center justify-center border border-white/[0.06] group-hover:bg-white/[0.12] group-hover:border-white/[0.1] transition-all duration-300">
@@ -501,6 +536,16 @@ export default function LoginPage() {
               </Button>
             </form>
 
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => router.push('/register')}
+                className="text-sm text-slate-400 hover:text-violet-600 transition-colors"
+              >
+                没有账号？<span className="font-semibold">立即注册</span>
+              </button>
+            </div>
+
             {/* 安全提示 */}
             <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-300">
               <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> 加密传输</span>
@@ -514,12 +559,122 @@ export default function LoginPage() {
   );
 }
 
-  // ========== Step 2: 选择入口 ==========
-  const Icon = Scissors;
+  // ========== Step 2: 选择公司 ==========
+  if (step === 'company') {
+    return (
+      <React.Fragment>
+      <div className="min-h-screen flex">
+        <Toaster position="top-center" richColors closeButton />
+
+        {/* 左侧 */}
+        <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gradient-to-br from-[#1a1035] via-[#2d1b69] to-[#1a1035]">
+          <div className="absolute inset-0">
+            <div className="absolute top-[-5%] right-[10%] w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px]" />
+            <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-orange-500/10 rounded-full blur-[100px]" />
+            <div className="absolute inset-0 opacity-[0.03]" style={{
+              backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
+              backgroundSize: '80px 80px'
+            }} />
+          </div>
+
+          <div className="relative z-10 flex flex-col justify-center px-14 xl:px-20">
+            <div className="max-w-md">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 mb-10">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-[2.8rem] font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
+                选择您的
+                <br />
+                <span className="bg-gradient-to-r from-amber-300 to-orange-200 bg-clip-text text-transparent">所属公司</span>
+              </h2>
+              <p className="text-white/45 text-base leading-relaxed mb-8">
+                此选择将永久绑定到您的账号，绑定后不可更改。
+              </p>
+              {loggedInUser?.user?.username && (
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/[0.08]">
+                  <User className="w-4 h-4 text-white/60" />
+                  <span className="text-white/70 text-sm font-medium">当前账号：{loggedInUser.user.username}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧 */}
+        <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe]">
+          <div className="w-full max-w-xl">
+            <div className="lg:hidden text-center mb-8">
+              <div className="w-12 h-12 mx-auto rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg mb-4">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-xl font-bold text-slate-800">选择您所属的公司</h1>
+              <p className="text-slate-400 mt-1 text-sm">此选择将绑定到您的账号，不可更改</p>
+            </div>
+
+            <div className="space-y-3">
+              {COMPANY_OPTIONS.map((company) => {
+                const isBonasi = company.key === 'bonasi';
+                const Icon = isBonasi ? Scissors : Cloud;
+                const gradientFrom = isBonasi ? 'from-rose-500' : 'from-violet-500';
+                const gradientTo = isBonasi ? 'to-pink-600' : 'to-fuchsia-600';
+                const shadowColor = isBonasi ? 'shadow-rose-500/25' : 'shadow-violet-500/25';
+                const hoverBorder = isBonasi ? 'hover:border-rose-200' : 'hover:border-violet-200';
+                const accentColor = isBonasi ? 'text-rose-500' : 'text-violet-500';
+
+                return (
+                  <button
+                    key={company.key}
+                    onClick={() => handleSelectCompany(company.key)}
+                    className={cn(
+                      'group w-full bg-white rounded-2xl border border-slate-150 p-5',
+                      'hover:shadow-lg hover:-translate-y-0.5',
+                      hoverBorder,
+                      'transition-all duration-300 text-left flex items-center gap-4'
+                    )}
+                  >
+                    <div className={cn(
+                      'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
+                      gradientFrom, gradientTo, shadowColor
+                    )}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-base font-bold text-slate-800">{company.fullName}</h2>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">{company.description}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <ChevronRight className={cn('w-4 h-4 text-slate-300 group-hover:translate-x-0.5 transition-all duration-300', accentColor)} />
+                      <span className="text-[10px] text-amber-600/80 bg-amber-50 px-1.5 py-0.5 rounded-md font-medium">
+                        不可更改
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setStep('login')}
+              className="mt-6 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mx-auto"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              返回登录
+            </button>
+          </div>
+        </div>
+      </div>
+      {ssoDialog}
+      </React.Fragment>
+    );
+  }
+
+  // ========== Step 3: 选择入口 ==========
+  const Icon = selectedBrand === 'bonasi' ? Scissors : Cloud;
   const companyName = brand.name;
-  const brandGradientFrom = 'from-rose-600';
-  const brandGradientVia = 'via-pink-700';
-  const brandGradientTo = 'to-rose-800';
+  const brandGradientFrom = selectedBrand === 'bonasi' ? 'from-rose-600' : 'from-violet-600';
+  const brandGradientVia = selectedBrand === 'bonasi' ? 'via-pink-700' : 'via-purple-700';
+  const brandGradientTo = selectedBrand === 'bonasi' ? 'to-rose-800' : 'to-indigo-800';
 
   const portalCards = [
     {
@@ -637,7 +792,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => {
-              setStep('login');
+              setStep(loggedInUser?.user?.company ? 'login' : 'company');
             }}
             className="mt-6 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mx-auto"
           >

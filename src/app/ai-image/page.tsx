@@ -95,7 +95,7 @@ function ratioToPreview(ratio: string): string {
 }
 
 export default function AiImagePage() {
-  const [brand, setBrand] = useState(BRANDS.bonasi);
+  const [brand, setBrand] = useState(BRANDS.yingyun);
   const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string; username?: string } | null>(null);
 
   useEffect(() => {

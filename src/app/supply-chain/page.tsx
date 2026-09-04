@@ -1010,7 +1010,7 @@ export default function SupplyChainPage() {
   };
 
   // ============ 主渲染 ============
-  const [brand, setBrand] = useState(BRANDS.bonasi);
+  const [brand, setBrand] = useState(BRANDS.yingyun);
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
 
   useEffect(() => {

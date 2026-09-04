@@ -57,8 +57,7 @@ public class ChatController {
     }
 
     private String resolveCompany(LoginResponse.UserInfo user) {
-        // 系统统一为宝娜斯，不再区分公司
-        return "宝娜斯";
+        return user.getCompany() != null ? user.getCompany() : "盈云";
     }
 
     // ====== 智能对话 ======

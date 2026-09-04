@@ -844,7 +844,11 @@ public class ImageDynamicRepository {
                 whereClause.append(" AND is_main_image = true");
             }
 
-            // 数据隔离：不再按公司过滤（系统统一宝娜斯，按用户动态表隔离）
+            // company 条件（公司隔离）
+            if (request.getCompany() != null && !request.getCompany().isEmpty()) {
+                whereClause.append(" AND company = ?");
+                params.put(paramIndex++, request.getCompany());
+            }
 
             // source 条件（区分知识图片和二创图片）
             if (request.getSource() != null && !request.getSource().isEmpty()) {
@@ -923,7 +927,10 @@ public class ImageDynamicRepository {
                 whereClause.append(" AND is_main_image = true");
             }
 
-            // 数据隔离：不再按公司过滤（系统统一宝娜斯，按用户动态表隔离）
+            // company 条件（公司隔离）
+            if (request.getCompany() != null && !request.getCompany().isEmpty()) {
+                whereClause.append(" AND company = '").append(request.getCompany().replace("'", "''")).append("'");
+            }
 
             // source 条件（区分知识图片和二创图片）
             if (request.getSource() != null && !request.getSource().isEmpty()) {

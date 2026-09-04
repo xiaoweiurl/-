@@ -217,8 +217,10 @@ public class AuthServiceImpl implements AuthService {
 
         // ============ 创建新 session ============
         String sessionId = generateSecureSessionId();
-        // 系统统一为宝娜斯，不再区分公司
-        String effectiveCompany = "宝娜斯";
+        String effectiveCompany = user.getCompany();
+        if (effectiveCompany == null || effectiveCompany.trim().isEmpty()) {
+            effectiveCompany = request.getCompany();
+        }
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(userId)
                 .username(user.getUsername())
@@ -259,7 +261,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse register(RegisterRequest request) {
-        log.info("用户注册：username={}（公司统一为宝娜斯）", request.getUsername());
+        log.info("用户注册：username={}, company={}", request.getUsername(), request.getCompany());
 
         if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
             throw new RuntimeException("用户名不能为空");
@@ -269,6 +271,12 @@ public class AuthServiceImpl implements AuthService {
         }
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
             throw new RuntimeException("邮箱不能为空");
+        }
+        if (request.getCompany() == null || request.getCompany().trim().isEmpty()) {
+            throw new RuntimeException("请选择所属公司");
+        }
+        if (!"宝娜斯".equals(request.getCompany()) && !"盈云".equals(request.getCompany())) {
+            throw new RuntimeException("公司只能选择宝娜斯或盈云");
         }
 
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
@@ -286,7 +294,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(request.getEmail().trim())
                 .nickname(request.getUsername().trim())
                 .role("user")
-                .company("宝娜斯")  // 系统统一为宝娜斯
+                .company(request.getCompany())
                 .membership("free")
                 .storageUsed(0L)
                 .storageLimit(1024L * 1024 * 1024 * 10L)
@@ -294,7 +302,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         userRepository.save(newUser);
-        log.info("用户注册成功：{}（宝娜斯）", request.getUsername());
+        log.info("用户注册成功：{}, 公司：{}", request.getUsername(), request.getCompany());
 
         // 自动登录
         LoginRequest loginRequest = new LoginRequest();
@@ -514,9 +522,48 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public boolean bindCompany(String userId, String company) {
-        // 系统已统一为宝娜斯，不再支持绑定/修改公司，直接视为成功
-        log.info("公司绑定已废弃（系统统一为宝娜斯）: userId={}", userId);
-        return true;
+        String currentCompany = null;
+        try {
+            currentCompany = jdbcTemplate.queryForObject(
+                "SELECT company FROM users WHERE id = ?::uuid", String.class, userId);
+        } catch (Exception e) {
+            try {
+                currentCompany = jdbcTemplate.queryForObject(
+                    "SELECT company FROM users WHERE id = ?", String.class, userId);
+            } catch (Exception ex) {
+                log.error("查询用户公司失败: userId={}", userId, ex);
+                return false;
+            }
+        }
+
+        if (currentCompany != null && !currentCompany.trim().isEmpty()) {
+            log.warn("用户已绑定公司，不可更改: userId={}, currentCompany={}", userId, currentCompany);
+            return false;
+        }
+
+        int updated;
+        try {
+            updated = jdbcTemplate.update(
+                "UPDATE users SET company = ? WHERE id = ?::uuid AND (company IS NULL OR company = '')",
+                company, userId);
+        } catch (Exception e) {
+            try {
+                updated = jdbcTemplate.update(
+                    "UPDATE users SET company = ? WHERE id = ? AND (company IS NULL OR company = '')",
+                    company, userId);
+            } catch (Exception ex) {
+                log.error("绑定公司失败: userId={}", userId, ex);
+                return false;
+            }
+        }
+
+        if (updated > 0) {
+            log.info("公司绑定成功: userId={}, company={}", userId, company);
+            return true;
+        } else {
+            log.warn("公司绑定失败（可能已被其他请求绑定）: userId={}", userId);
+            return false;
+        }
     }
 
     // ============ 私有方法 ============

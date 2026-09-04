@@ -2,7 +2,6 @@ package com.imagemanager.service.impl;
 
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.GoodsLibraryService;
-import com.imagemanager.util.SessionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -47,21 +46,16 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
 
     @Override
     public List<Map<String, Object>> listGoods(String keyword) {
-        // 数据隔离：按当前登录用户过滤（旧数据 user_id IS NULL 兼容可见）
-        String userId = SessionUtil.getCurrentUserId();
-        String ownerCond = " AND (user_id = ? OR user_id IS NULL)";
         List<Map<String, Object>> rows;
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword.trim() + "%";
             rows = jdbcTemplate.queryForList(
-                    "SELECT * FROM goods_library WHERE (folder_name ILIKE ? OR goods_no ILIKE ?" +
-                            " OR product_name ILIKE ? OR customer ILIKE ?)" + ownerCond +
-                            " ORDER BY created_at DESC",
-                    like, like, like, like, userId);
+                    "SELECT * FROM goods_library WHERE folder_name ILIKE ? OR goods_no ILIKE ?" +
+                            " OR product_name ILIKE ? OR customer ILIKE ? ORDER BY created_at DESC",
+                    like, like, like, like);
         } else {
             rows = jdbcTemplate.queryForList(
-                    "SELECT * FROM goods_library WHERE 1=1" + ownerCond + " ORDER BY created_at DESC",
-                    userId);
+                    "SELECT * FROM goods_library ORDER BY created_at DESC");
         }
         for (Map<String, Object> row : rows) {
             toFrontendMap(row, true);
@@ -228,12 +222,10 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     }
 
     private Map<String, Object> mustGet(long id) {
-        // 数据隔离：仅本人（或旧数据 user_id IS NULL）可访问
-        String userId = SessionUtil.getCurrentUserId();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT * FROM goods_library WHERE id=? AND (user_id = ? OR user_id IS NULL)", id, userId);
+                "SELECT * FROM goods_library WHERE id=?", id);
         if (rows.isEmpty()) {
-            throw new IllegalArgumentException("商品不存在或无权限(id=" + id + ")");
+            throw new IllegalArgumentException("商品不存在(id=" + id + ")");
         }
         return rows.get(0);
     }

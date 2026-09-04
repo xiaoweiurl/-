@@ -120,7 +120,7 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
           <div style={{ borderBottom: '3px solid #2563eb', paddingBottom: '14px', marginBottom: '20px' }}>
             <div style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>{docTitle}</div>
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-              <span>宝娜斯产品智能中台 · AI 业务助手生成</span>
+              <span>盈云产品智能中台 · AI 业务助手生成</span>
               <span>{dateStr}</span>
             </div>
           </div>
@@ -129,7 +129,7 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
           {/* 文档尾 */}
           <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '24px', paddingTop: '10px', fontSize: '10px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
             <span>本报告由 AI 基于内部数据库与知识库生成，数据结论以来源标注为准</span>
-            <span>宝娜斯产品智能中台</span>
+            <span>盈云产品智能中台</span>
           </div>
         </div>
       );

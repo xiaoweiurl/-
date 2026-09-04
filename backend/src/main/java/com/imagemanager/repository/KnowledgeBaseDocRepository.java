@@ -34,13 +34,9 @@ public interface KnowledgeBaseDocRepository extends JpaRepository<KnowledgeBaseD
     Optional<KnowledgeBaseDoc> findByIdAndCompanyAndUserId(UUID id, String company, String userId);
     long countByCompanyAndUserId(String company, String userId);
 
-    // ===== 按 userId 隔离（系统统一宝娜斯，数据按用户隔离） =====
+    // ===== 旧方法保留兼容（无 company 过滤，已弃用） =====
     Page<KnowledgeBaseDoc> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
     List<KnowledgeBaseDoc> findByUserIdAndCategoryIdOrderByCreatedAtDesc(String userId, UUID categoryId);
     Optional<KnowledgeBaseDoc> findByIdAndUserId(UUID id, String userId);
     long countByUserId(String userId);
-    long countByUserIdAndCategoryId(String userId, UUID categoryId);
-
-    @Query("SELECT d FROM KnowledgeBaseDoc d WHERE d.userId = :userId AND (LOWER(d.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.fileName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.fileContent) LIKE LOWER(CONCAT('%', :keyword, '%')))")
-    Page<KnowledgeBaseDoc> searchByKeywordByUserId(@Param("userId") String userId, @Param("keyword") String keyword, Pageable pageable);
 }

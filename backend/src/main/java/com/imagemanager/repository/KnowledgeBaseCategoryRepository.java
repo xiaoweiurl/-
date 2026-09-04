@@ -25,7 +25,7 @@ public interface KnowledgeBaseCategoryRepository extends JpaRepository<Knowledge
     long countByCompanyAndUserId(String company, String userId);
     List<KnowledgeBaseCategory> findByCompanyAndUserIdOrderByCreatedAtDesc(String company, String userId);
 
-    // ===== 按 userId 隔离（系统统一宝娜斯，数据按用户隔离） =====
+    // ===== 旧方法保留兼容（无 company 过滤，已弃用） =====
     List<KnowledgeBaseCategory> findByUserIdOrderBySortOrderAsc(String userId);
     Optional<KnowledgeBaseCategory> findByIdAndUserId(UUID id, String userId);
     List<KnowledgeBaseCategory> findByUserIdOrderByCreatedAtDesc(String userId);

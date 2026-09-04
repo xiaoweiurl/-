@@ -244,12 +244,15 @@ public class ImageServiceImpl implements ImageService {
         if (currentUsername == null) {
             currentUsername = currentUserId;
         }
-        // 数据隔离：不再按公司过滤（系统统一宝娜斯），按用户动态表隔离
+        // 设置公司过滤
+        if (request.getCompany() == null || request.getCompany().isEmpty()) {
+            request.setCompany(SessionUtil.getCurrentCompany());
+        }
         // 设置来源过滤：默认排除二创图片，二创页面需要显式传 source=creative
         if (request.getSource() == null || request.getSource().isEmpty()) {
             request.setSource("knowledge");
         }
-        log.info("数据隔离检查：currentUserId={}, currentUsername={}, source={}, onlyMine={}", currentUserId, currentUsername, request.getSource(), request.getOnlyMine());
+        log.info("数据隔离检查：currentUserId={}, currentUsername={}, company={}, source={}, onlyMine={}", currentUserId, currentUsername, request.getCompany(), request.getSource(), request.getOnlyMine());
 
         // 动态表查询模式
         if (currentUserId != null) {

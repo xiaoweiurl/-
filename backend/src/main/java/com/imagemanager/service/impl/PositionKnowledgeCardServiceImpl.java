@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.entity.PositionKnowledgeCard;
 import com.imagemanager.repository.PositionKnowledgeCardRepository;
 import com.imagemanager.service.PositionKnowledgeCardService;
-import com.imagemanager.util.SessionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -113,13 +112,10 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     @Override
     @Transactional
     public PositionKnowledgeCard updateCard(String id, PositionKnowledgeCard card, String userId, String company) {
-        // 数据隔离：仅本人可更新
-        PositionKnowledgeCard existing = cardRepository.findById(id).orElse(null);
-        if (existing == null) throw new IllegalArgumentException("卡片不存在");
-        String currentUserId = SessionUtil.getCurrentUserId();
-        if (currentUserId != null && !currentUserId.equals(existing.getUserId())) {
-            throw new IllegalArgumentException("卡片不存在或无权访问");
-        }
+        PositionKnowledgeCard existing = (company != null && !company.isEmpty())
+                ? cardRepository.findByIdAndCompany(id, company).orElse(null)
+                : cardRepository.findById(id).orElse(null);
+        if (existing == null) throw new IllegalArgumentException("卡片不存在或无权访问");
 
         validateAllFields(card);
 
@@ -202,23 +198,19 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
 
     @Override
     public PositionKnowledgeCard getCardDetail(String id, String company) {
-        // 数据隔离：仅本人卡片可访问
-        PositionKnowledgeCard card = cardRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
-        String currentUserId = SessionUtil.getCurrentUserId();
-        if (currentUserId != null && !currentUserId.equals(card.getUserId())) {
-            throw new IllegalArgumentException("卡片不存在或无权访问");
+        if (company != null && !company.isBlank()) {
+            return cardRepository.findByIdAndCompany(id, company)
+                    .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
         }
-        return card;
+        return cardRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
     }
 
     @Override
     public Page<PositionKnowledgeCard> getCards(String company, String userId, String keyword, String department, Pageable pageable) {
-        // 数据隔离：按当前登录用户过滤
-        String currentUserId = SessionUtil.getCurrentUserId();
         Page<PositionKnowledgeCard> page;
-        if (currentUserId != null && !currentUserId.isBlank()) {
-            page = cardRepository.findByUserId(currentUserId, pageable);
+        if (company != null && !company.isBlank()) {
+            page = cardRepository.findByCompany(company, pageable);
         } else {
             page = cardRepository.findAll(pageable);
         }
@@ -249,12 +241,13 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     @Override
     @Transactional
     public void deleteCard(String id, String company, String userId) {
-        // 数据隔离：仅本人可删除
-        PositionKnowledgeCard card = cardRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
-        String currentUserId = SessionUtil.getCurrentUserId();
-        if (currentUserId != null && !currentUserId.equals(card.getUserId())) {
-            throw new IllegalArgumentException("卡片不存在或无权访问");
+        PositionKnowledgeCard card;
+        if (company != null && !company.isBlank()) {
+            card = cardRepository.findByIdAndCompany(id, company)
+                    .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
+        } else {
+            card = cardRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
         }
         cardRepository.delete(card);
 
@@ -270,10 +263,8 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
 
     @Override
     public long countCards(String company) {
-        // 数据隔离：按当前登录用户统计
-        String currentUserId = SessionUtil.getCurrentUserId();
-        if (currentUserId != null && !currentUserId.isBlank()) {
-            return cardRepository.countByUserId(currentUserId);
+        if (company != null && !company.isBlank()) {
+            return cardRepository.countByCompany(company);
         }
         return cardRepository.count();
     }
@@ -351,10 +342,10 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                 tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
                 tx.execute(status -> {
                     jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, user_id, created_at) " +
-                        "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, ?, NOW())",
+                        "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
+                        "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
                         UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex,
-                        "POSITION_CARD", card.getId(), card.getCompany(), card.getUserId()
+                        "POSITION_CARD", card.getId(), card.getCompany()
                     );
                     return null;
                 });

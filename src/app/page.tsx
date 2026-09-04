@@ -224,7 +224,7 @@ export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
   const { addNotification } = useNotifications();
-  const [brand, setBrand] = React.useState(BRANDS.bonasi);
+  const [brand, setBrand] = React.useState(BRANDS.yingyun);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
   const [mounted, setMounted] = React.useState(false);
