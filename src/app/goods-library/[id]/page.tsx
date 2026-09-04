@@ -34,14 +34,14 @@ const IMAGE_SLOTS = [
   { slot: 'product', label: '产品图' },
 ] as const;
 
-/** 第一层信息字段（均可空） */
+/** 第一层信息字段（发起人必填，其余可空） */
 const INFO_FIELDS = [
-  { key: 'initiator', label: '发起人', icon: User },
-  { key: 'sampler', label: '打样员', icon: PenTool },
-  { key: 'product_name', label: '品名', icon: Hash },
-  { key: 'goods_no', label: '货号', icon: CreditCard },
-  { key: 'customer', label: '客户', icon: Building2 },
-  { key: 'order_no', label: '订单号', icon: FileText },
+  { key: 'initiator', label: '发起人', icon: User, required: true },
+  { key: 'sampler', label: '打样员', icon: PenTool, required: false },
+  { key: 'product_name', label: '品名', icon: Hash, required: false },
+  { key: 'goods_no', label: '货号', icon: CreditCard, required: false },
+  { key: 'customer', label: '客户', icon: Building2, required: false },
+  { key: 'order_no', label: '订单号', icon: FileText, required: false },
 ] as const;
 
 type SlotKey = (typeof IMAGE_SLOTS)[number]['slot'];
@@ -90,6 +90,11 @@ export default function GoodsDetailPage() {
   }, [id, fetchDetail]);
 
   const saveFields = async (fields: Record<string, string>, setSaving: (v: boolean) => void) => {
+    // 发起人为必填字段，保存信息时不允许清空
+    if ('initiator' in fields && !(fields.initiator || '').trim()) {
+      toast.error('发起人不能为空');
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/goods-library/${id}`, {
@@ -326,16 +331,17 @@ export default function GoodsDetailPage() {
             </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {INFO_FIELDS.map(({ key, label, icon: Icon }) => (
+            {INFO_FIELDS.map(({ key, label, icon: Icon, required }) => (
               <div key={key}>
                 <label className="flex items-center gap-1.5 text-xs text-slate-400 mb-1.5">
                   <Icon className="w-3.5 h-3.5" />
                   {label}
+                  {required && <span className="text-red-400">*</span>}
                 </label>
                 <input
                   value={infoForm[key] || ''}
                   onChange={e => setInfoForm(prev => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={`请输入${label}（可空）`}
+                  placeholder={required ? `请输入${label}（必填）` : `请输入${label}（可空）`}
                   className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
                 />
               </div>

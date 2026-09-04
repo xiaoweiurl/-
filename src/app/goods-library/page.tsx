@@ -27,14 +27,14 @@ const EMPTY_FORM = {
   goods_no: '', customer: '', order_no: '', remark: '',
 };
 
-/** 第一层表格字段（均可空） */
+/** 第一层表格字段（发起人必填，其余可空） */
 const FORM_FIELDS = [
-  { key: 'initiator', label: '发起人', icon: User },
-  { key: 'sampler', label: '打样员', icon: PenTool },
-  { key: 'product_name', label: '品名', icon: Hash },
-  { key: 'goods_no', label: '货号', icon: CreditCard },
-  { key: 'customer', label: '客户', icon: Building2 },
-  { key: 'order_no', label: '订单号', icon: FileText },
+  { key: 'initiator', label: '发起人', icon: User, required: true },
+  { key: 'sampler', label: '打样员', icon: PenTool, required: false },
+  { key: 'product_name', label: '品名', icon: Hash, required: false },
+  { key: 'goods_no', label: '货号', icon: CreditCard, required: false },
+  { key: 'customer', label: '客户', icon: Building2, required: false },
+  { key: 'order_no', label: '订单号', icon: FileText, required: false },
 ] as const;
 
 /** 图片槽位（均可空，创建时可一次性上传，图片以槽位名命名） */
@@ -99,6 +99,10 @@ export default function GoodsLibraryPage() {
   };
 
   const handleCreate = async () => {
+    if (!form.initiator.trim()) {
+      toast.error('发起人不能为空');
+      return;
+    }
     setCreating(true);
     try {
       // 一次性提交：文本字段 + 四类图片（multipart）
@@ -268,16 +272,17 @@ export default function GoodsLibraryPage() {
             </p>
 
             <div className="grid grid-cols-2 gap-4">
-              {FORM_FIELDS.map(({ key, label, icon: Icon }) => (
+              {FORM_FIELDS.map(({ key, label, icon: Icon, required }) => (
                 <div key={key}>
                   <label className="flex items-center gap-1.5 text-xs text-slate-400 mb-1.5">
                     <Icon className="w-3.5 h-3.5" />
                     {label}
+                    {required && <span className="text-red-400">*</span>}
                   </label>
                   <input
                     value={form[key]}
                     onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={`请输入${label}（可空）`}
+                    placeholder={required ? `请输入${label}（必填）` : `请输入${label}（可空）`}
                     className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
                   />
                 </div>

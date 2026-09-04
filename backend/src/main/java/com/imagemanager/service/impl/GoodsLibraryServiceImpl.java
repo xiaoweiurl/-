@@ -65,13 +65,18 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
 
     @Override
     public Map<String, Object> createGoods(Map<String, String> fields, Map<String, MultipartFile> images, String userId) {
+        // 发起人为必填字段（业务要求：商品文件夹必须归属到具体发起人）
+        String initiator = nz(fields.get("initiator"));
+        if (initiator.isBlank()) {
+            throw new IllegalArgumentException("发起人不能为空");
+        }
         String folderName = folderName(fields.get("goods_no"), fields.get("product_name"));
         // 事务内仅执行 INSERT 并立即提交（返回即落库），OSS 网络上传放在事务外
         Map<String, Object> created = txTemplate.execute(status -> jdbcTemplate.queryForMap(
                 "INSERT INTO goods_library (folder_name, initiator, sampler, product_name, goods_no," +
                         " customer, order_no, remark, user_id) VALUES (?,?,?,?,?,?,?,?,?) RETURNING *",
                 folderName,
-                nz(fields.get("initiator")), nz(fields.get("sampler")), nz(fields.get("product_name")),
+                initiator, nz(fields.get("sampler")), nz(fields.get("product_name")),
                 nz(fields.get("goods_no")), nz(fields.get("customer")), nz(fields.get("order_no")),
                 nz(fields.get("remark")),
                 (userId == null || userId.isBlank()) ? null : userId));
@@ -119,6 +124,10 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         for (String field : INFO_FIELDS) {
             String current = existing.get(field) == null ? null : String.valueOf(existing.get(field));
             merged.put(field, body.containsKey(field) ? nz(body.get(field)) : current);
+        }
+        // 发起人为必填字段，更新时不允许清空
+        if (merged.get("initiator") == null || merged.get("initiator").isBlank()) {
+            throw new IllegalArgumentException("发起人不能为空");
         }
         String folderName = folderName(merged.get("goods_no"), merged.get("product_name"));
 
