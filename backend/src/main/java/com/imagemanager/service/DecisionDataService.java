@@ -33,6 +33,8 @@ import java.util.regex.Pattern;
  * 6. 货号全链路关联（V49）：以生产货号为统一关联键，拉通丝袜工艺单(order_sw_gongyidan)
  *    + 内衣工艺单(order_jfk_gongyidan) + 销售订单(order_xs_list: 业务员ywyname/客户khname)
  *    + 产品报价信息(order_bjd_query)，品名/客户名等字段仅当数据非空时带出
+ * 7. 商品库文件夹关联（goods_library）：按货号匹配品名+货号命名的商品文件夹，
+ *    带出文件夹信息（发起人/打样员/客户/订单号/备注）与主图/侧面图/细节图/产品图签名URL
  */
 @Slf4j
 @Service
@@ -47,6 +49,10 @@ public class DecisionDataService {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /** 对象存储服务（生成商品库图片签名 URL），本地存储实现不可用时降级为仅标注已上传 */
+    @Autowired(required = false)
+    private FileStorageService fileStorageService;
 
     /**
      * 按消息意图与子模式决定注入哪些结构化数据。
@@ -108,11 +114,21 @@ public class DecisionDataService {
             }
         }
         // 货号全链路关联：有货号且（工艺意图 / 企划 / 决策模式）时注入
-        // （丝袜工艺单 + 内衣工艺单 + 销售订单[业务员/客户名/品名] + 产品报价信息）
+        // （丝袜工艺单 + 内衣工艺单 + 销售订单[业务员/客户名/品名] + 产品报价信息 + 商品库文件夹）
         if (processIntent || decision || (planning && finalDoc)) {
             String code = extractProductCode(message);
             if (code != null) {
                 out.addAll(queryHuohaoFullChain(code));
+            }
+        } else {
+            // 商品库/图片意图独立触发：仅查商品库文件夹（品名+货号命名，含图片签名URL），不拉全链路
+            boolean goodsLibraryIntent = containsAny(message,
+                    "商品库", "文件夹", "主图", "侧面图", "细节图", "产品图", "商品图片", "商品图");
+            if (goodsLibraryIntent) {
+                String code = extractProductCode(message);
+                if (code != null) {
+                    out.addAll(queryGoodsLibraryByHuohao(code));
+                }
             }
         }
         return out;
@@ -438,7 +454,79 @@ public class DecisionDataService {
         out.addAll(queryJfkProcessParams(code));    // ②内衣工艺单
         out.addAll(querySalesOrdersByHuohao(code)); // ③销售订单（业务员/客户/品名）
         out.addAll(queryProductQuoteInfo(code));    // ④产品报价信息
+        out.addAll(queryGoodsLibraryByHuohao(code));// ⑤商品库文件夹（品名+货号命名，含图片签名URL）
         return out;
+    }
+
+    /**
+     * 按货号关联商品库文件夹（goods_library）。
+     * 文件夹命名规则 = 货号+品名，故用货号同时匹配 goods_no 与 folder_name；
+     * 带出文件夹信息（发起人/打样员/品名/客户/订单号/备注）与四类图片
+     * （主图/侧面图/细节图/产品图）的 24h 签名 URL，供 LLM 综合回答与 markdown 展示。
+     */
+    private List<Map<String, Object>> queryGoodsLibraryByHuohao(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT id, folder_name, initiator, sampler, product_name, goods_no, customer, order_no, "
+                            + "main_image_key, side_image_key, detail_image_key, product_image_key, remark "
+                            + "FROM goods_library "
+                            + "WHERE goods_no ILIKE ? OR folder_name ILIKE ? ORDER BY created_at DESC LIMIT 5",
+                    "%" + code + "%", "%" + code + "%");
+            String[][] slots = {
+                    {"main_image_key", "主图"}, {"side_image_key", "侧面图"},
+                    {"detail_image_key", "细节图"}, {"product_image_key", "产品图"}
+            };
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "文件夹名称", row.get("folder_name"));
+                putIfNonBlank(data, "品名", row.get("product_name"));
+                putIfNonBlank(data, "货号", row.get("goods_no"));
+                putIfNonBlank(data, "发起人", row.get("initiator"));
+                putIfNonBlank(data, "打样员", row.get("sampler"));
+                putIfNonBlank(data, "客户", row.get("customer"));
+                putIfNonBlank(data, "订单号", row.get("order_no"));
+                putIfNonBlank(data, "备注", row.get("remark"));
+                int imageCount = 0;
+                List<String> uploaded = new ArrayList<>();
+                for (String[] slot : slots) {
+                    Object keyObj = row.get(slot[0]);
+                    if (keyObj == null || String.valueOf(keyObj).trim().isEmpty()) continue;
+                    imageCount++;
+                    uploaded.add(slot[1]);
+                    String url = signImageUrl(String.valueOf(keyObj));
+                    if (url != null) {
+                        data.put(slot[1] + "图片URL", url);
+                    } else {
+                        data.put(slot[1], "已上传（签名URL生成失败）");
+                    }
+                }
+                putIfNonBlank(data, "已上传图片", uploaded.isEmpty() ? null : String.join("、", uploaded));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "商品库文件夹");
+                entry.put("summary", "商品库文件夹「" + row.get("folder_name") + "」（品名 " + row.get("product_name")
+                        + "，货号 " + row.get("goods_no") + "，已传图片 " + imageCount + "/4 张）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 商品库文件夹命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 商品库文件夹查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /** 生成商品库图片 24h 签名 URL，存储服务不可用或生成失败时返回 null（降级） */
+    private String signImageUrl(String key) {
+        if (fileStorageService == null) return null;
+        try {
+            return fileStorageService.generatePresignedUrl(key, 86400);
+        } catch (Exception e) {
+            log.warn("[结构化数据] 商品库图片签名URL生成失败: key={}, err={}", key, e.getMessage());
+            return null;
+        }
     }
 
     /** 按货号查询内衣工艺单（order_jfk_gongyidan：品名/设计师/单位/染色厂/打样师/打样版号），非空字段才带出 */
