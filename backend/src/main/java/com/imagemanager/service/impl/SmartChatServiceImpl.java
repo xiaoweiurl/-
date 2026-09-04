@@ -413,14 +413,24 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 4c. 业务员资料库 Milvus 向量检索（工厂模式核心上下文，与供应链精确数据互补）
+                // 货号业务维度命中 ERP 结构化数据时跳过 Milvus 文档检索：该维度以 ERP 精确数据为准，
+                // 避免文档切片中的过期/近似数据干扰货号级回答（工艺单/原料BOM/机台产能/工序工价/报价/销售/商品库）
+                boolean huohaoErpHit = structuredResults.stream().anyMatch(e -> {
+                    String t = String.valueOf(e.getOrDefault("type", ""));
+                    return "工艺单参数".equals(t) || "内衣工艺单".equals(t) || "销售订单".equals(t)
+                            || "产品报价信息".equals(t) || "商品库文件夹".equals(t) || "采购原料BOM".equals(t)
+                            || "机台产能（部件工艺）".equals(t) || "工序工价".equals(t);
+                });
                 List<Map<String, Object>> salespersonResults = Collections.emptyList();
-                if (isFactory && !generalChatIntent && !modeSwitchCmd) {
+                if (isFactory && !generalChatIntent && !modeSwitchCmd && !huohaoErpHit) {
                     try {
                         salespersonResults = searchSalespersonKnowledge(message);
                         log.info("业务员资料 Milvus 检索到 {} 条结果", salespersonResults.size());
                     } catch (Exception e) {
                         log.warn("业务员资料检索异常: {}", e.getMessage());
                     }
+                } else if (huohaoErpHit) {
+                    log.info("货号ERP结构化数据已命中，跳过业务员资料Milvus检索（以ERP数据为准）");
                 }
 
                 // 4d. 图片搜索(当用户意图涉及找图时)
@@ -2249,6 +2259,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n8.1【商品库图片规则】上下文附带【商品库文件夹】条目时：商品信息（品名/货号/客户/订单号/备注）须与工艺单、销售订单、报价数据综合分析后一并作答；" +
                 "条目中附带的 主图/侧面图/细节图/产品图 图片【已由系统在回答末尾自动追加展示】，你【禁止】在回答中自行输出任何图片URL或markdown图片语法（链接很长，复现极易出错导致裂图），只需在文字中提到图片将由系统展示即可；" +
                 "同时图片已作为视觉输入传入你的多模态模型，你可以直接观察图片内容，回答颜色、款式、花型、细节工艺等外观问题，描述必须基于实际看到的图片，禁止凭空想象。" +
+                "\n8.2【货号ERP数据优先规则】上下文附带【内衣工艺单】【采购原料BOM】【机台产能（部件工艺）】【工序工价】【产品报价信息】【销售订单】等ERP结构化条目时：" +
+                "该货号的原料品种/机台机型/理论产量/工序/工价/报价/销售数据必须100%以这些ERP条目为准，原料/工序/工价等维度有数据的必须逐项完整列出（字段为空即无数据，禁止编造）；" +
+                "可在ERP数据基础上做汇总分析（如工序数、工价合计、原料种数、主部件机型），但禁止引用或臆造任何不在ERP条目内的货号级业务数据。" +
                 "\n9.【禁止行为清单】" +
                 "a.未收到【排产表/业务员绩效结构化查询结果】时，禁止输出产能订单匹配分析、业务员效能分析板块，应主动提示：缺少结构化查询数据，请先触发结构化数据检索；" +
                 "b.禁止'需要提升产能、业务员加强跟进客户'这类流于形式、无数据支撑的空话，所有结论必须附带上下文给到的数据依据；" +

@@ -30,9 +30,11 @@ import java.util.regex.Pattern;
  *    审核/计划状态，与产能供给侧构成"产能-订单匹配"闭环
  * 5. 工艺单参数（order_sw_gongyidan 表）：按货号查下机克重/下机秒数/制成率/机型/针数/
  *    理论产量/缝拼克重(pfkz)，工艺类问题的确定性依据
- * 6. 货号全链路关联（V49）：以生产货号为统一关联键，拉通丝袜工艺单(order_sw_gongyidan)
+ * 6. 货号全链路关联（V49+）：以生产货号为统一关联键，拉通丝袜工艺单(order_sw_gongyidan)
  *    + 内衣工艺单(order_jfk_gongyidan) + 销售订单(order_xs_list: 业务员ywyname/客户khname)
- *    + 产品报价信息(order_bjd_query)，品名/客户名等字段仅当数据非空时带出
+ *    + 产品报价信息(order_bjd_query) + 采购原料BOM(raw_material_warehouse: 物料/供应商/用量/损耗)
+ *    + 机台产能(order_buj_component: 机型/理论产量) + 工序工价(order_gongxu_process+order_gongxu_price)，
+ *    品名/客户名等字段仅当数据非空时带出
  * 7. 商品库文件夹关联（goods_library）：按货号匹配品名+货号命名的商品文件夹，
  *    带出文件夹信息（发起人/打样员/客户/订单号/备注）与主图/侧面图/细节图/产品图签名URL
  */
@@ -45,6 +47,14 @@ public class DecisionDataService {
     private static final String SALES_ORDER_TABLE = "order_xs_list";
     private static final String PROCESS_TABLE = "order_sw_gongyidan";
     private static final String JFK_PROCESS_TABLE = "order_jfk_gongyidan";
+    /** 内衣货号工艺部件表（机台机型/理论产量），关联键 hhname=货号 */
+    private static final String BUJ_COMPONENT_TABLE = "order_buj_component";
+    /** 内衣货号工艺工序表（工序名称/机种/针数/用时），关联键 hhname=货号 */
+    private static final String GONGXU_PROCESS_TABLE = "order_gongxu_process";
+    /** 内衣货号工序工价表（技术工价/工价/临时工价），关联键 hhname+wtname=货号+工序 */
+    private static final String GONGXU_PRICE_TABLE = "order_gongxu_price";
+    /** 原料入库表（采购原料品种/供应商/单件用量/损耗率），关联键 huohao=成品货号 */
+    private static final String RAW_MATERIAL_TABLE = "raw_material_warehouse";
     private static final Pattern PRODUCT_CODE = Pattern.compile("[A-Za-z][A-Za-z0-9]{3,}");
 
     @Autowired
@@ -113,9 +123,12 @@ public class DecisionDataService {
                 out.add(miss);
             }
         }
-        // 货号全链路关联：有货号且（工艺意图 / 企划 / 决策模式）时注入
-        // （丝袜工艺单 + 内衣工艺单 + 销售订单[业务员/客户名/品名] + 产品报价信息 + 商品库文件夹）
-        if (processIntent || decision || (planning && finalDoc)) {
+        // 货号全链路关联：有货号且（工艺/原料/工序工价/机台产能等 ERP 业务维度意图 / 企划 / 决策模式）时注入
+        // （丝袜工艺单 + 内衣工艺单 + 销售订单[业务员/客户名/品名] + 产品报价信息 + 商品库文件夹
+        //   + 采购原料BOM + 机台产能[部件工艺] + 工序工价）
+        boolean erpBizIntent = processIntent || containsAny(message,
+                "原料", "用料", "物料", "BOM", "供应商", "工序", "工价", "机台", "产能", "理论产量", "损耗");
+        if (erpBizIntent || decision || (planning && finalDoc)) {
             String code = extractProductCode(message);
             if (code != null) {
                 out.addAll(queryHuohaoFullChain(code));
@@ -455,6 +468,9 @@ public class DecisionDataService {
         out.addAll(querySalesOrdersByHuohao(code)); // ③销售订单（业务员/客户/品名）
         out.addAll(queryProductQuoteInfo(code));    // ④产品报价信息
         out.addAll(queryGoodsLibraryByHuohao(code));// ⑤商品库文件夹（品名+货号命名，含图片签名URL）
+        out.addAll(queryRawMaterialBom(code));      // ⑥采购原料BOM（原料品种/供应商/单件用量/损耗率）
+        out.addAll(queryBujMachineCapacity(code));  // ⑦机台产能（机型/针数/克重/理论产量，按部件）
+        out.addAll(queryGongxuProcessPrice(code));  // ⑧工序工价（工序参数+技术工价/工价/临时工价）
         return out;
     }
 
@@ -562,6 +578,153 @@ public class DecisionDataService {
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 内衣工艺单查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /**
+     * 按货号查询采购原料BOM（raw_material_warehouse：部件/物料名称/规格/供应商/单件用量/损耗率），
+     * 关联键 huohao=成品货号；一条 BOM 记录一个条目，非空字段才带出
+     */
+    private List<Map<String, Object>> queryRawMaterialBom(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT huohao, color, size, component, supplier, material_name, specification,"
+                            + " material_color, batch_no, twist_direction, unit, usage_per_unit, loss_rate, remark FROM "
+                            + RAW_MATERIAL_TABLE + " WHERE huohao ILIKE ? ORDER BY component, material_name LIMIT 20",
+                    "%" + code + "%");
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "成品货号", row.get("huohao"));
+                putIfNonBlank(data, "颜色", row.get("color"));
+                putIfNonBlank(data, "尺码", row.get("size"));
+                putIfNonBlank(data, "部件", row.get("component"));
+                putIfNonBlank(data, "物料名称", row.get("material_name"));
+                putIfNonBlank(data, "规格", row.get("specification"));
+                putIfNonBlank(data, "供应商", row.get("supplier"));
+                putIfNonBlank(data, "物料颜色", row.get("material_color"));
+                putIfNonBlank(data, "批号", row.get("batch_no"));
+                putIfNonBlank(data, "捻向", row.get("twist_direction"));
+                putIfNonBlank(data, "单位", row.get("unit"));
+                putIfNonBlank(data, "单件用量", row.get("usage_per_unit"));
+                putIfNonBlank(data, "损耗率%", row.get("loss_rate"));
+                putIfNonBlank(data, "备注", row.get("remark"));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "采购原料BOM");
+                entry.put("summary", "货号 " + row.get("huohao") + " 采购原料（部件 " + row.get("component")
+                        + "，物料 " + row.get("material_name") + " " + row.get("specification")
+                        + "，供应商 " + row.get("supplier") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 采购原料BOM命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 采购原料BOM查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /**
+     * 按货号查询机台产能（order_buj_component：部件/机型/针数/克重/理论产量/织造难度），
+     * 关联键 hhname=货号；一个部件工艺记录一个条目，非空字段才带出
+     */
+    private List<Map<String, Object>> queryBujMachineCapacity(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT hhname, color, chima, buj, zbj, jix, zs, cxm, tongjing, kez, xjtime, llcl, zznd, remark FROM "
+                            + BUJ_COMPONENT_TABLE + " WHERE hhname ILIKE ? ORDER BY zbj DESC NULLS LAST, buj LIMIT 20",
+                    "%" + code + "%");
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "货号", row.get("hhname"));
+                putIfNonBlank(data, "颜色", row.get("color"));
+                putIfNonBlank(data, "尺码", row.get("chima"));
+                putIfNonBlank(data, "部件", row.get("buj"));
+                Object zbj = row.get("zbj");
+                if (zbj != null) {
+                    data.put("主部件", "1".equals(String.valueOf(zbj).trim()) ? "是" : "否");
+                }
+                putIfNonBlank(data, "机型", row.get("jix"));
+                putIfNonBlank(data, "针数", row.get("zs"));
+                putIfNonBlank(data, "程序名", row.get("cxm"));
+                putIfNonBlank(data, "口径", row.get("tongjing"));
+                putIfNonBlank(data, "克重", row.get("kez"));
+                putIfNonBlank(data, "下机时间", row.get("xjtime"));
+                putIfNonBlank(data, "理论产量", row.get("llcl"));
+                putIfNonBlank(data, "织造难度", row.get("zznd"));
+                putIfNonBlank(data, "备注", row.get("remark"));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "机台产能（部件工艺）");
+                entry.put("summary", "货号 " + row.get("hhname") + " 部件「" + row.get("buj")
+                        + "」机台产能（机型 " + row.get("jix") + "，理论产量 " + row.get("llcl") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 机台产能命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 机台产能查询失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    /**
+     * 按货号查询工序工价（order_gongxu_process FULL OUTER JOIN order_gongxu_price ON 货号+工序）：
+     * 工序参数（机种/针目/针号/针数/用时）与工价（技术工价/工价/临时工价）合并为一个条目；
+     * 仅有工序参数或仅有工价的工序也会带出，非空字段才展示
+     */
+    private List<Map<String, Object>> queryGongxuProcessPrice(String code) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            String like = "%" + code + "%";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT COALESCE(p.hhname, pr.hhname) AS hhname, COALESCE(p.wtname, pr.wtname) AS wtname,"
+                            + " p.jizhong, p.zhenju, p.zhenhao, p.zhenmu, p.zhens, p.zline, p.sline, p.yongl, p.yongl2,"
+                            + " p.sort, p.using_state, p.zhgx, p.tims,"
+                            + " pr.jsprice, pr.price, pr.tempworker_price, pr.remarkgz, pr.state AS price_state FROM "
+                            + GONGXU_PROCESS_TABLE + " p FULL OUTER JOIN " + GONGXU_PRICE_TABLE + " pr"
+                            + " ON p.hhname = pr.hhname AND p.wtname = pr.wtname"
+                            + " WHERE p.hhname ILIKE ? OR pr.hhname ILIKE ?"
+                            + " ORDER BY p.sort NULLS LAST, COALESCE(p.wtname, pr.wtname) LIMIT 30",
+                    like, like);
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "货号", row.get("hhname"));
+                putIfNonBlank(data, "工序", row.get("wtname"));
+                putIfNonBlank(data, "机种", row.get("jizhong"));
+                putIfNonBlank(data, "针目", row.get("zhenju"));
+                putIfNonBlank(data, "针号", row.get("zhenhao"));
+                putIfNonBlank(data, "针距", row.get("zhenmu"));
+                putIfNonBlank(data, "针数", row.get("zhens"));
+                putIfNonBlank(data, "缝线上", row.get("zline"));
+                putIfNonBlank(data, "缝线下", row.get("sline"));
+                putIfNonBlank(data, "用量/CM上", row.get("yongl"));
+                putIfNonBlank(data, "用量/CM下", row.get("yongl2"));
+                putIfNonBlank(data, "用时(秒)", row.get("tims"));
+                putIfNonBlank(data, "使用中", row.get("using_state"));
+                putIfNonBlank(data, "最后工序", row.get("zhgx"));
+                putIfNonBlank(data, "技术工价", row.get("jsprice"));
+                putIfNonBlank(data, "工价", row.get("price"));
+                putIfNonBlank(data, "临时工价", row.get("tempworker_price"));
+                putIfNonBlank(data, "工价备注", row.get("remarkgz"));
+                putIfNonBlank(data, "工价审核状态", row.get("price_state"));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", "工序工价");
+                entry.put("summary", "货号 " + row.get("hhname") + " 工序「" + row.get("wtname")
+                        + "」（机种 " + row.get("jizhong") + "，工价 " + row.get("price") + "）");
+                entry.put("data", data);
+                out.add(entry);
+            }
+            if (!rows.isEmpty()) {
+                log.info("[结构化数据] 工序工价命中: code={}, 条数={}", code, rows.size());
+            }
+        } catch (Exception e) {
+            log.warn("[结构化数据] 工序工价查询失败: {}", e.getMessage());
         }
         return out;
     }
