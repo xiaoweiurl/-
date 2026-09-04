@@ -27,7 +27,7 @@ interface RegisterResponse {
   };
 }
 
-type CompanyType = '宝娜斯' | '盈云' | null;
+type CompanyType = '宝娜斯集团' | null;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -131,13 +131,12 @@ export default function RegisterPage() {
             <p className="text-slate-500 mt-2">请选择您所属的公司</p>
           </div>
 
-          {/* 两个公司卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 宝娜斯 */}
+          {/* 公司卡片（统一宝娜斯集团） */}
+          <div className="max-w-md mx-auto">
             <button
-              onClick={() => setCompany('宝娜斯')}
+              onClick={() => setCompany('宝娜斯集团')}
               className={cn(
-                'group relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
+                'group relative w-full bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
                 'hover:shadow-xl hover:border-rose-300 hover:-translate-y-1',
                 'transition-all duration-300 text-left'
               )}
@@ -145,36 +144,12 @@ export default function RegisterPage() {
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/25 mb-5">
                 <span className="text-2xl font-bold text-white">宝</span>
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">宝娜斯</h2>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">宝娜斯集团</h2>
               <p className="text-sm text-slate-500 mb-4">
-                宝娜斯品牌用户，管理专属知识库与文档
+                宝娜斯集团用户，管理专属知识库与文档
               </p>
               <div className="flex items-center text-rose-600 text-sm font-medium group-hover:translate-x-1 transition-transform">
-                选择宝娜斯
-                <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </button>
-
-            {/* 盈云 */}
-            <button
-              onClick={() => setCompany('盈云')}
-              className={cn(
-                'group relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
-                'hover:shadow-xl hover:border-indigo-300 hover:-translate-y-1',
-                'transition-all duration-300 text-left'
-              )}
-            >
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 mb-5">
-                <span className="text-2xl font-bold text-white">盈</span>
-              </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">盈云</h2>
-              <p className="text-sm text-slate-500 mb-4">
-                盈云品牌用户，管理专属知识库与文档
-              </p>
-              <div className="flex items-center text-indigo-600 text-sm font-medium group-hover:translate-x-1 transition-transform">
-                选择盈云
+                选择宝娜斯集团
                 <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -199,7 +174,7 @@ export default function RegisterPage() {
   }
 
   // 注册表单页面
-  const isBonasi = company === '宝娜斯';
+  const isBonasi = company === '宝娜斯集团';
   const gradientFrom = isBonasi ? 'from-rose-500' : 'from-indigo-500';
   const gradientTo = isBonasi ? 'to-pink-600' : 'to-blue-600';
   const ringColor = isBonasi ? 'focus:ring-rose-500/20 focus:border-rose-500' : 'focus:ring-indigo-500/20 focus:border-indigo-500';

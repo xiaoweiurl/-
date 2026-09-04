@@ -31,7 +31,7 @@ public class LoginRequest {
     private Boolean rememberMe;
 
     /**
-     * 所属公司（登录时选择：宝娜斯/盈云）
+     * 所属公司（统一为宝娜斯集团）
      */
     private String company;
 

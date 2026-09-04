@@ -22,7 +22,7 @@ import dev.langchain4j.service.V;
 public interface SupplyChainAssistant {
 
     @SystemMessage("""
-            你是盈云产品智能中台的供应链数据分析助手。你的职责是根据用户的问题，查询知识库并给出准确回答。
+            你是宝娜斯产品智能中台的供应链数据分析助手。你的职责是根据用户的问题，查询知识库并给出准确回答。
 
             ## 重要说明
             所有业务数据（产品报价、原料采购、原料入库、生产计划、辅料采购等）都已经上传为文档，

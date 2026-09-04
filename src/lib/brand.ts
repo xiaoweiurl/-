@@ -1,6 +1,6 @@
 /**
  * 品牌配置系统
- * 支持宝娜斯和盈云双品牌切换
+ * 宝娜斯集团统一品牌（历史双品牌机制保留，文案统一为宝娜斯集团）
  */
 
 export type BrandKey = 'bonasi' | 'yingyun';
@@ -69,9 +69,9 @@ export const BRANDS: Record<BrandKey, BrandConfig> = {
   },
   yingyun: {
     key: 'yingyun',
-    name: '盈云',
-    fullName: '盈云科技',
-    slogan: '智能驱动 价值创造',
+    name: '宝娜斯',
+    fullName: '宝娜斯集团',
+    slogan: '品质生活 从芯开始',
     logoIcon: 'Cloud',
     
     primaryFrom: 'from-violet-500',
@@ -117,21 +117,14 @@ export function getCurrentBrand(): BrandConfig {
 }
 
 /**
- * 公司选择列表
+ * 公司选择列表（统一为宝娜斯集团）
  */
 export const COMPANY_OPTIONS = [
   {
     key: 'bonasi' as BrandKey,
-    name: '宝娜斯',
+    name: '宝娜斯集团',
     fullName: '宝娜斯集团',
     description: '无缝针织行业领导者，专注品质与创新',
     color: 'rose',
-  },
-  {
-    key: 'yingyun' as BrandKey,
-    name: '盈云',
-    fullName: '盈云科技',
-    description: '智能产品中台，驱动数字化转型',
-    color: 'violet',
   },
 ];

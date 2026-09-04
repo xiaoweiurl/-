@@ -57,7 +57,7 @@ public class ChatController {
     }
 
     private String resolveCompany(LoginResponse.UserInfo user) {
-        return user.getCompany() != null ? user.getCompany() : "盈云";
+        return user.getCompany() != null ? user.getCompany() : "宝娜斯集团";
     }
 
     // ====== 智能对话 ======

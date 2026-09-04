@@ -275,8 +275,8 @@ public class AuthServiceImpl implements AuthService {
         if (request.getCompany() == null || request.getCompany().trim().isEmpty()) {
             throw new RuntimeException("请选择所属公司");
         }
-        if (!"宝娜斯".equals(request.getCompany()) && !"盈云".equals(request.getCompany())) {
-            throw new RuntimeException("公司只能选择宝娜斯或盈云");
+        if (!"宝娜斯集团".equals(request.getCompany())) {
+            throw new RuntimeException("公司只能选择宝娜斯集团");
         }
 
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {

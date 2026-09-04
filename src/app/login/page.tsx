@@ -204,7 +204,7 @@ export default function LoginPage() {
           fullUser: result.data.user,
         });
         if (userCompany && userCompany.trim() !== '') {
-          const brandKey = userCompany === '宝娜斯' ? 'bonasi' : 'yingyun';
+          const brandKey = userCompany.includes('宝娜斯') ? 'bonasi' : 'yingyun';
           setSelectedBrand(brandKey);
           localStorage.setItem('selected_brand', brandKey);
           localStorage.setItem('user_company', userCompany);
@@ -244,7 +244,7 @@ export default function LoginPage() {
 
   const handleSelectCompany = async (companyKey: BrandKey) => {
     setSelectedBrand(companyKey);
-    const companyName = companyKey === 'bonasi' ? '宝娜斯' : '盈云';
+    const companyName = '宝娜斯集团';
     try {
       const userId = loggedInUser?.user?.id;
       if (userId) {
@@ -382,7 +382,7 @@ export default function LoginPage() {
                 {[
                   { icon: Cpu, title: 'AI 智能识别', desc: '自动分类 · 标签提取 · 语义搜索' },
                   { icon: TrendingUp, title: '供应链管理', desc: '智能报价 · 供应商对比 · 成本分析' },
-                  { icon: Layers, title: '多品牌协同', desc: '宝娜斯 & 盈云 · 数据隔离 · 统一管理' },
+                  { icon: Layers, title: '集团一体化', desc: '宝娜斯集团 · 全链路数据 · 统一管理' },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3.5 group cursor-default">
                     <div className="w-9 h-9 rounded-lg bg-white/[0.07] backdrop-blur-sm flex items-center justify-center border border-white/[0.06] group-hover:bg-white/[0.12] group-hover:border-white/[0.1] transition-all duration-300">

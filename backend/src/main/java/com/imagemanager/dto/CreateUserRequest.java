@@ -64,7 +64,7 @@ public class CreateUserRequest {
     private String membership = "free";
     
     /**
-     * 所属公司（宝娜斯, 盈云）
+     * 所属公司（宝娜斯集团）
      */
     private String company;
 }

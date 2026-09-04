@@ -42,17 +42,15 @@ interface Props {
   editCard?: KnowledgeCard | null;
 }
 
-/** 按公司区分的团队和部门配置 */
+/** 按公司区分的团队和部门配置（统一宝娜斯集团） */
 const TEAM_BY_COMPANY: Record<string, string[]> = {
-  '盈云': ['产品开发(盈云)', '品牌运营(盈云)', '供应链(盈云)', '财务(盈云)', '投资委员会(盈云)'],
-  '宝娜斯': ['品牌运营(宝娜斯)', '产品开发(宝娜斯)', '供应链(宝娜斯)', '财务(宝娜斯)', '针织技术(宝娜斯)'],
+  '宝娜斯集团': ['品牌运营(宝娜斯)', '产品开发(宝娜斯)', '供应链(宝娜斯)', '财务(宝娜斯)', '针织技术(宝娜斯)'],
 };
 const DEPT_BY_COMPANY: Record<string, string[]> = {
-  '盈云': ['产品开发', '品牌运营', '供应链', '财务', '投资委员会', '人力资源', '技术部'],
-  '宝娜斯': ['品牌运营', '产品开发', '供应链', '财务', '针织技术部', '人力资源', '品质管理'],
+  '宝娜斯集团': ['品牌运营', '产品开发', '供应链', '财务', '针织技术部', '人力资源', '品质管理'],
 };
-const DEFAULT_TEAMS = TEAM_BY_COMPANY['盈云'];
-const DEFAULT_DEPARTMENTS = DEPT_BY_COMPANY['盈云'];
+const DEFAULT_TEAMS = TEAM_BY_COMPANY['宝娜斯集团'];
+const DEFAULT_DEPARTMENTS = DEPT_BY_COMPANY['宝娜斯集团'];
 const NATURES = ['全职', '兼职', '顾问', 'Agent辅助'];
 
 const PH = '';
@@ -139,7 +137,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
   });
 
   // 根据当前公司动态获取团队和部门
-  const [companyName, setCompanyName] = useState('盈云');
+  const [companyName, setCompanyName] = useState('宝娜斯集团');
   useEffect(() => {
     const stored = localStorage.getItem('user_company');
     if (stored) setCompanyName(stored);

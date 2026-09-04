@@ -49,7 +49,7 @@ public class AuthController {
      * 用户注册
      */
     @PostMapping("/register")
-    @Operation(summary = "用户注册", description = "注册新用户，需选择所属公司（宝娜斯/盈云）")
+    @Operation(summary = "用户注册", description = "注册新用户，所属公司统一为宝娜斯集团")
     public ApiResponse<LoginResponse> register(
             @RequestBody RegisterRequest request,
             HttpServletResponse response) {

@@ -77,7 +77,7 @@ public class SessionUtil {
             }
         } catch (Exception ignored) {
         }
-        return "盈云"; // 默认值
+        return "宝娜斯集团"; // 默认值
     }
 
     /**

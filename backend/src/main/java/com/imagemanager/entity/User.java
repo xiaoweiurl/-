@@ -75,7 +75,7 @@ public class User {
     private String phone;
     
     /**
-     * 所属公司（宝娜斯/盈云）
+     * 所属公司（宝娜斯集团）
      */
     @Column(length = 20)
     private String company;

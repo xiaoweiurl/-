@@ -611,8 +611,7 @@ export default function UserManagementPage() {
                   className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
                 >
                   <option value="">请选择公司</option>
-                  <option value="宝娜斯">宝娜斯</option>
-                  <option value="盈云">盈云</option>
+                  <option value="宝娜斯集团">宝娜斯集团</option>
                 </select>
               </div>
             </div>

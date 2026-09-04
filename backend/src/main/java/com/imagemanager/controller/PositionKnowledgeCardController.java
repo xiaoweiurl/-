@@ -62,7 +62,7 @@ public class PositionKnowledgeCardController {
     }
 
     private String resolveCompany(LoginResponse.UserInfo user) {
-        return user.getCompany() != null ? user.getCompany() : "盈云";
+        return user.getCompany() != null ? user.getCompany() : "宝娜斯集团";
     }
 
     /**
