@@ -149,8 +149,8 @@ app:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     # 向量化模型（用于文档切片的 Embedding）
     embedding-model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
-    # 对话模型（用于 AI 对话/RAG 检索）
-    chat-model: ${OLLAMA_CHAT_MODEL:qwen3.6}
+    # 对话模型（用于 AI 对话/RAG 检索；qwen3.6:35b 为多模态模型，支持图片视觉输入）
+    chat-model: ${OLLAMA_CHAT_MODEL:qwen3.6:35b}
     # 多模态视觉模型（用于批量导入时图片 OCR）
     vision-model: ${OLLAMA_VISION_MODEL:qwen3.6:35b}
     # 超时配置（毫秒）
