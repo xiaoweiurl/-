@@ -757,18 +757,23 @@ public class DecisionDataService {
         return out;
     }
 
-    /** 按生产货号查询销售订单（order_xs_list：单号/客户名/业务员/成品货号/数量/交期），非空字段才带出 */
+    /** 按生产货号查询销售订单（order_xs_list：单号/品名/客户名/业务员/成品货号/数量/交期），
+     *  品名取自内衣工艺单（order_xs_list 无品名列，按生产货号 LEFT JOIN 带出），非空字段才带出 */
     private List<Map<String, Object>> querySalesOrdersByHuohao(String code) {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT dh, zhdate, jh_date, khname, detailhuohao, detailhuohaocp, sl_sum, ywyname, ddtype "
-                            + "FROM " + SALES_ORDER_TABLE
-                            + " WHERE detailhuohao ILIKE ? ORDER BY zhdate DESC NULLS LAST LIMIT 20",
+                    "SELECT xs.dh, xs.zhdate, xs.jh_date, xs.khname, xs.detailhuohao, xs.detailhuohaocp,"
+                            + " xs.sl_sum, xs.ywyname, xs.ddtype, j.spname "
+                            + "FROM " + SALES_ORDER_TABLE + " xs "
+                            + "LEFT JOIN (SELECT DISTINCT ON (huohao) huohao, spname FROM " + JFK_PROCESS_TABLE
+                            + " WHERE huohao IS NOT NULL) j ON xs.detailhuohao = j.huohao "
+                            + "WHERE xs.detailhuohao ILIKE ? ORDER BY xs.zhdate DESC NULLS LAST LIMIT 20",
                     "%" + code + "%");
             for (Map<String, Object> row : rows) {
                 Map<String, Object> data = new LinkedHashMap<>();
                 putIfNonBlank(data, "订单号", row.get("dh"));
+                putIfNonBlank(data, "品名", row.get("spname"));
                 putIfNonBlank(data, "下单日期", row.get("zhdate"));
                 putIfNonBlank(data, "交货日期", row.get("jh_date"));
                 putIfNonBlank(data, "客户名", row.get("khname"));
@@ -776,9 +781,9 @@ public class DecisionDataService {
                 putIfNonBlank(data, "成品货号", row.get("detailhuohaocp"));
                 putIfNonBlank(data, "订单数量", row.get("sl_sum"));
                 putIfNonBlank(data, "业务员", row.get("ywyname"));
-                // 业务员为订单关键归属字段：未录入时显式标注，避免与"未关联"混淆
+                // 业务员为订单关键归属字段：有值必须带出；为空说明该订单未维护业务员，显式提示补录
                 if (!data.containsKey("业务员")) {
-                    data.put("业务员", "（订单未录入业务员）");
+                    data.put("业务员", "（业务员数据未维护，请补录）");
                 }
                 putIfNonBlank(data, "销售类型", row.get("ddtype"));
                 Map<String, Object> entry = new LinkedHashMap<>();
@@ -797,18 +802,23 @@ public class DecisionDataService {
         return out;
     }
 
-    /** 按生产货号查询产品报价信息（order_bjd_query 最近记录：客户/售价/销售成本/尺码），非空字段才带出 */
+    /** 按生产货号查询产品报价信息（order_bjd_query 最近记录：品名/客户/售价/销售成本/尺码），
+     *  品名取自内衣工艺单（报价表无品名列，按生产货号 LEFT JOIN 带出），非空字段才带出 */
     private List<Map<String, Object>> queryProductQuoteInfo(String code) {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT dh, zhdate, khname, huohao, houhaocp, chima, saleprice, xscb, jcb, zpl "
-                            + "FROM " + QUOTATION_TABLE
-                            + " WHERE huohao ILIKE ? ORDER BY zhdate DESC NULLS LAST LIMIT 5",
+                    "SELECT q.dh, q.zhdate, q.khname, q.huohao, q.houhaocp, q.chima, q.saleprice, q.xscb, q.jcb, q.zpl,"
+                            + " j.spname "
+                            + "FROM " + QUOTATION_TABLE + " q "
+                            + "LEFT JOIN (SELECT DISTINCT ON (huohao) huohao, spname FROM " + JFK_PROCESS_TABLE
+                            + " WHERE huohao IS NOT NULL) j ON q.huohao = j.huohao "
+                            + "WHERE q.huohao ILIKE ? ORDER BY q.zhdate DESC NULLS LAST LIMIT 5",
                     "%" + code + "%");
             for (Map<String, Object> row : rows) {
                 Map<String, Object> data = new LinkedHashMap<>();
                 putIfNonBlank(data, "报价单号", row.get("dh"));
+                putIfNonBlank(data, "品名", row.get("spname"));
                 putIfNonBlank(data, "报价日期", row.get("zhdate"));
                 putIfNonBlank(data, "客户名", row.get("khname"));
                 putIfNonBlank(data, "生产货号", row.get("huohao"));
