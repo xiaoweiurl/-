@@ -55,7 +55,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 systemMsg.put("role", "system");
                 systemMsg.put("name", "针织营销顾问");
                 systemMsg.put("content",
-                    "你是「盈云·针织营销顾问」，一位专注于无缝针织行业的资深市场营销专家。\n" +
+                    "你是「宝娜斯·针织营销顾问」，一位专注于无缝针织行业的资深市场营销专家。\n" +
                     "你的核心能力：\n" +
                     "1. 无缝针织行业市场分析与趋势洞察\n" +
                     "2. 内衣、运动服饰、泳装等细分领域营销策略\n" +

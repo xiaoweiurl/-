@@ -16,6 +16,17 @@
 - **对象存储**: S3 兼容存储 (通过 coze-coding-dev-sdk)
 - **AI 识别**: qwen3.6:35b 多模态能力 (本地部署)
 
+### 公司体系与数据隔离
+- **统一公司**：系统不再区分公司，全系统固定为「宝娜斯」。`SessionUtil.getCurrentCompany()` 固定返回 `"宝娜斯"`（`DEFAULT_COMPANY` 常量），登录/注册/管理员创建用户均强制写入宝娜斯，前端 `brand.ts` 收敛为单一品牌（`BrandKey='bonasi'`）。
+- **按用户隔离**：数据不再按公司共享，改按 `user_id` 隔离（`user_id IS NULL` 兼容旧数据）：
+  - 图片：本就在用户专属动态表 `images_<userId>`，天然用户级隔离
+  - 知识库文档/分类：`KnowledgeBaseServiceImpl` 查询/详情/删除/统计均按 `currentUserId()` 过滤
+  - 向量检索：`knowledge_embeddings.user_id` 列（V54），知识库/岗位卡/历史QA的 RAG 检索均按当前用户过滤
+  - 商品库：`listGoods`/`mustGet` 按当前用户过滤
+  - 岗位知识卡：`getCards`/`countCards`/`getCardDetail`/`updateCard`/`deleteCard` 按当前用户过滤
+  - 对话历史：`smart_chat_history` 等本就带 `user_id` 条件
+- **注册页已移除**：`/register`、`/api/auth/register`、`/api/auth/bind-company` 已删除；`AuthServiceImpl.register` 的公司校验已移除，注册公司固定宝娜斯；`bindCompany` 废弃直接返回 true。
+
 ### 后端 API 集成
 本项目支持双模式运行：
 1. **开发模式（降级模式）**: 当 Java 后端不可用时，自动使用模拟数据，支持基本的登录和数据展示功能
@@ -545,6 +556,14 @@ export const ROLE_PERMISSIONS = {
 **数据表** `goods_library`（迁移脚本 V53）：第一层信息字段 + main/side/detail/product 四个 OSS key + 单个备注字段 `remark`（自由文本，可填写卖点/竞品/功能/对应人群/使用场景等）
 
 **⚠️ 事务陷阱（重要）**：`application.yml` 中 HikariCP `auto-commit: false`，无 Spring 事务时 JdbcTemplate 写操作会被连接池回滚（INSERT 看似成功实际未落库）。本模块所有写库操作使用 `TransactionTemplate` 编程式事务（OSS 网络调用留在事务外）；`AiCallLogService.record` 使用 `@Transactional(REQUIRES_NEW)` 独立事务。
+
+#### 用户隔离迁移（V54）
+数据库迁移脚本：`backend/src/main/resources/db/migration/V54__user_isolation.sql`（已在 develop 库手动执行）
+
+- `knowledge_embeddings` 新增 `user_id` 列（RAG 检索按用户隔离）及索引
+- `knowledge_base_docs` / `knowledge_base_categories` 补齐 `user_id` 列及索引
+- 全库存量数据 `company` 统一 UPDATE 为「宝娜斯」（users/images/albums/knowledge_*/smart_chat_*/position_knowledge_cards/ai_call_log 等）
+- 商品库查询/详情按当前登录用户过滤（`user_id IS NULL` 兼容旧数据）
 
 **OSS 键规范**：`goods-library/{文件夹名安全形式}/{slot}.{ext}`（FileStorageService 扩展方法 `uploadFileForKey` 支持指定完整 key；中文按 S3 字符规范安全替换）
 

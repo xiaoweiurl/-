@@ -40,21 +40,22 @@ export default function MarketingChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const storedCompany = localStorage.getItem('user_company') || '';
+    // 系统统一为宝娜斯，不再区分公司
+    const storedCompany = '宝娜斯';
     const storedUserId = localStorage.getItem('user_id') || '';
-    if (!storedCompany || !storedUserId) {
+    if (!storedUserId) {
       // 后端不可用时降级，不强制跳转
       backendFetch('/albums?pageSize=1').then(res => {
         if (res.status === 502) {
           console.log('[Marketing] 后端不可用，进入降级模式');
-          setCompany('盈云');
+          setCompany('宝娜斯');
           setUserId('local');
         } else {
           window.location.href = '/login';
         }
       }).catch(() => {
         console.log('[Marketing] 后端不可用，进入降级模式');
-        setCompany('盈云');
+        setCompany('宝娜斯');
         setUserId('local');
       });
       return;
@@ -249,7 +250,7 @@ export default function MarketingChatPage() {
     window.location.href = '/login';
   };
 
-  const [brand, setBrand] = useState(BRANDS.yingyun);
+  const [brand, setBrand] = useState(BRANDS.bonasi);
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
 
   useEffect(() => {

@@ -144,11 +144,6 @@ export default function UserManagementPage() {
       return;
     }
 
-    if (!formData.company) {
-      toast.error('请选择所属公司');
-      return;
-    }
-
     if (formData.password.length < 6) {
       toast.error('密码长度至少6位');
       return;
@@ -160,7 +155,7 @@ export default function UserManagementPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, company: '宝娜斯' }),
       });
       const data = await res.json();
 
@@ -603,17 +598,14 @@ export default function UserManagementPage() {
               
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  所属公司 <span className="text-red-400">*</span>
+                  所属公司
                 </label>
-                <select
-                  value={formData.company || ''}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                >
-                  <option value="">请选择公司</option>
-                  <option value="宝娜斯">宝娜斯</option>
-                  <option value="盈云">盈云</option>
-                </select>
+                <input
+                  type="text"
+                  value="宝娜斯"
+                  disabled
+                  className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/40 text-slate-400 cursor-not-allowed"
+                />
               </div>
             </div>
             

@@ -200,7 +200,7 @@ public class Image {
     private String classifyMethod;
     
     /**
-     * 所属公司（宝娜斯/盈云）
+     * 所属公司（系统统一为宝娜斯）
      */
     @Column(length = 50)
     private String company;

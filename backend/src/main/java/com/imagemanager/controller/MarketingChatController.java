@@ -61,8 +61,8 @@ public class MarketingChatController {
         try {
             LoginResponse.UserInfo user = getCurrentUser(request);
             String userId = user.getId() != null ? user.getId() : user.getUsername();
-            String company = user.getCompany() != null ? user.getCompany() : "盈云";
-            return marketingChatService.chat(message, userId, company);
+            // 系统统一为宝娜斯，不再区分公司
+            return marketingChatService.chat(message, userId, "宝娜斯");
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {
@@ -93,8 +93,8 @@ public class MarketingChatController {
         try {
             LoginResponse.UserInfo user = getCurrentUser(request);
             String userId = user.getId() != null ? user.getId() : user.getUsername();
-            String company = user.getCompany() != null ? user.getCompany() : "盈云";
-            return marketingChatService.chat(message, userId, company);
+            // 系统统一为宝娜斯，不再区分公司
+            return marketingChatService.chat(message, userId, "宝娜斯");
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {

@@ -264,7 +264,7 @@ export default function DashboardPage() {
                 LIVE
               </span>
             </h1>
-            <p className="text-slate-500 text-sm mt-1">盈云产品智能中台 · 实时数据监控</p>
+            <p className="text-slate-500 text-sm mt-1">宝娜斯产品智能中台 · 实时数据监控</p>
           </div>
           <div className="flex items-center gap-6">
             <div className="text-right">

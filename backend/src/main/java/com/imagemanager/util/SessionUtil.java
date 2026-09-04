@@ -53,31 +53,14 @@ public class SessionUtil {
         return null;
     }
 
+    /** 系统统一公司：宝娜斯（不再区分公司） */
+    public static final String DEFAULT_COMPANY = "宝娜斯";
+
     /**
-     * 获取当前用户所属公司
+     * 获取当前用户所属公司（系统已统一为宝娜斯，固定返回）
      */
     public static String getCurrentCompany() {
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs != null) {
-                HttpServletRequest request = attrs.getRequest();
-                Object userInfo = request.getAttribute(USER_INFO_ATTRIBUTE);
-                if (userInfo != null) {
-                    if (userInfo instanceof Map) {
-                        Object company = ((Map<?, ?>) userInfo).get("company");
-                        if (company != null && !company.toString().isEmpty()) return company.toString();
-                    } else {
-                        try {
-                            Object company = userInfo.getClass().getMethod("getCompany").invoke(userInfo);
-                            if (company != null && !company.toString().isEmpty()) return company.toString();
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return "盈云"; // 默认值
+        return DEFAULT_COMPANY;
     }
 
     /**

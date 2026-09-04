@@ -265,7 +265,7 @@ export default function Header({
           )}
         >
           <Zap className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{brand?.name || '盈云'}AI</span>
+          <span className="hidden sm:inline">{brand?.name || '宝娜斯'}AI</span>
         </button>
 
         {/* 通知 */}

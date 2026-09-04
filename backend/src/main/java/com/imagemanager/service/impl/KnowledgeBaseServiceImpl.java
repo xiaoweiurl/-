@@ -12,6 +12,7 @@ import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.MilvusService;
 import com.imagemanager.util.KeywordExtractor;
+import com.imagemanager.util.SessionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -84,6 +85,18 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             new ThreadPoolExecutor.CallerRunsPolicy()
     );
 
+    /**
+     * 数据隔离：不再按公司隔离（系统统一宝娜斯），改为按当前登录用户隔离。
+     * 方法签名中的 company 参数保留仅为兼容 Controller 调用，不再用于过滤。
+     */
+    private String currentUserId() {
+        String userId = SessionUtil.getCurrentUserId();
+        if (userId == null || userId.isEmpty()) {
+            throw new RuntimeException("用户未登录");
+        }
+        return userId;
+    }
+
     @Override
     @Transactional
     public KnowledgeBaseDoc uploadDocument(MultipartFile file, String title, UUID categoryId, List<String> tags, String userId, String company) {
@@ -152,8 +165,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 异步向量化
             final UUID docId = doc.getId();
             final String docCompany = company;
+            final String docUserId = userId;
             final String docContent = content;
-            executorService.execute(() -> processEmbeddingFromText(docId, docContent, docCompany));
+            executorService.execute(() -> processEmbeddingFromText(docId, docContent, docCompany, docUserId));
 
             return doc;
         } catch (Exception e) {
@@ -165,7 +179,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     /**
      * 从文本内容向量化（用于文本/URL类型的文档）
      */
-    private void processEmbeddingFromText(UUID docId, String text, String company) {
+    private void processEmbeddingFromText(UUID docId, String text, String company, String userId) {
         try {
             if (text == null || text.trim().isEmpty()) {
                 updateDocEmbeddingStatus(docId, 0, "EMPTY");
@@ -208,13 +222,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 String vectorStr = arrayToVectorString(embedding);
                 tx.execute(status -> {
                     jdbcTemplate.update(
-                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), company
+                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, user_id, created_at) " +
+                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, ?, NOW())",
+                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), company, userId
                     );
                     return null;
                 });
-                
+
                 // 写入 Milvus（向量检索）
                 if (milvusService != null && milvusService.isEnabled()) {
                     try {
@@ -223,7 +237,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
                     }
                 }
-                
+
                 successCount++;
             }
 
@@ -303,13 +317,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 String vectorStr = arrayToVectorString(embedding);
                 tx.execute(status -> {
                     jdbcTemplate.update(
-                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), company
+                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, user_id, created_at) " +
+                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, ?, NOW())",
+                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), company, userId
                     );
                     return null;
                 });
-                
+
                 // 写入 Milvus（向量检索）
                 if (milvusService != null && milvusService.isEnabled()) {
                     try {
@@ -318,7 +332,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         log.warn("Milvus插入失败: docId={}, chunkIndex={}, error={}", docId, chunkIndex, e.getMessage());
                     }
                 }
-                
+
                 successCount++;
             }
 
@@ -369,6 +383,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             List<String> chunks = documentParserService.chunkText(text, 800, 100);
             int successCount = 0;
             String docCompany = doc.getCompany();
+            String docUserId = doc.getUserId();
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
@@ -384,9 +399,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 String vectorStr = arrayToVectorString(embedding);
                 tx.execute(status -> {
                     jdbcTemplate.update(
-                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, created_at) " +
-                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, NOW())",
-                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), docCompany
+                            "INSERT INTO knowledge_embeddings (id, card_id, embedding, embedding_model, chunk_text, chunk_index, source_type, source_doc_id, company, user_id, created_at) " +
+                                    "VALUES (?::uuid, NULL, CAST(? AS vector), ?, ?, ?, ?, ?, ?, ?, NOW())",
+                            UUID.randomUUID().toString(), vectorStr, ollamaEmbeddingModel, chunk, chunkIndex, "KNOWLEDGE_BASE", docId.toString(), docCompany, docUserId
                     );
                     return null;
                 });
@@ -418,23 +433,23 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public Page<KnowledgeBaseDoc> getDocuments(String company, Pageable pageable) {
-        return docRepository.findByCompanyOrderByCreatedAtDesc(company, pageable);
+        return docRepository.findByUserIdOrderByCreatedAtDesc(currentUserId(), pageable);
     }
 
     @Override
     public Page<KnowledgeBaseDoc> searchDocuments(String company, String keyword, Pageable pageable) {
-        return docRepository.searchByKeyword(company, keyword, pageable);
+        return docRepository.searchByKeywordByUserId(currentUserId(), keyword, pageable);
     }
 
     @Override
     public List<KnowledgeBaseDoc> getDocumentsByCategory(String company, UUID categoryId) {
-        return docRepository.findByCompanyAndCategoryIdOrderByCreatedAtDesc(company, categoryId);
+        return docRepository.findByUserIdAndCategoryIdOrderByCreatedAtDesc(currentUserId(), categoryId);
     }
 
     @Override
     @Transactional
     public void deleteDocument(UUID id, String company) {
-        KnowledgeBaseDoc doc = docRepository.findByIdAndCompany(id, company)
+        KnowledgeBaseDoc doc = docRepository.findByIdAndUserId(id, currentUserId())
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
 
         // 删除存储的文件
@@ -461,7 +476,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public KnowledgeBaseDoc getDocumentDetail(UUID id, String company) {
-        return docRepository.findByIdAndCompany(id, company)
+        return docRepository.findByIdAndUserId(id, currentUserId())
                 .orElseThrow(() -> new RuntimeException("文档不存在或无权限"));
     }
 
@@ -481,31 +496,32 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public List<KnowledgeBaseCategory> getCategories(String company) {
-        return categoryRepository.findByCompanyOrderByCreatedAtDesc(company);
+        return categoryRepository.findByUserIdOrderByCreatedAtDesc(currentUserId());
     }
 
     @Override
     public void deleteCategory(UUID id, String company) {
-        long docCount = docRepository.countByCompanyAndCategoryId(company, id);
+        String userId = currentUserId();
+        long docCount = docRepository.countByUserIdAndCategoryId(userId, id);
         if (docCount > 0) {
             throw new RuntimeException("该分类下存在文档，无法删除");
         }
 
-        KnowledgeBaseCategory category = categoryRepository.findByIdAndCompany(id, company)
+        KnowledgeBaseCategory category = categoryRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("分类不存在或无权限"));
         categoryRepository.delete(category);
     }
 
     @Override
     public long getDocumentCount(String company) {
-        return docRepository.countByCompany(company);
+        return docRepository.countByUserId(currentUserId());
     }
 
     @Override
     public KnowledgeBaseDoc getDocumentById(UUID id, String company) {
         var doc = docRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("文档不存在"));
-        if (!company.equals(doc.getCompany())) {
+        if (!currentUserId().equals(doc.getUserId())) {
             throw new RuntimeException("无权访问此文档");
         }
         return doc;
@@ -513,8 +529,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public List<MemorySearchResult> search(String query, double minScore, int limit, String company) {
+        // 数据隔离：不再按公司过滤，改为按当前用户过滤（兼容旧数据 user_id IS NULL）
+        String userId = SessionUtil.getCurrentUserId();
+        if (userId == null) userId = "";
+        // 关键词提到 try 外声明，catch 降级路径也要用
+        List<String> keywords = extractKeywords(query);
         try {
-            log.info("知识库搜索: query='{}', minScore={}, limit={}, company='{}'", query, minScore, limit, company);
+            log.info("知识库搜索: query='{}', minScore={}, limit={}, userId='{}'", query, minScore, limit, userId);
             
             // ====== Milvus 检索分支（启用时优先走 Milvus） ======
             if (milvusService != null && milvusService.isEnabled()) {
@@ -548,8 +569,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
             
             // ====== 原有 pgvector 混合检索逻辑 ======
-            // Step 1: 从查询中提取关键词（去除停用词、保留核心名词）
-            List<String> keywords = extractKeywords(query);
+            // Step 1: 关键词已在 try 外提取（去除停用词、保留核心名词）
             log.info("知识库搜索: 提取关键词={}", keywords);
             
             // Step 1.5: 关键词诊断 — 用 EXISTS 代替 COUNT(*)，避免全表扫描
@@ -578,7 +598,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             if (!productCodes.isEmpty()) {
                 log.info("知识库搜索: 检测到货号关键词{}, 优先执行关键词精确搜索", productCodes);
                 try {
-                    List<MemorySearchResult> keywordResults = keywordSearchFallback(productCodes, company, limit);
+                    List<MemorySearchResult> keywordResults = keywordSearchFallback(productCodes, userId, limit);
                     if (!keywordResults.isEmpty()) {
                         log.info("知识库搜索: 货号关键词搜索成功, 返回{}条结果", keywordResults.size());
                         return keywordResults;
@@ -589,7 +609,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
                 // 兜底：直接查 knowledge_embeddings 表，不加任何JOIN，确保能找到数据
                 try {
-                    List<MemorySearchResult> directResults = directKeywordSearch(productCodes, company, limit);
+                    List<MemorySearchResult> directResults = directKeywordSearch(productCodes, userId, limit);
                     if (!directResults.isEmpty()) {
                         log.info("知识库搜索: 直接SQL搜索成功, 返回{}条结果", directResults.size());
                         return directResults;
@@ -617,7 +637,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             float[] queryEmbedding = getEmbedding(query);
             if (queryEmbedding == null || queryEmbedding.length == 0) {
                 log.warn("知识库搜索: 获取查询Embedding失败, 尝试纯关键词搜索");
-                return keywordSearchFallback(keywords, company, limit);
+                return keywordSearchFallback(keywords, userId, limit);
             }
             log.info("知识库搜索: 获取查询Embedding成功, 维度={}", queryEmbedding.length);
 
@@ -641,7 +661,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "e.embedding <=> CAST(? AS vector) AS distance " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (e.user_id = ? OR e.user_id IS NULL) " +
                     keywordFilter +
                     "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
                     "ORDER BY distance " +
@@ -656,7 +676,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "ORDER BY c.distance";
 
             // Step 5: 如果关键词过滤后结果太少，降级到纯向量搜索
-            List<MemorySearchResult> hybridResults = executeHybridSearch(sql, vectorStr, keywords, company, minScore, candidateLimit);
+            List<MemorySearchResult> hybridResults = executeHybridSearch(sql, vectorStr, keywords, userId, minScore, candidateLimit);
             log.info("知识库搜索: 混合检索返回{}条结果", hybridResults.size());
             
             if (hybridResults.size() < 3 && !keywords.isEmpty()) {
@@ -667,7 +687,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         "e.embedding <=> CAST(? AS vector) AS distance " +
                         "FROM knowledge_embeddings e " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                        "AND (e.company = ? OR e.company IS NULL) " +
+                        "AND (e.user_id = ? OR e.user_id IS NULL) " +
                         "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
                         "ORDER BY distance " +
                         "LIMIT ?" +
@@ -679,7 +699,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         "LEFT JOIN knowledge_base_docs d ON c.source_doc_id = d.id::text " +
                         "LEFT JOIN knowledge_base_categories cat ON d.category_id = cat.id " +
                         "ORDER BY c.distance";
-                hybridResults = executePureVectorSearch(pureVectorSql, vectorStr, company, minScore, candidateLimit);
+                hybridResults = executePureVectorSearch(pureVectorSql, vectorStr, userId, minScore, candidateLimit);
             }
             
             // Step 6: 智能截断 — 按score分层，保留高质量结果
@@ -709,14 +729,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // Step 7: 向量搜索结果为空时，降级到纯关键词搜索
             if (finalResults.isEmpty() && !keywords.isEmpty()) {
                 log.info("知识库搜索: 向量搜索结果为空, 降级到纯关键词搜索, keywords={}", keywords);
-                List<MemorySearchResult> keywordResults = keywordSearchFallback(keywords, company, limit);
+                List<MemorySearchResult> keywordResults = keywordSearchFallback(keywords, userId, limit);
                 if (!keywordResults.isEmpty()) {
                     log.info("知识库搜索: 关键词搜索兜底返回{}条结果", keywordResults.size());
                     return keywordResults;
                 }
                 // Step 7.1: 最终兜底 — 零JOIN直接搜索
                 log.warn("知识库搜索: 关键词搜索也为空, 启用直接SQL兜底搜索");
-                List<MemorySearchResult> directResults = directKeywordSearch(keywords, company, limit);
+                List<MemorySearchResult> directResults = directKeywordSearch(keywords, userId, limit);
                 if (!directResults.isEmpty()) {
                     log.info("知识库搜索: 直接SQL兜底返回{}条结果", directResults.size());
                     return directResults;
@@ -729,10 +749,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.error("知识库向量搜索失败: {}", e.getMessage());
             // 最终降级：尝试纯关键词搜索
             if (!keywords.isEmpty()) {
-                List<MemorySearchResult> kwResults = keywordSearchFallback(keywords, company, limit);
+                List<MemorySearchResult> kwResults = keywordSearchFallback(keywords, userId, limit);
                 if (!kwResults.isEmpty()) return kwResults;
                 // 最终兜底
-                List<MemorySearchResult> directResults = directKeywordSearch(keywords, company, limit);
+                List<MemorySearchResult> directResults = directKeywordSearch(keywords, userId, limit);
                 if (!directResults.isEmpty()) return directResults;
             }
             return Collections.emptyList();
@@ -775,15 +795,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * 执行混合检索SQL（CTE关键词预过滤 + 向量排序）
      * 向量通过参数绑定传递，避免超长SQL导致JDBC解析失败
      */
-    private List<MemorySearchResult> executeHybridSearch(String sql, String vectorStr, List<String> keywords, 
-            String company, double minScore, int candidateLimit) {
+    private List<MemorySearchResult> executeHybridSearch(String sql, String vectorStr, List<String> keywords,
+            String userId, double minScore, int candidateLimit) {
         try {
             // CTE SQL 参数顺序：
-            // CTE内: vectorStr(distance), company, keywords×2(tsquery+ILIKE), vectorStr(WHERE score), minScore, candidateLimit
+            // CTE内: vectorStr(distance), userId, keywords×2(tsquery+ILIKE), vectorStr(WHERE score), minScore, candidateLimit
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, vectorStr);   // 1: CTE SELECT distance
-                ps.setString(idx++, company);     // 2: CTE e.company
+                ps.setString(idx++, userId);      // 2: CTE e.user_id
                 for (String kw : keywords) {
                     ps.setString(idx++, kw);           // tsquery 全文搜索（plainto_tsquery 接受原始文本）
                     ps.setString(idx++, "%" + kw + "%"); // ILIKE fallback
@@ -816,13 +836,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * 使用CTE优化：先计算向量距离+过滤，再JOIN获取元数据
      */
     private List<MemorySearchResult> executePureVectorSearch(String sql, String vectorStr,
-            String company, double minScore, int candidateLimit) {
+            String userId, double minScore, int candidateLimit) {
         try {
-            // CTE SQL 参数顺序：vectorStr(distance), company, vectorStr(WHERE score), minScore, candidateLimit
+            // CTE SQL 参数顺序：vectorStr(distance), userId, vectorStr(WHERE score), minScore, candidateLimit
             return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, vectorStr);   // CTE: distance calculation
-                ps.setString(idx++, company);      // CTE: company filter
+                ps.setString(idx++, userId);       // CTE: user_id filter
                 ps.setString(idx++, vectorStr);   // CTE: WHERE score >= minScore
                 ps.setDouble(idx++, minScore);     // minScore threshold
                 ps.setInt(idx++, candidateLimit); // LIMIT
@@ -850,24 +870,22 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * 直接SQL搜索（零JOIN兜底方案）
      * 只查 knowledge_embeddings 表，不加任何JOIN，确保数据能被找到
      */
-    private List<MemorySearchResult> directKeywordSearch(List<String> keywords, String company, int limit) {
+    private List<MemorySearchResult> directKeywordSearch(List<String> keywords, String userId, int limit) {
         if (keywords.isEmpty()) return Collections.emptyList();
-        
+
         List<MemorySearchResult> results = new ArrayList<>();
-        
+
         try {
             StringBuilder sql = new StringBuilder();
             sql.append("SELECT id, chunk_text, source_doc_id, chunk_index, created_at ");
             sql.append("FROM knowledge_embeddings ");
             sql.append("WHERE source_type = 'KNOWLEDGE_BASE' ");
-            
+
             List<Object> params = new ArrayList<>();
-            
-            // company过滤：有company就精确匹配+NULL兼容，无company就不过滤
-            if (company != null && !company.trim().isEmpty()) {
-                sql.append("AND (company = ? OR company IS NULL OR company = '') ");
-                params.add(company);
-            }
+
+            // 用户隔离：匹配当前用户 + 兼容旧数据（user_id IS NULL）；无用户上下文时仅看旧数据
+            sql.append("AND (user_id = ? OR user_id IS NULL) ");
+            params.add(userId != null ? userId : "");
             
             // 关键词搜索：优先 tsvector 全文搜索（有GIN索引），fallback 到 ILIKE
             sql.append("AND (");
@@ -914,7 +932,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * 纯关键词搜索降级（Embedding失败时的兜底方案）
      * 同时搜索 embeddings.chunk_text 和 docs.file_content，确保表格数据也能命中
      */
-    private List<MemorySearchResult> keywordSearchFallback(List<String> keywords, String company, int limit) {
+    private List<MemorySearchResult> keywordSearchFallback(List<String> keywords, String userId, int limit) {
         if (keywords.isEmpty()) return Collections.emptyList();
         
         List<MemorySearchResult> results = new ArrayList<>();
@@ -933,13 +951,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (e.user_id = ? OR e.user_id IS NULL) " +
                     "AND (" + whereClause + ") " +
                     "ORDER BY e.created_at DESC LIMIT ?";
-            
+
             List<MemorySearchResult> embeddingResults = jdbcTemplate.query(sql, (PreparedStatement ps) -> {
                 int idx = 1;
-                ps.setString(idx++, company);
+                ps.setString(idx++, userId);
                 for (String kw : keywords) {
                     ps.setString(idx++, kw);              // tsquery 全文搜索
                     ps.setString(idx++, "%" + kw + "%");  // ILIKE fallback
@@ -983,13 +1001,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         "d.file_name, COALESCE(c.name,'') AS category, d.created_at " +
                         "FROM knowledge_base_docs d " +
                         "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
-                        "WHERE (d.company = ? OR d.company IS NULL) " +
+                        "WHERE (d.user_id = ? OR d.user_id IS NULL) " +
                         "AND (" + docWhereClause + ") " +
                         "ORDER BY d.created_at DESC LIMIT ?";
-                
+
                 results = jdbcTemplate.query(docSql, (PreparedStatement ps) -> {
                     int idx = 1;
-                    ps.setString(idx++, company);
+                    ps.setString(idx++, userId);
                     for (String kw : keywords) {
                         String likePattern = "%" + kw + "%";
                         ps.setString(idx++, likePattern);  // file_content
@@ -1068,7 +1086,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             throw new RuntimeException("文档不存在");
         }
         var doc = docOpt.get();
-        if (!company.equals(doc.getCompany())) {
+        if (!currentUserId().equals(doc.getUserId())) {
             throw new RuntimeException("无权操作此文档");
         }
         if (!"FAILED".equals(doc.getEmbeddingStatus()) && !"PENDING".equals(doc.getEmbeddingStatus())) {

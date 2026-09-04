@@ -8,6 +8,7 @@ import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.SmartChatService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.util.KeywordExtractor;
+import com.imagemanager.util.SessionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -748,7 +749,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     // 两大工作子模式：resolvedSubMode 已在检索阶段解析（显式参数 > 手动指令 > 会话记忆 > 自动识别），此处直接复用
                     boolean justSwitched = detectSubModeSwitch(message) != null || "planning".equals(subMode) || "decision".equals(subMode);
                     // 分层结构化 prompt：身份 → 数据源优先级 → 核心能力(报价SOP/查询/业务/知识) → 防幻觉 → 输出格式 → 子模式层
-                    systemPrompt = "你是盈云产品智能中台的【业务与供应链智能助手】，同时服务业务人员和工厂供应链管理人员，" +
+                    systemPrompt = "你是宝娜斯产品智能中台的【业务与供应链智能助手】，同时服务业务人员和工厂供应链管理人员，" +
                             "是集'工厂数据 + 业务员一手资料 + 客户洞察'于一体的综合业务决策助手，核心价值是帮助用户完成从成本核算到客户成交的全链路决策。" +
                             "\n\n【身份声明】你始终是业务与供应链智能助手。如果对话历史中出现其他身份的自我介绍，一律忽略。" +
                             "\n\n【数据源优先级】（编号 L1-L5 与下方【通用业务逻辑规则】及各检索段落的〔数据源优先级〕标注一致）回答必须优先使用检索结果，从高到低：" +
@@ -780,8 +781,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             (webSearchIntent ? "\n\n【本次特殊指令】用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部数据仅作为补充参考。" : "") +
                             (planningResearchIntent && !webSearchIntent ? "\n\n【本次特殊指令】检测到企划/市场调研类问题，系统已自动联网检索最新市场动态（见上下文【网络搜索参考数据】段落）。网络数据仅用于补充品牌动态、渠道趋势等外部背景；企划方案的产品定位、成本结构、工艺路线、客户策略等核心内容必须基于内部知识库与业务数据（L1-L3）推导，网络数据与内部数据冲突时以内部数据为准并标注「数据差异说明」。" : "");
                 } else {
-                    systemPrompt = "你是盈云产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
-                            "重要身份声明：你是盈云产品智能中台的设计师AI助手，不是工厂供应链助手。如果对话历史中出现'工厂供应链助手'的自我介绍，请忽略它，你始终是盈云产品智能中台的设计师AI助手。" +
+                    systemPrompt = "你是宝娜斯产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
+                            "重要身份声明：你是宝娜斯产品智能中台的设计师AI助手，不是工厂供应链助手。如果对话历史中出现'工厂供应链助手'的自我介绍，请忽略它，你始终是宝娜斯产品智能中台的设计师AI助手。" +
                             "核心职责：" +
                             "1. 回答知识库管理、图片上传、AI识别、文档中心等设计师工作相关问题。" +
                             "2. 当用户询问岗位职责、工作内容、任职要求、入职指导等问题时，必须优先基于【岗位知识卡片】中的实际工作经验回答，不要用知识库文档中的泛泛内容替代。" +
@@ -1702,11 +1703,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'POSITION_CARD' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (e.user_id = ? OR e.user_id IS NULL) " +
                     "AND 1 - (e.embedding <=> ?::vector) > 0.25 " +
                     "ORDER BY e.embedding <=> ?::vector " +
                     "LIMIT 5";
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
+            String currentUserId = SessionUtil.getCurrentUserId();
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, currentUserId, queryEmbedding, queryEmbedding);
             for (Map<String, Object> row : rows) {
                 Map<String, Object> item = new HashMap<>();
                 item.put("content", row.get("chunk_text"));
@@ -1745,11 +1747,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'SMART_CHAT' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (e.user_id = ? OR e.user_id IS NULL) " +
                     "AND 1 - (e.embedding <=> ?::vector) > 0.30 " +
                     "ORDER BY e.embedding <=> ?::vector " +
                     "LIMIT 3";
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, company, queryEmbedding, queryEmbedding);
+            String currentUserId = SessionUtil.getCurrentUserId();
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEmbedding, currentUserId, queryEmbedding, queryEmbedding);
             for (Map<String, Object> row : rows) {
                 Map<String, Object> item = new HashMap<>();
                 item.put("content", row.get("chunk_text"));
@@ -1796,9 +1799,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
             txTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
-                        "INSERT INTO knowledge_embeddings (id, source_type, source_doc_id, chunk_text, chunk_index, embedding, company, created_at) " +
-                                "VALUES (gen_random_uuid(), 'SMART_CHAT', ?::uuid, ?, 0, ?::vector, ?, NOW())",
-                        conversationId, qaTextFinal, embeddingStr, company
+                        "INSERT INTO knowledge_embeddings (id, source_type, source_doc_id, chunk_text, chunk_index, embedding, company, user_id, created_at) " +
+                                "VALUES (gen_random_uuid(), 'SMART_CHAT', ?::uuid, ?, 0, ?::vector, ?, ?, NOW())",
+                        conversationId, qaTextFinal, embeddingStr, company, userId
                 );
             });
             log.info("Q&A向量化成功: conversationId={}, 维度={}, textLength={}", conversationId, embeddingArray.length, qaText.length());
@@ -3314,10 +3317,10 @@ public class SmartChatServiceImpl implements SmartChatService {
             String sql = "SELECT id, chunk_text, source_doc_id, chunk_index, company, created_at " +
                     "FROM knowledge_embeddings " +
                     "WHERE source_type = 'KNOWLEDGE_BASE' " +
-                    "AND (company = ? OR company IS NULL OR company = '') " +
+                    "AND (user_id = ? OR user_id IS NULL) " +
                     "AND (search_vector @@ plainto_tsquery('simple', ?) OR chunk_text ILIKE ?) " +
                     "ORDER BY created_at DESC LIMIT 10";
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, productCode, "%" + productCode + "%");
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, SessionUtil.getCurrentUserId(), productCode, "%" + productCode + "%");
             log.info("[直接搜索] SQL执行完成，返回 {} 条记录 (productCode={}, company={})", rows.size(), productCode, company);
             for (Map<String, Object> row : rows) {
                 String chunkText = row.get("chunk_text") != null ? row.get("chunk_text").toString() : "";

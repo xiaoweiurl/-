@@ -512,7 +512,7 @@ public class AiImageController {
             image.setOriginalName(storedName);
             image.setAlbumName("二创中心");
             image.setUserId(userId);
-            image.setCompany(company != null ? company : "盈云");
+            image.setCompany(company != null ? company : "宝娜斯");
             image.setSource("creative"); // 标记为二创图片
             image.setFavorite(false);
             image.setDeleted(false);

@@ -16,6 +16,11 @@ public interface PositionKnowledgeCardRepository extends JpaRepository<PositionK
 
     Page<PositionKnowledgeCard> findByCompany(String company, Pageable pageable);
 
+    // 按用户隔离查询（系统统一宝娜斯，不再按公司过滤）
+    Page<PositionKnowledgeCard> findByUserId(String userId, Pageable pageable);
+
+    long countByUserId(String userId);
+
     Optional<PositionKnowledgeCard> findByIdAndCompany(String id, String company);
 
     List<PositionKnowledgeCard> findByCompanyAndPositionNameContainingIgnoreCase(String company, String keyword);

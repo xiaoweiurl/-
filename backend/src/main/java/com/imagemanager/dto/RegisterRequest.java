@@ -28,7 +28,7 @@ public class RegisterRequest {
     private String email;
     
     /**
-     * 所属公司（宝娜斯/盈云）
+     * 所属公司（系统统一为宝娜斯，此字段忽略）
      */
     private String company;
 }

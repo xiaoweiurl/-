@@ -869,7 +869,7 @@ export default function Sidebar({
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-[15px] font-semibold text-slate-100 truncate">
-                {brand?.name || '盈云'}
+                {brand?.name || '宝娜斯'}
               </span>
               <span className="text-[11px] text-slate-400 truncate">企业数智中台系统</span>
             </div>
