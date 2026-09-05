@@ -569,35 +569,37 @@ export default function SupplyChainPage() {
     const profitRateColor = stats.avgProfitRate >= 0.3 ? 'text-[#34c759]' : stats.avgProfitRate >= 0.2 ? 'text-[#ff9500]' : 'text-[#ff3b30]';
     return (
       <div className="space-y-6">
-        {/* 统计卡片 */}
+        {/* 统计卡片（iOS 风格：淡色底图标 + 大数字 + hover 上浮） */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: '产品数量', value: stats.productCount, icon: <Package className="w-5 h-5" />, color: 'bg-[#FF9500]', suffix: '款' },
-            { label: '原料种类', value: stats.materialCount, icon: <Warehouse className="w-5 h-5" />, color: 'bg-[#007AFF]', suffix: '种' },
-            { label: '供应商数', value: stats.supplierCount, icon: <ShoppingBag className="w-5 h-5" />, color: 'bg-[#007AFF]', suffix: '家' },
-            { label: '平均利润率', value: (stats.avgProfitRate * 100).toFixed(1), icon: <TrendingUp className="w-5 h-5" />, color: 'bg-[#34C759]', suffix: '%', valueColor: profitRateColor },
+            { label: '产品数量', value: stats.productCount, icon: <Package className="w-5 h-5" />, iconBg: 'bg-[#FF9500]/10', iconColor: 'text-[#FF9500]', suffix: '款' },
+            { label: '原料种类', value: stats.materialCount, icon: <Warehouse className="w-5 h-5" />, iconBg: 'bg-[#007AFF]/10', iconColor: 'text-[#007AFF]', suffix: '种' },
+            { label: '供应商数', value: stats.supplierCount, icon: <ShoppingBag className="w-5 h-5" />, iconBg: 'bg-[#AF52DE]/10', iconColor: 'text-[#AF52DE]', suffix: '家' },
+            { label: '平均利润率', value: (stats.avgProfitRate * 100).toFixed(1), icon: <TrendingUp className="w-5 h-5" />, iconBg: 'bg-[#34C759]/10', iconColor: 'text-[#34C759]', suffix: '%', valueColor: profitRateColor },
           ].map((card, i) => (
-            <div key={i} className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5 hover:shadow-lg hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-all duration-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-[#8e8e93]">{card.label}</span>
-                <div className={`w-9 h-9 rounded-lg ${card.color} flex items-center justify-center text-white`}>
+            <div key={i} className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:-translate-y-[3px] transition-all duration-300">
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center ${card.iconColor}`}>
                   {card.icon}
                 </div>
               </div>
-              <div className={`text-2xl font-bold ${card.valueColor || 'text-[#1c1c1e]'}`}>{card.value}<span className="text-sm font-normal text-[#8e8e93] ml-1">{card.suffix}</span></div>
+              <h3 className={`text-2xl font-bold tabular-nums ${card.valueColor || 'text-[#1C1C1E]'}`}>
+                {card.value}<span className="text-sm font-normal text-[#8E8E93] ml-1">{card.suffix}</span>
+              </h3>
+              <p className="text-sm text-[#8E8E93] mt-1">{card.label}</p>
             </div>
           ))}
         </div>
 
         {/* 产品报价概览 */}
-        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
+        <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-[#ff9500]" />产品报价概览
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[rgba(229,229,234,0.5)]">
+                <tr className="border-b border-[#E5E5EA]">
                   <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">产品编码</th>
                   <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">生产编码</th>
                   <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">客户</th>
@@ -608,7 +610,7 @@ export default function SupplyChainPage() {
               </thead>
               <tbody>
                 {(quotations || []).map((q: any) => (
-                  <tr key={q.id} className="border-b border-[rgba(229,229,234,0.3)] hover:bg-[rgba(0,0,0,0.01)] transition-colors">
+                  <tr key={q.id} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB] transition-colors">
                     <td className="py-3 px-3 font-medium text-[#1c1c1e]">{q.productCode}</td>
                     <td className="py-3 px-3 text-[#8e8e93]">{q.productionCode}</td>
                     <td className="py-3 px-3 text-[#8e8e93]">{q.customer}</td>
@@ -627,13 +629,13 @@ export default function SupplyChainPage() {
         </div>
 
         {/* 供应商最优推荐 */}
-        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
+        <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
             <Zap className="w-5 h-5 text-[#007aff]" />供应商最优推荐
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {(supplierCompares || []).map((sc, i) => (
-              <div key={i} className="border border-[rgba(229,229,234,0.5)] rounded-lg p-4 hover:border-[rgba(0,122,255,0.3)] transition-colors">
+              <div key={i} className="bg-[#F9F9FB] rounded-xl p-4 hover:bg-[rgba(0,122,255,0.06)] transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium text-[#1c1c1e]">{sc.materialCode}</span>
                   <span className="text-xs bg-[rgba(52,199,89,0.15)] text-[#34c759] px-2 py-0.5 rounded-full">节省{(sc.savingRate * 100).toFixed(1)}%</span>
@@ -658,7 +660,7 @@ export default function SupplyChainPage() {
   const renderSmartQuote = () => (
     <div className="space-y-6">
       {/* 参数配置 */}
-      <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
+      <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
         <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
           <Calculator className="w-5 h-5 text-[#ff9500]" />报价参数配置
         </h3>
@@ -666,16 +668,14 @@ export default function SupplyChainPage() {
           <div>
             <label className="block text-sm text-[#8e8e93] mb-1">目标利润率 (%)</label>
             <input type="number" value={targetProfitRate} onChange={e => setTargetProfitRate(Number(e.target.value))}
-              style={{color: '#f8fafc'}}
-              className="w-28 px-3 py-2 border border-[#e5e5ea] rounded-lg text-sm focus:ring-2 focus:ring-[#ff9500] focus:border-[#ff9500] outline-none bg-[rgba(242,242,247,0.5)]" />
+              className="w-28 px-3 py-2 border border-[#e5e5ea] rounded-lg text-sm focus:ring-2 focus:ring-[#007AFF]/30 focus:border-[#007AFF] outline-none bg-[rgba(118,118,128,0.12)]" />
           </div>
           <div>
             <label className="block text-sm text-[#8e8e93] mb-1">加工费 (元/条)</label>
             <input type="number" step="0.01" value={processingCost} onChange={e => setProcessingCost(Number(e.target.value))}
-              style={{color: '#f8fafc'}}
-              className="w-28 px-3 py-2 border border-[#e5e5ea] rounded-lg text-sm focus:ring-2 focus:ring-[#ff9500] focus:border-[#ff9500] outline-none bg-[rgba(242,242,247,0.5)]" />
+              className="w-28 px-3 py-2 border border-[#e5e5ea] rounded-lg text-sm focus:ring-2 focus:ring-[#007AFF]/30 focus:border-[#007AFF] outline-none bg-[rgba(118,118,128,0.12)]" />
           </div>
-          <button onClick={loadAllData} className="px-4 py-2 bg-[#FF9500] text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all">
+          <button onClick={loadAllData} className="px-4 py-2 bg-[#007AFF] text-white rounded-xl text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all">
             <RefreshCw className="w-4 h-4 inline mr-1" />重新计算
           </button>
         </div>
@@ -684,17 +684,17 @@ export default function SupplyChainPage() {
       {/* 逐产品报价卡片 */}
       {(smartQuotes || []).map((sq, idx) => {
         const profitColor = sq.profitRate >= 0.3 ? 'text-[#34c759]' : sq.profitRate >= 0.2 ? 'text-[#ff9500]' : 'text-[#ff3b30]';
-        const profitBg = sq.profitRate >= 0.3 ? 'bg-[rgba(52,199,89,0.1)] border-[rgba(52,199,89,0.3)]' : sq.profitRate >= 0.2 ? 'bg-[rgba(255,149,0,0.1)] border-[rgba(255,149,0,0.3)]' : 'bg-[rgba(255,59,48,0.1)] border-[rgba(255,59,48,0.3)]';
+        const profitBg = sq.profitRate >= 0.3 ? 'bg-[#34C759]/10' : sq.profitRate >= 0.2 ? 'bg-[#FF9500]/10' : 'bg-[#FF3B30]/10';
         return (
-          <div key={idx} className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] overflow-hidden">
-            <div className="bg-[#FF9500] px-5 py-4 border-b border-[rgba(229,229,234,0.5)] flex items-center justify-between">
+          <div key={idx} className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+            <div className="px-5 py-4 border-b border-[#E5E5EA] flex items-center justify-between">
               <div>
                 <h4 className="text-lg font-bold text-[#1c1c1e]">{sq.productCode}
                   <span className="text-sm font-normal text-[#8e8e93] ml-2">({sq.productionCode})</span>
                 </h4>
                 <div className="text-sm text-[#8e8e93] mt-0.5">客户: {sq.customer} | 下机克重: {sq.productWeight || sq.sewingWeight}g | 日产能: {sq.dailyCapacity}条</div>
               </div>
-              <div className={`px-4 py-2 rounded-lg border ${profitBg}`}>
+              <div className={`px-4 py-2 rounded-xl ${profitBg}`}>
                 <div className="text-xs text-[#8e8e93]">利润率</div>
                 <div className={`text-xl font-bold ${profitColor}`}>{(sq.profitRate * 100).toFixed(1)}%</div>
               </div>
@@ -704,7 +704,7 @@ export default function SupplyChainPage() {
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b-2 border-[rgba(229,229,234,0.5)]">
+                    <tr className="border-b border-[#E5E5EA]">
                       <th className="text-left py-2 px-3 text-[#8e8e93] font-semibold">原料名称</th>
                       <th className="text-right py-2 px-3 text-[#8e8e93] font-semibold">用量(g)</th>
                       <th className="text-right py-2 px-3 text-[#8e8e93] font-semibold">单价(元/kg)</th>
@@ -715,7 +715,7 @@ export default function SupplyChainPage() {
                   </thead>
                   <tbody>
                     {((sq.materials || [])).map((m: any, mi: number) => (
-                      <tr key={mi} className="border-b border-[rgba(229,229,234,0.3)] hover:bg-[rgba(0,0,0,0.01)]">
+                      <tr key={mi} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB]">
                         <td className="py-2 px-3 text-[#1c1c1e] font-medium">{m.name}</td>
                         <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">{m.usage}</td>
                         <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">¥{formatMoney(m.unitPrice)}</td>
@@ -725,7 +725,7 @@ export default function SupplyChainPage() {
                       </tr>
                     ))}
                     {/* 辅料行 */}
-                    <tr className="border-b border-[rgba(229,229,234,0.3)] bg-[rgba(0,122,255,0.1)]">
+                    <tr className="border-b border-[#E5E5EA] bg-[rgba(0,122,255,0.1)]">
                       <td className="py-2 px-3 text-[#007aff] font-medium">{sq.accessoryName || '辅料'}</td>
                       <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
                       <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
@@ -733,7 +733,7 @@ export default function SupplyChainPage() {
                       <td className="py-2 px-3 text-[#8e8e93] text-xs">-</td>
                     </tr>
                     {/* 制造部分小计 */}
-                    <tr className="border-b border-[rgba(229,229,234,0.3)] bg-[rgba(0,122,255,0.1)]">
+                    <tr className="border-b border-[#E5E5EA] bg-[rgba(0,122,255,0.1)]">
                       <td className="py-2 px-3 text-[#007aff] font-medium">制造合计(织造+后整理)</td>
                       <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
                       <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
@@ -746,11 +746,11 @@ export default function SupplyChainPage() {
 
               {/* 制造部分明细 - 新公式 */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="bg-[rgba(0,0,0,0.015)] rounded-lg p-2.5 text-center">
+                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
                   <div className="text-xs text-[#8e8e93]">机台费率 R(元/h)</div>
                   <div className="text-sm font-bold text-[#1c1c1e]">{sq.machineHourlyRate || 50}</div>
                 </div>
-                <div className="bg-[rgba(0,0,0,0.015)] rounded-lg p-2.5 text-center">
+                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
                   <div className="text-xs text-[#8e8e93]">单机产量 P(双/h)</div>
                   <div className="text-sm font-bold text-[#1c1c1e]">{sq.singleMachineOutput || 1000}</div>
                 </div>
@@ -758,11 +758,11 @@ export default function SupplyChainPage() {
                   <div className="text-xs text-[#8e8e93]">织造成本 R/P</div>
                   <div className="text-sm font-bold text-[#007aff]">¥{formatMoney(sq.weavingCost)}</div>
                 </div>
-                <div className="bg-[rgba(0,0,0,0.015)] rounded-lg p-2.5 text-center">
+                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
                   <div className="text-xs text-[#8e8e93]">下机克重 M(g)</div>
                   <div className="text-sm font-bold text-[#1c1c1e]">{sq.productWeight || sq.sewingWeight}</div>
                 </div>
-                <div className="bg-[rgba(0,0,0,0.015)] rounded-lg p-2.5 text-center">
+                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
                   <div className="text-xs text-[#8e8e93]">染色单价 D(元/kg)</div>
                   <div className="text-sm font-bold text-[#1c1c1e]">{sq.dyeingUnitPrice || '-'}</div>
                 </div>
@@ -782,7 +782,7 @@ export default function SupplyChainPage() {
 
               {/* 汇总行 */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div className="bg-[rgba(0,0,0,0.015)] rounded-lg p-3 text-center">
+                <div className="bg-[#F9F9FB] rounded-lg p-3 text-center">
                   <div className="text-xs text-[#8e8e93] mb-1">原料成本</div>
                   <div className="text-lg font-bold text-[#1c1c1e]">¥{formatMoneyShort(sq.totalMaterialCost)}</div>
                 </div>
@@ -809,14 +809,14 @@ export default function SupplyChainPage() {
       })}
 
       {/* 供应商对比 */}
-      <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
+      <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
         <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
           <Target className="w-5 h-5 text-[#007aff]" />原料采购供应商对比
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b-2 border-[rgba(229,229,234,0.5)]">
+              <tr className="border-b border-[#E5E5EA]">
                 <th className="text-left py-3 px-3 text-[#8e8e93] font-semibold">原料编码</th>
                 <th className="text-left py-3 px-3 text-[#8e8e93] font-semibold">最优供应商</th>
                 <th className="text-right py-3 px-3 text-[#8e8e93] font-semibold">最低价</th>
@@ -827,7 +827,7 @@ export default function SupplyChainPage() {
             </thead>
             <tbody>
               {(supplierCompares || []).map((sc, i) => (
-                <tr key={i} className="border-b border-[rgba(229,229,234,0.3)] hover:bg-[rgba(0,0,0,0.01)]">
+                <tr key={i} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB]">
                   <td className="py-3 px-3 font-medium text-[#1c1c1e]">{sc.materialCode}</td>
                   <td className="py-3 px-3">
                     <span className="text-[#34c759] font-medium">{sc.bestSupplier}</span>
@@ -948,22 +948,21 @@ export default function SupplyChainPage() {
     const deleteType = activeTab === 'quotation' ? 'quotations' : activeTab === 'warehouse' ? 'warehouse' : activeTab === 'purchase' ? 'purchases' : activeTab === 'plan' ? 'plans' : 'accessories';
 
     return (
-      <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
         {/* 工具栏 */}
-        <div className="px-4 py-3 border-b border-[rgba(229,229,234,0.5)] flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-[#E5E5EA] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" />
               <input type="text" placeholder="搜索..." value={searchKeyword}
                 onChange={e => setSearchKeyword(e.target.value)}
-                style={{color: '#f8fafc'}}
-                className="pl-9 pr-3 py-1.5 text-[13px] border border-[rgba(229,229,234,0.5)] rounded-lg w-52 focus:ring-2 focus:ring-[rgba(255,149,0,0.3)] focus:border-[rgba(255,149,0,0.5)] outline-none bg-[rgba(242,242,247,0.5)] transition-colors placeholder:text-[#8e8e93]" />
+                  className="pl-9 pr-3 py-1.5 text-[13px] border border-[#E5E5EA] rounded-lg w-52 focus:ring-2 focus:ring-[#007AFF]/30 focus:border-[#007AFF] outline-none bg-[rgba(118,118,128,0.12)] transition-colors placeholder:text-[#8e8e93]" />
             </div>
           </div>
           <div className="flex items-center gap-2">
             <input type="file" ref={fileInputRef} onChange={handleImport} accept=".xlsx,.xls" className="hidden" />
             <button onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF9500] text-white text-[13px] font-medium rounded-lg hover:shadow-md transition-all">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#007AFF] text-white text-[13px] font-medium rounded-xl hover:opacity-90 active:scale-[0.97] transition-all">
               <Upload className="w-3.5 h-3.5" />导入Excel
             </button>
           </div>
@@ -972,7 +971,7 @@ export default function SupplyChainPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="bg-[rgba(0,0,0,0.015)] border-b border-[rgba(229,229,234,0.5)]">
+              <tr className="bg-[#F9F9FB] border-b border-[#E5E5EA]">
                 {columns.map(col => (
                   <th key={col.key} className={`py-2.5 px-3 text-[#8e8e93] font-semibold text-[12px] uppercase tracking-wider ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
                     {col.label}
@@ -985,7 +984,7 @@ export default function SupplyChainPage() {
               {(data || []).length === 0 ? (
                 <tr><td colSpan={columns.length + 1} className="py-12 text-center text-[#8e8e93] text-[13px]">暂无数据</td></tr>
               ) : (data || []).map((row: any, ri: number) => (
-                <tr key={row.id || ri} className="border-b border-[rgba(229,229,234,0.3)] hover:bg-[rgba(0,0,0,0.01)] transition-colors">
+                <tr key={row.id || ri} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB] transition-colors">
                   {columns.map((col: any) => (
                     <td key={col.key} className={`py-2.5 px-3 text-[#3a3a3c] ${col.align === 'right' ? 'text-right font-mono text-[12px]' : ''}`}>
                       {col.format ? col.format(row[col.key]) : (row[col.key] ?? '-')}
@@ -1020,7 +1019,7 @@ export default function SupplyChainPage() {
   return (
     <div className="min-h-screen bg-[#F2F2F7]">
       {/* 顶部导航 */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-[rgba(229,229,234,0.5)] sticky top-0 z-50">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-[#E5E5EA] sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
               <button
@@ -1051,7 +1050,7 @@ export default function SupplyChainPage() {
 
       <div className="max-w-[1600px] mx-auto px-4 py-4">
         {/* Tab导航 */}
-        <div className="flex gap-0.5 mb-4 bg-white rounded-xl p-1 border border-[rgba(229,229,234,0.5)] shadow-sm overflow-x-auto">
+        <div className="flex gap-0.5 mb-4 bg-white rounded-2xl p-1 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-x-auto">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all ${
@@ -1072,13 +1071,13 @@ export default function SupplyChainPage() {
         {/* 内容区 */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <RefreshCw className="w-6 h-6 text-[#ff9500] animate-spin mr-2" />
+            <RefreshCw className="w-6 h-6 text-[#007AFF] animate-spin mr-2" />
             <span className="text-[#8e8e93]">加载数据中...</span>
           </div>
         ) : (
           <>
             {activeTab === 'chat' && (
-              <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl border border-[rgba(229,229,234,0.5)] shadow-sm overflow-hidden">
+              <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
                 {/* 聊天消息区 */}
                 <div
                   ref={chatScrollContainerRef}
@@ -1092,8 +1091,8 @@ export default function SupplyChainPage() {
                 >
                   {chatMessages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mb-4 shadow-lg ">
-                        <MessageSquare className="w-8 h-8 text-[#1C1C1E]" />
+                      <div className="w-16 h-16 rounded-2xl bg-[#007AFF] flex items-center justify-center mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+                        <MessageSquare className="w-8 h-8 text-white" />
                       </div>
                       <h2 className="text-xl font-bold text-[#1c1c1e] mb-2">工厂AI助手</h2>
                       <p className="text-sm text-[#8e8e93] mb-6 max-w-md leading-relaxed">基于DeepSeek大模型，专注供应链与工厂业务知识，支持产品报价、原料采购、生产计划等智能问答</p>
@@ -1102,14 +1101,14 @@ export default function SupplyChainPage() {
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-[rgba(0,122,255,0.1)] text-[#007aff] border border-[rgba(0,122,255,0.2)]">原料采购</span>
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-[rgba(52,199,89,0.1)] text-[#34c759] border border-[rgba(52,199,89,0.2)]">生产计划</span>
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-[rgba(0,122,255,0.1)] text-[#007aff] border border-[rgba(0,122,255,0.2)]">联网搜索</span>
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] border border-[rgba(229,229,234,0.5)]">
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] border border-[#E5E5EA]">
                           <Zap className="w-3 h-3 inline-block text-[#ff9500] mr-0.5" />DeepSeek V4 Pro
                         </span>
                       </div>
                       <div className="mt-6 flex flex-col gap-2.5">
                         {['帮我分析原料采购的供应商报价', '最新的涤纶面料市场行情如何', '查询产品SK-H001的成本构成'].map(q => (
                           <button key={q} onClick={() => handleFactoryChat(q)}
-                            className="text-left px-4 py-3 text-sm text-[#3a3a3c] bg-white hover:bg-[rgba(118,118,128,0.16)] rounded-xl transition-all border border-[rgba(229,229,234,0.5)] hover:border-[#e5e5ea] hover:shadow-sm">
+                            className="text-left px-4 py-3 text-sm text-[#3a3a3c] bg-white hover:bg-[#F9F9FB] rounded-xl transition-all shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)]">
                             <span className="text-[#8e8e93] mr-2">→</span>{q}
                           </button>
                         ))}
@@ -1119,8 +1118,8 @@ export default function SupplyChainPage() {
                   {chatMessages.map((msg, idx) => (
                     <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       {msg.role === 'assistant' && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm mt-0.5">
-                          <Bot className="w-4 h-4 text-[#1C1C1E]" />
+                        <div className="shrink-0 w-8 h-8 rounded-lg bg-[#007AFF] flex items-center justify-center shadow-sm mt-0.5">
+                          <Bot className="w-4 h-4 text-white" />
                         </div>
                       )}
                       <div className={`max-w-[80%] group/msg ${msg.role === 'user' ? 'order-first' : ''}`}>
@@ -1149,7 +1148,7 @@ export default function SupplyChainPage() {
 
                         {/* 报价单全量列表(结构化渲染, 零省略) */}
                         {msg.role === 'assistant' && msg.quotationList && msg.quotationList.orders.length > 0 && (
-                          <div className="mb-2.5 rounded-xl border border-[rgba(0,122,255,0.2)] bg-[#007AFF] p-3 shadow-sm">
+                          <div className="mb-2.5 rounded-xl border border-[#007AFF]/20 bg-[#007AFF]/[0.04] p-3">
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-[11px] font-semibold text-[#007aff]">客户「{msg.quotationList.customer}」报价单号全量列表</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(0,122,255,0.2)] text-[#007aff] font-mono">共 {msg.quotationList.total} 个</span>
@@ -1273,8 +1272,8 @@ export default function SupplyChainPage() {
                         </div>
                       </div>
                       {msg.role === 'user' && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm mt-0.5">
-                          <User className="w-4 h-4 text-[#1C1C1E]" />
+                        <div className="shrink-0 w-8 h-8 rounded-lg bg-[#8E8E93] flex items-center justify-center shadow-sm mt-0.5">
+                          <User className="w-4 h-4 text-white" />
                         </div>
                       )}
                     </div>
@@ -1282,9 +1281,9 @@ export default function SupplyChainPage() {
                   <div ref={chatMessagesEndRef} />
                 </div>
                 {/* 输入区 */}
-                <div className="border-t border-[rgba(229,229,234,0.5)] px-4 py-3 bg-white">
+                <div className="border-t border-[#E5E5EA] px-4 py-3 bg-white">
                   {/* 业务智能体切换：点击即切换对应智能体，消息显式携带 subMode */}
-                  <div className="flex items-center gap-1.5 mb-2.5 p-1 rounded-xl bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] w-fit">
+                  <div className="flex items-center gap-1.5 mb-2.5 p-1 rounded-xl bg-[rgba(242,242,247,0.6)] border border-[#E5E5EA] w-fit">
                     {([
                       { key: 'general', label: '通用助手', icon: <Bot className="w-3.5 h-3.5" />, activeCls: 'bg-[rgba(118,118,128,0.12)] text-[#1c1c1e] shadow-sm' },
                       { key: 'planning', label: '商品企划', icon: <Lightbulb className="w-3.5 h-3.5" />, activeCls: 'bg-[#007AFF] text-white shadow-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)]' },
@@ -1358,12 +1357,12 @@ export default function SupplyChainPage() {
                         ? '决策辅助模式：提出待决策的经营议题...'
                         : '输入工厂业务问题...'}
                       rows={1}
-                      className="flex-1 resize-none rounded-xl border border-[rgba(229,229,234,0.5)] bg-[rgba(242,242,247,0.5)] px-4 py-2.5 text-sm text-[#1c1c1e] focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.3)] focus:border-[rgba(0,122,255,0.5)] transition-all placeholder:text-[#8e8e93]"
+                      className="flex-1 resize-none rounded-xl border border-[#E5E5EA] bg-[rgba(118,118,128,0.12)] px-4 py-2.5 text-sm text-[#1c1c1e] focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.3)] focus:border-[rgba(0,122,255,0.5)] transition-all placeholder:text-[#8e8e93]"
                     />
                     <button
                       onClick={() => handleFactoryChat()}
                       disabled={chatLoading || !chatInput.trim()}
-                      className="shrink-0 w-10 h-10 rounded-xl bg-[#007AFF] text-white flex items-center justify-center hover:shadow-lg hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                      className="shrink-0 w-10 h-10 rounded-xl bg-[#007AFF] text-white flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
                     >
                       <Send className="w-4 h-4" />
                     </button>
@@ -1372,7 +1371,7 @@ export default function SupplyChainPage() {
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[rgba(255,149,0,0.1)] text-[#ff9500] border border-[rgba(255,149,0,0.2)]">供应链数据</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[rgba(52,199,89,0.1)] text-[#34c759] border border-[rgba(52,199,89,0.2)]">知识库</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[rgba(0,122,255,0.1)] text-[#007aff] border border-[rgba(0,122,255,0.2)]">联网搜索</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] border border-[rgba(229,229,234,0.5)]">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] border border-[#E5E5EA]">
                       <Zap className="w-2.5 h-2.5 inline-block text-[#ff9500] mr-0.5" />DeepSeek V4 Pro
                     </span>
                   </div>

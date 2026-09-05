@@ -64,9 +64,9 @@ function formatQty(v: number | null): string {
 
 /** 执行状态徽章样式 */
 function zxtateBadge(text: string): string {
-  if (text === '已复审') return 'bg-[rgba(52,199,89,0.1)] text-[#34c759] border-[rgba(52,199,89,0.25)]';
-  if (text === '已经终审') return 'bg-[rgba(0,122,255,0.1)] text-[#007aff] border-[rgba(0,122,255,0.25)]';
-  return 'bg-[rgba(0,0,0,0.01)] text-[#8e8e93] border-[rgba(229,229,234,0.25)]';
+  if (text === '已复审') return 'bg-[#34C759]/10 text-[#34C759]';
+  if (text === '已经终审') return 'bg-[#007AFF]/10 text-[#007AFF]';
+  return 'bg-[rgba(118,118,128,0.12)] text-[#8E8E93]';
 }
 
 // ============ 主组件 ============
@@ -147,11 +147,11 @@ export default function HistoryOrdersPage() {
   const totalPages = Math.max(1, Math.ceil(total / size));
 
   const STAT_CARDS = [
-    { label: '已审核订单', value: stats?.totalOrders, icon: ClipboardList, color: 'text-[#007aff]', bg: 'bg-[rgba(0,122,255,0.1)] border-[rgba(0,122,255,0.2)]' },
-    { label: '数量合计', value: stats?.totalQuantity, icon: Package, color: 'text-[#34c759]', bg: 'bg-[rgba(52,199,89,0.1)] border-[rgba(52,199,89,0.2)]', isQty: true },
-    { label: '客户数', value: stats?.customerCount, icon: Users, color: 'text-[#007aff]', bg: 'bg-[rgba(0,122,255,0.1)] border-[rgba(0,122,255,0.2)]' },
-    { label: '已下计划', value: stats?.plannedCount, icon: CheckCircle2, color: 'text-[#ff9500]', bg: 'bg-[rgba(255,149,0,0.1)] border-[rgba(255,149,0,0.2)]' },
-    { label: '本月新增', value: stats?.monthNewCount, icon: TrendingUp, color: 'text-[#007aff]', bg: 'bg-[rgba(0,122,255,0.1)] border-[rgba(0,122,255,0.2)]' },
+    { label: '已审核订单', value: stats?.totalOrders, icon: ClipboardList, iconBg: 'bg-[#007AFF]/10', iconColor: 'text-[#007AFF]' },
+    { label: '数量合计', value: stats?.totalQuantity, icon: Package, iconBg: 'bg-[#34C759]/10', iconColor: 'text-[#34C759]', isQty: true },
+    { label: '客户数', value: stats?.customerCount, icon: Users, iconBg: 'bg-[#AF52DE]/10', iconColor: 'text-[#AF52DE]' },
+    { label: '已下计划', value: stats?.plannedCount, icon: CheckCircle2, iconBg: 'bg-[#FF9500]/10', iconColor: 'text-[#FF9500]' },
+    { label: '本月新增', value: stats?.monthNewCount, icon: TrendingUp, iconBg: 'bg-[#007AFF]/10', iconColor: 'text-[#007AFF]' },
   ];
 
   return (
@@ -170,7 +170,7 @@ export default function HistoryOrdersPage() {
               <span>返回</span>
             </button>
             <span className="text-[#8e8e93]">|</span>
-            <div className="w-8 h-8 rounded-lg bg-[#FF9500] flex items-center justify-center text-white shadow-sm">
+            <div className="w-8 h-8 rounded-xl bg-[#007AFF] flex items-center justify-center text-white shadow-sm">
               <Factory className="w-4 h-4" />
             </div>
             <div>
@@ -182,19 +182,19 @@ export default function HistoryOrdersPage() {
       </header>
 
       <div className="max-w-[1600px] mx-auto px-4 py-4 space-y-4">
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {/* 统计卡片（iOS 风格：淡色底图标 + 大数字 + hover 上浮） */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
           {STAT_CARDS.map(card => (
             <div key={card.label}
-              className={cn_card(card.bg)}>
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-[#8e8e93]">{card.label}</span>
-                <card.icon className={cn_icon(card.color)} />
+              className="bg-white rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:-translate-y-[3px] transition-all duration-300">
+              <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center ${card.iconColor} mb-3`}>
+                <card.icon className="w-[18px] h-[18px]" />
               </div>
-              <div className="mt-2 text-2xl font-bold text-[#1c1c1e] font-mono">
-                {stats === null ? <Loader2 className="w-5 h-5 animate-spin text-[#8e8e93]" />
+              <div className="text-2xl font-bold text-[#1C1C1E] tabular-nums">
+                {stats === null ? <Loader2 className="w-5 h-5 animate-spin text-[#8E8E93]" />
                   : card.isQty ? formatQty(Number(card.value ?? 0)) : String(card.value ?? 0)}
               </div>
+              <p className="text-[12px] text-[#8E8E93] mt-1">{card.label}</p>
             </div>
           ))}
         </div>
@@ -208,18 +208,18 @@ export default function HistoryOrdersPage() {
               onChange={e => setKeywordInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
               placeholder="搜索单号 / 业务单号 / 客户 / 货号 / 业务员"
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(255,149,0,0.5)]"
+              className="w-full h-9 pl-9 pr-3 rounded-xl bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#1C1C1E] placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all"
             />
           </div>
           <select value={zxtate} onChange={e => { setZxtate(e.target.value); setPage(1); }}
-            className="px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)]">
+            className="h-9 px-3 rounded-xl bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#3A3A3C] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all">
             <option value="">执行状态（全部）</option>
             <option value="1">已复审</option>
             <option value="2">已经终审</option>
             <option value="0">未审核</option>
           </select>
           <select value={sfplan} onChange={e => { setSfplan(e.target.value); setPage(1); }}
-            className="px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)]">
+            className="h-9 px-3 rounded-xl bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#3A3A3C] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all">
             <option value="">是否下计划（全部）</option>
             <option value="是">已下计划</option>
             <option value="否">未下计划</option>
@@ -227,21 +227,21 @@ export default function HistoryOrdersPage() {
           <div className="flex items-center gap-1.5 text-[13px] text-[#8e8e93]">
             <CalendarDays className="w-4 h-4" />
             <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-              className="px-2 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)] [color-scheme:light]" />
+              className="h-9 px-2 rounded-xl bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3A3A3C] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all [color-scheme:light]" />
             <span>至</span>
             <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-              className="px-2 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)] [color-scheme:light]" />
+              className="h-9 px-2 rounded-xl bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3A3A3C] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all [color-scheme:light]" />
           </div>
           <button onClick={handleSearch}
-            className="px-4 py-2 rounded-lg bg-[#FF9500] text-white text-[13px] font-medium hover:opacity-90 transition-opacity">
+            className="h-9 px-4 rounded-xl bg-[#007AFF] text-white text-[13px] font-medium hover:opacity-90 active:scale-[0.97] transition-all">
             查询
           </button>
           <button onClick={handleReset}
-            className="px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] text-[13px] hover:bg-[rgba(118,118,128,0.2)] transition-colors">
+            className="h-9 px-3 rounded-xl bg-[rgba(118,118,128,0.12)] text-[#3A3A3C] text-[13px] hover:bg-[rgba(118,118,128,0.2)] active:scale-[0.97] transition-all">
             重置
           </button>
           <button onClick={() => { loadOrders(); loadStats(); }}
-            className="p-2 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.2)] transition-colors" title="刷新">
+            className="h-9 w-9 rounded-xl bg-[rgba(118,118,128,0.12)] text-[#3A3A3C] hover:bg-[rgba(118,118,128,0.2)] active:scale-[0.97] transition-all flex items-center justify-center" title="刷新">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
@@ -250,7 +250,7 @@ export default function HistoryOrdersPage() {
         <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-5 h-5 text-[#ff9500] animate-spin mr-2" />
+              <Loader2 className="w-5 h-5 text-[#007AFF] animate-spin mr-2" />
               <span className="text-[#8e8e93] text-sm">加载中...</span>
             </div>
           ) : orders.length === 0 ? (
@@ -279,7 +279,7 @@ export default function HistoryOrdersPage() {
                 <tbody className="divide-y divide-[#E5E5EA]">
                   {orders.map(o => (
                     <tr key={o.dh} className="hover:bg-[rgba(118,118,128,0.06)] transition-colors">
-                      <td className="px-4 py-3 font-mono text-[rgba(255,149,0,0.9)] whitespace-nowrap">{o.dh}</td>
+                      <td className="px-4 py-3 font-mono text-[#007AFF] whitespace-nowrap">{o.dh}</td>
                       <td className="px-4 py-3 text-[#1c1c1e] whitespace-nowrap">{o.spname || '-'}</td>
                       <td className="px-4 py-3 text-[#3a3a3c] whitespace-nowrap">{o.khname || '-'}</td>
                       <td className="px-4 py-3 font-mono text-[#3a3a3c] whitespace-nowrap">{o.detailhuohao || '-'}</td>
@@ -287,15 +287,15 @@ export default function HistoryOrdersPage() {
                       <td className="px-4 py-3 text-[#8e8e93] whitespace-nowrap">{formatDate(o.zhdate)}</td>
                       <td className="px-4 py-3 text-[#8e8e93] whitespace-nowrap">{formatDate(o.jhDate)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] border ${zxtateBadge(o.zxtateText)}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${zxtateBadge(o.zxtateText)}`}>
                           {o.zxtateText}
                         </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
                           o.sfplanText === '已下计划'
-                            ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500] border-[rgba(255,149,0,0.25)]'
-                            : 'bg-[rgba(0,0,0,0.01)] text-[#8e8e93] border-[rgba(229,229,234,0.25)]'
+                            ? 'bg-[#FF9500]/10 text-[#FF9500]'
+                            : 'bg-[rgba(118,118,128,0.12)] text-[#8E8E93]'
                         }`}>
                           {o.sfplanText}
                         </span>
@@ -307,7 +307,7 @@ export default function HistoryOrdersPage() {
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <button onClick={() => setDetail(o)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] text-[12px] hover:bg-[rgba(118,118,128,0.2)] hover:text-[#1c1c1e] transition-colors">
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#007AFF]/10 text-[#007AFF] text-[12px] font-medium hover:bg-[#007AFF]/20 transition-colors">
                           <Eye className="w-3.5 h-3.5" />详情
                         </button>
                       </td>
@@ -324,16 +324,16 @@ export default function HistoryOrdersPage() {
               <span>共 {total} 条</span>
               <div className="flex items-center gap-2">
                 <select value={size} onChange={e => { setSize(Number(e.target.value)); setPage(1); }}
-                  className="px-2 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3a3a3c] focus:outline-none">
+                  className="px-2 py-1.5 rounded-xl bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3A3A3C] focus:outline-none">
                   {PAGE_SIZES.map(s => <option key={s} value={s}>{s} 条/页</option>)}
                 </select>
                 <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                  className="p-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] disabled:opacity-40 hover:bg-[rgba(118,118,128,0.2)] transition-colors">
+                  className="p-1.5 rounded-xl bg-[rgba(118,118,128,0.12)] disabled:opacity-40 hover:bg-[rgba(118,118,128,0.2)] transition-colors">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <span className="font-mono">{page} / {totalPages}</span>
                 <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                  className="p-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] disabled:opacity-40 hover:bg-[rgba(118,118,128,0.2)] transition-colors">
+                  className="p-1.5 rounded-xl bg-[rgba(118,118,128,0.12)] disabled:opacity-40 hover:bg-[rgba(118,118,128,0.2)] transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -344,7 +344,7 @@ export default function HistoryOrdersPage() {
 
       {/* 详情弹窗 */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
           onClick={() => setDetail(null)}>
           <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-[0_6px_24px_rgba(0,0,0,0.12)]"
             onClick={e => e.stopPropagation()}>
@@ -387,14 +387,6 @@ export default function HistoryOrdersPage() {
       )}
     </div>
   );
-}
-
-// ============ 样式辅助（避免重复类名串） ============
-function cn_card(bg: string): string {
-  return `rounded-2xl p-4 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${bg}`;
-}
-function cn_icon(color: string): string {
-  return `w-4 h-4 ${color}`;
 }
 
 // ============ 详情行组件 ============

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iOS 风格 ERP 系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ios: {
+                            blue: '#007AFF',
+                            green: '#34C759',
+                            orange: '#FF9500',
+                            red: '#FF3B30',
+                            purple: '#AF52DE',
+                            bg: '#F2F2F7',
+                            card: '#FFFFFF',
+                            text: '#1C1C1E',
+                            subtext: '#8E8E93',
+                            border: '#E5E5EA',
+                            group: '#F2F2F7'
+                        }
+                    },
+                    fontFamily: {
+                        ios: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"Segoe UI"', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'ios': '0 2px 12px rgba(0, 0, 0, 0.04)',
+                        'ios-hover': '0 6px 24px rgba(0, 0, 0, 0.08)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .glass-ios {
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                background-color: rgba(255, 255, 255, 0.72);
+            }
+            .card-hover {
+                transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            }
+            .card-hover:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+            }
+            .nav-item-active {
+                background-color: #007AFF;
+                color: white;
+            }
+            .list-separator:not(:last-child) {
+                border-bottom: 1px solid #E5E5EA;
+            }
+        }
+    </style>
+</head>
+<body class="bg-ios-bg font-ios text-ios-text antialiased">
+
+    <!-- 顶部导航栏 -->
+    <header class="glass-ios fixed top-0 left-0 right-0 z-50 border-b border-ios-border">
+        <div class="h-16 px-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-ios-blue flex items-center justify-center text-white">
+                    <i class="fa-solid fa-cube text-lg"></i>
+                </div>
+                <span class="text-lg font-semibold hidden md:block">ERP 管理系统</span>
+            </div>
+
+            <!-- 搜索框 -->
+            <div class="relative max-w-md w-full mx-4 hidden sm:block">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-ios-subtext text-sm"></i>
+                <input type="text" placeholder="搜索订单、商品、客户..." 
+                    class="w-full h-9 pl-10 pr-4 bg-ios-group rounded-xl text-sm outline-none focus:ring-2 focus:ring-ios-blue/30 transition">
+            </div>
+
+            <!-- 右侧操作区 -->
+            <div class="flex items-center gap-4">
+                <button class="relative w-9 h-9 rounded-full hover:bg-ios-group flex items-center justify-center transition">
+                    <i class="fa-regular fa-bell text-lg"></i>
+                    <span class="absolute top-1 right-1 w-2 h-2 bg-ios-red rounded-full"></span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-ios-blue to-ios-purple flex items-center justify-center text-white text-sm font-medium">
+                        管
+                    </div>
+                    <span class="text-sm font-medium hidden md:block">管理员</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex">
+        <!-- 侧边导航栏 (桌面端) -->
+        <aside class="glass-ios fixed left-0 top-0 bottom-0 w-64 z-40 border-r border-ios-border pt-16 hidden md:block">
+            <nav class="p-4 space-y-1">
+                <p class="text-xs text-ios-subtext uppercase font-medium px-3 py-2">主菜单</p>
+                
+                <a href="#" class="nav-item-active flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+                    <i class="fa-solid fa-house w-5 text-center"></i>
+                    <span>仪表盘</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-cart-shopping w-5 text-center"></i>
+                    <span>销售管理</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-truck w-5 text-center"></i>
+                    <span>采购管理</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-boxes-stacked w-5 text-center"></i>
+                    <span>库存管理</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-yen-sign w-5 text-center"></i>
+                    <span>财务管理</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-chart-line w-5 text-center"></i>
+                    <span>报表中心</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-users w-5 text-center"></i>
+                    <span>客户管理</span>
+                </a>
+
+                <p class="text-xs text-ios-subtext uppercase font-medium px-3 py-2 mt-6">系统</p>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ios-text hover:bg-ios-group transition">
+                    <i class="fa-solid fa-gear w-5 text-center"></i>
+                    <span>系统设置</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 md:ml-64 pt-16 pb-20 md:pb-6">
+            <div class="p-6 max-w-7xl mx-auto">
+                
+                <!-- 页面标题 -->
+                <div class="mb-6">
+                    <h1 class="text-3xl font-bold">仪表盘</h1>
+                    <p class="text-ios-subtext mt-1">欢迎回来，这是您今日的业务概览</p>
+                </div>
+
+                <!-- 数据统计卡片 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <!-- 总销售额 -->
+                    <div class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="w-10 h-10 rounded-xl bg-ios-blue/10 flex items-center justify-center text-ios-blue">
+                                <i class="fa-solid fa-yen-sign"></i>
+                            </div>
+                            <span class="text-ios-green text-xs font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up text-[10px]"></i> 12.5%
+                            </span>
+                        </div>
+                        <h3 class="text-2xl font-bold">¥ 1,284,560</h3>
+                        <p class="text-ios-subtext text-sm mt-1">本月总销售额</p>
+                    </div>
+
+                    <!-- 订单数量 -->
+                    <div class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="w-10 h-10 rounded-xl bg-ios-green/10 flex items-center justify-center text-ios-green">
+                                <i class="fa-solid fa-file-invoice"></i>
+                            </div>
+                            <span class="text-ios-green text-xs font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up text-[10px]"></i> 8.2%
+                            </span>
+                        </div>
+                        <h3 class="text-2xl font-bold">2,486</h3>
+                        <p class="text-ios-subtext text-sm mt-1">本月订单总数</p>
+                    </div>
+
+                    <!-- 库存总量 -->
+                    <div class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="w-10 h-10 rounded-xl bg-ios-orange/10 flex items-center justify-center text-ios-orange">
+                                <i class="fa-solid fa-boxes-stacked"></i>
+                            </div>
+                            <span class="text-ios-red text-xs font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-down text-[10px]"></i> 2.1%
+                            </span>
+                        </div>
+                        <h3 class="text-2xl font-bold">18,742</h3>
+                        <p class="text-ios-subtext text-sm mt-1">当前库存总量</p>
+                    </div>
+
+                    <!-- 待办事项 -->
+                    <div class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="w-10 h-10 rounded-xl bg-ios-purple/10 flex items-center justify-center text-ios-purple">
+                                <i class="fa-solid fa-list-check"></i>
+                            </div>
+                            <span class="text-ios-orange text-xs font-medium">12 项待办</span>
+                        </div>
+                        <h3 class="text-2xl font-bold">28</h3>
+                        <p class="text-ios-subtext text-sm mt-1">待处理审批</p>
+                    </div>
+                </div>
+
+                <!-- 快捷功能 -->
+                <div class="mb-8">
+                    <h2 class="text-lg font-semibold mb-4">快捷功能</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-ios-blue flex items-center justify-center text-white text-xl">
+                                <i class="fa-solid fa-plus"></i>
+                            </div>
+                            <span class="text-sm font-medium">新建订单</span>
+                        </button>
+                        <button class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-ios-green flex items-center justify-center text-white text-xl">
+                                <i class="fa-solid fa-truck-fast"></i>
+                            </div>
+                            <span class="text-sm font-medium">采购入库</span>
+                        </button>
+                        <button class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-ios-orange flex items-center justify-center text-white text-xl">
+                                <i class="fa-solid fa-clipboard-check"></i>
+                            </div>
+                            <span class="text-sm font-medium">库存盘点</span>
+                        </button>
+                        <button class="bg-ios-card rounded-2xl p-5 shadow-ios card-hover flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-ios-purple flex items-center justify-center text-white text-xl">
+                                <i class="fa-solid fa-file-chart-line"></i>
+                            </div>
+                            <span class="text-sm font-medium">生成报表</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 数据区域：图表 + 最近订单 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 销售趋势图表 -->
+                    <div class="lg:col-span-2 bg-ios-card rounded-2xl p-5 shadow-ios">
+                        <div class="flex items-center justify-between mb-5">
+                            <h2 class="text-lg font-semibold">销售趋势</h2>
+                            <select class="text-sm bg-ios-group rounded-lg px-3 py-1.5 outline-none border-none">
+                                <option>本月</option>
+                                <option>本季度</option>
+                                <option>本年</option>
+                            </select>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 最近订单 -->
+                    <div class="bg-ios-card rounded-2xl p-5 shadow-ios overflow-hidden">
+                        <div class="flex items-center justify-between mb-5">
+                            <h2 class="text-lg font-semibold">最近订单</h2>
+                            <a href="#" class="text-ios-blue text-sm">查看全部</a>
+                        </div>
+                        <div class="space-y-0">
+                            <div class="list-separator py-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium">ORD-202400128</p>
+                                        <p class="text-xs text-ios-subtext mt-0.5">上海XX贸易有限公司</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium">¥ 12,580</p>
+                                        <span class="text-xs text-ios-green bg-ios-green/10 px-2 py-0.5 rounded-full">已完成</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-separator py-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium">ORD-202400127</p>
+                                        <p class="text-xs text-ios-subtext mt-0.5">北京XX科技有限公司</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium">¥ 8,960</p>
+                                        <span class="text-xs text-ios-orange bg-ios-orange/10 px-2 py-0.5 rounded-full">配送中</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-separator py-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium">ORD-202400126</p>
+                                        <p class="text-xs text-ios-subtext mt-0.5">广州XX电子商行</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium">¥ 24,300</p>
+                                        <span class="text-xs text-ios-blue bg-ios-blue/10 px-2 py-0.5 rounded-full">待发货</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-separator py-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium">ORD-202400125</p>
+                                        <p class="text-xs text-ios-subtext mt-0.5">深圳XX实业公司</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium">¥ 6,720</p>
+                                        <span class="text-xs text-ios-red bg-ios-red/10 px-2 py-0.5 rounded-full">已取消</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="py-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium">ORD-202400124</p>
+                                        <p class="text-xs text-ios-subtext mt-0.5">杭州XX商贸公司</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium">¥ 15,890</p>
+                                        <span class="text-xs text-ios-green bg-ios-green/10 px-2 py-0.5 rounded-full">已完成</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- 底部标签栏 (移动端) -->
+    <nav class="glass-ios fixed bottom-0 left-0 right-0 z-50 border-t border-ios-border md:hidden">
+        <div class="flex items-center justify-around h-16">
+            <a href="#" class="flex flex-col items-center gap-1 text-ios-blue">
+                <i class="fa-solid fa-house text-lg"></i>
+                <span class="text-[10px] font-medium">首页</span>
+            </a>
+            <a href="#" class="flex flex-col items-center gap-1 text-ios-subtext">
+                <i class="fa-solid fa-cart-shopping text-lg"></i>
+                <span class="text-[10px] font-medium">销售</span>
+            </a>
+            <a href="#" class="flex flex-col items-center gap-1 text-ios-subtext">
+                <i class="fa-solid fa-boxes-stacked text-lg"></i>
+                <span class="text-[10px] font-medium">库存</span>
+            </a>
+            <a href="#" class="flex flex-col items-center gap-1 text-ios-subtext">
+                <i class="fa-solid fa-chart-line text-lg"></i>
+                <span class="text-[10px] font-medium">报表</span>
+            </a>
+            <a href="#" class="flex flex-col items-center gap-1 text-ios-subtext">
+                <i class="fa-solid fa-user text-lg"></i>
+                <span class="text-[10px] font-medium">我的</span>
+            </a>
+        </div>
+    </nav>
+
+    <script>
+        // 初始化销售趋势图表
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        
+        // 创建渐变填充
+        const gradient = ctx.createLinearGradient(0, 0, 0, 250);
+        gradient.addColorStop(0, 'rgba(0, 122, 255, 0.2)');
+        gradient.addColorStop(1, 'rgba(0, 122, 255, 0)');
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['1日', '5日', '10日', '15日', '20日', '25日', '30日'],
+                datasets: [{
+                    label: '销售额',
+                    data: [65000, 89000, 78000, 112000, 98000, 135000, 128000],
+                    borderColor: '#007AFF',
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#007AFF',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        titleFont: { size: 12 },
+                        bodyFont: { size: 12 },
+                        padding: 10,
+                        cornerRadius: 8,
+                        displayColors: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#8E8E93',
+                            font: { size: 12 }
+                        },
+                        border: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: '#E5E5EA',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#8E8E93',
+                            font: { size: 12 },
+                            callback: function(value) {
+                                return '¥' + (value / 1000) + 'k';
+                            }
+                        },
+                        border: {
+                            display: false
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+
+        // 导航菜单切换
+        const navItems = document.querySelectorAll('aside nav a');
+        navItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                navItems.forEach(nav => nav.classList.remove('nav-item-active'));
+                item.classList.add('nav-item-active');
+            });
+        });
+    </script>
+</body>
+</html>
