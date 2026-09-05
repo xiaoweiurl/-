@@ -526,6 +526,20 @@ export const ROLE_PERMISSIONS = {
 - `GET /api/notifications` - 获取通知列表
 - `PATCH /api/notifications` - 通知操作（标记已读、全部已读、清除）
 
+#### 历史订单（供应链）
+已审核投入生产的销售订单展示，Java 后端（`HistoryOrderController` + `HistoryOrderServiceImpl`：JdbcTemplate 只读查询）+ Next.js 通配代理（`/api/history-orders/[[...path]]` → `/history-orders/*`）：
+
+- `GET /api/history-orders` - 分页列表（固定只查 state='1' 已审核订单）
+  - 参数: `page`, `size`, `keyword`(单号/业务单号/客户/货号/业务员), `zxtate`(0未审核/1已复审/其他终审), `sfplan`(是/否), `dateFrom`, `dateTo`, `sortField`(zhdate/jh_date/sl_sum/dh), `sortOrder`
+  - 品名：LEFT JOIN 内衣工艺单（按货号 DISTINCT ON 去重取 spname）
+  - 业务员空值：返回 `ywynameText` = "（业务员数据未维护）"
+- `GET /api/history-orders/stats` - 统计（已审核订单数/数量合计/客户数/已下计划数/本月新增）
+- `GET /api/history-orders/{dh}` - 订单详情（按单号）
+
+**状态值**（order_xs_list 表注释）：`state`: 0→编辑、1→审核、其他→待审核；`zxtate`(执行状态): 0→未审核、1→已复审、其他→已经终审
+
+**前端页面**：`/supply-chain/history-orders`（统计卡片+筛选+表格+分页+详情弹窗），入口在供应链主页 Tab 导航末尾
+
 #### 商品管理
 - `GET /api/products/main-images` - 获取商品主图列表
 - `GET /api/products/{id}` - 获取商品详情

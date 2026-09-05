@@ -10,7 +10,7 @@ import {
   ChevronDown, Check, AlertCircle, Info, Warehouse,
   ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud,
   ArrowLeft, MessageSquare, Send, Bot, User, X, Copy, CheckCircle, Globe,
-  Lightbulb, ImageIcon, Paperclip, FileText
+  Lightbulb, ImageIcon, Paperclip, FileText, ClipboardList
 } from 'lucide-react';
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -1062,6 +1062,11 @@ export default function SupplyChainPage() {
               {tab.icon}{tab.label}
             </button>
           ))}
+          {/* 历史订单（独立子页面） */}
+          <button onClick={() => router.push('/supply-chain/history-orders')}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 border-l border-slate-700/50 ml-1 pl-3">
+            <ClipboardList className="w-4 h-4" />历史订单
+          </button>
         </div>
 
         {/* 内容区 */}
