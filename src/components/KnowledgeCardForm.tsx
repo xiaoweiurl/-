@@ -65,7 +65,7 @@ function MultiLineInput({ value, onChange, placeholder, rows = 2 }: {
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder || PH}
       rows={rows}
-      className="w-full px-3 py-2 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 bg-slate-800 text-slate-200 placeholder-slate-500 resize-none"
+      className="w-full px-3 py-2 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93] resize-none"
     />
   );
 }
@@ -88,12 +88,12 @@ function NumberedListInput({ value, onChange, placeholder, maxItems = 5 }: {
     <div className="space-y-1.5">
       {items.slice(0, maxItems).map((item, i) => (
         <div key={i} className="flex items-start gap-2">
-          <span className="text-xs text-slate-400 mt-2 w-4 text-right shrink-0">{i + 1}.</span>
+          <span className="text-xs text-[#8e8e93] mt-2 w-4 text-right shrink-0">{i + 1}.</span>
           <input
             value={item}
             onChange={(e) => handleChange(i, e.target.value)}
             placeholder={i === 0 ? (placeholder || PH) : PH}
-            className="flex-1 px-3 py-1.5 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-800 text-slate-200 placeholder:text-slate-400"
+            className="flex-1 px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007aff] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder:text-[#8e8e93]"
           />
         </div>
       ))}
@@ -103,7 +103,7 @@ function NumberedListInput({ value, onChange, placeholder, maxItems = 5 }: {
 
 // 必填标记
 function Required() {
-  return <span className="text-red-400 ml-0.5">*</span>;
+  return <span className="text-[#ff3b30] ml-0.5">*</span>;
 }
 
 // 折叠区块 — 全部必填
@@ -112,16 +112,16 @@ function Section({ title, icon, children, defaultOpen = true }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-slate-700 rounded-xl overflow-hidden">
+    <div className="border border-[#e5e5ea] rounded-xl overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2.5 px-4 py-3 bg-slate-800/80 hover:bg-slate-700/80 transition-colors"
+        className="w-full flex items-center gap-2.5 px-4 py-3 bg-white hover:bg-[rgba(118,118,128,0.08)] transition-colors"
       >
-        <span className="text-indigo-400">{icon}</span>
-        <span className="text-sm font-semibold text-slate-200">{title}</span>
-        <span className="text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded font-medium">必填</span>
-        <span className="ml-auto">{open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}</span>
+        <span className="text-[#007aff]">{icon}</span>
+        <span className="text-sm font-semibold text-[#1c1c1e]">{title}</span>
+        <span className="text-[10px] px-1.5 py-0.5 bg-[rgba(255,59,48,0.2)] text-[#ff3b30] rounded font-medium">必填</span>
+        <span className="ml-auto">{open ? <ChevronUp className="w-4 h-4 text-[#8e8e93]" /> : <ChevronDown className="w-4 h-4 text-[#8e8e93]" />}</span>
       </button>
       {open && <div className="px-4 py-3 space-y-3">{children}</div>}
     </div>
@@ -205,21 +205,21 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-700/50">
+    <div className="fixed inset-0 bg-black/10 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#f2f2f7] rounded-2xl shadow-2xl shadow-black/50 w-full max-w-3xl max-h-[90vh] flex flex-col border border-[rgba(229,229,234,0.5)]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/50 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(229,229,234,0.5)] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <FileText className="w-4.5 h-4.5 text-white" />
+            <div className="w-9 h-9 bg-[#007AFF] rounded-xl flex items-center justify-center">
+              <FileText className="w-4.5 h-4.5 text-[#1C1C1E]" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100">{editCard ? '编辑岗位知识卡片' : '新建岗位知识卡片'}</h2>
-              <p className="text-xs text-slate-400">所有字段均为必填，没有可填"无"</p>
+              <h2 className="text-base font-bold text-[#1c1c1e]">{editCard ? '编辑岗位知识卡片' : '新建岗位知识卡片'}</h2>
+              <p className="text-xs text-[#8e8e93]">所有字段均为必填，没有可填"无"</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-slate-400" />
+          <button onClick={onClose} className="p-1.5 hover:bg-[#ffffff] rounded-lg transition-colors">
+            <X className="w-5 h-5 text-[#8e8e93]" />
           </button>
         </div>
 
@@ -229,52 +229,52 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           <Section title="一、岗位基本信息" icon={<Briefcase className="w-4 h-4" />} defaultOpen>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">岗位名称<Required /></label>
+                <label className="block text-xs font-medium text-[#3a3a3c] mb-1">岗位名称<Required /></label>
                 <input
                   value={card.positionName}
                   onChange={(e) => update('positionName', e.target.value)}
                   placeholder="例如：产品经理"
-                  className="w-full px-3 py-1.5 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 bg-slate-800 text-slate-200 placeholder-slate-500"
+                  className="w-full px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">在岗人员<Required /></label>
+                <label className="block text-xs font-medium text-[#3a3a3c] mb-1">在岗人员<Required /></label>
                 <input
                   value={card.onDutyPerson || ''}
                   onChange={(e) => update('onDutyPerson', e.target.value)}
                   placeholder={PH}
-                  className="w-full px-3 py-1.5 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 bg-slate-800 text-slate-200 placeholder-slate-500"
+                  className="w-full px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">汇报上级<Required /></label>
+                <label className="block text-xs font-medium text-[#3a3a3c] mb-1">汇报上级<Required /></label>
                 <input
                   value={card.reportTo || ''}
                   onChange={(e) => update('reportTo', e.target.value)}
                   placeholder={PH}
-                  className="w-full px-3 py-1.5 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 bg-slate-800 text-slate-200 placeholder-slate-500"
+                  className="w-full px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">所属部门<Required /></label>
+                <label className="block text-xs font-medium text-[#3a3a3c] mb-1">所属部门<Required /></label>
                 <select
                   value={card.department || ''}
                   onChange={(e) => update('department', e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 bg-slate-800 text-slate-200 placeholder-slate-500"
+                  className="w-full px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93]"
                 >
                   <option value="">选择部门</option>
                   {departments.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">所属团队<Required /></label>
+                <label className="block text-xs font-medium text-[#3a3a3c] mb-1">所属团队<Required /></label>
                 <select
                   value={card.team || ''}
                   onChange={(e) => update('team', e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 bg-slate-800 text-slate-200 placeholder-slate-500"
+                  className="w-full px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] focus:border-[#007aff] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93]"
                 >
                   <option value="">选择团队</option>
                   {teams.map(t => <option key={t} value={t}>{t}</option>)}
@@ -283,10 +283,10 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">岗位性质<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1">岗位性质<Required /></label>
               <div className="flex gap-3">
                 {NATURES.map(n => (
-                  <label key={n} className="flex items-center gap-1.5 text-sm text-slate-300 cursor-pointer">
+                  <label key={n} className="flex items-center gap-1.5 text-sm text-[#3a3a3c] cursor-pointer">
                     <input
                       type="radio"
                       name="positionNature"
@@ -305,7 +305,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 二、岗位职责 */}
           <Section title="二、岗位职责" icon={<Target className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">核心职责（不超过5条）<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">核心职责（不超过5条）<Required /></label>
               <NumberedListInput
                 value={card.coreDuties || ''}
                 onChange={(v) => update('coreDuties', v)}
@@ -314,7 +314,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">辅助职责<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">辅助职责<Required /></label>
               <NumberedListInput
                 value={card.auxiliaryDuties || ''}
                 onChange={(v) => update('auxiliaryDuties', v)}
@@ -337,7 +337,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 四、能力要求 */}
           <Section title="四、能力要求" icon={<Users className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">硬技能（工具/技术/资质）<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">硬技能（工具/技术/资质）<Required /></label>
               <NumberedListInput
                 value={card.hardSkills || ''}
                 onChange={(v) => update('hardSkills', v)}
@@ -346,7 +346,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">软技能（沟通/判断/协作）<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">软技能（沟通/判断/协作）<Required /></label>
               <NumberedListInput
                 value={card.softSkills || ''}
                 onChange={(v) => update('softSkills', v)}
@@ -359,7 +359,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 五、协作关系 */}
           <Section title="五、协作关系" icon={<GitBranch className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">上游输入（我需要谁给我什么）<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">上游输入（我需要谁给我什么）<Required /></label>
               <MultiLineInput
                 value={card.upstreamInputs || ''}
                 onChange={(v) => update('upstreamInputs', v)}
@@ -368,7 +368,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">下游输出（我给谁提供什么）<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">下游输出（我给谁提供什么）<Required /></label>
               <MultiLineInput
                 value={card.downstreamOutputs || ''}
                 onChange={(v) => update('downstreamOutputs', v)}
@@ -381,19 +381,19 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 六、当前状态 */}
           <Section title="六、当前状态" icon={<AlertTriangle className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">已完成的主要工作（本季度）<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">已完成的主要工作（本季度）<Required /></label>
               <MultiLineInput value={card.completedWork || ''} onChange={(v) => update('completedWork', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">当前进行中<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">当前进行中<Required /></label>
               <MultiLineInput value={card.inProgress || ''} onChange={(v) => update('inProgress', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">卡点和瓶颈<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">卡点和瓶颈<Required /></label>
               <MultiLineInput value={card.bottlenecks || ''} onChange={(v) => update('bottlenecks', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">需要的支持<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">需要的支持<Required /></label>
               <MultiLineInput value={card.supportNeeded || ''} onChange={(v) => update('supportNeeded', v)} rows={2} />
             </div>
           </Section>
@@ -401,15 +401,15 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
           {/* 七、改进计划 */}
           <Section title="七、改进计划" icon={<TrendingUp className="w-4 h-4" />}>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">本人提升方向<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">本人提升方向<Required /></label>
               <MultiLineInput value={card.improvementDirection || ''} onChange={(v) => update('improvementDirection', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">流程优化建议<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">流程优化建议<Required /></label>
               <MultiLineInput value={card.processOptimization || ''} onChange={(v) => update('processOptimization', v)} rows={2} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">工具/资源需求<Required /></label>
+              <label className="block text-xs font-medium text-[#3a3a3c] mb-1.5">工具/资源需求<Required /></label>
               <MultiLineInput value={card.toolResourceNeeds || ''} onChange={(v) => update('toolResourceNeeds', v)} rows={2} />
             </div>
           </Section>
@@ -426,19 +426,19 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-700 shrink-0 bg-slate-800/50">
-          <p className="text-[10px] text-slate-400">每岗位一卡，季度更新。提交至企业智能中台归档。所有字段必填。</p>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[#e5e5ea] shrink-0 bg-white">
+          <p className="text-[10px] text-[#8e8e93]">每岗位一卡，季度更新。提交至企业智能中台归档。所有字段必填。</p>
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-300 hover:text-slate-100 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 text-sm text-[#3a3a3c] hover:text-[#1c1c1e] border border-[#e5e5ea] rounded-lg hover:bg-[#ffffff] transition-colors"
             >
               取消
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-5 py-2 text-sm bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+              className="px-5 py-2 text-sm bg-[#007AFF] text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? '保存中...' : '保存卡片'}

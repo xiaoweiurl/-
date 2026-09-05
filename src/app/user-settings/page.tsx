@@ -295,14 +295,14 @@ export default function UserManagementPage() {
   const getRoleBadge = (role: string) => {
     if (role === 'admin') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-[rgba(0,122,255,0.1)] text-[#007aff]">
           <Shield className="w-3 h-3" />
           管理员
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-[rgba(118,118,128,0.08)] text-[#8e8e93]">
         <UserCircle className="w-3 h-3" />
         普通用户
       </span>
@@ -312,9 +312,9 @@ export default function UserManagementPage() {
   // 获取会员显示
   const getMembershipBadge = (membership: string) => {
     const styles: Record<string, string> = {
-      premium: 'bg-gradient-to-r from-amber-400 to-orange-500 text-white',
-      pro: 'bg-gradient-to-r from-blue-400 to-indigo-500 text-white',
-      free: 'bg-slate-700/60 text-slate-300',
+      premium: 'bg-[#FF9500] text-white',
+      pro: 'bg-[#007AFF] text-white',
+      free: 'bg-[rgba(0,0,0,0.03)] text-[#3a3a3c]',
     };
     const labels: Record<string, string> = {
       premium: '高级会员',
@@ -330,18 +330,18 @@ export default function UserManagementPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-white">
       <Toaster position="top-center" richColors closeButton />
 
       {/* 权限拦截 */}
       {accessDenied && (
         <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-          <Shield className="w-16 h-16 text-blue-400/40" />
-          <h2 className="text-xl font-semibold text-slate-300">无访问权限</h2>
-          <p className="text-slate-500">仅管理员可访问此页面</p>
+          <Shield className="w-16 h-16 text-[rgba(0,122,255,0.4)]" />
+          <h2 className="text-xl font-semibold text-[#3a3a3c]">无访问权限</h2>
+          <p className="text-[#8e8e93]">仅管理员可访问此页面</p>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg hover:from-blue-700 hover:to-cyan-600 transition-colors"
+            className="px-4 py-2 bg-[#007AFF] text-white rounded-lg transition-colors"
           >
             返回首页
           </button>
@@ -351,24 +351,24 @@ export default function UserManagementPage() {
       <>
 
       {/* 顶部导航 */}
-      <header className="bg-[#1e293b]/80 backdrop-blur-xl border-b border-blue-500/15 sticky top-0 z-40">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-[rgba(0,122,255,0.15)] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => router.push('/')}
-              className="text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 shrink-0"
+              className="text-[#8e8e93] hover:text-[#1c1c1e] transition-colors flex items-center gap-1 shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">返回</span>
             </button>
-            <h1 className="text-lg sm:text-xl font-semibold text-slate-100 truncate">用户管理</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-[#1c1c1e] truncate">用户管理</h1>
           </div>
           <Button
             onClick={() => {
               setFormData(initialFormData);
               setShowAddModal(true);
             }}
-            className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 shrink-0"
+            className="gap-2 bg-[#007AFF] shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">新增用户</span>
@@ -381,12 +381,12 @@ export default function UserManagementPage() {
         {/* 搜索栏 */}
         <div className="mb-6">
           <div className="relative max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8e8e93]" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜索用户名、邮箱或昵称..."
-              className="pl-11 bg-[#1e293b] border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+              className="pl-11 bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
             />
           </div>
         </div>
@@ -394,36 +394,36 @@ export default function UserManagementPage() {
         {/* 用户列表 */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            <Loader2 className="w-8 h-8 text-[#007aff] animate-spin" />
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-4">
-              <User className="w-10 h-10 text-slate-600" />
+            <div className="w-20 h-20 rounded-full bg-[#ffffff] flex items-center justify-center mb-4">
+              <User className="w-10 h-10 text-[#8e8e93]" />
             </div>
-            <h3 className="text-lg font-medium text-slate-300 mb-2">暂无用户</h3>
-            <p className="text-sm text-slate-500">点击上方"新增用户"添加第一个用户</p>
+            <h3 className="text-lg font-medium text-[#3a3a3c] mb-2">暂无用户</h3>
+            <p className="text-sm text-[#8e8e93]">点击上方"新增用户"添加第一个用户</p>
           </div>
         ) : (
-          <div className="bg-[#1e293b] rounded-xl border border-blue-500/15 overflow-hidden shadow-[0_0_15px_rgba(59,130,246,0.08)]">
+          <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
             <div className="overflow-x-auto -mx-px">
               <table className="w-full min-w-[640px]">
-              <thead className="bg-slate-800/60 border-b border-blue-500/15">
+              <thead className="bg-white border-b border-[rgba(0,122,255,0.15)]">
                 <tr>
-                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-slate-400">用户</th>
-                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-slate-400">联系信息</th>
-                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-slate-400">角色</th>
-                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-slate-400">会员</th>
-                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-slate-400 hidden sm:table-cell">注册时间</th>
-                  <th className="px-4 sm:px-6 py-4 text-right text-sm font-medium text-slate-400">操作</th>
+                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-[#8e8e93]">用户</th>
+                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-[#8e8e93]">联系信息</th>
+                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-[#8e8e93]">角色</th>
+                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-[#8e8e93]">会员</th>
+                  <th className="px-4 sm:px-6 py-4 text-left text-sm font-medium text-[#8e8e93] hidden sm:table-cell">注册时间</th>
+                  <th className="px-4 sm:px-6 py-4 text-right text-sm font-medium text-[#8e8e93]">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-blue-500/10">
+              <tbody className="divide-y divide-[rgba(0,122,255,0.1)]">
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={user.id} className="hover:bg-white transition-colors">
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-medium overflow-hidden shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#007AFF] flex items-center justify-center text-white font-medium overflow-hidden shrink-0">
                           {user.avatar ? (
                             <Image
                               src={user.avatar}
@@ -437,20 +437,20 @@ export default function UserManagementPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-200 truncate">{user.nickname || user.username}</p>
-                          <p className="text-xs text-slate-500 truncate">@{user.username}</p>
+                          <p className="font-medium text-[#1c1c1e] truncate">{user.nickname || user.username}</p>
+                          <p className="text-xs text-[#8e8e93] truncate">@{user.username}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-sm text-slate-400">
-                          <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-sm text-[#8e8e93]">
+                          <Mail className="w-3.5 h-3.5 text-[#8e8e93] shrink-0" />
                           <span className="truncate">{user.email}</span>
                         </div>
                         {user.phone && (
-                          <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                            <Phone className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                          <div className="flex items-center gap-1.5 text-sm text-[#8e8e93]">
+                            <Phone className="w-3.5 h-3.5 text-[#8e8e93] shrink-0" />
                             <span className="truncate">{user.phone}</span>
                           </div>
                         )}
@@ -459,20 +459,20 @@ export default function UserManagementPage() {
                     <td className="px-4 sm:px-6 py-4">{getRoleBadge(user.role)}</td>
                     <td className="px-4 sm:px-6 py-4">{getMembershipBadge(user.membership)}</td>
                     <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
-                      <div className="flex items-center gap-1.5 text-sm text-slate-400">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                      <div className="flex items-center gap-1.5 text-sm text-[#8e8e93]">
+                        <Calendar className="w-3.5 h-3.5 text-[#8e8e93]" />
                         {new Date(user.createdAt).toLocaleDateString('zh-CN')}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="p-2 hover:bg-slate-700/60 rounded-lg transition-colors">
-                            <MoreVertical className="w-4 h-4 text-slate-400" />
+                          <button className="p-2 hover:bg-[rgba(118,118,128,0.16)] rounded-lg transition-colors">
+                            <MoreVertical className="w-4 h-4 text-[#8e8e93]" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40 bg-[#1e293b] border-blue-500/15">
-                          <DropdownMenuItem onClick={() => openEditModal(user)} className="gap-2 text-slate-200 focus:bg-slate-700/60 focus:text-slate-100">
+                        <DropdownMenuContent align="end" className="w-40 bg-white border-[rgba(0,122,255,0.15)]">
+                          <DropdownMenuItem onClick={() => openEditModal(user)} className="gap-2 text-[#1c1c1e] focus:bg-[rgba(0,0,0,0.03)] focus:text-[#1c1c1e]">
                             <Pencil className="w-4 h-4" />
                             编辑用户
                           </DropdownMenuItem>
@@ -481,7 +481,7 @@ export default function UserManagementPage() {
                               setSelectedUser(user);
                               setShowResetPasswordModal(true);
                             }}
-                            className="gap-2 text-slate-200 focus:bg-slate-700/60 focus:text-slate-100"
+                            className="gap-2 text-[#1c1c1e] focus:bg-[rgba(0,0,0,0.03)] focus:text-[#1c1c1e]"
                           >
                             <KeyRound className="w-4 h-4" />
                             重置密码
@@ -491,7 +491,7 @@ export default function UserManagementPage() {
                               setSelectedUser(user);
                               setShowDeleteConfirm(true);
                             }}
-                            className="gap-2 text-red-400 focus:text-red-300 focus:bg-red-900/20"
+                            className="gap-2 text-[#ff3b30] focus:text-[#ff3b30] focus:bg-[rgba(255,59,48,0.2)]"
                           >
                             <Trash2 className="w-4 h-4" />
                             删除用户
@@ -510,89 +510,89 @@ export default function UserManagementPage() {
 
       {/* 新增用户模态框 */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1e293b] rounded-xl border border-blue-500/15 shadow-[0_0_30px_rgba(59,130,246,0.1)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-semibold text-slate-100 mb-6">新增用户</h2>
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold text-[#1c1c1e] mb-6">新增用户</h2>
             
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    用户名 <span className="text-red-400">*</span>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">
+                    用户名 <span className="text-[#ff3b30]">*</span>
                   </label>
                   <Input
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="请输入用户名"
-                    className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                    className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    邮箱 <span className="text-red-400">*</span>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">
+                    邮箱 <span className="text-[#ff3b30]">*</span>
                   </label>
                   <Input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="请输入邮箱"
-                    className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                    className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                   />
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  密码 <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-[#3a3a3c] mb-2">
+                  密码 <span className="text-[#ff3b30]">*</span>
                 </label>
                 <Input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="请输入密码（至少6位）"
-                  className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                  className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">昵称</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">昵称</label>
                   <Input
                     value={formData.nickname}
                     onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
                     placeholder="请输入昵称"
-                    className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                    className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">手机号</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">手机号</label>
                   <Input
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="请输入手机号"
-                    className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                    className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                   />
                 </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">角色</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">角色</label>
                   <select
                     value={formData.role || ''}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,122,255,0.15)] bg-white text-[#1c1c1e] focus:border-[rgba(0,122,255,0.4)] focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] outline-none"
                   >
                     <option value="user">普通用户</option>
                     <option value="admin">管理员</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">会员类型</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">会员类型</label>
                   <select
                     value={formData.membership || ''}
                     onChange={(e) => setFormData({ ...formData, membership: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,122,255,0.15)] bg-white text-[#1c1c1e] focus:border-[rgba(0,122,255,0.4)] focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] outline-none"
                   >
                     <option value="free">免费用户</option>
                     <option value="pro">专业会员</option>
@@ -602,13 +602,13 @@ export default function UserManagementPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  所属公司 <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-[#3a3a3c] mb-2">
+                  所属公司 <span className="text-[#ff3b30]">*</span>
                 </label>
                 <select
                   value={formData.company || ''}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,122,255,0.15)] bg-white text-[#1c1c1e] focus:border-[rgba(0,122,255,0.4)] focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] outline-none"
                 >
                   <option value="">请选择公司</option>
                   <option value="宝娜斯集团">宝娜斯集团</option>
@@ -616,14 +616,14 @@ export default function UserManagementPage() {
               </div>
             </div>
             
-            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-blue-500/10">
-              <Button variant="outline" onClick={() => setShowAddModal(false)} className="border-slate-600 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-[rgba(0,122,255,0.1)]">
+              <Button variant="outline" onClick={() => setShowAddModal(false)} className="border-[#e5e5ea] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.16)] hover:text-[#1c1c1e]">
                 取消
               </Button>
               <Button
                 onClick={handleCreateUser}
                 disabled={isSaving}
-                className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-500"
+                className="gap-2 bg-[#007AFF] text-white"
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 创建用户
@@ -635,64 +635,64 @@ export default function UserManagementPage() {
 
       {/* 编辑用户模态框 */}
       {showEditModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1e293b] rounded-xl border border-blue-500/15 shadow-[0_0_30px_rgba(59,130,246,0.1)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-semibold text-slate-100 mb-6">编辑用户</h2>
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold text-[#1c1c1e] mb-6">编辑用户</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">用户名</label>
-                <Input value={formData.username} disabled className="bg-slate-800/40 border-blue-500/10 text-slate-400" />
-                <p className="text-xs text-slate-500 mt-1">用户名不可修改</p>
+                <label className="block text-sm font-medium text-[#3a3a3c] mb-2">用户名</label>
+                <Input value={formData.username} disabled className="bg-white border-[rgba(0,122,255,0.1)] text-[#8e8e93]" />
+                <p className="text-xs text-[#8e8e93] mt-1">用户名不可修改</p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">邮箱</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">邮箱</label>
                   <Input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                    className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">昵称</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">昵称</label>
                   <Input
                     value={formData.nickname}
                     onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
-                    className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                    className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                   />
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">手机号</label>
+                <label className="block text-sm font-medium text-[#3a3a3c] mb-2">手机号</label>
                 <Input
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+                  className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">角色</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">角色</label>
                   <select
                     value={formData.role || ''}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,122,255,0.15)] bg-white text-[#1c1c1e] focus:border-[rgba(0,122,255,0.4)] focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] outline-none"
                   >
                     <option value="user">普通用户</option>
                     <option value="admin">管理员</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">会员类型</label>
+                  <label className="block text-sm font-medium text-[#3a3a3c] mb-2">会员类型</label>
                   <select
                     value={formData.membership || ''}
                     onChange={(e) => setFormData({ ...formData, membership: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-blue-500/15 bg-slate-800/60 text-slate-200 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,122,255,0.15)] bg-white text-[#1c1c1e] focus:border-[rgba(0,122,255,0.4)] focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] outline-none"
                   >
                     <option value="free">免费用户</option>
                     <option value="pro">专业会员</option>
@@ -702,14 +702,14 @@ export default function UserManagementPage() {
               </div>
             </div>
             
-            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-blue-500/10">
-              <Button variant="outline" onClick={() => setShowEditModal(false)} className="border-slate-600 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-[rgba(0,122,255,0.1)]">
+              <Button variant="outline" onClick={() => setShowEditModal(false)} className="border-[#e5e5ea] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.16)] hover:text-[#1c1c1e]">
                 取消
               </Button>
               <Button
                 onClick={handleUpdateUser}
                 disabled={isSaving}
-                className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-500"
+                className="gap-2 bg-[#007AFF] text-white"
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 保存修改
@@ -721,14 +721,14 @@ export default function UserManagementPage() {
 
       {/* 删除确认 */}
       {showDeleteConfirm && selectedUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1e293b] rounded-xl border border-blue-500/15 shadow-[0_0_30px_rgba(59,130,246,0.1)] w-full max-w-md p-6">
-            <h2 className="text-xl font-semibold text-slate-100 mb-4">确认删除</h2>
-            <p className="text-slate-300 mb-6">
-              确定要删除用户 <span className="font-medium text-slate-100">"{selectedUser.nickname || selectedUser.username}"</span> 吗？此操作不可恢复。
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full max-w-md p-6">
+            <h2 className="text-xl font-semibold text-[#1c1c1e] mb-4">确认删除</h2>
+            <p className="text-[#3a3a3c] mb-6">
+              确定要删除用户 <span className="font-medium text-[#1c1c1e]">"{selectedUser.nickname || selectedUser.username}"</span> 吗？此操作不可恢复。
             </p>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="border-slate-600 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="border-[#e5e5ea] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.16)] hover:text-[#1c1c1e]">
                 取消
               </Button>
               <Button
@@ -747,27 +747,27 @@ export default function UserManagementPage() {
 
       {/* 重置密码模态框 */}
       {showResetPasswordModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1e293b] rounded-xl border border-blue-500/15 shadow-[0_0_30px_rgba(59,130,246,0.1)] w-full max-w-md p-6">
-            <h2 className="text-xl font-semibold text-slate-100 mb-4">重置密码</h2>
-            <p className="text-slate-300 mb-4">
-              为用户 <span className="font-medium text-slate-100">"{selectedUser.nickname || selectedUser.username}"</span> 设置新密码
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full max-w-md p-6">
+            <h2 className="text-xl font-semibold text-[#1c1c1e] mb-4">重置密码</h2>
+            <p className="text-[#3a3a3c] mb-4">
+              为用户 <span className="font-medium text-[#1c1c1e]">"{selectedUser.nickname || selectedUser.username}"</span> 设置新密码
             </p>
             <Input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="请输入新密码（至少6位）"
-              className="bg-slate-800/60 border-blue-500/15 text-slate-200 placeholder:text-slate-500 focus:border-blue-500/40"
+              className="bg-white border-[rgba(0,122,255,0.15)] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:border-[rgba(0,122,255,0.4)]"
             />
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={() => setShowResetPasswordModal(false)} className="border-slate-600 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+              <Button variant="outline" onClick={() => setShowResetPasswordModal(false)} className="border-[#e5e5ea] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.16)] hover:text-[#1c1c1e]">
                 取消
               </Button>
               <Button
                 onClick={handleResetPassword}
                 disabled={isSaving || newPassword.length < 6}
-                className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-500"
+                className="gap-2 bg-[#007AFF] text-white"
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 确认重置

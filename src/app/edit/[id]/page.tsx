@@ -17,8 +17,8 @@ const TuiImageEditor = dynamic(
     loading: () => (
       <div className="flex items-center justify-center h-full bg-white">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-10 h-10 animate-spin text-violet-600" />
-          <span className="text-gray-500">加载编辑器...</span>
+          <Loader2 className="w-10 h-10 animate-spin text-[#007aff]" />
+          <span className="text-[#8e8e93]">加载编辑器...</span>
         </div>
       </div>
     )
@@ -174,15 +174,15 @@ export default function EditPage() {
   // 错误状态
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center px-4">
-          <AlertCircle className="w-16 h-16 text-red-500" />
-          <h2 className="text-xl font-semibold text-white">加载失败</h2>
-          <p className="text-slate-400 max-w-md">{error}</p>
+          <AlertCircle className="w-16 h-16 text-[#ff3b30]" />
+          <h2 className="text-xl font-semibold text-[#1C1C1E]">加载失败</h2>
+          <p className="text-[#8e8e93] max-w-md">{error}</p>
           <Button
             onClick={handleClose}
             variant="outline"
-            className="mt-4 border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="mt-4 border-[#e5e5ea] text-[#3a3a3c] hover:bg-[#ffffff]"
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
             返回
@@ -195,10 +195,10 @@ export default function EditPage() {
   // 加载状态
   if (isLoading || !image) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-10 h-10 animate-spin text-violet-600" />
-          <span className="text-slate-400">加载图片...</span>
+          <Loader2 className="w-10 h-10 animate-spin text-[#007aff]" />
+          <span className="text-[#8e8e93]">加载图片...</span>
         </div>
       </div>
     );
@@ -230,21 +230,21 @@ export default function EditPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900">
+    <div className="h-screen flex flex-col bg-[#f2f2f7]">
       {/* 顶部导航栏 */}
-      <div className="h-12 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 shrink-0 z-20">
+      <div className="h-12 bg-[#f2f2f7] border-b border-[#e5e5ea] flex items-center justify-between px-4 shrink-0 z-20">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleClose}
-            className="text-slate-300 hover:text-white hover:bg-slate-800"
+            className="text-[#3a3a3c] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
           >
             <ChevronLeft className="w-4 h-4 mr-1" />
             返回
           </Button>
-          <span className="text-slate-600">|</span>
-          <span className="text-white font-medium truncate max-w-[300px]">
+          <span className="text-[#8e8e93]">|</span>
+          <span className="text-[#1C1C1E] font-medium truncate max-w-[300px]">
             {image.title}
           </span>
         </div>
@@ -256,7 +256,7 @@ export default function EditPage() {
             size="sm"
             onClick={handleRemoveWatermark}
             disabled={isRemovingWatermark}
-            className="text-violet-300 hover:text-white hover:bg-violet-800/50"
+            className="text-[#007aff] hover:text-white hover:bg-[rgba(0,122,255,0.5)]"
             title="AI 一键去水印"
           >
             {isRemovingWatermark ? (
@@ -267,14 +267,14 @@ export default function EditPage() {
             AI去水印
           </Button>
           
-          <span className="text-slate-700">|</span>
+          <span className="text-[#8e8e93]">|</span>
           */}
           
           <Button
             variant="ghost"
             size="sm"
             onClick={handleUndo}
-            className="text-slate-300 hover:text-white hover:bg-slate-800"
+            className="text-[#3a3a3c] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="撤销"
           >
             <Undo2 className="w-4 h-4" />
@@ -283,7 +283,7 @@ export default function EditPage() {
             variant="ghost"
             size="sm"
             onClick={handleRedo}
-            className="text-slate-300 hover:text-white hover:bg-slate-800"
+            className="text-[#3a3a3c] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="重做"
           >
             <Redo2 className="w-4 h-4" />
@@ -292,7 +292,7 @@ export default function EditPage() {
             variant="ghost"
             size="sm"
             onClick={handleDownload}
-            className="text-slate-300 hover:text-white hover:bg-slate-800"
+            className="text-[#3a3a3c] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="下载"
           >
             <Download className="w-4 h-4" />
@@ -302,10 +302,10 @@ export default function EditPage() {
 
       {/* AI 去水印状态栏 - 暂未实现，前端入口已注释
       {watermarkStatus && (
-        <div className="h-10 bg-violet-900/40 border-b border-violet-700/50 flex items-center justify-center px-4 shrink-0 z-20">
+        <div className="h-10 bg-[rgba(0,122,255,0.4)] border-b border-[rgba(0,122,255,0.5)] flex items-center justify-center px-4 shrink-0 z-20">
           <div className="flex items-center gap-2">
-            {isRemovingWatermark && <Loader2 className="w-4 h-4 animate-spin text-violet-300" />}
-            <span className="text-violet-200 text-sm">{watermarkStatus}</span>
+            {isRemovingWatermark && <Loader2 className="w-4 h-4 animate-spin text-[#007aff]" />}
+            <span className="text-[#007aff] text-sm">{watermarkStatus}</span>
           </div>
         </div>
       )}

@@ -207,36 +207,36 @@ export default function AdvancedSearch({
     <div className={className}>
       {/* 主搜索栏 */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8e8e93]" />
         <Input
           type="text"
           placeholder="输入关键词搜索图片..."
           value={filters.keyword}
           onChange={(e) => onFiltersChange({ ...filters, keyword: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          className="pl-12 pr-24 h-12 bg-white border-slate-200 focus:border-violet-300 focus:ring-violet-500/20 text-base"
+          className="pl-12 pr-24 h-12 bg-white border-[#e5e5ea] focus:border-[#007aff] focus:ring-[rgba(0,122,255,0.2)] text-base"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className="h-7 bg-violet-100 text-violet-700">
+            <Badge variant="secondary" className="h-7 bg-[rgba(0,122,255,0.1)] text-[#007aff]">
               {activeFilterCount}
             </Badge>
           )}
           <Popover open={showHistory} onOpenChange={setShowHistory}>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Clock className="w-4 h-4 text-slate-500" />
+                <Clock className="w-4 h-4 text-[#8e8e93]" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-0" align="end">
-              <div className="p-3 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-medium text-slate-800">搜索历史</h3>
+              <div className="p-3 border-b border-[#e5e5ea] flex items-center justify-between">
+                <h3 className="font-medium text-[#8e8e93]">搜索历史</h3>
                 {searchHistory.length > 0 && (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={clearHistory}
-                    className="h-7 text-xs text-slate-500 hover:text-red-600"
+                    className="h-7 text-xs text-[#8e8e93] hover:text-[#ff3b30]"
                   >
                     清空
                   </Button>
@@ -244,8 +244,8 @@ export default function AdvancedSearch({
               </div>
               {searchHistory.length === 0 ? (
                 <div className="p-8 text-center">
-                  <Clock className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">暂无搜索历史</p>
+                  <Clock className="w-10 h-10 text-[#1c1c1e] mx-auto mb-2" />
+                  <p className="text-sm text-[#8e8e93]">暂无搜索历史</p>
                 </div>
               ) : (
                 <ScrollArea className="max-h-80">
@@ -253,9 +253,9 @@ export default function AdvancedSearch({
                     <button
                       key={index}
                       onClick={() => applyHistory(item)}
-                      className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"
+                      className="w-full text-left p-3 hover:bg-[#f2f2f7] border-b border-[#e5e5ea] last:border-0 transition-colors"
                     >
-                      <p className="text-sm text-slate-700 truncate">{formatHistoryLabel(item)}</p>
+                      <p className="text-sm text-[#8e8e93] truncate">{formatHistoryLabel(item)}</p>
                     </button>
                   ))}
                 </ScrollArea>
@@ -264,7 +264,7 @@ export default function AdvancedSearch({
           </Popover>
           <Button
             onClick={handleSearch}
-            className="h-8 bg-violet-600 hover:bg-violet-700 text-white"
+            className="h-8 bg-[#007aff] hover:bg-[#007aff] text-white"
           >
             搜索
           </Button>
@@ -272,18 +272,18 @@ export default function AdvancedSearch({
       </div>
 
       {/* 高级筛选面板 */}
-      <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+      <div className="mt-4 bg-white rounded-xl border border-[#e5e5ea] p-4 space-y-4">
         {/* 操作栏 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-500" />
-            <span className="font-medium text-slate-700">高级筛选</span>
+            <Filter className="w-4 h-4 text-[#8e8e93]" />
+            <span className="font-medium text-[#8e8e93]">高级筛选</span>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={resetFilters}
-            className="h-8 text-sm text-slate-500 hover:text-slate-700"
+            className="h-8 text-sm text-[#8e8e93] hover:text-[#8e8e93]"
           >
             <X className="w-4 h-4 mr-1" />
             重置
@@ -299,13 +299,13 @@ export default function AdvancedSearch({
             className="w-full flex items-center justify-between py-1"
           >
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">日期范围</span>
+              <Calendar className="w-4 h-4 text-[#8e8e93]" />
+              <span className="text-sm font-medium text-[#8e8e93]">日期范围</span>
             </div>
             {expandedSections.date ? (
-              <ChevronUp className="w-4 h-4 text-slate-400" />
+              <ChevronUp className="w-4 h-4 text-[#8e8e93]" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <ChevronDown className="w-4 h-4 text-[#8e8e93]" />
             )}
           </button>
           {expandedSections.date && (
@@ -325,7 +325,7 @@ export default function AdvancedSearch({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">开始日期</label>
+                  <label className="text-xs text-[#8e8e93] mb-1 block">开始日期</label>
                   <Input
                     type="date"
                     value={filters.dateRange.start ? filters.dateRange.start.toISOString().split('T')[0] : ''}
@@ -340,7 +340,7 @@ export default function AdvancedSearch({
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">结束日期</label>
+                  <label className="text-xs text-[#8e8e93] mb-1 block">结束日期</label>
                   <Input
                     type="date"
                     value={filters.dateRange.end ? filters.dateRange.end.toISOString().split('T')[0] : ''}
@@ -368,8 +368,8 @@ export default function AdvancedSearch({
             className="w-full flex items-center justify-between py-1"
           >
             <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">标签</span>
+              <Tag className="w-4 h-4 text-[#8e8e93]" />
+              <span className="text-sm font-medium text-[#8e8e93]">标签</span>
               {filters.tags.length > 0 && (
                 <Badge variant="secondary" className="h-5 text-xs">
                   {filters.tags.length}
@@ -377,9 +377,9 @@ export default function AdvancedSearch({
               )}
             </div>
             {expandedSections.tags ? (
-              <ChevronUp className="w-4 h-4 text-slate-400" />
+              <ChevronUp className="w-4 h-4 text-[#8e8e93]" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <ChevronDown className="w-4 h-4 text-[#8e8e93]" />
             )}
           </button>
           {expandedSections.tags && availableTags.length > 0 && (
@@ -392,8 +392,8 @@ export default function AdvancedSearch({
                     className={`
                       px-3 py-1.5 rounded-full text-sm transition-all
                       ${filters.tags.includes(tag.name)
-                        ? 'bg-violet-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-[#007aff] text-white'
+                        : 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:bg-[rgba(0,0,0,0.06)]'
                       }
                     `}
                   >
@@ -415,8 +415,8 @@ export default function AdvancedSearch({
             className="w-full flex items-center justify-between py-1"
           >
             <div className="flex items-center gap-2">
-              <Folder className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">相册</span>
+              <Folder className="w-4 h-4 text-[#8e8e93]" />
+              <span className="text-sm font-medium text-[#8e8e93]">相册</span>
               {filters.albums.length > 0 && (
                 <Badge variant="secondary" className="h-5 text-xs">
                   {filters.albums.length}
@@ -424,21 +424,21 @@ export default function AdvancedSearch({
               )}
             </div>
             {expandedSections.albums ? (
-              <ChevronUp className="w-4 h-4 text-slate-400" />
+              <ChevronUp className="w-4 h-4 text-[#8e8e93]" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <ChevronDown className="w-4 h-4 text-[#8e8e93]" />
             )}
           </button>
           {expandedSections.albums && availableAlbums.length > 0 && (
             <div className="mt-3">
               <div className="grid grid-cols-2 gap-2">
                 {availableAlbums.map((album) => (
-                  <label key={album.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
+                  <label key={album.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-[#f2f2f7] cursor-pointer">
                     <Checkbox
                       checked={filters.albums.includes(album.id)}
                       onCheckedChange={() => toggleAlbum(album.id)}
                     />
-                    <span className="text-sm text-slate-700 truncate">{album.name}</span>
+                    <span className="text-sm text-[#8e8e93] truncate">{album.name}</span>
                   </label>
                 ))}
               </div>
@@ -455,8 +455,8 @@ export default function AdvancedSearch({
             className="w-full flex items-center justify-between py-1"
           >
             <div className="flex items-center gap-2">
-              <FileType className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">文件类型</span>
+              <FileType className="w-4 h-4 text-[#8e8e93]" />
+              <span className="text-sm font-medium text-[#8e8e93]">文件类型</span>
               {filters.fileTypes.length > 0 && (
                 <Badge variant="secondary" className="h-5 text-xs">
                   {filters.fileTypes.length}
@@ -464,9 +464,9 @@ export default function AdvancedSearch({
               )}
             </div>
             {expandedSections.fileTypes ? (
-              <ChevronUp className="w-4 h-4 text-slate-400" />
+              <ChevronUp className="w-4 h-4 text-[#8e8e93]" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <ChevronDown className="w-4 h-4 text-[#8e8e93]" />
             )}
           </button>
           {expandedSections.fileTypes && (
@@ -479,8 +479,8 @@ export default function AdvancedSearch({
                     className={`
                       px-3 py-1.5 rounded-lg text-sm transition-all
                       ${filters.fileTypes.includes(type.value)
-                        ? 'bg-violet-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-[#007aff] text-white'
+                        : 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:bg-[rgba(0,0,0,0.06)]'
                       }
                     `}
                   >

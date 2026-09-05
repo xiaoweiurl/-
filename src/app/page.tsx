@@ -1851,10 +1851,10 @@ export default function Home() {
   // 等待客户端挂载完成，避免 hydration 不匹配
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f172a] to-[#0a1628] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-violet-500 animate-spin" />
-          <p className="text-slate-500">加载中...</p>
+          <Loader2 className="w-12 h-12 text-[#007AFF] animate-spin" />
+          <p className="text-[#8E8E93]">加载中...</p>
         </div>
       </div>
     );
@@ -1863,10 +1863,10 @@ export default function Home() {
   // 加载中状态
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f172a] to-[#0a1628] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-violet-500 animate-spin" />
-          <p className="text-slate-500">加载中...</p>
+          <Loader2 className="w-12 h-12 text-[#007AFF] animate-spin" />
+          <p className="text-[#8E8E93]">加载中...</p>
         </div>
       </div>
     );
@@ -1878,7 +1878,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-[#f8f9fc] overflow-hidden">
+    <div className="flex h-screen bg-[#F2F2F7] overflow-hidden">
       {/* Toast 提示 */}
       <Toaster position="top-center" richColors closeButton />
       
@@ -1945,7 +1945,7 @@ export default function Home() {
         />
 
         {/* 主内容 */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50/30 to-white">
+        <main className="flex-1 overflow-y-auto bg-white">
           {/* 文档中心 */}
           {(activeMenuItem === 'documents' || activeMenuItem.startsWith('doc-')) && (
             <DocumentManager 
@@ -1960,7 +1960,7 @@ export default function Home() {
               {/* 标题栏 */}
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-slate-800">
+                  <h1 className="text-2xl font-bold text-[#1C1C1E]">
                     {activeMenuItem === 'all'
                       ? '全部图片'
                       : activeMenuItem === 'my-images'
@@ -1979,7 +1979,7 @@ export default function Home() {
                           : albums.find(a => a.id === activeMenuItem)?.name) || '相册'
                       : '图片'}
                   </h1>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-[#8e8e93]">
                     ({filteredImages.length} 张图片)
                   </div>
                 </div>
@@ -2000,13 +2000,13 @@ export default function Home() {
                       className={cn(
                         "w-4 h-4 rounded border focus:ring cursor-pointer",
                         activeMenuItem === 'trash'
-                          ? "border-red-300 text-red-600 focus:ring-red-500"
-                          : "border-slate-300 text-violet-600 focus:ring-violet-500"
+                          ? "border-[#ff3b30] text-[#ff3b30] focus:ring-[#ff3b30]"
+                          : "border-[#e5e5ea] text-[#007aff] focus:ring-[#007aff]"
                       )}
                     />
                     <span className={cn(
                       "text-sm",
-                      activeMenuItem === 'trash' ? "text-red-600" : "text-slate-600"
+                      activeMenuItem === 'trash' ? "text-[#ff3b30]" : "text-[#8e8e93]"
                     )}>
                       全选
                     </span>
@@ -2077,7 +2077,7 @@ export default function Home() {
                     }
                   }}
                   disabled={currentPage === 1}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[rgba(118,118,128,0.08)] hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]"
                 >
                   上一页
                 </button>
@@ -2104,8 +2104,8 @@ export default function Home() {
                         }}
                         className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                           currentPage === pageNum
-                            ? 'bg-violet-500 text-white'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            ? 'bg-[#007aff] text-white'
+                            : 'bg-[rgba(118,118,128,0.08)] hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]'
                         }`}
                       >
                         {pageNum}
@@ -2123,13 +2123,13 @@ export default function Home() {
                     }
                   }}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[rgba(118,118,128,0.08)] hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]"
                 >
                   下一页
                 </button>
 
                 {/* 分页信息 */}
-                <span className="text-sm text-slate-500 ml-4">
+                <span className="text-sm text-[#8e8e93] ml-4">
                   共 {totalCount} 条，第 {currentPage}/{totalPages} 页
                 </span>
               </div>

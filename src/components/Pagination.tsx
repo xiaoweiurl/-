@@ -69,25 +69,25 @@ export default function Pagination({
   return (
     <div className={cn("flex flex-col sm:flex-row items-center justify-between gap-4", className)}>
       {/* 显示信息 */}
-      <div className="text-sm text-slate-500">
-        显示第 <span className="font-medium text-slate-700">{startItem}</span> - <span className="font-medium text-slate-700">{endItem}</span> 项，共 <span className="font-medium text-slate-700">{totalCount}</span> 项
+      <div className="text-sm text-[#8e8e93]">
+        显示第 <span className="font-medium text-[#8e8e93]">{startItem}</span> - <span className="font-medium text-[#8e8e93]">{endItem}</span> 项，共 <span className="font-medium text-[#8e8e93]">{totalCount}</span> 项
       </div>
 
       <div className="flex items-center gap-4">
         {/* 每页数量选择 */}
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">每页</span>
+            <span className="text-sm text-[#8e8e93]">每页</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
+              className="px-3 py-1.5 text-sm border border-[#e5e5ea] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] focus:border-[#007aff]"
             >
               {pageSizeOptions.map((size) => (
                 <option key={size} value={size}>{size}</option>
               ))}
             </select>
-            <span className="text-sm text-slate-500">条</span>
+            <span className="text-sm text-[#8e8e93]">条</span>
           </div>
         )}
 
@@ -97,7 +97,7 @@ export default function Pagination({
           <button
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="首页"
           >
             <ChevronsLeft className="w-4 h-4" />
@@ -107,7 +107,7 @@ export default function Pagination({
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="上一页"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -117,7 +117,7 @@ export default function Pagination({
           <div className="flex items-center gap-1">
             {getPageNumbers().map((page, index) => (
               page === '...' ? (
-                <span key={`ellipsis-${index}`} className="px-2 text-slate-400">...</span>
+                <span key={`ellipsis-${index}`} className="px-2 text-[#8e8e93]">...</span>
               ) : (
                 <button
                   key={page}
@@ -125,8 +125,8 @@ export default function Pagination({
                   className={cn(
                     "min-w-[36px] h-9 px-3 text-sm font-medium rounded-lg transition-colors",
                     currentPage === page
-                      ? "bg-violet-600 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-[#007aff] text-white"
+                      : "text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
                   )}
                 >
                   {page}
@@ -139,7 +139,7 @@ export default function Pagination({
           <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="下一页"
           >
             <ChevronRight className="w-4 h-4" />
@@ -149,7 +149,7 @@ export default function Pagination({
           <button
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage === totalPages}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="末页"
           >
             <ChevronsRight className="w-4 h-4" />

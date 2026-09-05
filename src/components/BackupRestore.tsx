@@ -208,7 +208,7 @@ export default function BackupRestore() {
               )}
               选择备份文件
             </Button>
-            <span className="text-sm text-gray-500">支持 .json 格式</span>
+            <span className="text-sm text-[#8e8e93]">支持 .json 格式</span>
           </div>
         </div>
 
@@ -216,7 +216,7 @@ export default function BackupRestore() {
         {loading && progress > 0 && (
           <div className="space-y-2">
             <Progress value={progress} />
-            <p className="text-sm text-gray-500 text-center">处理中...</p>
+            <p className="text-sm text-[#8e8e93] text-center">处理中...</p>
           </div>
         )}
 
@@ -224,8 +224,8 @@ export default function BackupRestore() {
           <div
             className={`flex items-center gap-2 p-3 rounded-lg ${
               status === 'success'
-                ? 'bg-green-50 text-green-700'
-                : 'bg-red-50 text-red-700'
+                ? 'bg-[rgba(52,199,89,0.1)] text-[#34c759]'
+                : 'bg-[rgba(255,59,48,0.1)] text-[#ff3b30]'
             }`}
           >
             {status === 'success' ? (
@@ -238,7 +238,7 @@ export default function BackupRestore() {
         )}
 
         {/* 说明 */}
-        <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-600 space-y-2">
+        <div className="p-4 bg-[#f2f2f7] rounded-lg text-sm text-[#8e8e93] space-y-2">
           <p className="font-medium">说明：</p>
           <ul className="list-disc list-inside space-y-1">
             <li>仅数据：备份相册、图片元数据（不含实际文件）</li>

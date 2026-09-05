@@ -59,11 +59,11 @@ export default function ForgotPasswordPage() {
     if (/[0-9]/.test(newPassword)) score++;
     if (/[^A-Za-z0-9]/.test(newPassword)) score++;
     const levels = [
-      { level: 1, label: '弱', color: 'bg-red-500' },
-      { level: 2, label: '一般', color: 'bg-orange-500' },
-      { level: 3, label: '中等', color: 'bg-yellow-500' },
-      { level: 4, label: '良好', color: 'bg-blue-500' },
-      { level: 5, label: '强', color: 'bg-green-500' },
+      { level: 1, label: '弱', color: 'bg-[#ff3b30]' },
+      { level: 2, label: '一般', color: 'bg-[#ff9500]' },
+      { level: 3, label: '中等', color: 'bg-[#ff9500]' },
+      { level: 4, label: '良好', color: 'bg-[#007aff]' },
+      { level: 5, label: '强', color: 'bg-[#34c759]' },
     ];
     return levels[Math.min(score, 5) - 1] || { level: 0, label: '', color: '' };
   }, [newPassword]);
@@ -156,11 +156,11 @@ export default function ForgotPasswordPage() {
       <Toaster position="top-center" richColors closeButton />
 
       {/* 左侧品牌区 */}
-      <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-gradient-to-br from-[#1a1035] via-[#2d1b69] to-[#1a1035]">
+      <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-gradient-to-br from-[#007AFF] via-[#0055D4] to-[#007AFF]">
         <div className="absolute inset-0">
-          <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-violet-600/20 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-15%] left-[-10%] w-[500px] h-[500px] bg-fuchsia-500/15 rounded-full blur-[100px]" />
-          <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-indigo-400/10 rounded-full blur-[80px]" />
+          <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-[rgba(0,122,255,0.2)] rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-15%] left-[-10%] w-[500px] h-[500px] bg-[rgba(175,82,222,0.15)] rounded-full blur-[100px]" />
+          <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-[rgba(0,122,255,0.1)] rounded-full blur-[80px]" />
           <div className="absolute inset-0 opacity-[0.03]" style={{
             backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
             backgroundSize: '80px 80px'
@@ -169,19 +169,19 @@ export default function ForgotPasswordPage() {
 
         <div className="relative z-10 flex flex-col justify-between px-14 xl:px-20 py-12 w-full">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+            <div className="w-10 h-10 rounded-lg bg-[rgba(118,118,128,0.16)] backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg">
               <Shield className="w-5 h-5 text-white" />
             </div>
-            <span className="text-white/60 text-sm font-medium tracking-wider uppercase">Password Recovery</span>
+            <span className="text-white/70 text-sm font-medium tracking-wider uppercase">Password Recovery</span>
           </div>
 
           <div className="max-w-lg">
             <h1 className="text-[3.2rem] xl:text-[3.8rem] font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
               找回
               <br />
-              <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-amber-200 bg-clip-text text-transparent">您的密码</span>
+              <span className="text-white/80">您的密码</span>
             </h1>
-            <p className="text-white/50 text-base leading-relaxed mb-10 max-w-md">
+            <p className="text-white/60 text-base leading-relaxed mb-10 max-w-md">
               通过身份验证重置您的登录密码。请按照步骤完成操作，保障您的账户安全。
             </p>
 
@@ -203,11 +203,11 @@ export default function ForgotPasswordPage() {
                         : 'bg-white/[0.03] border-white/[0.05]'
                     )}>
                       {stepIndex > item.num - 1 ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        <CheckCircle2 className="w-4 h-4 text-[#34c759]" />
                       ) : (
                         <span className={cn(
                           'text-sm font-bold',
-                          isCurrent ? 'text-white/90' : 'text-white/30'
+                          isCurrent ? 'text-white' : 'text-white/30'
                         )}>
                           {item.num}
                         </span>
@@ -216,13 +216,13 @@ export default function ForgotPasswordPage() {
                     <div className="flex-1">
                       <div className={cn(
                         'text-sm font-semibold transition-colors',
-                        isActive ? 'text-white/85' : 'text-white/30'
+                        isActive ? 'text-white/90' : 'text-white/30'
                       )}>
                         {item.label}
                       </div>
                       <div className={cn(
                         'text-xs transition-colors',
-                        isActive ? 'text-white/35' : 'text-white/20'
+                        isActive ? 'text-white/40' : 'text-white/20'
                       )}>
                         {item.desc}
                       </div>
@@ -233,7 +233,7 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
 
-          <div className="text-white/20 text-xs">
+          <div className="text-white/30 text-xs">
             © 2024 企业数智中台系统 · v2.0
           </div>
         </div>
@@ -243,7 +243,7 @@ export default function ForgotPasswordPage() {
       <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe] relative">
         {/* 移动端 Logo */}
         <div className="lg:hidden absolute top-8 left-1/2 -translate-x-1/2">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+          <div className="w-12 h-12 rounded-xl bg-[#007AFF] flex items-center justify-center shadow-lg">
             <Shield className="w-6 h-6 text-white" />
           </div>
         </div>
@@ -253,7 +253,7 @@ export default function ForgotPasswordPage() {
           <button
             type="button"
             onClick={() => router.push('/login')}
-            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-violet-600 transition-colors mb-8"
+            className="flex items-center gap-1.5 text-sm text-[#8e8e93] hover:text-[#007aff] transition-colors mb-8"
           >
             <ArrowLeft className="w-4 h-4" />
             返回登录
@@ -264,24 +264,24 @@ export default function ForgotPasswordPage() {
             <>
               <div className="mb-10">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-bold">1</span>
-                  <h2 className="text-[1.65rem] font-bold text-slate-800 tracking-tight">找回密码</h2>
+                  <span className="w-7 h-7 rounded-full bg-[rgba(0,122,255,0.1)] flex items-center justify-center text-[#007aff] text-xs font-bold">1</span>
+                  <h2 className="text-[1.65rem] font-bold text-[#8e8e93] tracking-tight">找回密码</h2>
                 </div>
-                <p className="text-slate-400 mt-1.5 text-sm">请输入您的用户名，我们将查找您的账号</p>
+                <p className="text-[#8e8e93] mt-1.5 text-sm">请输入您的用户名，我们将查找您的账号</p>
               </div>
 
               <form onSubmit={handleUsernameSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">用户名</label>
+                  <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2">用户名</label>
                   <div className={cn(
                     'relative rounded-xl border transition-all duration-200',
                     focusedField === 'username'
-                      ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)] bg-white shadow-sm'
+                      : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                   )}>
                     <div className={cn(
                       'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                      focusedField === 'username' ? 'text-violet-500' : 'text-slate-400'
+                      focusedField === 'username' ? 'text-[#007aff]' : 'text-[#8e8e93]'
                     )}>
                       <User className="w-[17px] h-[17px]" />
                     </div>
@@ -292,7 +292,7 @@ export default function ForgotPasswordPage() {
                       onFocus={() => setFocusedField('username')}
                       onBlur={() => setFocusedField(null)}
                       placeholder="请输入用户名"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-[#3a3a3c] text-[#8e8e93] text-sm"
                     />
                   </div>
                 </div>
@@ -302,10 +302,7 @@ export default function ForgotPasswordPage() {
                   disabled={isLoading}
                   className={cn(
                     'w-full py-2.5 h-auto text-white font-semibold text-sm rounded-xl',
-                    'bg-gradient-to-r from-violet-600 to-fuchsia-600',
-                    'shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)]',
-                    'hover:shadow-[0_6px_20px_-2px_rgba(124,58,237,0.5)]',
-                    'hover:from-violet-500 hover:to-fuchsia-500',
+                    'bg-[#007AFF] hover:opacity-90',
                     'active:scale-[0.98]',
                     'transition-all duration-200',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
@@ -332,15 +329,15 @@ export default function ForgotPasswordPage() {
             <>
               <div className="mb-10">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-bold">2</span>
-                  <h2 className="text-[1.65rem] font-bold text-slate-800 tracking-tight">身份验证</h2>
+                  <span className="w-7 h-7 rounded-full bg-[rgba(0,122,255,0.1)] flex items-center justify-center text-[#007aff] text-xs font-bold">2</span>
+                  <h2 className="text-[1.65rem] font-bold text-[#8e8e93] tracking-tight">身份验证</h2>
                 </div>
-                <p className="text-slate-400 mt-1.5 text-sm">请验证您的身份信息</p>
+                <p className="text-[#8e8e93] mt-1.5 text-sm">请验证您的身份信息</p>
               </div>
 
               {/* 验证方式选择 */}
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">选择验证方式</label>
+                <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2.5">选择验证方式</label>
                 <div className="grid grid-cols-2 gap-2.5">
                   {userInfo.hasEmail && (
                     <button
@@ -349,8 +346,8 @@ export default function ForgotPasswordPage() {
                       className={cn(
                         'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border transition-all duration-200 text-sm font-medium',
                         verifyType === 'email'
-                          ? 'border-violet-400 bg-violet-50 text-violet-700 ring-[3px] ring-violet-500/10'
-                          : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                          ? 'border-[#007aff] bg-[rgba(0,122,255,0.1)] text-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)]'
+                          : 'border-[#e5e5ea] bg-white text-[#8e8e93] hover:border-[#e5e5ea]'
                       )}
                     >
                       <Mail className="w-4 h-4" />
@@ -364,8 +361,8 @@ export default function ForgotPasswordPage() {
                       className={cn(
                         'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border transition-all duration-200 text-sm font-medium',
                         verifyType === 'phone'
-                          ? 'border-violet-400 bg-violet-50 text-violet-700 ring-[3px] ring-violet-500/10'
-                          : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                          ? 'border-[#007aff] bg-[rgba(0,122,255,0.1)] text-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)]'
+                          : 'border-[#e5e5ea] bg-white text-[#8e8e93] hover:border-[#e5e5ea]'
                       )}
                     >
                       <Phone className="w-4 h-4" />
@@ -377,30 +374,30 @@ export default function ForgotPasswordPage() {
 
               <form onSubmit={handleVerifySubmit} className="space-y-5">
                 {/* 提示信息 */}
-                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-blue-50 border border-blue-100">
-                  <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                  <div className="text-xs text-blue-700 leading-relaxed">
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[rgba(0,122,255,0.1)] border border-[#007aff]">
+                  <AlertCircle className="w-4 h-4 text-[#007aff] mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-[#007aff] leading-relaxed">
                     请输入您账号绑定的{verifyType === 'email' ? '邮箱' : '手机号'}完成验证。
                     <br />
-                    <span className="text-blue-500">
+                    <span className="text-[#007aff]">
                       {verifyType === 'email' ? '邮箱' : '手机号'}：{verifyType === 'email' ? userInfo.maskedEmail : userInfo.maskedPhone}
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2">
                     {verifyType === 'email' ? '邮箱地址' : '手机号码'}
                   </label>
                   <div className={cn(
                     'relative rounded-xl border transition-all duration-200',
                     focusedField === 'verify'
-                      ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)] bg-white shadow-sm'
+                      : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                   )}>
                     <div className={cn(
                       'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                      focusedField === 'verify' ? 'text-violet-500' : 'text-slate-400'
+                      focusedField === 'verify' ? 'text-[#007aff]' : 'text-[#8e8e93]'
                     )}>
                       {verifyType === 'email' ? <Mail className="w-[17px] h-[17px]" /> : <Phone className="w-[17px] h-[17px]" />}
                     </div>
@@ -411,7 +408,7 @@ export default function ForgotPasswordPage() {
                       onFocus={() => setFocusedField('verify')}
                       onBlur={() => setFocusedField(null)}
                       placeholder={verifyType === 'email' ? '请输入完整邮箱地址' : '请输入完整手机号码'}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-[#3a3a3c] text-[#8e8e93] text-sm"
                     />
                   </div>
                 </div>
@@ -422,8 +419,8 @@ export default function ForgotPasswordPage() {
                     onClick={() => setStep('username')}
                     className={cn(
                       'flex-1 py-2.5 h-auto font-semibold text-sm rounded-xl',
-                      'border border-slate-200 bg-white text-slate-500',
-                      'hover:bg-slate-50 hover:text-slate-700',
+                      'border border-[#e5e5ea] bg-white text-[#8e8e93]',
+                      'hover:bg-[#f2f2f7] hover:text-[#8e8e93]',
                       'transition-all duration-200'
                     )}
                   >
@@ -433,9 +430,7 @@ export default function ForgotPasswordPage() {
                     type="submit"
                     className={cn(
                       'flex-1 py-2.5 h-auto text-white font-semibold text-sm rounded-xl',
-                      'bg-gradient-to-r from-violet-600 to-fuchsia-600',
-                      'shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)]',
-                      'hover:from-violet-500 hover:to-fuchsia-500',
+                      'bg-[#007AFF] hover:opacity-90',
                       'active:scale-[0.98]',
                       'transition-all duration-200'
                     )}
@@ -453,25 +448,25 @@ export default function ForgotPasswordPage() {
             <>
               <div className="mb-10">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-bold">3</span>
-                  <h2 className="text-[1.65rem] font-bold text-slate-800 tracking-tight">设置新密码</h2>
+                  <span className="w-7 h-7 rounded-full bg-[rgba(0,122,255,0.1)] flex items-center justify-center text-[#007aff] text-xs font-bold">3</span>
+                  <h2 className="text-[1.65rem] font-bold text-[#8e8e93] tracking-tight">设置新密码</h2>
                 </div>
-                <p className="text-slate-400 mt-1.5 text-sm">请为您账号 {username} 设置新的登录密码</p>
+                <p className="text-[#8e8e93] mt-1.5 text-sm">请为您账号 {username} 设置新的登录密码</p>
               </div>
 
               <form onSubmit={handleResetSubmit} className="space-y-5">
                 {/* 新密码 */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">新密码</label>
+                  <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2">新密码</label>
                   <div className={cn(
                     'relative rounded-xl border transition-all duration-200',
                     focusedField === 'newPassword'
-                      ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)] bg-white shadow-sm'
+                      : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                   )}>
                     <div className={cn(
                       'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                      focusedField === 'newPassword' ? 'text-violet-500' : 'text-slate-400'
+                      focusedField === 'newPassword' ? 'text-[#007aff]' : 'text-[#8e8e93]'
                     )}>
                       <Lock className="w-[17px] h-[17px]" />
                     </div>
@@ -482,12 +477,12 @@ export default function ForgotPasswordPage() {
                       onFocus={() => setFocusedField('newPassword')}
                       onBlur={() => setFocusedField(null)}
                       placeholder="请输入新密码（至少6位）"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-[#3a3a3c] text-[#8e8e93] text-sm"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93] transition-colors p-0.5"
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -502,16 +497,16 @@ export default function ForgotPasswordPage() {
                             key={i}
                             className={cn(
                               'h-1 flex-1 rounded-full transition-all duration-200',
-                              passwordStrength.level >= i ? passwordStrength.color : 'bg-slate-100'
+                              passwordStrength.level >= i ? passwordStrength.color : 'bg-[rgba(118,118,128,0.08)]'
                             )}
                           />
                         ))}
                       </div>
                       <span className={cn(
                         'text-xs font-medium',
-                        passwordStrength.level >= 4 ? 'text-green-600' :
-                        passwordStrength.level >= 3 ? 'text-blue-600' :
-                        passwordStrength.level >= 2 ? 'text-orange-500' : 'text-red-500'
+                        passwordStrength.level >= 4 ? 'text-[#34c759]' :
+                        passwordStrength.level >= 3 ? 'text-[#007aff]' :
+                        passwordStrength.level >= 2 ? 'text-[#ff9500]' : 'text-[#ff3b30]'
                       )}>
                         {passwordStrength.label}
                       </span>
@@ -521,18 +516,18 @@ export default function ForgotPasswordPage() {
 
                 {/* 确认密码 */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">确认新密码</label>
+                  <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2">确认新密码</label>
                   <div className={cn(
                     'relative rounded-xl border transition-all duration-200',
                     focusedField === 'confirmPassword'
-                      ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
+                      ? 'border-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)] bg-white shadow-sm'
                       : confirmPassword && confirmPassword === newPassword
-                        ? 'border-green-400 bg-green-50/30'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-[#34c759] bg-[rgba(52,199,89,0.03)]'
+                        : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                   )}>
                     <div className={cn(
                       'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                      focusedField === 'confirmPassword' ? 'text-violet-500' : 'text-slate-400'
+                      focusedField === 'confirmPassword' ? 'text-[#007aff]' : 'text-[#8e8e93]'
                     )}>
                       <Lock className="w-[17px] h-[17px]" />
                     </div>
@@ -543,24 +538,24 @@ export default function ForgotPasswordPage() {
                       onFocus={() => setFocusedField('confirmPassword')}
                       onBlur={() => setFocusedField(null)}
                       placeholder="请再次输入新密码"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-[#3a3a3c] text-[#8e8e93] text-sm"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93] transition-colors p-0.5"
                     >
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                   {confirmPassword && confirmPassword !== newPassword && (
-                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                    <p className="mt-1.5 text-xs text-[#ff3b30] flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />
                       两次输入的密码不一致
                     </p>
                   )}
                   {confirmPassword && confirmPassword === newPassword && (
-                    <p className="mt-1.5 text-xs text-green-600 flex items-center gap-1">
+                    <p className="mt-1.5 text-xs text-[#34c759] flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" />
                       密码一致
                     </p>
@@ -573,8 +568,8 @@ export default function ForgotPasswordPage() {
                     onClick={() => setStep('verify')}
                     className={cn(
                       'flex-1 py-2.5 h-auto font-semibold text-sm rounded-xl',
-                      'border border-slate-200 bg-white text-slate-500',
-                      'hover:bg-slate-50 hover:text-slate-700',
+                      'border border-[#e5e5ea] bg-white text-[#8e8e93]',
+                      'hover:bg-[#f2f2f7] hover:text-[#8e8e93]',
                       'transition-all duration-200'
                     )}
                   >
@@ -585,9 +580,7 @@ export default function ForgotPasswordPage() {
                     disabled={isLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword}
                     className={cn(
                       'flex-1 py-2.5 h-auto text-white font-semibold text-sm rounded-xl',
-                      'bg-gradient-to-r from-violet-600 to-fuchsia-600',
-                      'shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)]',
-                      'hover:from-violet-500 hover:to-fuchsia-500',
+                      'bg-[#007AFF] hover:opacity-90',
                       'active:scale-[0.98]',
                       'transition-all duration-200',
                       'disabled:opacity-50 disabled:cursor-not-allowed'
@@ -610,11 +603,11 @@ export default function ForgotPasswordPage() {
           {/* Step 4: 成功 */}
           {step === 'success' && (
             <div className="text-center py-8">
-              <div className="w-20 h-20 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-6">
-                <CheckCircle2 className="w-10 h-10 text-green-500" />
+              <div className="w-20 h-20 mx-auto rounded-full bg-[rgba(52,199,89,0.1)] flex items-center justify-center mb-6">
+                <CheckCircle2 className="w-10 h-10 text-[#34c759]" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">密码重置成功</h2>
-              <p className="text-slate-400 text-sm mb-8 max-w-xs mx-auto leading-relaxed">
+              <h2 className="text-2xl font-bold text-[#8e8e93] mb-2">密码重置成功</h2>
+              <p className="text-[#8e8e93] text-sm mb-8 max-w-xs mx-auto leading-relaxed">
                 您的密码已成功重置，请使用新密码登录系统。
               </p>
               <Button
@@ -622,9 +615,7 @@ export default function ForgotPasswordPage() {
                 onClick={() => router.push('/login')}
                 className={cn(
                   'w-full py-2.5 h-auto text-white font-semibold text-sm rounded-xl',
-                  'bg-gradient-to-r from-violet-600 to-fuchsia-600',
-                  'shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)]',
-                  'hover:from-violet-500 hover:to-fuchsia-500',
+                  'bg-[#007AFF] hover:opacity-90',
                   'active:scale-[0.98]',
                   'transition-all duration-200'
                 )}
@@ -637,7 +628,7 @@ export default function ForgotPasswordPage() {
 
           {/* 安全提示 */}
           {step !== 'success' && (
-            <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-300">
+            <div className="mt-8 pt-6 border-t border-[#e5e5ea] flex items-center justify-center gap-4 text-[11px] text-[#3a3a3c]">
               <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> 加密传输</span>
               <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> 安全验证</span>
             </div>

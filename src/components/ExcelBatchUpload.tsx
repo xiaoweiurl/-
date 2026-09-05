@@ -764,8 +764,8 @@ export default function ExcelBatchUpload({
               className={cn(
                 'flex-1 border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center',
                 isDragging
-                  ? 'border-violet-500 bg-violet-50'
-                  : 'border-slate-200 hover:border-violet-300 hover:bg-slate-50'
+                  ? 'border-[#007aff] bg-[rgba(0,122,255,0.1)]'
+                  : 'border-[#e5e5ea] hover:border-[#007aff] hover:bg-[#f2f2f7]'
               )}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -780,23 +780,23 @@ export default function ExcelBatchUpload({
                 onChange={e => handleFileSelect(e.target.files)}
               />
               <div className="flex flex-col items-center gap-3">
-                <div className="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center">
-                  <FileSpreadsheet className="w-8 h-8 text-violet-600" />
+                <div className="w-16 h-16 rounded-full bg-[rgba(0,122,255,0.1)] flex items-center justify-center">
+                  <FileSpreadsheet className="w-8 h-8 text-[#007aff]" />
                 </div>
                 <div>
-                  <p className="text-lg font-medium text-slate-700">
+                  <p className="text-lg font-medium text-[#8e8e93]">
                     拖拽Excel文件到这里
                   </p>
-                  <p className="text-sm text-slate-500 mt-1">
+                  <p className="text-sm text-[#8e8e93] mt-1">
                     或点击选择文件
                   </p>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-[#8e8e93]">
                   支持 .xlsx、.xls 格式
                 </p>
-                <div className="mt-4 p-4 bg-slate-50 rounded-lg text-left max-w-md">
-                  <p className="text-xs font-medium text-slate-700 mb-2">Excel文件格式要求：</p>
-                  <ul className="text-xs text-slate-500 space-y-1">
+                <div className="mt-4 p-4 bg-[#f2f2f7] rounded-lg text-left max-w-md">
+                  <p className="text-xs font-medium text-[#8e8e93] mb-2">Excel文件格式要求：</p>
+                  <ul className="text-xs text-[#8e8e93] space-y-1">
                     <li>• 列1：商品名称</li>
                     <li>• 列2：价格</li>
                     <li>• 列3：商品详情（主图URL，1张）</li>
@@ -810,14 +810,14 @@ export default function ExcelBatchUpload({
             // 数据预览区域
             <div className="flex-1 flex flex-col min-h-0">
               {/* 数据列表 */}
-              <div className="flex-1 overflow-y-auto space-y-2 p-4 bg-slate-50 rounded-lg">
+              <div className="flex-1 overflow-y-auto space-y-2 p-4 bg-[#f2f2f7] rounded-lg">
                 {excelData.map(row => (
                   <div
                     key={row.id}
                     className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm"
                   >
                     {/* 缩略图 */}
-                    <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 rounded-lg bg-[rgba(0,0,0,0.06)] flex items-center justify-center overflow-hidden flex-shrink-0">
                       {row.mainImageUrl && (
                         <img
                           src={row.mainImageUrl}
@@ -832,46 +832,46 @@ export default function ExcelBatchUpload({
 
                     {/* 商品信息 */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700 truncate">
+                      <p className="text-sm font-medium text-[#8e8e93] truncate">
                         {row.productName}
                       </p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-[#8e8e93]">
                         主图 {row.mainImageUrl ? '✓' : '✗'} · 详情图 {row.detailImageUrls.length > 0 ? `${row.detailImageUrls.length}张` : '✗'}
                       </p>
                       {row.category && (
-                        <p className="text-xs text-violet-600">
+                        <p className="text-xs text-[#007aff]">
                           分类: {row.category}
                         </p>
                       )}
 
                       {/* 状态 */}
                       {row.status === 'downloading' && (
-                        <p className="text-xs text-violet-600 flex items-center gap-1 mt-1">
+                        <p className="text-xs text-[#007aff] flex items-center gap-1 mt-1">
                           <Loader2 className="w-3 h-3 animate-spin" />
                           下载中...
                         </p>
                       )}
                       {row.status === 'success' && (
-                        <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                        <p className="text-xs text-[#34c759] flex items-center gap-1 mt-1">
                           <CheckCircle2 className="w-3 h-3" />
                           下载成功（主图 + {row.detailImageUrls.length}张详情图）
                         </p>
                       )}
                       {row.status === 'skipped' && (
-                        <p className="text-xs text-amber-500 flex items-center gap-1 mt-1">
+                        <p className="text-xs text-[#ff9500] flex items-center gap-1 mt-1">
                           <AlertCircle className="w-3 h-3" />
                           {row.error}
                         </p>
                       )}
 
                       {row.status === 'error' && !row.error?.includes('已存在') && (
-                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                        <p className="text-xs text-[#ff3b30] flex items-center gap-1 mt-1">
                           <AlertCircle className="w-3 h-3" />
                           {row.error || '下载失败'}
                         </p>
                       )}
                       {row.status === 'error' && row.error?.includes('已存在') && (
-                        <p className="text-xs text-amber-500 flex items-center gap-1 mt-1">
+                        <p className="text-xs text-[#ff9500] flex items-center gap-1 mt-1">
                           <AlertCircle className="w-3 h-3" />
                           {row.error}
                         </p>
@@ -884,10 +884,10 @@ export default function ExcelBatchUpload({
                         e.stopPropagation();
                         removeRow(row.id);
                       }}
-                      className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                      className="p-1.5 hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors"
                       disabled={isProcessing}
                     >
-                      <X className="w-4 h-4 text-slate-400" />
+                      <X className="w-4 h-4 text-[#8e8e93]" />
                     </button>
                   </div>
                 ))}
@@ -905,7 +905,7 @@ export default function ExcelBatchUpload({
                 <Button
                   onClick={downloadImages}
                   disabled={isProcessing}
-                  className="bg-violet-600 hover:bg-violet-700"
+                  className="bg-[#007aff] hover:bg-[#007aff]"
                 >
                   {isProcessing ? (
                     <>

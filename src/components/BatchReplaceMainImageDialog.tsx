@@ -160,7 +160,7 @@ export function BatchReplaceMainImageDialog({
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-orange-500" />
+            <RefreshCw className="h-5 w-5 text-[#ff9500]" />
             批量替换主图
           </DialogTitle>
           <DialogDescription>
@@ -170,11 +170,11 @@ export function BatchReplaceMainImageDialog({
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
-            <span className="ml-2 text-gray-500">加载中...</span>
+            <Loader2 className="h-8 w-8 animate-spin text-[#007aff]" />
+            <span className="ml-2 text-[#8e8e93]">加载中...</span>
           </div>
         ) : productGroups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+          <div className="flex flex-col items-center justify-center py-12 text-[#8e8e93]">
             <ImageIcon className="h-12 w-12 mb-2 opacity-50" />
             <p>没有可替换的商品</p>
           </div>
@@ -183,7 +183,7 @@ export function BatchReplaceMainImageDialog({
             {productGroups.map((group, groupIndex) => (
               <div
                 key={group.productId || `product-${groupIndex}`}
-                className="border rounded-lg p-4 bg-slate-50/50"
+                className="border rounded-lg p-4 bg-[rgba(242,242,247,0.5)]"
               >
                 <div className="flex items-center gap-2 mb-3">
                   <span className="font-medium text-sm">{group.mainImage?.title || group.productId || '未知商品'}</span>
@@ -191,15 +191,15 @@ export function BatchReplaceMainImageDialog({
                     {group.detailImages.length} 张详情图
                   </Badge>
                   {group.selectedImageId ? (
-                    <Badge className="text-xs bg-orange-500 text-white">
+                    <Badge className="text-xs bg-[#ff9500] text-white">
                       已选择
                     </Badge>
                   ) : group.detailImages.some(img => img.displayOrder === 1) ? (
-                    <Badge className="text-xs bg-violet-500 text-white">
+                    <Badge className="text-xs bg-[#007aff] text-white">
                       将使用默认顺序1
                     </Badge>
                   ) : (
-                    <Badge variant="secondary" className="text-xs bg-gray-200">
+                    <Badge variant="secondary" className="text-xs bg-[rgba(0,0,0,0.06)]">
                       保持不变
                     </Badge>
                   )}
@@ -208,7 +208,7 @@ export function BatchReplaceMainImageDialog({
                 <div className="grid grid-cols-2 gap-4">
                   {/* 主图预览 */}
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-[#8e8e93] mb-2">
                       {group.selectedImageId ? '替换后主图预览' : 
                         (group.detailImages.some(img => img.displayOrder === 1) ? '默认使用顺序1' : '当前主图')}
                     </p>
@@ -226,10 +226,10 @@ export function BatchReplaceMainImageDialog({
                                   alt="替换后主图"
                                   className="w-full h-full object-cover"
                                 />
-                                <Badge className="absolute top-2 left-2 text-xs bg-orange-500 text-white">
+                                <Badge className="absolute top-2 left-2 text-xs bg-[#ff9500] text-white">
                                   已选择
                                 </Badge>
-                                <div className="absolute bottom-2 left-2 right-2 bg-orange-100 text-orange-700 text-xs rounded px-2 py-1 text-center">
+                                <div className="absolute bottom-2 left-2 right-2 bg-[rgba(255,149,0,0.1)] text-[#ff9500] text-xs rounded px-2 py-1 text-center">
                                   点击右侧取消选择
                                 </div>
                               </>
@@ -247,7 +247,7 @@ export function BatchReplaceMainImageDialog({
                                 alt="默认顺序1"
                                 className="w-full h-full object-cover"
                               />
-                              <Badge className="absolute top-2 left-2 text-xs bg-violet-500 text-white">
+                              <Badge className="absolute top-2 left-2 text-xs bg-[#007aff] text-white">
                                 默认顺序1
                               </Badge>
                             </>
@@ -263,7 +263,7 @@ export function BatchReplaceMainImageDialog({
                                 alt="当前主图"
                                 className="w-full h-full object-cover"
                               />
-                              <Badge className="absolute top-2 left-2 text-xs bg-gray-500 text-white">
+                              <Badge className="absolute top-2 left-2 text-xs bg-[rgba(0,0,0,0.1)] text-[#1C1C1E]">
                                 保持不变
                               </Badge>
                             </>
@@ -271,7 +271,7 @@ export function BatchReplaceMainImageDialog({
                         }
                         
                         return (
-                          <div className="flex items-center justify-center h-full text-gray-400">
+                          <div className="flex items-center justify-center h-full text-[#8e8e93]">
                             <ImageIcon className="h-8 w-8" />
                           </div>
                         );
@@ -281,12 +281,12 @@ export function BatchReplaceMainImageDialog({
 
                   {/* 详情图列表 */}
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-[#8e8e93] mb-2">
                       选择新主图
-                      <span className="text-orange-500 ml-1">(点击选择/取消)</span>
+                      <span className="text-[#ff9500] ml-1">(点击选择/取消)</span>
                     </p>
                     {group.detailImages.length === 0 ? (
-                      <div className="flex items-center justify-center h-24 border rounded-lg bg-gray-50 text-gray-400 text-sm">
+                      <div className="flex items-center justify-center h-24 border rounded-lg bg-[#f2f2f7] text-[#8e8e93] text-sm">
                         无详情图，保持当前主图不变
                       </div>
                     ) : (
@@ -303,10 +303,10 @@ export function BatchReplaceMainImageDialog({
                               onClick={() => handleSelectImage(group.productId, img.imgId)}
                               className={`
                                 relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer
-                                transition-all duration-200 hover:ring-2 hover:ring-violet-300
+                                transition-all duration-200 hover:ring-2 hover:ring-[#007aff]
                                 ${isSelected
-                                  ? "border-orange-500 ring-2 ring-orange-300"
-                                  : "border-gray-200"
+                                  ? "border-[#ff9500] ring-2 ring-[#ff9500]"
+                                  : "border-[#e5e5ea]"
                                 }
                               `}
                             >
@@ -322,8 +322,8 @@ export function BatchReplaceMainImageDialog({
                                 顺序 {img.displayOrder}
                               </Badge>
                               {isSelected && (
-                                <div className="absolute top-1 right-1 bg-orange-500 rounded-full p-0.5">
-                                  <Check className="h-3 w-3 text-white" />
+                                <div className="absolute top-1 right-1 bg-[#ff9500] rounded-full p-0.5">
+                                  <Check className="h-3 w-3 text-[#1C1C1E]" />
                                 </div>
                               )}
                             </div>
@@ -345,7 +345,7 @@ export function BatchReplaceMainImageDialog({
           <Button
             onClick={handleSubmit}
             disabled={submitting || productGroups.length === 0}
-            className="bg-orange-500 hover:bg-orange-600"
+            className="bg-[#ff9500] hover:bg-[#ff9500]"
           >
             {submitting ? (
               <>

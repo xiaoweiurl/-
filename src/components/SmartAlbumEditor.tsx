@@ -132,7 +132,7 @@ export default function SmartAlbumEditor({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-600" />
+            <Sparkles className="w-5 h-5 text-[#007aff]" />
             {mode === 'create' ? '创建智能相册' : '编辑智能相册'}
           </DialogTitle>
           <DialogDescription>
@@ -144,7 +144,7 @@ export default function SmartAlbumEditor({
           {/* 相册名称 */}
           <div className="space-y-2">
             <Label htmlFor="name">
-              相册名称 <span className="text-red-500">*</span>
+              相册名称 <span className="text-[#ff3b30]">*</span>
             </Label>
             <Input
               id="name"
@@ -153,7 +153,7 @@ export default function SmartAlbumEditor({
               placeholder="如：T恤、冲锋衣、抓绒衣等"
               maxLength={100}
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#8e8e93]">
               相册名称将用于匹配文件名，建议使用简洁明确的分类名称
             </p>
           </div>
@@ -180,8 +180,8 @@ export default function SmartAlbumEditor({
                   key={option.value}
                   className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     matchMode === option.value
-                      ? 'border-violet-500 bg-violet-50'
-                      : 'border-slate-200 hover:border-violet-300 hover:bg-slate-50'
+                      ? 'border-[#007aff] bg-[rgba(0,122,255,0.1)]'
+                      : 'border-[#e5e5ea] hover:border-[#007aff] hover:bg-[#f2f2f7]'
                   }`}
                 >
                   <input
@@ -194,7 +194,7 @@ export default function SmartAlbumEditor({
                   />
                   <div className="flex-1">
                     <div className="font-medium text-sm">{option.label}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
+                    <div className="text-xs text-[#8e8e93] mt-0.5">
                       {option.description}
                     </div>
                   </div>
@@ -207,7 +207,7 @@ export default function SmartAlbumEditor({
           {matchMode === 'fuzzy' && (
             <div className="space-y-2">
               <Label htmlFor="synonyms">
-                同义词 <span className="text-slate-400 font-normal">(可选)</span>
+                同义词 <span className="text-[#8e8e93] font-normal">(可选)</span>
               </Label>
               <Input
                 id="synonyms"
@@ -216,7 +216,7 @@ export default function SmartAlbumEditor({
                 placeholder="如：tshirt, T-shirt, tee"
                 maxLength={500}
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#8e8e93]">
                 多个同义词用逗号分隔，文件名包含任意同义词都会匹配到此相册
               </p>
             </div>
@@ -224,10 +224,10 @@ export default function SmartAlbumEditor({
 
           {/* 正则提示 */}
           {matchMode === 'regex' && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="p-3 bg-[rgba(255,149,0,0.1)] border border-[#ff9500] rounded-lg">
               <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div className="text-xs text-amber-800">
+                <Info className="w-4 h-4 text-[#ff9500] mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-[#ff9500]">
                   <p className="font-medium mb-1">正则表达式示例：</p>
                   <p>• <code>.*T恤.*</code> - 包含"T恤"的任意文件名</p>
                   <p>• <code>^T恤.*</code> - 以"T恤"开头的文件名</p>
@@ -245,7 +245,7 @@ export default function SmartAlbumEditor({
           <Button
             onClick={handleSubmit}
             disabled={!name.trim() || isSubmitting}
-            className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+            className="bg-[#007AFF]"
           >
             {isSubmitting ? '保存中...' : mode === 'create' ? '创建' : '保存'}
           </Button>

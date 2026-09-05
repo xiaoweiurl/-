@@ -116,19 +116,19 @@ export default function RegisterPage() {
   // 公司选择页面
   if (!company) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <Toaster position="top-center" richColors closeButton />
 
         <div className="w-full max-w-3xl">
           {/* Logo区域 */}
           <div className="text-center mb-10">
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-xl shadow-indigo-500/30 mb-4">
-              <Building2 className="w-10 h-10 text-white" />
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-[#007AFF] flex items-center justify-center shadow-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] mb-4">
+              <Building2 className="w-10 h-10 text-[#1C1C1E]" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-[#007AFF] bg-clip-text text-transparent">
               创建新账号
             </h1>
-            <p className="text-slate-500 mt-2">请选择您所属的公司</p>
+            <p className="text-[#8e8e93] mt-2">请选择您所属的公司</p>
           </div>
 
           {/* 公司卡片（统一宝娜斯集团） */}
@@ -136,19 +136,19 @@ export default function RegisterPage() {
             <button
               onClick={() => setCompany('宝娜斯集团')}
               className={cn(
-                'group relative w-full bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/60 p-8',
-                'hover:shadow-xl hover:border-rose-300 hover:-translate-y-1',
+                'group relative w-full bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-[rgba(229,229,234,0.6)] p-8',
+                'hover:shadow-xl hover:border-[#007aff] hover:-translate-y-1',
                 'transition-all duration-300 text-left'
               )}
             >
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/25 mb-5">
-                <span className="text-2xl font-bold text-white">宝</span>
+              <div className="w-16 h-16 rounded-2xl bg-[#007AFF] flex items-center justify-center shadow-lg shadow-[0_2px_12px_rgba(0,0,0,0.04)] mb-5">
+                <span className="text-2xl font-bold text-[#1C1C1E]">宝</span>
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">宝娜斯集团</h2>
-              <p className="text-sm text-slate-500 mb-4">
+              <h2 className="text-xl font-bold text-[#8e8e93] mb-2">宝娜斯集团</h2>
+              <p className="text-sm text-[#8e8e93] mb-4">
                 宝娜斯集团用户，管理专属知识库与文档
               </p>
-              <div className="flex items-center text-rose-600 text-sm font-medium group-hover:translate-x-1 transition-transform">
+              <div className="flex items-center text-[#007aff] text-sm font-medium group-hover:translate-x-1 transition-transform">
                 选择宝娜斯集团
                 <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -162,7 +162,7 @@ export default function RegisterPage() {
             <button
               type="button"
               onClick={() => router.push('/login')}
-              className="text-sm text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 transition-colors mx-auto"
+              className="text-sm text-[#8e8e93] hover:text-[#8e8e93] flex items-center justify-center gap-1 transition-colors mx-auto"
             >
               <ArrowLeft className="w-4 h-4" />
               已有账号？返回登录
@@ -175,18 +175,9 @@ export default function RegisterPage() {
 
   // 注册表单页面
   const isBonasi = company === '宝娜斯集团';
-  const gradientFrom = isBonasi ? 'from-rose-500' : 'from-indigo-500';
-  const gradientTo = isBonasi ? 'to-pink-600' : 'to-blue-600';
-  const ringColor = isBonasi ? 'focus:ring-rose-500/20 focus:border-rose-500' : 'focus:ring-indigo-500/20 focus:border-indigo-500';
-  const btnFrom = isBonasi ? 'from-rose-500' : 'from-indigo-500';
-  const btnTo = isBonasi ? 'to-pink-600' : 'to-blue-600';
-  const shadowColor = isBonasi ? 'shadow-rose-500/25' : 'shadow-indigo-500/25';
-  const bgGradient = isBonasi
-    ? 'bg-gradient-to-br from-rose-50 via-white to-pink-50'
-    : 'bg-gradient-to-br from-indigo-50 via-white to-blue-50';
-  const iconBg = isBonasi
-    ? 'bg-gradient-to-br from-rose-500 to-pink-600 shadow-rose-500/30'
-    : 'bg-gradient-to-br from-indigo-500 to-blue-600 shadow-indigo-500/30';
+  const ringColor = 'focus:ring-[rgba(0,122,255,0.2)] focus:border-[#007aff]';
+  const bgGradient = 'bg-[#F2F2F7]';
+  const iconBg = 'bg-[#007AFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)]';
 
   return (
     <div className={cn('min-h-screen flex items-center justify-center p-4', bgGradient)}>
@@ -198,31 +189,31 @@ export default function RegisterPage() {
           <div className={cn('w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-xl mb-4', iconBg)}>
             <span className="text-3xl font-bold text-white">{isBonasi ? '宝' : '盈'}</span>
           </div>
-          <h1 className={cn('text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent', gradientFrom, gradientTo)}>
+          <h1 className="text-3xl font-bold text-[#1C1C1E]">
             {company}
           </h1>
-          <p className="text-slate-500 mt-2">创建{company}专属账号</p>
+          <p className="text-[#8e8e93] mt-2">创建{company}专属账号</p>
         </div>
 
         {/* 注册卡片 */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/60 p-8">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-[rgba(229,229,234,0.6)] p-8">
           <form onSubmit={handleRegister} className="space-y-5">
             {/* 所属公司展示 */}
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <Building2 className="w-5 h-5 text-slate-400" />
-              <span className="text-sm text-slate-600">所属公司：</span>
-              <span className={cn('text-sm font-medium', isBonasi ? 'text-rose-600' : 'text-indigo-600')}>
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#f2f2f7] border border-[#e5e5ea]">
+              <Building2 className="w-5 h-5 text-[#8e8e93]" />
+              <span className="text-sm text-[#8e8e93]">所属公司：</span>
+              <span className={cn('text-sm font-medium', isBonasi ? 'text-[#007aff]' : 'text-[#007aff]')}>
                 {company}
               </span>
             </div>
 
             {/* 用户名输入 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-[#8e8e93] mb-2">
                 用户名
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]">
                   <User className="w-5 h-5" />
                 </div>
                 <input
@@ -231,10 +222,10 @@ export default function RegisterPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="请输入用户名"
                   className={cn(
-                    'w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-white/50',
+                    'w-full pl-11 pr-4 py-3 rounded-xl border border-[#e5e5ea] bg-[rgba(118,118,128,0.28)]',
                     'focus:outline-none focus:ring-2',
                     ringColor,
-                    'placeholder:text-slate-400 text-slate-700',
+                    'placeholder:text-[#8e8e93] text-[#8e8e93]',
                     'transition-all duration-200'
                   )}
                 />
@@ -243,11 +234,11 @@ export default function RegisterPage() {
 
             {/* 邮箱输入 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-[#8e8e93] mb-2">
                 邮箱
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]">
                   <Mail className="w-5 h-5" />
                 </div>
                 <input
@@ -256,10 +247,10 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="请输入邮箱"
                   className={cn(
-                    'w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-white/50',
+                    'w-full pl-11 pr-4 py-3 rounded-xl border border-[#e5e5ea] bg-[rgba(118,118,128,0.28)]',
                     'focus:outline-none focus:ring-2',
                     ringColor,
-                    'placeholder:text-slate-400 text-slate-700',
+                    'placeholder:text-[#8e8e93] text-[#8e8e93]',
                     'transition-all duration-200'
                   )}
                 />
@@ -268,11 +259,11 @@ export default function RegisterPage() {
 
             {/* 密码输入 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-[#8e8e93] mb-2">
                 密码
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]">
                   <Lock className="w-5 h-5" />
                 </div>
                 <input
@@ -281,17 +272,17 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="请输入密码（至少6位）"
                   className={cn(
-                    'w-full pl-11 pr-11 py-3 rounded-xl border border-slate-200 bg-white/50',
+                    'w-full pl-11 pr-11 py-3 rounded-xl border border-[#e5e5ea] bg-[rgba(118,118,128,0.28)]',
                     'focus:outline-none focus:ring-2',
                     ringColor,
-                    'placeholder:text-slate-400 text-slate-700',
+                    'placeholder:text-[#8e8e93] text-[#8e8e93]',
                     'transition-all duration-200'
                   )}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93]"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -300,11 +291,11 @@ export default function RegisterPage() {
 
             {/* 确认密码 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-[#8e8e93] mb-2">
                 确认密码
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]">
                   <Lock className="w-5 h-5" />
                 </div>
                 <input
@@ -313,10 +304,10 @@ export default function RegisterPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="请再次输入密码"
                   className={cn(
-                    'w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-white/50',
+                    'w-full pl-11 pr-4 py-3 rounded-xl border border-[#e5e5ea] bg-[rgba(118,118,128,0.28)]',
                     'focus:outline-none focus:ring-2',
                     ringColor,
-                    'placeholder:text-slate-400 text-slate-700',
+                    'placeholder:text-[#8e8e93] text-[#8e8e93]',
                     'transition-all duration-200'
                   )}
                 />
@@ -329,10 +320,7 @@ export default function RegisterPage() {
               disabled={isLoading}
               className={cn(
                 'w-full py-3 text-white font-medium rounded-xl',
-                'bg-gradient-to-r',
-                btnFrom, btnTo,
-                'shadow-lg',
-                shadowColor,
+                'bg-[#007AFF] hover:opacity-90',
                 'transition-all duration-200',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
@@ -353,7 +341,7 @@ export default function RegisterPage() {
             <button
               type="button"
               onClick={() => setCompany(null)}
-              className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 transition-colors"
+              className="w-full py-2 text-sm text-[#8e8e93] hover:text-[#8e8e93] flex items-center justify-center gap-1 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               重新选择公司
@@ -366,7 +354,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => router.push('/login')}
-            className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+            className="text-sm text-[#8e8e93] hover:text-[#8e8e93] transition-colors"
           >
             已有账号？返回登录
           </button>

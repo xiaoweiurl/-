@@ -64,9 +64,9 @@ function formatQty(v: number | null): string {
 
 /** 执行状态徽章样式 */
 function zxtateBadge(text: string): string {
-  if (text === '已复审') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25';
-  if (text === '已经终审') return 'bg-blue-500/10 text-blue-400 border-blue-500/25';
-  return 'bg-slate-500/10 text-slate-400 border-slate-500/25';
+  if (text === '已复审') return 'bg-[rgba(52,199,89,0.1)] text-[#34c759] border-[rgba(52,199,89,0.25)]';
+  if (text === '已经终审') return 'bg-[rgba(0,122,255,0.1)] text-[#007aff] border-[rgba(0,122,255,0.25)]';
+  return 'bg-[rgba(0,0,0,0.01)] text-[#8e8e93] border-[rgba(229,229,234,0.25)]';
 }
 
 // ============ 主组件 ============
@@ -147,35 +147,35 @@ export default function HistoryOrdersPage() {
   const totalPages = Math.max(1, Math.ceil(total / size));
 
   const STAT_CARDS = [
-    { label: '已审核订单', value: stats?.totalOrders, icon: ClipboardList, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    { label: '数量合计', value: stats?.totalQuantity, icon: Package, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', isQty: true },
-    { label: '客户数', value: stats?.customerCount, icon: Users, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
-    { label: '已下计划', value: stats?.plannedCount, icon: CheckCircle2, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-    { label: '本月新增', value: stats?.monthNewCount, icon: TrendingUp, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
+    { label: '已审核订单', value: stats?.totalOrders, icon: ClipboardList, color: 'text-[#007aff]', bg: 'bg-[rgba(0,122,255,0.1)] border-[rgba(0,122,255,0.2)]' },
+    { label: '数量合计', value: stats?.totalQuantity, icon: Package, color: 'text-[#34c759]', bg: 'bg-[rgba(52,199,89,0.1)] border-[rgba(52,199,89,0.2)]', isQty: true },
+    { label: '客户数', value: stats?.customerCount, icon: Users, color: 'text-[#007aff]', bg: 'bg-[rgba(0,122,255,0.1)] border-[rgba(0,122,255,0.2)]' },
+    { label: '已下计划', value: stats?.plannedCount, icon: CheckCircle2, color: 'text-[#ff9500]', bg: 'bg-[rgba(255,149,0,0.1)] border-[rgba(255,149,0,0.2)]' },
+    { label: '本月新增', value: stats?.monthNewCount, icon: TrendingUp, color: 'text-[#007aff]', bg: 'bg-[rgba(0,122,255,0.1)] border-[rgba(0,122,255,0.2)]' },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200">
+    <div className="min-h-screen bg-[#f2f2f7] text-[#1c1c1e]">
       <Toaster position="top-center" richColors />
 
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-slate-900/90 backdrop-blur-xl border-b border-slate-700/50">
+      <header className="sticky top-0 z-20 bg-[rgba(255,255,255,0.72)] backdrop-blur-xl border-b border-[#E5E5EA]">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/supply-chain')}
-              className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+              className="flex items-center gap-1 text-sm text-[#8e8e93] hover:text-[#1c1c1e] transition-colors shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>返回</span>
             </button>
-            <span className="text-slate-600">|</span>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-sm">
+            <span className="text-[#8e8e93]">|</span>
+            <div className="w-8 h-8 rounded-lg bg-[#FF9500] flex items-center justify-center text-white shadow-sm">
               <Factory className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-[15px] font-bold text-slate-100 leading-tight">历史订单</h1>
-              <p className="text-[11px] text-slate-400">已审核投入生产的销售订单</p>
+              <h1 className="text-[15px] font-bold text-[#1c1c1e] leading-tight">历史订单</h1>
+              <p className="text-[11px] text-[#8e8e93]">已审核投入生产的销售订单</p>
             </div>
           </div>
         </div>
@@ -188,11 +188,11 @@ export default function HistoryOrdersPage() {
             <div key={card.label}
               className={cn_card(card.bg)}>
               <div className="flex items-center justify-between">
-                <span className="text-[12px] text-slate-400">{card.label}</span>
+                <span className="text-[12px] text-[#8e8e93]">{card.label}</span>
                 <card.icon className={cn_icon(card.color)} />
               </div>
-              <div className="mt-2 text-2xl font-bold text-slate-100 font-mono">
-                {stats === null ? <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              <div className="mt-2 text-2xl font-bold text-[#1c1c1e] font-mono">
+                {stats === null ? <Loader2 className="w-5 h-5 animate-spin text-[#8e8e93]" />
                   : card.isQty ? formatQty(Number(card.value ?? 0)) : String(card.value ?? 0)}
               </div>
             </div>
@@ -200,69 +200,69 @@ export default function HistoryOrdersPage() {
         </div>
 
         {/* 筛选栏 */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3 flex flex-wrap items-center gap-2">
+        <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[220px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8e8e93]" />
             <input
               value={keywordInput}
               onChange={e => setKeywordInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
               placeholder="搜索单号 / 业务单号 / 客户 / 货号 / 业务员"
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/60 text-[13px] text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-amber-500/50"
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(255,149,0,0.5)]"
             />
           </div>
           <select value={zxtate} onChange={e => { setZxtate(e.target.value); setPage(1); }}
-            className="px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/60 text-[13px] text-slate-300 focus:outline-none focus:border-amber-500/50">
+            className="px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)]">
             <option value="">执行状态（全部）</option>
             <option value="1">已复审</option>
             <option value="2">已经终审</option>
             <option value="0">未审核</option>
           </select>
           <select value={sfplan} onChange={e => { setSfplan(e.target.value); setPage(1); }}
-            className="px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/60 text-[13px] text-slate-300 focus:outline-none focus:border-amber-500/50">
+            className="px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[13px] text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)]">
             <option value="">是否下计划（全部）</option>
             <option value="是">已下计划</option>
             <option value="否">未下计划</option>
           </select>
-          <div className="flex items-center gap-1.5 text-[13px] text-slate-400">
+          <div className="flex items-center gap-1.5 text-[13px] text-[#8e8e93]">
             <CalendarDays className="w-4 h-4" />
             <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-              className="px-2 py-2 rounded-lg bg-slate-900/60 border border-slate-700/60 text-slate-300 focus:outline-none focus:border-amber-500/50 [color-scheme:dark]" />
+              className="px-2 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)] [color-scheme:light]" />
             <span>至</span>
             <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-              className="px-2 py-2 rounded-lg bg-slate-900/60 border border-slate-700/60 text-slate-300 focus:outline-none focus:border-amber-500/50 [color-scheme:dark]" />
+              className="px-2 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3a3a3c] focus:outline-none focus:border-[rgba(255,149,0,0.5)] [color-scheme:light]" />
           </div>
           <button onClick={handleSearch}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity">
+            className="px-4 py-2 rounded-lg bg-[#FF9500] text-white text-[13px] font-medium hover:opacity-90 transition-opacity">
             查询
           </button>
           <button onClick={handleReset}
-            className="px-3 py-2 rounded-lg bg-slate-700/50 text-slate-300 text-[13px] hover:bg-slate-700 transition-colors">
+            className="px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] text-[13px] hover:bg-[rgba(118,118,128,0.2)] transition-colors">
             重置
           </button>
           <button onClick={() => { loadOrders(); loadStats(); }}
-            className="p-2 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition-colors" title="刷新">
+            className="p-2 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.2)] transition-colors" title="刷新">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
 
         {/* 数据表格 */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-5 h-5 text-amber-500 animate-spin mr-2" />
-              <span className="text-slate-500 text-sm">加载中...</span>
+              <Loader2 className="w-5 h-5 text-[#ff9500] animate-spin mr-2" />
+              <span className="text-[#8e8e93] text-sm">加载中...</span>
             </div>
           ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <Boxes className="w-10 h-10 mb-3 text-slate-600" />
+            <div className="flex flex-col items-center justify-center py-20 text-[#8e8e93]">
+              <Boxes className="w-10 h-10 mb-3 text-[#8e8e93]" />
               <p className="text-sm">暂无已审核的历史订单</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
-                  <tr className="bg-slate-900/50 text-slate-400 text-left">
+                  <tr className="bg-[#F2F2F7] text-[#8E8E93] text-left">
                     <th className="px-4 py-3 font-medium whitespace-nowrap">订单号</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">品名</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">客户</th>
@@ -276,16 +276,16 @@ export default function HistoryOrdersPage() {
                     <th className="px-4 py-3 font-medium whitespace-nowrap text-center">操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700/40">
+                <tbody className="divide-y divide-[#E5E5EA]">
                   {orders.map(o => (
-                    <tr key={o.dh} className="hover:bg-slate-700/20 transition-colors">
-                      <td className="px-4 py-3 font-mono text-amber-400/90 whitespace-nowrap">{o.dh}</td>
-                      <td className="px-4 py-3 text-slate-200 whitespace-nowrap">{o.spname || '-'}</td>
-                      <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{o.khname || '-'}</td>
-                      <td className="px-4 py-3 font-mono text-slate-300 whitespace-nowrap">{o.detailhuohao || '-'}</td>
-                      <td className="px-4 py-3 text-right font-mono text-slate-200 whitespace-nowrap">{formatQty(o.slSum)}</td>
-                      <td className="px-4 py-3 text-slate-400 whitespace-nowrap">{formatDate(o.zhdate)}</td>
-                      <td className="px-4 py-3 text-slate-400 whitespace-nowrap">{formatDate(o.jhDate)}</td>
+                    <tr key={o.dh} className="hover:bg-[rgba(118,118,128,0.06)] transition-colors">
+                      <td className="px-4 py-3 font-mono text-[rgba(255,149,0,0.9)] whitespace-nowrap">{o.dh}</td>
+                      <td className="px-4 py-3 text-[#1c1c1e] whitespace-nowrap">{o.spname || '-'}</td>
+                      <td className="px-4 py-3 text-[#3a3a3c] whitespace-nowrap">{o.khname || '-'}</td>
+                      <td className="px-4 py-3 font-mono text-[#3a3a3c] whitespace-nowrap">{o.detailhuohao || '-'}</td>
+                      <td className="px-4 py-3 text-right font-mono text-[#1c1c1e] whitespace-nowrap">{formatQty(o.slSum)}</td>
+                      <td className="px-4 py-3 text-[#8e8e93] whitespace-nowrap">{formatDate(o.zhdate)}</td>
+                      <td className="px-4 py-3 text-[#8e8e93] whitespace-nowrap">{formatDate(o.jhDate)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded-full text-[11px] border ${zxtateBadge(o.zxtateText)}`}>
                           {o.zxtateText}
@@ -294,20 +294,20 @@ export default function HistoryOrdersPage() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded-full text-[11px] border ${
                           o.sfplanText === '已下计划'
-                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
-                            : 'bg-slate-500/10 text-slate-500 border-slate-500/25'
+                            ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500] border-[rgba(255,149,0,0.25)]'
+                            : 'bg-[rgba(0,0,0,0.01)] text-[#8e8e93] border-[rgba(229,229,234,0.25)]'
                         }`}>
                           {o.sfplanText}
                         </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {o.ywyname
-                          ? <span className="text-slate-200">{o.ywyname}</span>
-                          : <span className="text-slate-500 text-[12px]">{o.ywynameText}</span>}
+                          ? <span className="text-[#1c1c1e]">{o.ywyname}</span>
+                          : <span className="text-[#8e8e93] text-[12px]">{o.ywynameText}</span>}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <button onClick={() => setDetail(o)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-700/50 text-slate-300 text-[12px] hover:bg-slate-700 hover:text-slate-100 transition-colors">
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] text-[12px] hover:bg-[rgba(118,118,128,0.2)] hover:text-[#1c1c1e] transition-colors">
                           <Eye className="w-3.5 h-3.5" />详情
                         </button>
                       </td>
@@ -320,20 +320,20 @@ export default function HistoryOrdersPage() {
 
           {/* 分页 */}
           {!loading && total > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700/50 text-[13px] text-slate-400">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-[#E5E5EA] text-[13px] text-[#8e8e93]">
               <span>共 {total} 条</span>
               <div className="flex items-center gap-2">
                 <select value={size} onChange={e => { setSize(Number(e.target.value)); setPage(1); }}
-                  className="px-2 py-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60 text-slate-300 focus:outline-none">
+                  className="px-2 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-transparent text-[#3a3a3c] focus:outline-none">
                   {PAGE_SIZES.map(s => <option key={s} value={s}>{s} 条/页</option>)}
                 </select>
                 <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                  className="p-1.5 rounded-lg bg-slate-700/50 disabled:opacity-40 hover:bg-slate-700 transition-colors">
+                  className="p-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] disabled:opacity-40 hover:bg-[rgba(118,118,128,0.2)] transition-colors">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <span className="font-mono">{page} / {totalPages}</span>
                 <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                  className="p-1.5 rounded-lg bg-slate-700/50 disabled:opacity-40 hover:bg-slate-700 transition-colors">
+                  className="p-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] disabled:opacity-40 hover:bg-[rgba(118,118,128,0.2)] transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -344,17 +344,17 @@ export default function HistoryOrdersPage() {
 
       {/* 详情弹窗 */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm p-4"
           onClick={() => setDetail(null)}>
-          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-slate-800 rounded-2xl border border-slate-700/60 shadow-2xl"
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-[0_6px_24px_rgba(0,0,0,0.12)]"
             onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 flex items-center justify-between px-5 py-4 bg-slate-800/95 backdrop-blur border-b border-slate-700/50">
+            <div className="sticky top-0 flex items-center justify-between px-5 py-4 bg-[rgba(255,255,255,0.95)] backdrop-blur border-b border-[#E5E5EA]">
               <div>
-                <h2 className="text-[15px] font-bold text-slate-100">订单详情</h2>
-                <p className="text-[12px] text-slate-400 font-mono">{detail.dh}</p>
+                <h2 className="text-[15px] font-bold text-[#1c1c1e]">订单详情</h2>
+                <p className="text-[12px] text-[#8e8e93] font-mono">{detail.dh}</p>
               </div>
               <button onClick={() => setDetail(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors">
+                className="p-1.5 rounded-lg text-[#8e8e93] hover:bg-[rgba(118,118,128,0.2)] hover:text-[#1c1c1e] transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -391,7 +391,7 @@ export default function HistoryOrdersPage() {
 
 // ============ 样式辅助（避免重复类名串） ============
 function cn_card(bg: string): string {
-  return `rounded-xl border p-4 bg-slate-800/50 backdrop-blur ${bg}`;
+  return `rounded-2xl p-4 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${bg}`;
 }
 function cn_icon(color: string): string {
   return `w-4 h-4 ${color}`;
@@ -407,10 +407,10 @@ function DetailRow({ icon: Icon, label, value, mono, highlight }: {
 }) {
   return (
     <div className="flex items-start gap-2.5 py-1">
-      <Icon className="w-4 h-4 mt-0.5 text-slate-500 shrink-0" />
+      <Icon className="w-4 h-4 mt-0.5 text-[#8e8e93] shrink-0" />
       <div className="min-w-0">
-        <div className="text-[11px] text-slate-500">{label}</div>
-        <div className={`text-slate-200 break-all ${mono ? 'font-mono' : ''} ${highlight ? 'text-slate-500' : ''}`}>
+        <div className="text-[11px] text-[#8e8e93]">{label}</div>
+        <div className={`text-[#1c1c1e] break-all ${mono ? 'font-mono' : ''} ${highlight ? 'text-[#8e8e93]' : ''}`}>
           {value || '-'}
         </div>
       </div>

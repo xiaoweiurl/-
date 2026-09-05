@@ -9,8 +9,6 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import {
   Search,
   Bell,
-  Moon,
-  Sun,
   Grid3x3,
   LayoutGrid,
   List,
@@ -83,9 +81,7 @@ export default function Header({
 }: HeaderProps) {
   const router = useRouter();
   const [showNotifications, setShowNotifications] = React.useState(false);
-  const [isDark, setIsDark] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
-  const brandAccent = brand?.key === 'bonasi' ? 'rose' : 'blue';
   
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNewFlag, fetchNotifications } = useNotifications();
 
@@ -119,14 +115,13 @@ export default function Header({
   };
 
   return (
-    <header className="h-[60px] bg-slate-900/80 backdrop-blur-xl border-b border-blue-500/15 px-5 flex items-center justify-between sticky top-0 z-10">
+    <header className="h-[60px] ios-glass border-b border-[#E5E5EA] px-5 flex items-center justify-between sticky top-0 z-10">
       {/* 左侧搜索栏 */}
       {showSearch ? (
         <div className="flex-1 max-w-xl">
           <div className="relative group">
             <Search className={cn(
-              "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
-              brandAccent === 'rose' ? 'text-slate-400 group-focus-within:text-rose-500' : 'text-slate-400 group-focus-within:text-blue-500'
+              "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors text-[#8E8E93] group-focus-within:text-[#007AFF]"
             )} />
             <Input
               type="text"
@@ -135,14 +130,12 @@ export default function Header({
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && onSearchSubmit) onSearchSubmit(); }}
               className={cn(
-                "pl-10 pr-4 h-9 text-[13px] bg-slate-800/80 border-slate-700/60 text-slate-300 rounded-lg",
-                brandAccent === 'rose'
-                  ? 'focus:bg-slate-800 focus:border-rose-400 focus:ring-rose-500/15'
-                  : 'focus:bg-slate-800 focus:border-blue-400 focus:ring-blue-500/15',
+                "pl-10 pr-4 h-9 text-[13px] bg-[rgba(118,118,128,0.12)] border-transparent text-[#1C1C1E] rounded-xl",
+                'focus:bg-white focus:border-[#007AFF] focus:ring-[#007AFF]/20',
                 'transition-all duration-200'
               )}
             />
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-slate-500 bg-slate-800 rounded border border-slate-700/50">
+            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-[#8E8E93] bg-white rounded-md border border-[#E5E5EA]">
               ⌘K
             </kbd>
           </div>
@@ -157,7 +150,7 @@ export default function Header({
         {onBatchReplaceMainImage && currentUser?.role === 'admin' && (
           <button
             onClick={onBatchReplaceMainImage}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-amber-700 bg-amber-50 border border-amber-200/60 rounded-lg hover:bg-amber-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[#FF9500] bg-[#FF9500]/[0.12] rounded-xl hover:bg-[#FF9500]/[0.18] transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">替换主图</span>
@@ -168,12 +161,7 @@ export default function Header({
         {selectedCount > 0 && (
           <button
             onClick={onBulkAction}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-lg transition-colors",
-              brandAccent === 'rose'
-                ? 'text-rose-700 bg-rose-50 border border-rose-200/60 hover:bg-rose-100'
-                : 'text-blue-700 bg-blue-50 border border-blue-200/60 hover:bg-blue-100'
-            )}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-xl transition-colors text-[#007AFF] bg-[#007AFF]/[0.1] hover:bg-[#007AFF]/[0.16]"
           >
             <CheckSquare className="w-3.5 h-3.5" />
             {selectedCount} 选中
@@ -181,7 +169,7 @@ export default function Header({
         )}
 
         {/* 视图切换 */}
-        <div className="flex items-center bg-slate-700/80 rounded-lg p-0.5 border border-slate-200/40">
+        <div className="flex items-center bg-[rgba(118,118,128,0.12)] rounded-xl p-0.5">
           {[
             { mode: 'grid' as const, Icon: Grid3x3, title: '网格' },
             { mode: 'masonry' as const, Icon: LayoutGrid, title: '瀑布流' },
@@ -194,8 +182,8 @@ export default function Header({
               className={cn(
                 'p-1.5 rounded-md transition-all duration-150',
                 viewMode === mode
-                  ? cn('bg-slate-600 shadow-sm shadow-blue-500/20', brandAccent === 'rose' ? 'text-rose-400' : 'text-blue-400')
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'bg-white shadow-sm text-[#007AFF]'
+                  : 'text-[#8E8E93] hover:text-[#3A3A3C]'
               )}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -206,26 +194,21 @@ export default function Header({
         {/* 筛选 */}
         <button
           onClick={onFilterClick}
-          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-700/80 rounded-lg transition-colors"
+          className="p-2 text-[#8E8E93] hover:text-[#3A3A3C] hover:bg-black/5 rounded-xl transition-colors"
           title="筛选"
         >
           <SlidersHorizontal className="w-4 h-4" />
         </button>
 
         {/* 分隔线 */}
-        <div className="w-px h-5 bg-slate-200/60 mx-0.5" />
+        <div className="w-px h-5 bg-[#E5E5EA] mx-0.5" />
 
         {/* Excel导入 */}
         {currentUser?.role === 'admin' && (
           <button
             onClick={onExcelUploadClick}
             title="Excel导入"
-            className={cn(
-              "p-2 rounded-lg transition-colors",
-              brandAccent === 'rose'
-                ? 'text-rose-500 hover:text-rose-600 hover:bg-rose-50'
-                : 'text-blue-500 hover:text-blue-600 hover:bg-blue-50'
-            )}
+            className="p-2 rounded-xl transition-colors text-[#007AFF] hover:bg-[#007AFF]/[0.08]"
           >
             <FileSpreadsheet className="w-4 h-4" />
           </button>
@@ -238,12 +221,10 @@ export default function Header({
             disabled={!hasAlbums}
             title={hasAlbums ? '批量导出' : '暂无分类可导出'}
             className={cn(
-              "p-2 rounded-lg transition-colors",
+              "p-2 rounded-xl transition-colors",
               hasAlbums
-                ? brandAccent === 'rose'
-                  ? 'text-rose-500 hover:text-rose-600 hover:bg-rose-50'
-                  : 'text-blue-500 hover:text-blue-600 hover:bg-blue-50'
-                : 'text-slate-300 cursor-not-allowed'
+                ? 'text-[#007AFF] hover:bg-[#007AFF]/[0.08]'
+                : 'text-[#C7C7CC] cursor-not-allowed'
             )}
           >
             <Download className="w-4 h-4" />
@@ -251,18 +232,12 @@ export default function Header({
         )}
 
         {/* 分隔线 */}
-        <div className="w-px h-5 bg-slate-200/60 mx-0.5" />
+        <div className="w-px h-5 bg-[#E5E5EA] mx-0.5" />
 
         {/* AI生图入口 */}
         <button
           onClick={() => window.location.href = '/ai-image'}
-          className={cn(
-            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium",
-            "bg-gradient-to-r text-white",
-            brand?.primaryFrom || 'from-blue-500', brand?.primaryTo || 'to-purple-600',
-            "hover:shadow-md transition-all duration-200",
-            brand?.buttonShadow || 'shadow-purple-500/20'
-          )}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-[#007AFF] text-white hover:opacity-88 active:scale-97 transition-all duration-200"
         >
           <Zap className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">{brand?.name || '宝娜斯'}AI</span>
@@ -276,27 +251,27 @@ export default function Header({
               setShowNotifications(next);
               if (next) fetchNotifications(); // 打开时刷新通知列表
             }}
-            className="relative p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-700/80 rounded-lg transition-colors"
+            className="relative p-2 text-[#8E8E93] hover:text-[#3A3A3C] hover:bg-black/5 rounded-xl transition-colors"
           >
             <Bell className={cn("w-4 h-4", unreadCount > 0 && 'animate-bell-shake')} />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-[#FF3B30] rounded-full text-white text-[10px] font-bold flex items-center justify-center">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 top-11 w-80 bg-white rounded-xl shadow-2xl shadow-black/8 border border-slate-200/60 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-[13px] font-semibold text-slate-800">通知</h3>
+            <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-[0_6px_24px_rgba(0,0,0,0.12)] border border-[#E5E5EA] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="px-4 py-3 border-b border-[#E5E5EA] flex items-center justify-between">
+                <h3 className="text-[13px] font-semibold text-[#1C1C1E]">通知</h3>
                 <div className="flex items-center gap-2">
                   {unreadCount > 0 && (
-                    <button onClick={markAllAsRead} className={cn("text-[12px] font-medium", brandAccent === 'rose' ? 'text-rose-600' : 'text-blue-600')}>
+                    <button onClick={markAllAsRead} className="text-[12px] font-medium text-[#007AFF]">
                       全部已读
                     </button>
                   )}
-                  <button onClick={() => setShowNotifications(false)} className="p-1 text-slate-400 hover:text-slate-300 hover:bg-slate-700/80 rounded-lg transition-colors">
+                  <button onClick={() => setShowNotifications(false)} className="p-1 text-[#8E8E93] hover:text-[#3A3A3C] hover:bg-black/5 rounded-xl transition-colors">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -304,8 +279,8 @@ export default function Header({
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="py-10 text-center">
-                    <Bell className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                    <p className="text-[13px] text-slate-400">暂无通知</p>
+                    <Bell className="w-8 h-8 text-[#E5E5EA] mx-auto mb-2" />
+                    <p className="text-[13px] text-[#8E8E93]">暂无通知</p>
                   </div>
                 ) : (
                   notifications.slice(0, 5).map((notification) => (
@@ -313,30 +288,29 @@ export default function Header({
                       key={notification.id}
                       onClick={() => handleNotificationClick(notification.id, notification.read)}
                       className={cn(
-                        'px-4 py-3 border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors cursor-pointer',
-                        !notification.read && (brandAccent === 'rose' ? 'bg-rose-50/30' : 'bg-blue-50/30'),
-                        notification.isNew && 'animate-pulse-once'
+                        'px-4 py-3 border-b border-[#E5E5EA] hover:bg-black/[0.03] transition-colors cursor-pointer',
+                        !notification.read && 'bg-[#007AFF]/[0.04]'
                       )}
                     >
                       <div className="flex gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{getNotificationIcon(notification.type)}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium text-slate-700">{notification.title}</p>
-                          <p className="text-[12px] text-slate-500 truncate mt-0.5">{notification.message}</p>
-                          <span className="text-[11px] text-slate-400 mt-1">{formatTime(notification.createdAt)}</span>
+                          <p className="text-[13px] font-medium text-[#1C1C1E]">{notification.title}</p>
+                          <p className="text-[12px] text-[#8E8E93] truncate mt-0.5">{notification.message}</p>
+                          <span className="text-[11px] text-[#8E8E93] mt-1">{formatTime(notification.createdAt)}</span>
                         </div>
                         {!notification.read && (
-                          <span className={cn("w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 animate-pulse", brandAccent === 'rose' ? 'bg-rose-500' : 'bg-blue-500')} />
+                          <span className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 animate-pulse bg-[#007AFF]" />
                         )}
                       </div>
                     </div>
                   ))
                 )}
               </div>
-              <div className="px-3 py-2.5 bg-slate-50/50 border-t border-slate-100">
+              <div className="px-3 py-2.5 bg-[#F2F2F7]/60 border-t border-[#E5E5EA]">
                 <button
                   onClick={() => { setShowNotifications(false); router.push('/notifications'); }}
-                  className={cn("w-full text-[12px] font-medium py-1 rounded-md hover:bg-slate-700/80 transition-colors", brandAccent === 'rose' ? 'text-rose-600' : 'text-blue-600')}
+                  className="w-full text-[12px] font-medium py-1 rounded-md text-[#007AFF] hover:bg-black/5 transition-colors"
                 >
                   查看全部
                 </button>
@@ -345,72 +319,52 @@ export default function Header({
           )}
         </div>
 
-        {/* 主题切换 */}
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-700/80 rounded-lg transition-colors"
-        >
-          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </button>
-
         {/* 用户菜单 */}
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-lg hover:bg-slate-700/80 transition-colors"
+            className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-xl hover:bg-black/5 transition-colors"
           >
             <div className="text-right hidden sm:block">
-              <p className="text-[13px] font-medium text-slate-700 leading-tight flex items-center gap-1.5">
+              <p className="text-[13px] font-medium text-[#1C1C1E] leading-tight flex items-center gap-1.5">
                 {currentUser?.username || '未登录'}
                 {currentUser?.company && (
-                  <span className={cn(
-                    "inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold tracking-wide uppercase",
-                    brand?.tagBg || 'bg-indigo-100', brand?.tagText || 'text-indigo-700'
-                  )}>
+                  <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold tracking-wide uppercase bg-[#007AFF]/[0.1] text-[#007AFF]">
                     {currentUser.company}
                   </span>
                 )}
               </p>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+              <p className="text-[11px] text-[#8E8E93] flex items-center gap-1 mt-0.5">
                 {currentUser?.role === 'admin' && <Shield className="w-3 h-3" />}
                 {currentUser?.role === 'admin' ? '管理员' : '普通用户'}
               </p>
             </div>
             <div className="relative">
               <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
-                currentUser?.role === 'admin'
-                  ? cn("bg-gradient-to-br shadow-sm", brand?.primaryFrom || 'from-blue-500', brand?.primaryTo || 'to-purple-600')
-                  : "bg-gradient-to-br from-slate-400 to-slate-500"
+                "w-8 h-8 rounded-full flex items-center justify-center shadow-sm",
+                currentUser?.role === 'admin' ? "bg-[#007AFF]" : "bg-[#8E8E93]"
               )}>
-                <User className="w-4 h-4 text-white" />
+                <User className="w-4 h-4 text-[#1C1C1E]" />
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#34C759] rounded-full border-2 border-white" />
             </div>
-            <ChevronDown className={cn("w-3.5 h-3.5 text-slate-400 transition-transform", showUserMenu && 'rotate-180')} />
+            <ChevronDown className={cn("w-3.5 h-3.5 text-[#8E8E93] transition-transform", showUserMenu && 'rotate-180')} />
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 top-11 w-56 bg-white rounded-xl shadow-2xl shadow-black/8 border border-slate-200/60 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className={cn("px-4 py-3 border-b border-slate-100", brandAccent === 'rose' ? 'bg-gradient-to-r from-rose-50 to-pink-50' : 'bg-gradient-to-r from-blue-50 to-purple-50')}>
+            <div className="absolute right-0 top-11 w-56 bg-white rounded-2xl shadow-[0_6px_24px_rgba(0,0,0,0.12)] border border-[#E5E5EA] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="px-4 py-3 border-b border-[#E5E5EA] bg-[#F2F2F7]/60">
                 <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-9 h-9 rounded-lg flex items-center justify-center shadow-sm",
-                    "bg-gradient-to-br",
-                    brand?.primaryFrom || 'from-blue-500', brand?.primaryTo || 'to-purple-600'
-                  )}>
-                    <User className="w-5 h-5 text-white" />
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-sm bg-[#007AFF]">
+                    <User className="w-5 h-5 text-[#1C1C1E]" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-800">{currentUser?.username}</p>
-                    <p className="text-[11px] text-slate-500">{currentUser?.email}</p>
+                    <p className="text-[13px] font-semibold text-[#1C1C1E]">{currentUser?.username}</p>
+                    <p className="text-[11px] text-[#8E8E93]">{currentUser?.email}</p>
                   </div>
                 </div>
                 {currentUser?.role === 'admin' && (
-                  <span className={cn(
-                    "inline-flex items-center gap-1 px-1.5 py-0.5 mt-2 text-[10px] font-bold rounded-md",
-                    brand?.tagBg || 'bg-blue-100', brand?.tagText || 'text-blue-700'
-                  )}>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-2 text-[10px] font-bold rounded-md bg-[#007AFF]/[0.1] text-[#007AFF]">
                     <Shield className="w-3 h-3" />
                     管理员
                   </span>
@@ -421,28 +375,28 @@ export default function Header({
                 {currentUser?.role === 'admin' && (
                   <button
                     onClick={() => { setShowUserMenu(false); router.push('/user-settings'); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-700/80 transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-black/5 transition-colors text-left"
                   >
-                    <UserCog className="w-4 h-4 text-slate-400" />
-                    <span className="text-[13px] text-slate-700">用户管理</span>
+                    <UserCog className="w-4 h-4 text-[#8E8E93]" />
+                    <span className="text-[13px] text-[#3A3A3C]">用户管理</span>
                   </button>
                 )}
                 <button
                   onClick={() => { setShowUserMenu(false); router.push('/settings'); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-700/80 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-black/5 transition-colors text-left"
                 >
-                  <Settings className="w-4 h-4 text-slate-400" />
-                  <span className="text-[13px] text-slate-700">账户设置</span>
+                  <Settings className="w-4 h-4 text-[#8E8E93]" />
+                  <span className="text-[13px] text-[#3A3A3C]">账户设置</span>
                 </button>
               </div>
 
-              <div className="p-1.5 border-t border-slate-100">
+              <div className="p-1.5 border-t border-[#E5E5EA]">
                 <button
                   onClick={() => { setShowUserMenu(false); onLogout?.(); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#FF3B30]/[0.08] transition-colors text-left group"
                 >
-                  <LogOut className="w-4 h-4 text-slate-400 group-hover:text-red-500" />
-                  <span className="text-[13px] text-slate-700 group-hover:text-red-600">退出登录</span>
+                  <LogOut className="w-4 h-4 text-[#8E8E93] group-hover:text-[#FF3B30]" />
+                  <span className="text-[13px] text-[#3A3A3C] group-hover:text-[#FF3B30]">退出登录</span>
                 </button>
               </div>
             </div>

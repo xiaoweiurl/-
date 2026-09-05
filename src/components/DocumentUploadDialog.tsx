@@ -396,7 +396,7 @@ export default function DocumentUploadDialog({
         <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="w-5 h-5 text-emerald-600" />
+              <FolderOpen className="w-5 h-5 text-[#34c759]" />
               文档中心
             </DialogTitle>
           </DialogHeader>
@@ -409,7 +409,7 @@ export default function DocumentUploadDialog({
               onClick={() => setSelectedCategory('all')}
               className={cn(
                 "h-8 text-xs",
-                selectedCategory === 'all' ? "bg-emerald-600 hover:bg-emerald-700" : ""
+                selectedCategory === 'all' ? "bg-[#34c759] hover:bg-[#34c759]" : ""
               )}
             >
               全部 ({categoryStats.all || 0})
@@ -426,7 +426,7 @@ export default function DocumentUploadDialog({
                   onClick={() => setSelectedCategory(key as DocumentCategory)}
                   className={cn(
                     "h-8 text-xs gap-1",
-                    selectedCategory === key ? "bg-emerald-600 hover:bg-emerald-700" : ""
+                    selectedCategory === key ? "bg-[#34c759] hover:bg-[#34c759]" : ""
                   )}
                 >
                   <Icon className="w-3 h-3" />
@@ -442,8 +442,8 @@ export default function DocumentUploadDialog({
               className={cn(
                 'border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer',
                 isDragging
-                  ? 'border-emerald-500 bg-emerald-50'
-                  : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
+                  ? 'border-[#34c759] bg-[rgba(52,199,89,0.1)]'
+                  : 'border-[#e5e5ea] hover:border-[#34c759] hover:bg-[#f2f2f7]'
               )}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -458,18 +458,18 @@ export default function DocumentUploadDialog({
                 onChange={e => handleFileSelect(e.target.files)}
               />
               <div className="flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <Upload className="w-7 h-7 text-emerald-600" />
+                <div className="w-14 h-14 rounded-full bg-[rgba(52,199,89,0.1)] flex items-center justify-center">
+                  <Upload className="w-7 h-7 text-[#34c759]" />
                 </div>
                 <div>
-                  <p className="text-base font-medium text-slate-700">
+                  <p className="text-base font-medium text-[#8e8e93]">
                     拖拽文档到这里上传
                   </p>
-                  <p className="text-sm text-slate-500 mt-1">
+                  <p className="text-sm text-[#8e8e93] mt-1">
                     或点击选择文件
                   </p>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-[#8e8e93]">
                   支持 PDF、Word、Excel、PPT、ZIP 等格式，单个最大 5GB
                 </p>
               </div>
@@ -485,49 +485,49 @@ export default function DocumentUploadDialog({
                   return (
                     <div
                       key={file.id}
-                      className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                      className="flex items-center gap-3 p-3 bg-[#f2f2f7] rounded-lg hover:bg-[rgba(118,118,128,0.08)] transition-colors"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                        <Icon className="w-5 h-5 text-emerald-600" />
+                      <div className="w-10 h-10 rounded-lg bg-[rgba(52,199,89,0.1)] flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-[#34c759]" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-slate-700 truncate flex-1">
+                          <p className="text-sm font-medium text-[#8e8e93] truncate flex-1">
                             {file.file.name}
                           </p>
                           <span className={cn(
                             "px-1.5 py-0.5 text-xs rounded flex-shrink-0",
-                            categoryConfig.label === 'PDF文档' ? 'bg-red-100 text-red-600' :
-                            categoryConfig.label === 'Word文档' ? 'bg-blue-100 text-blue-600' :
-                            categoryConfig.label === 'Excel表格' ? 'bg-green-100 text-green-600' :
-                            categoryConfig.label === 'PPT演示' ? 'bg-orange-100 text-orange-600' :
-                            categoryConfig.label === '压缩文件' ? 'bg-purple-100 text-purple-600' :
-                            'bg-slate-100 text-slate-600'
+                            categoryConfig.label === 'PDF文档' ? 'bg-[rgba(255,59,48,0.1)] text-[#ff3b30]' :
+                            categoryConfig.label === 'Word文档' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' :
+                            categoryConfig.label === 'Excel表格' ? 'bg-[rgba(52,199,89,0.1)] text-[#34c759]' :
+                            categoryConfig.label === 'PPT演示' ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]' :
+                            categoryConfig.label === '压缩文件' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' :
+                            'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]'
                           )}>
                             {categoryConfig.label}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-[#8e8e93]">
                             {formatFileSize(file.file.size)}
                           </span>
                           
                           {file.status === 'uploading' && (
-                            <span className="text-xs text-emerald-600">
+                            <span className="text-xs text-[#34c759]">
                               {file.progress}%
                             </span>
                           )}
                           
                           {file.status === 'success' && (
-                            <span className="flex items-center gap-1 text-xs text-green-600">
+                            <span className="flex items-center gap-1 text-xs text-[#34c759]">
                               <CheckCircle2 className="w-3 h-3" />
                               已上传
                             </span>
                           )}
                           
                           {file.status === 'error' && (
-                            <span className="flex items-center gap-1 text-xs text-red-500">
+                            <span className="flex items-center gap-1 text-xs text-[#ff3b30]">
                               <AlertCircle className="w-3 h-3" />
                               {file.error}
                             </span>
@@ -536,9 +536,9 @@ export default function DocumentUploadDialog({
                         
                         {/* 进度条 */}
                         {file.status === 'uploading' && (
-                          <div className="mt-1.5 h-1 bg-slate-200 rounded-full overflow-hidden">
+                          <div className="mt-1.5 h-1 bg-[rgba(0,0,0,0.06)] rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-emerald-500 transition-all duration-300"
+                              className="h-full bg-[#34c759] transition-all duration-300"
                               style={{ width: `${file.progress}%` }}
                             />
                           </div>
@@ -551,7 +551,7 @@ export default function DocumentUploadDialog({
                             {isPreviewable(file) && (
                               <button
                                 onClick={() => setPreviewFile(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]"
                                 title="预览"
                               >
                                 <Eye className="w-4 h-4" />
@@ -561,14 +561,14 @@ export default function DocumentUploadDialog({
                               <>
                                 <button
                                   onClick={() => copyLink(file.url!)}
-                                  className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500"
+                                  className="p-1.5 rounded-lg hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]"
                                   title="复制链接"
                                 >
                                   <Copy className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => downloadFile(file)}
-                                  className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500"
+                                  className="p-1.5 rounded-lg hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]"
                                   title="下载"
                                 >
                                   <Download className="w-4 h-4" />
@@ -581,7 +581,7 @@ export default function DocumentUploadDialog({
                         {(file.status === 'pending' || file.status === 'uploading') && (
                           <button
                             onClick={() => removeFile(file.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-500 hover:text-red-500"
+                            className="p-1.5 rounded-lg hover:bg-[rgba(255,59,48,0.1)] text-[#8e8e93] hover:text-[#ff3b30]"
                             title="移除"
                           >
                             <X className="w-4 h-4" />
@@ -591,7 +591,7 @@ export default function DocumentUploadDialog({
                         {file.status === 'error' && (
                           <button
                             onClick={() => removeFile(file.id)}
-                            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500"
+                            className="p-1.5 rounded-lg hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93]"
                             title="移除"
                           >
                             <X className="w-4 h-4" />
@@ -607,7 +607,7 @@ export default function DocumentUploadDialog({
 
           {/* 底部按钮 */}
           <div className="flex items-center justify-between pt-4 border-t">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#8e8e93]">
               {uploadingFiles.filter(f => f.status === 'pending').length} 个文件待上传
               {selectedCategory !== 'all' && ` (${filteredFiles.length} 个已选中)`}
             </p>
@@ -622,7 +622,7 @@ export default function DocumentUploadDialog({
               <Button
                 onClick={uploadFiles}
                 disabled={filteredFiles.filter(f => f.status === 'pending').length === 0 || isUploading}
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-[#34c759] hover:bg-[#34c759]"
               >
                 {isUploading ? (
                   <>
@@ -644,26 +644,26 @@ export default function DocumentUploadDialog({
       {/* 预览对话框 */}
       {previewFile && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4"
           onClick={() => setPreviewFile(null)}
         >
           <div
             className="relative max-w-5xl max-h-full bg-white rounded-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <p className="text-sm font-medium text-slate-700 truncate">
+            <div className="flex items-center justify-between p-4 border-b border-[#e5e5ea]">
+              <p className="text-sm font-medium text-[#8e8e93] truncate">
                 {previewFile.file.name}
               </p>
               <button
                 onClick={() => setPreviewFile(null)}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                className="p-2 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="p-4 max-h-[calc(100vh-200px)] overflow-auto bg-slate-50">
+            <div className="p-4 max-h-[calc(100vh-200px)] overflow-auto bg-[#f2f2f7]">
               {previewFile.url && (
                 <iframe
                   src={getFullFileUrl(previewFile.url)}

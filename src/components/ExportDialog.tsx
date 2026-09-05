@@ -196,8 +196,8 @@ export default function ExportDialog({ albums, trigger, open, onOpenChange }: Ex
             className={cn(
               "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors",
               selectedAlbums.includes(album.id)
-                ? "bg-violet-50 border border-violet-200"
-                : "hover:bg-slate-50 border border-transparent"
+                ? "bg-[rgba(0,122,255,0.1)] border border-[#007aff]"
+                : "hover:bg-[#f2f2f7] border border-transparent"
             )}
             style={{ paddingLeft: `${12 + level * 24}px` }}
           >
@@ -206,25 +206,25 @@ export default function ExportDialog({ albums, trigger, open, onOpenChange }: Ex
               onCheckedChange={() => handleToggleAlbum(album.id)}
               className={cn(
                 selectedAlbums.includes(album.id)
-                  ? "bg-violet-600 border-violet-600"
+                  ? "bg-[#007aff] border-[#007aff]"
                   : ""
               )}
             />
             {isParent ? (
-              <FolderTree className="w-4 h-4 text-violet-500" />
+              <FolderTree className="w-4 h-4 text-[#007aff]" />
             ) : (
-              <FolderOpen className="w-4 h-4 text-slate-400" />
+              <FolderOpen className="w-4 h-4 text-[#8e8e93]" />
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 truncate">
+              <p className="text-sm font-medium text-[#8e8e93] truncate">
                 {album.name}
                 {isParent && (
-                  <span className="ml-2 text-xs text-violet-500 font-normal">
+                  <span className="ml-2 text-xs text-[#007aff] font-normal">
                     (含 {album.children!.length} 个子相册)
                   </span>
                 )}
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#8e8e93]">
                 {album.imageCount || 0} 张图片
               </p>
             </div>
@@ -257,7 +257,7 @@ export default function ExportDialog({ albums, trigger, open, onOpenChange }: Ex
           </div>
 
           {albums.length === 0 && (
-            <p className="text-center text-sm text-slate-500 py-4">
+            <p className="text-center text-sm text-[#8e8e93] py-4">
               暂无分类，请先创建分类并上传知识
             </p>
           )}

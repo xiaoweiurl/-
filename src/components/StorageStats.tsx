@@ -57,16 +57,16 @@ export default function StorageStats() {
   };
 
   const getUsageColor = (percentage: number) => {
-    if (percentage < 50) return 'bg-green-500';
-    if (percentage < 80) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (percentage < 50) return 'bg-[#34c759]';
+    if (percentage < 80) return 'bg-[#ff9500]';
+    return 'bg-[#ff3b30]';
   };
 
   if (loading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#8e8e93]" />
         </CardContent>
       </Card>
     );
@@ -75,7 +75,7 @@ export default function StorageStats() {
   if (!stats) {
     return (
       <Card>
-        <CardContent className="text-center py-8 text-gray-500">
+        <CardContent className="text-center py-8 text-[#8e8e93]">
           无法加载存储统计
         </CardContent>
       </Card>
@@ -104,7 +104,7 @@ export default function StorageStats() {
                 : '无限制'}
             </span>
           </div>
-          <div className="relative h-3 rounded-full bg-gray-100 overflow-hidden">
+          <div className="relative h-3 rounded-full bg-[rgba(118,118,128,0.08)] overflow-hidden">
             <div
               className={`absolute left-0 top-0 h-full rounded-full transition-all ${getUsageColor(
                 stats.usagePercentage
@@ -113,7 +113,7 @@ export default function StorageStats() {
             />
           </div>
           {stats.quotaLimit > 0 && (
-            <p className="text-xs text-gray-500 text-right">
+            <p className="text-xs text-[#8e8e93] text-right">
               {stats.usagePercentage.toFixed(1)}% 已使用
             </p>
           )}
@@ -121,45 +121,45 @@ export default function StorageStats() {
 
         {/* 统计卡片 */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-lg bg-blue-50 space-y-1">
-            <div className="flex items-center gap-2 text-blue-600">
+          <div className="p-4 rounded-lg bg-[rgba(0,122,255,0.1)] space-y-1">
+            <div className="flex items-center gap-2 text-[#007aff]">
               <ImageIcon className="w-4 h-4" />
               <span className="text-sm font-medium">图片数量</span>
             </div>
-            <p className="text-2xl font-bold text-blue-700">
+            <p className="text-2xl font-bold text-[#007aff]">
               {stats.totalImages.toLocaleString()}
             </p>
           </div>
 
-          <div className="p-4 rounded-lg bg-purple-50 space-y-1">
-            <div className="flex items-center gap-2 text-purple-600">
+          <div className="p-4 rounded-lg bg-[rgba(0,122,255,0.1)] space-y-1">
+            <div className="flex items-center gap-2 text-[#007aff]">
               <FolderOpen className="w-4 h-4" />
               <span className="text-sm font-medium">相册数量</span>
             </div>
-            <p className="text-2xl font-bold text-purple-700">
+            <p className="text-2xl font-bold text-[#007aff]">
               {stats.totalAlbums.toLocaleString()}
             </p>
           </div>
 
-          <div className="p-4 rounded-lg bg-green-50 space-y-1">
-            <div className="flex items-center gap-2 text-green-600">
+          <div className="p-4 rounded-lg bg-[rgba(52,199,89,0.1)] space-y-1">
+            <div className="flex items-center gap-2 text-[#34c759]">
               <Database className="w-4 h-4" />
               <span className="text-sm font-medium">总大小</span>
             </div>
-            <p className="text-2xl font-bold text-green-700">
+            <p className="text-2xl font-bold text-[#34c759]">
               {formatSize(stats.totalSize)}
             </p>
           </div>
 
-          <div className="p-4 rounded-lg bg-orange-50 space-y-1">
-            <div className="flex items-center gap-2 text-orange-600">
+          <div className="p-4 rounded-lg bg-[rgba(255,149,0,0.1)] space-y-1">
+            <div className="flex items-center gap-2 text-[#ff9500]">
               <Trash2 className="w-4 h-4" />
               <span className="text-sm font-medium">回收站</span>
             </div>
-            <p className="text-2xl font-bold text-orange-700">
+            <p className="text-2xl font-bold text-[#ff9500]">
               {stats.trashCount.toLocaleString()}
             </p>
-            <p className="text-xs text-orange-500">
+            <p className="text-xs text-[#ff9500]">
               {formatSize(stats.trashSize)}
             </p>
           </div>
@@ -167,7 +167,7 @@ export default function StorageStats() {
 
         {/* 使用趋势提示 */}
         {stats.usagePercentage > 80 && stats.quotaLimit > 0 && (
-          <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg text-yellow-700 text-sm">
+          <div className="flex items-center gap-2 p-3 bg-[rgba(255,149,0,0.1)] rounded-lg text-[#ff9500] text-sm">
             <TrendingUp className="w-4 h-4 flex-shrink-0" />
             <span>
               存储空间即将用尽，建议清理回收站或升级存储配额

@@ -21,27 +21,27 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
         components={{
           // 段落
           p: ({ children }) => (
-            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-slate-700', 'text-slate-200')}`}>{children}</p>
+            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>{children}</p>
           ),
           // 标题 - 简洁装饰线
           h1: ({ children }) => (
             <div className="mb-3 mt-5 first:mt-0">
-              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-slate-800', 'text-white')}`}>{children}</h1>
-              <div className={`h-[2px] w-10 rounded-full ${t('bg-slate-700', 'bg-blue-500')}`} />
+              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-[#8e8e93]', 'text-[#1C1C1E]')}`}>{children}</h1>
+              <div className={`h-[2px] w-10 rounded-full ${t('bg-[rgba(118,118,128,0.12)]', 'bg-[#007aff]')}`} />
             </div>
           ),
           h2: ({ children }) => (
             <div className="mb-2.5 mt-4 first:mt-0">
               <div className="flex items-center gap-2.5 mb-1">
-                <div className={`w-[3px] h-4 rounded-full shrink-0 ${t('bg-slate-600', 'bg-blue-400')}`} />
-                <h2 className={`text-[14px] font-bold ${t('text-slate-800', 'text-white')}`}>{children}</h2>
+                <div className={`w-[3px] h-4 rounded-full shrink-0 ${t('bg-[rgba(0,0,0,0.08)]', 'bg-[#007aff]')}`} />
+                <h2 className={`text-[14px] font-bold ${t('text-[#8e8e93]', 'text-[#1C1C1E]')}`}>{children}</h2>
               </div>
             </div>
           ),
           h3: ({ children }) => (
             <div className="mb-2 mt-3 first:mt-0">
-              <h3 className={`text-[13px] font-semibold flex items-center gap-2 ${t('text-slate-700', 'text-slate-200')}`}>
-                <span className={`inline-block w-1.5 h-1.5 rounded-sm shrink-0 ${t('bg-slate-500', 'bg-cyan-400')}`} />
+              <h3 className={`text-[13px] font-semibold flex items-center gap-2 ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>
+                <span className={`inline-block w-1.5 h-1.5 rounded-sm shrink-0 ${t('bg-[rgba(0,0,0,0.1)]', 'bg-[#007aff]')}`} />
                 {children}
               </h3>
             </div>
@@ -67,8 +67,8 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               : children;
 
             return (
-              <li className={`text-[13px] leading-[1.8] flex items-start gap-2.5 ${t('text-slate-700', 'text-slate-200')}`}>
-                <span className={`inline-block w-[5px] h-[5px] rounded-full shrink-0 mt-[8px] ${t('bg-slate-400', 'bg-blue-400')}`} />
+              <li className={`text-[13px] leading-[1.8] flex items-start gap-2.5 ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>
+                <span className={`inline-block w-[5px] h-[5px] rounded-full shrink-0 mt-[8px] ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
                 <span className="flex-1 min-w-0">
                   {textChildren}
                   {hasSubList && (
@@ -82,18 +82,18 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           },
           // 加粗
           strong: ({ children }) => (
-            <strong className={`font-semibold ${t('text-slate-900', 'text-white')}`}>{children}</strong>
+            <strong className={`font-semibold ${t('text-[#8e8e93]', 'text-[#1C1C1E]')}`}>{children}</strong>
           ),
           // 斜体
           em: ({ children }) => (
-            <em className={`italic ${t('text-slate-500', 'text-slate-400')}`}>{children}</em>
+            <em className={`italic ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{children}</em>
           ),
           // 行内代码
           code: ({ className: codeClassName, children, ...props }) => {
             const isInline = !codeClassName;
             if (isInline) {
               return (
-                <code className={`${t('bg-slate-100 text-slate-700 border-slate-200/60', 'bg-slate-700/50 text-blue-300 border-slate-600/50')} px-1.5 py-0.5 rounded-md text-[11.5px] font-mono border`} {...props}>
+                <code className={`${t('bg-[rgba(118,118,128,0.08)] text-[#8e8e93] border-[rgba(229,229,234,0.6)]', 'bg-[rgba(118,118,128,0.12)] text-[#007aff] border-[rgba(229,229,234,0.5)]')} px-1.5 py-0.5 rounded-md text-[11.5px] font-mono border`} {...props}>
                   {children}
                 </code>
               );
@@ -107,31 +107,31 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           // 代码块容器
           pre: ({ children }) => (
             <div className="relative group my-3">
-              <div className={`absolute top-0 left-0 right-0 h-8 rounded-t-lg flex items-center px-3 ${t('bg-slate-800', 'bg-slate-800')}`}>
+              <div className={`absolute top-0 left-0 right-0 h-8 rounded-t-lg flex items-center px-3 ${t('bg-[#ffffff]', 'bg-[#ffffff]')}`}>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[rgba(255,59,48,0.8)]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[rgba(255,149,0,0.8)]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[rgba(52,199,89,0.8)]" />
                 </div>
               </div>
-              <pre className={`bg-slate-900 text-slate-100 rounded-lg pt-9 pb-3 px-4 overflow-x-auto text-[12px] leading-[1.7] ${t('border-slate-700/50', 'border-slate-600/50')} border`}>
+              <pre className={`bg-[#f2f2f7] text-[#1c1c1e] rounded-lg pt-9 pb-3 px-4 overflow-x-auto text-[12px] leading-[1.7] ${t('border-[rgba(229,229,234,0.5)]', 'border-[rgba(229,229,234,0.5)]')} border`}>
                 {children}
               </pre>
             </div>
           ),
           // 引用
           blockquote: ({ children }) => (
-            <blockquote className={`my-3 pl-4 py-2 relative rounded-r-lg ${t('bg-slate-50/60', 'bg-slate-700/30')}`}>
-              <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-full ${t('bg-slate-400', 'bg-blue-400')}`} />
-              <div className={`text-[12.5px] leading-[1.7] ${t('text-slate-500', 'text-slate-300')}`}>{children}</div>
+            <blockquote className={`my-3 pl-4 py-2 relative rounded-r-lg ${t('bg-[rgba(242,242,247,0.6)]', 'bg-[rgba(0,0,0,0.015)]')}`}>
+              <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-full ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
+              <div className={`text-[12.5px] leading-[1.7] ${t('text-[#8e8e93]', 'text-[#3a3a3c]')}`}>{children}</div>
             </blockquote>
           ),
           // 分割线
           hr: () => (
             <div className="my-4 flex items-center gap-2">
-              <div className={`flex-1 h-px bg-gradient-to-r from-transparent ${t('via-slate-200', 'via-slate-600')} to-transparent`} />
-              <div className={`w-1 h-1 rounded-full ${t('bg-slate-300', 'bg-slate-500')}`} />
-              <div className={`flex-1 h-px bg-gradient-to-r from-transparent ${t('via-slate-200', 'via-slate-600')} to-transparent`} />
+              <div className={`flex-1 h-px bg-gradient-to-r from-transparent ${t('via-[#ffffff]', 'via-[#ffffff]')} to-transparent`} />
+              <div className={`w-1 h-1 rounded-full ${t('bg-[rgba(0,0,0,0.1)]', 'bg-[rgba(0,0,0,0.1)]')}`} />
+              <div className={`flex-1 h-px bg-gradient-to-r from-transparent ${t('via-[#ffffff]', 'via-[#ffffff]')} to-transparent`} />
             </div>
           ),
           // 链接
@@ -140,7 +140,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className={`inline-flex items-center gap-0.5 underline underline-offset-2 transition-colors ${t('text-blue-600 hover:text-blue-800 decoration-blue-300/50 hover:decoration-blue-500', 'text-blue-400 hover:text-blue-300 decoration-blue-400/50 hover:decoration-blue-300')}`}
+              className={`inline-flex items-center gap-0.5 underline underline-offset-2 transition-colors ${t('text-[#007aff] hover:text-[#007aff] decoration-blue-300/50 hover:decoration-blue-500', 'text-[#007aff] hover:text-[#007aff] decoration-blue-400/50 hover:decoration-blue-300')}`}
             >
               {children}
               <svg className="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,30 +150,30 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           ),
           // 表格
           table: ({ children }) => (
-            <div className={`my-3 overflow-x-auto rounded-xl border shadow-sm ${t('border-slate-200/80', 'border-slate-600/50')}`}>
+            <div className={`my-3 overflow-x-auto rounded-xl border shadow-sm ${t('border-[rgba(229,229,234,0.8)]', 'border-[rgba(229,229,234,0.5)]')}`}>
               <table className="min-w-full text-[12px]">{children}</table>
             </div>
           ),
           thead: ({ children }) => (
-            <thead className={`${t('bg-slate-50 border-slate-200/80', 'bg-slate-700/50 border-slate-600/50')} border-b`}>{children}</thead>
+            <thead className={`${t('bg-[#f2f2f7] border-[rgba(229,229,234,0.8)]', 'bg-[rgba(118,118,128,0.12)] border-[rgba(229,229,234,0.5)]')} border-b`}>{children}</thead>
           ),
           tbody: ({ children }) => (
-            <tbody className={`${t('divide-slate-100/80', 'divide-slate-700/50')} divide-y`}>{children}</tbody>
+            <tbody className={`${t('divide-[rgba(229,229,234,0.8)]', 'divide-[rgba(229,229,234,0.5)]')} divide-y`}>{children}</tbody>
           ),
           tr: ({ children }) => (
-            <tr className={`${t('hover:bg-slate-50/80', 'hover:bg-slate-700/30')} transition-colors`}>{children}</tr>
+            <tr className={`${t('hover:bg-[rgba(242,242,247,0.8)]', 'hover:bg-[rgba(0,0,0,0.015)]')} transition-colors`}>{children}</tr>
           ),
           th: ({ children }) => (
-            <th className={`px-4 py-2 text-left font-semibold whitespace-nowrap text-[12px] ${t('text-slate-700', 'text-slate-200')}`}>
+            <th className={`px-4 py-2 text-left font-semibold whitespace-nowrap text-[12px] ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-slate-600', 'text-slate-300')}`}>{children}</td>
+            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-[#8e8e93]', 'text-[#3a3a3c]')}`}>{children}</td>
           ),
           // 删除线
           del: ({ children }) => (
-            <del className={`line-through ${t('text-slate-400', 'text-slate-500')}`}>{children}</del>
+            <del className={`line-through ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{children}</del>
           ),
           // 图片
           img: ({ src, alt }) => (
@@ -181,7 +181,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               <img
                 src={src}
                 alt={alt || ''}
-                className={`max-w-full rounded-xl border shadow-md hover:shadow-lg transition-shadow ${t('border-slate-200/60', 'border-slate-600/50')}`}
+                className={`max-w-full rounded-xl border shadow-md hover:shadow-lg transition-shadow ${t('border-[rgba(229,229,234,0.6)]', 'border-[rgba(229,229,234,0.5)]')}`}
               />
             </div>
           ),

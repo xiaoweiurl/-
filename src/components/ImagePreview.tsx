@@ -262,7 +262,7 @@ export default function ImagePreview({
       {/* 关闭按钮 */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-10 p-2 text-white/60 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+        className="absolute top-4 right-4 z-10 p-2 text-[#1C1C1E]/60 hover:text-[#1C1C1E] bg-[rgba(118,118,128,0.12)] hover:bg-[rgba(118,118,128,0.16)] rounded-lg transition-colors"
       >
         <X className="w-6 h-6" />
       </button>
@@ -271,7 +271,7 @@ export default function ImagePreview({
       {hasPrev && (
         <button
           onClick={handlePrev}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 text-white/60 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 text-[#1C1C1E]/60 hover:text-[#1C1C1E] bg-[rgba(118,118,128,0.12)] hover:bg-[rgba(118,118,128,0.16)] rounded-full transition-colors"
         >
           <ChevronLeft className="w-8 h-8" />
         </button>
@@ -279,7 +279,7 @@ export default function ImagePreview({
       {hasNext && (
         <button
           onClick={handleNext}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 text-white/60 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 text-[#1C1C1E]/60 hover:text-[#1C1C1E] bg-[rgba(118,118,128,0.12)] hover:bg-[rgba(118,118,128,0.16)] rounded-full transition-colors"
         >
           <ChevronRight className="w-8 h-8" />
         </button>
@@ -310,8 +310,8 @@ export default function ImagePreview({
           {/* 图片信息 */}
           <div className="flex items-center gap-4">
             <div>
-              <h2 className="text-white font-medium text-lg">{image.title}</h2>
-              <div className="flex items-center gap-3 text-white/60 text-sm mt-1">
+              <h2 className="text-[#1C1C1E] font-medium text-lg">{image.title}</h2>
+              <div className="flex items-center gap-3 text-[#1C1C1E]/60 text-sm mt-1">
                 <span>{image.resolution}</span>
                 <span>•</span>
                 <span>{image.size}</span>
@@ -324,19 +324,19 @@ export default function ImagePreview({
           {/* 操作按钮 */}
           <div className="flex items-center gap-2">
             {/* 缩放控制 */}
-            <div className="flex items-center gap-1 bg-white/10 rounded-lg p-1 mr-2">
+            <div className="flex items-center gap-1 bg-[rgba(118,118,128,0.12)] rounded-lg p-1 mr-2">
               <button
                 onClick={handleZoomOut}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded transition-colors"
+                className="p-2 text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)] rounded transition-colors"
               >
                 <ZoomOut className="w-5 h-5" />
               </button>
-              <span className="text-white text-sm px-2 min-w-[4rem] text-center">
+              <span className="text-[#1C1C1E] text-sm px-2 min-w-[4rem] text-center">
                 {Math.round(zoom * 100)}%
               </span>
               <button
                 onClick={handleZoomIn}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded transition-colors"
+                className="p-2 text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)] rounded transition-colors"
               >
                 <ZoomIn className="w-5 h-5" />
               </button>
@@ -347,7 +347,7 @@ export default function ImagePreview({
               variant="ghost"
               size="sm"
               onClick={handleRotate}
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)]"
             >
               <RotateCw className="w-5 h-5" />
             </Button>
@@ -357,7 +357,7 @@ export default function ImagePreview({
               variant="ghost"
               size="sm"
               onClick={() => image && router.push(`/edit/${image.id}`)}
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)]"
             >
               <Edit3 className="w-5 h-5" />
             </Button>
@@ -367,22 +367,22 @@ export default function ImagePreview({
               variant="ghost"
               size="sm"
               onClick={() => setShowInfo(!showInfo)}
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)]"
             >
               <Info className="w-5 h-5" />
             </Button>
 
-            <div className="w-px h-6 bg-white/20 mx-2" />
+            <div className="w-px h-6 bg-[rgba(118,118,128,0.16)] mx-2" />
 
             {/* 收藏 */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => onToggleFavorite(image.id)}
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)]"
             >
               <Heart
-                className={cn('w-5 h-5', image.favorite && 'fill-red-500 text-red-500')}
+                className={cn('w-5 h-5', image.favorite && 'fill-[#ff3b30] text-[#ff3b30]')}
               />
             </Button>
 
@@ -390,7 +390,7 @@ export default function ImagePreview({
             <Button
               variant="ghost"
               size="sm"
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)]"
             >
               <Share2 className="w-5 h-5" />
             </Button>
@@ -399,7 +399,7 @@ export default function ImagePreview({
             <Button
               variant="ghost"
               size="sm"
-              className="text-white/60 hover:text-white hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#1C1C1E] hover:bg-[rgba(118,118,128,0.12)]"
               onClick={handleDownload}
             >
               <Download className="w-5 h-5" />
@@ -409,7 +409,7 @@ export default function ImagePreview({
             <Button
               variant="ghost"
               size="sm"
-              className="text-white/60 hover:text-yellow-400 hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#ff9500] hover:bg-[rgba(118,118,128,0.12)]"
               onClick={handleSetAsMainImage}
               title="设为主图"
             >
@@ -420,7 +420,7 @@ export default function ImagePreview({
             <Button
               variant="ghost"
               size="sm"
-              className="text-white/60 hover:text-red-400 hover:bg-white/10"
+              className="text-[#1C1C1E]/60 hover:text-[#ff3b30] hover:bg-[rgba(118,118,128,0.12)]"
             >
               <Trash2 className="w-5 h-5" />
             </Button>
@@ -429,7 +429,7 @@ export default function ImagePreview({
       </div>
 
       {/* 图片计数 */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white/60 text-sm">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-[rgba(118,118,128,0.12)] backdrop-blur-sm rounded-full text-[#1C1C1E]/60 text-sm">
         {currentIndex + 1} / {images.length}
       </div>
 

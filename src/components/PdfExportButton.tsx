@@ -194,7 +194,7 @@ export default function PdfExportButton({ content, title, className = '' }: PdfE
     <button
       onClick={handleExport}
       disabled={exporting}
-      className={`p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-all disabled:opacity-50 ${className}`}
+      className={`p-1 rounded-md text-[#8e8e93] hover:text-[#1c1c1e] hover:bg-[rgba(118,118,128,0.12)] transition-all disabled:opacity-50 ${className}`}
       title="导出 PDF（打印对话框中选择'另存为 PDF'）"
     >
       {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}

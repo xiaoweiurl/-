@@ -433,14 +433,14 @@ export default function AiImagePage() {
 
   const isBaonasi = brand.name === '宝娜斯';
   const accent = isBaonasi ? 'rose' : 'violet';
-  const accentBg = isBaonasi ? 'from-rose-500 to-pink-600' : 'from-violet-500 to-purple-600';
-  const accentText = isBaonasi ? 'text-rose-600' : 'text-violet-600';
-  const accentBgLight = isBaonasi ? 'bg-rose-50' : 'bg-violet-50';
-  const accentBgLighter = isBaonasi ? 'bg-rose-50/50' : 'bg-violet-50/50';
-  const accentBorder = isBaonasi ? 'border-rose-400' : 'border-violet-400';
-  const accentBorderLight = isBaonasi ? 'border-rose-200' : 'border-violet-200';
-  const accentBgBtn = isBaonasi ? 'bg-rose-600' : 'bg-violet-600';
-  const accentRing = isBaonasi ? 'focus:ring-rose-500/20 focus:border-rose-400' : 'focus:ring-violet-500/20 focus:border-violet-400';
+  const accentBg = isBaonasi ? 'bg-[#007AFF]' : 'bg-[#007AFF]';
+  const accentText = isBaonasi ? 'text-[#007aff]' : 'text-[#007aff]';
+  const accentBgLight = isBaonasi ? 'bg-[rgba(0,122,255,0.1)]' : 'bg-[rgba(0,122,255,0.1)]';
+  const accentBgLighter = isBaonasi ? 'bg-[rgba(0,122,255,0.05)]' : 'bg-[rgba(0,122,255,0.05)]';
+  const accentBorder = isBaonasi ? 'border-[#007aff]' : 'border-[#007aff]';
+  const accentBorderLight = isBaonasi ? 'border-[#007aff]' : 'border-[#007aff]';
+  const accentBgBtn = isBaonasi ? 'bg-[#007aff]' : 'bg-[#007aff]';
+  const accentRing = isBaonasi ? 'focus:ring-[rgba(0,122,255,0.2)] focus:border-[#007aff]' : 'focus:ring-[rgba(0,122,255,0.2)] focus:border-[#007aff]';
 
   // 获取当前选中比例的像素值
   const getCurrentPixelValue = () => {
@@ -453,7 +453,7 @@ export default function AiImagePage() {
   const router = useRouter();
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-[#f2f2f7]">
       <Sidebar activeItem="ai-image" onItemClick={(id: string) => {
         if (id === 'ai-image') return;
         // 导航到对应页面
@@ -474,20 +474,20 @@ export default function AiImagePage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* 顶部栏 */}
-        <div className="h-14 bg-white border-b border-slate-200/60 flex items-center px-6 shrink-0">
+        <div className="h-14 bg-white border-b border-[rgba(229,229,234,0.6)] flex items-center px-6 shrink-0">
           <button
             onClick={() => router.push('/')}
-            className={`flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mr-4 shrink-0`}
+            className={`flex items-center gap-1.5 text-sm text-[#8e8e93] hover:text-[#8e8e93] transition-colors mr-4 shrink-0`}
           >
             <ArrowLeft className="w-4 h-4" />
             <span>返回</span>
           </button>
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentBg} flex items-center justify-center`}>
+            <div className={`w-8 h-8 rounded-lg ${accentBg} flex items-center justify-center`}>
               <Wand2 className="w-4 h-4 text-white" />
             </div>
-            <span className="text-base font-semibold text-slate-800">{brand.name} AI 智能生图</span>
-            <span className="text-sm text-slate-400 font-normal ml-1">AI Image Generation</span>
+            <span className="text-base font-semibold text-[#8e8e93]">{brand.name} AI 智能生图</span>
+            <span className="text-sm text-[#8e8e93] font-normal ml-1">AI Image Generation</span>
           </div>
         </div>
 
@@ -499,10 +499,10 @@ export default function AiImagePage() {
               <div className="lg:col-span-5 space-y-5">
 
                 {/* 模型系列选择 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-[rgba(229,229,234,0.6)] p-6">
                   <div className="flex items-center gap-2.5 mb-5">
                     <Sparkles className={`w-5 h-5 ${accentText}`} />
-                    <span className="text-base font-semibold text-slate-800">模型选择</span>
+                    <span className="text-base font-semibold text-[#8e8e93]">模型选择</span>
                   </div>
 
                   {/* 两大系列 Tab */}
@@ -517,7 +517,7 @@ export default function AiImagePage() {
                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                           modelType === item.type
                             ? `bg-white shadow-sm ${accentText} border ${accentBorderLight}`
-                            : 'text-slate-500 hover:text-slate-700'
+                            : 'text-[#8e8e93] hover:text-[#8e8e93]'
                         }`}
                       >
                         <span className="text-base">{item.icon}</span>
@@ -532,31 +532,31 @@ export default function AiImagePage() {
                       <button
                         onClick={() => setShowModelDropdown(!showModelDropdown)}
                         className={`w-full flex items-center justify-between px-5 py-3.5 rounded-xl border-2 transition-all duration-200 ${
-                          showModelDropdown ? accentBorderLight : 'border-slate-200'
+                          showModelDropdown ? accentBorderLight : 'border-[#e5e5ea]'
                         } bg-white hover:shadow-sm`}
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-xl">🍌</span>
                           <div className="text-left">
-                            <div className="text-sm font-medium text-slate-800">{currentModelName}</div>
-                            <div className="text-xs text-slate-400 mt-0.5">{NANO_MODELS.find((m) => m.id === activeModel)?.desc}</div>
+                            <div className="text-sm font-medium text-[#8e8e93]">{currentModelName}</div>
+                            <div className="text-xs text-[#8e8e93] mt-0.5">{NANO_MODELS.find((m) => m.id === activeModel)?.desc}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {NANO_MODELS.find((m) => m.id === activeModel)?.badge && (
                             <span className={`text-xs px-2 py-0.5 rounded-md font-bold ${
-                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === '推荐' ? 'bg-emerald-100 text-emerald-700' :
-                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === 'VIP' ? 'bg-amber-100 text-amber-700' :
-                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === '4K' ? 'bg-blue-100 text-blue-700' :
-                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === '极速' ? 'bg-orange-100 text-orange-700' :
-                              'bg-slate-100 text-slate-600'
+                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === '推荐' ? 'bg-[rgba(52,199,89,0.1)] text-[#34c759]' :
+                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === 'VIP' ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]' :
+                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === '4K' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' :
+                              NANO_MODELS.find((m) => m.id === activeModel)?.badge === '极速' ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]' :
+                              'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]'
                             }`}>{NANO_MODELS.find((m) => m.id === activeModel)?.badge}</span>
                           )}
-                          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`w-4 h-4 text-[#8e8e93] transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} />
                         </div>
                       </button>
                       {showModelDropdown && (
-                        <div className="absolute z-20 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                        <div className="absolute z-20 w-full mt-2 bg-white border border-[#e5e5ea] rounded-xl shadow-xl overflow-hidden">
                           <div className="max-h-80 overflow-y-auto p-2">
                             {NANO_MODELS.map((m) => (
                               <button
@@ -568,21 +568,21 @@ export default function AiImagePage() {
                                 className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg text-left transition-all duration-150 ${
                                   activeModel === m.id
                                     ? `${accentBgLight} ${accentText}`
-                                    : 'hover:bg-slate-50'
+                                    : 'hover:bg-[#f2f2f7]'
                                 }`}
                               >
                                 <span className="text-lg">🍌</span>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm font-medium">{m.name}</div>
-                                  <div className="text-xs text-slate-400 mt-0.5">{m.desc}</div>
+                                  <div className="text-xs text-[#8e8e93] mt-0.5">{m.desc}</div>
                                 </div>
                                 {m.badge && (
                                   <span className={`text-xs px-2 py-0.5 rounded-md font-bold ${
-                                    m.badge === '推荐' ? 'bg-emerald-100 text-emerald-700' :
-                                    m.badge === 'VIP' ? 'bg-amber-100 text-amber-700' :
-                                    m.badge === '4K' ? 'bg-blue-100 text-blue-700' :
-                                    m.badge === '极速' ? 'bg-orange-100 text-orange-700' :
-                                    'bg-slate-100 text-slate-600'
+                                    m.badge === '推荐' ? 'bg-[rgba(52,199,89,0.1)] text-[#34c759]' :
+                                    m.badge === 'VIP' ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]' :
+                                    m.badge === '4K' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' :
+                                    m.badge === '极速' ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]' :
+                                    'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]'
                                   }`}>{m.badge}</span>
                                 )}
                               </button>
@@ -600,16 +600,16 @@ export default function AiImagePage() {
                           className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl border-2 transition-all duration-200 text-left ${
                             activeModel === m.id
                               ? `${accentBorder} ${accentBgLight} shadow-sm`
-                              : 'border-slate-200 bg-white hover:border-slate-300'
+                              : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                           }`}
                         >
                           <span className="text-xl">🎨</span>
                           <div className="flex-1">
                             <div className="text-sm font-medium">{m.name}</div>
-                            <div className="text-xs text-slate-400 mt-0.5">{m.desc}</div>
+                            <div className="text-xs text-[#8e8e93] mt-0.5">{m.desc}</div>
                           </div>
                           {m.badge && (
-                            <span className="text-xs px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-700">{m.badge}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-md font-bold bg-[rgba(255,149,0,0.1)] text-[#ff9500]">{m.badge}</span>
                           )}
                         </button>
                       ))}
@@ -618,17 +618,17 @@ export default function AiImagePage() {
                 </div>
 
                 {/* 参数配置 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-[rgba(229,229,234,0.6)] p-6">
                   <div className="flex items-center gap-2.5 mb-5">
                     <Ratio className={`w-5 h-5 ${accentText}`} />
-                    <span className="text-base font-semibold text-slate-800">参数配置</span>
+                    <span className="text-base font-semibold text-[#8e8e93]">参数配置</span>
                   </div>
 
                   {modelType === 'nano' ? (
                     <>
                       {/* Nano Banana: 尺寸 */}
                       <div className="mb-5">
-                        <label className="text-sm font-medium text-slate-600 mb-3 block">图片尺寸</label>
+                        <label className="text-sm font-medium text-[#8e8e93] mb-3 block">图片尺寸</label>
                         <div className="flex gap-3">
                           {NANO_IMAGE_SIZES.map((size) => (
                             <button
@@ -637,7 +637,7 @@ export default function AiImagePage() {
                               className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                                 nanoImageSize === size
                                   ? `${accentBgBtn} text-white shadow-md`
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                  : 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:bg-[rgba(0,0,0,0.06)]'
                               }`}
                             >
                               {size}
@@ -647,7 +647,7 @@ export default function AiImagePage() {
                       </div>
                       {/* Nano Banana: 比例 */}
                       <div>
-                        <label className="text-sm font-medium text-slate-600 mb-3 block">图片比例</label>
+                        <label className="text-sm font-medium text-[#8e8e93] mb-3 block">图片比例</label>
                         <div className="grid grid-cols-5 gap-2">
                           {NANO_ASPECT_RATIOS.map((ratio) => (
                             <button
@@ -656,12 +656,12 @@ export default function AiImagePage() {
                               className={`group flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg transition-all duration-200 ${
                                 nanoAspectRatio === ratio
                                   ? `${accentBgBtn} text-white shadow-md`
-                                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                                  : 'bg-[#f2f2f7] text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] border border-[rgba(229,229,234,0.6)]'
                               }`}
                             >
                               <div
                                 className={`rounded-sm transition-all duration-200 ${
-                                  nanoAspectRatio === ratio ? 'bg-white/80' : 'bg-slate-300 group-hover:bg-slate-200'
+                                  nanoAspectRatio === ratio ? 'bg-white/80' : 'bg-[rgba(0,0,0,0.1)] group-hover:bg-[rgba(0,0,0,0.06)]'
                                 }`}
                                 style={ratio !== 'auto' ? { aspectRatio: ratioToPreview(ratio), maxWidth: 18, maxHeight: 18, width: 18, height: 'auto' } : { width: 14, height: 14 }}
                               />
@@ -675,7 +675,7 @@ export default function AiImagePage() {
                     <>
                       {/* GPT VIP: 档位 */}
                       <div className="mb-5">
-                        <label className="text-sm font-medium text-slate-600 mb-3 block">分辨率档位</label>
+                        <label className="text-sm font-medium text-[#8e8e93] mb-3 block">分辨率档位</label>
                         <div className="flex gap-3">
                           {['1K', '2K', '4K'].map((tier) => (
                             <button
@@ -690,7 +690,7 @@ export default function AiImagePage() {
                               className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                                 gptImageSize === tier
                                   ? `${accentBgBtn} text-white shadow-md`
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                  : 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:bg-[rgba(0,0,0,0.06)]'
                               }`}
                             >
                               {tier}
@@ -700,7 +700,7 @@ export default function AiImagePage() {
                       </div>
                       {/* GPT VIP: 比例 */}
                       <div>
-                        <label className="text-sm font-medium text-slate-600 mb-3 block">图片比例</label>
+                        <label className="text-sm font-medium text-[#8e8e93] mb-3 block">图片比例</label>
                         <div className="grid grid-cols-5 gap-2">
                           {Object.keys(GPT_RES_VIP[gptImageSize] || {}).map((ratio) => {
                             const pixelValue = GPT_RES_VIP[gptImageSize]?.[ratio];
@@ -711,17 +711,17 @@ export default function AiImagePage() {
                                 className={`group flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-all duration-200 ${
                                   gptAspectRatio === ratio
                                     ? `${accentBgBtn} text-white shadow-md`
-                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                                    : 'bg-[#f2f2f7] text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] border border-[rgba(229,229,234,0.6)]'
                                 }`}
                               >
                                 <div
                                   className={`rounded-sm transition-all ${
-                                    gptAspectRatio === ratio ? 'bg-white/80' : 'bg-slate-300 group-hover:bg-slate-200'
+                                    gptAspectRatio === ratio ? 'bg-white/80' : 'bg-[rgba(0,0,0,0.1)] group-hover:bg-[rgba(0,0,0,0.06)]'
                                   }`}
                                   style={{ aspectRatio: ratioToPreview(ratio), maxWidth: 18, maxHeight: 18, width: 18, height: 'auto' }}
                                 />
                                 <span className="text-xs font-medium leading-none">{ratio}</span>
-                                <span className={`text-[10px] leading-none ${gptAspectRatio === ratio ? 'text-white/70' : 'text-slate-400'}`}>
+                                <span className={`text-[10px] leading-none ${gptAspectRatio === ratio ? 'text-white/80' : 'text-[#8e8e93]'}`}>
                                   {pixelValue?.replace('x', '×')}
                                 </span>
                               </button>
@@ -734,7 +734,7 @@ export default function AiImagePage() {
                     <>
                       {/* GPT 标准版 */}
                       <div className="mb-5">
-                        <label className="text-sm font-medium text-slate-600 mb-3 block">格式</label>
+                        <label className="text-sm font-medium text-[#8e8e93] mb-3 block">格式</label>
                         <div className={`flex p-1.5 rounded-xl ${accentBgLighter}`}>
                           {[
                             { mode: 'pixel' as const, label: '像素格式' },
@@ -749,7 +749,7 @@ export default function AiImagePage() {
                               className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                                 gptStandardMode === opt.mode
                                   ? `bg-white shadow-sm ${accentText} border ${accentBorderLight}`
-                                  : 'text-slate-500'
+                                  : 'text-[#8e8e93]'
                               }`}
                             >
                               {opt.label}
@@ -758,7 +758,7 @@ export default function AiImagePage() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-slate-600 mb-3 block">图片比例</label>
+                        <label className="text-sm font-medium text-[#8e8e93] mb-3 block">图片比例</label>
                         <div className="grid grid-cols-5 gap-2">
                           {gptAvailableRatios.map((ratio) => {
                             const pixelValue = gptStandardMode === 'pixel' ? GPT_RES_STANDARD[ratio] : undefined;
@@ -769,18 +769,18 @@ export default function AiImagePage() {
                                 className={`group flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-all duration-200 ${
                                   gptAspectRatio === ratio
                                     ? `${accentBgBtn} text-white shadow-md`
-                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                                    : 'bg-[#f2f2f7] text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] border border-[rgba(229,229,234,0.6)]'
                                 }`}
                               >
                                 <div
                                   className={`rounded-sm transition-all ${
-                                    gptAspectRatio === ratio ? 'bg-white/80' : 'bg-slate-300 group-hover:bg-slate-200'
+                                    gptAspectRatio === ratio ? 'bg-white/80' : 'bg-[rgba(0,0,0,0.1)] group-hover:bg-[rgba(0,0,0,0.06)]'
                                   }`}
                                   style={{ aspectRatio: ratioToPreview(ratio), maxWidth: 18, maxHeight: 18, width: 18, height: 'auto' }}
                                 />
                                 <span className="text-xs font-medium leading-none">{ratio}</span>
                                 {pixelValue && (
-                                  <span className={`text-[10px] leading-none ${gptAspectRatio === ratio ? 'text-white/70' : 'text-slate-400'}`}>
+                                  <span className={`text-[10px] leading-none ${gptAspectRatio === ratio ? 'text-white/80' : 'text-[#8e8e93]'}`}>
                                     {pixelValue.replace('x', '×')}
                                   </span>
                                 )}
@@ -793,8 +793,8 @@ export default function AiImagePage() {
                   )}
 
                   {/* 生成数量 - 所有模型通用 */}
-                  <div className="mt-5 pt-5 border-t border-slate-100">
-                    <label className="text-sm font-medium text-slate-600 mb-3 block">生成数量</label>
+                  <div className="mt-5 pt-5 border-t border-[#e5e5ea]">
+                    <label className="text-sm font-medium text-[#8e8e93] mb-3 block">生成数量</label>
                     <div className="flex gap-3">
                       {[1, 2, 3, 4].map((n) => (
                         <button
@@ -803,7 +803,7 @@ export default function AiImagePage() {
                           className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                             generateCount === n
                               ? `${accentBgBtn} text-white shadow-md`
-                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                              : 'bg-[#f2f2f7] text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] border border-[rgba(229,229,234,0.6)]'
                           }`}
                         >
                           {n} 张
@@ -814,20 +814,20 @@ export default function AiImagePage() {
                 </div>
 
                 {/* 提示词输入 + 生成 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-[rgba(229,229,234,0.6)] p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2.5">
                       <Wand2 className={`w-5 h-5 ${accentText}`} />
-                      <span className="text-base font-semibold text-slate-800">提示词</span>
+                      <span className="text-base font-semibold text-[#8e8e93]">提示词</span>
                     </div>
-                    <span className="text-xs text-slate-400 font-medium">Ctrl + Enter 快捷生成</span>
+                    <span className="text-xs text-[#8e8e93] font-medium">Ctrl + Enter 快捷生成</span>
                   </div>
                   <div className="relative">
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder="描述你想要生成的图片，越详细效果越好..."
-                      className={`w-full h-36 px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:bg-white ${accentRing} resize-none text-sm text-slate-700 placeholder:text-slate-400 leading-relaxed transition-all duration-200`}
+                      className={`w-full h-36 px-4 py-3.5 rounded-xl border border-[#e5e5ea] bg-[rgba(242,242,247,0.5)] focus:outline-none focus:ring-2 focus:bg-white ${accentRing} resize-none text-sm text-[#8e8e93] placeholder:text-[#8e8e93] leading-relaxed transition-all duration-200`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                           handleGenerate();
@@ -835,7 +835,7 @@ export default function AiImagePage() {
                       }}
                     />
                     <div className="absolute bottom-3.5 left-4 right-4 flex items-center justify-between">
-                      <span className="text-xs text-slate-300">{prompt.length} 字</span>
+                      <span className="text-xs text-[#3a3a3c]">{prompt.length} 字</span>
                     </div>
                   </div>
 
@@ -843,9 +843,9 @@ export default function AiImagePage() {
                   <div className="mt-4">
                     <div className="flex items-center justify-between mb-2.5">
                       <div className="flex items-center gap-2">
-                        <Upload className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium text-slate-600">参考图片</span>
-                        <span className="text-xs text-slate-400">（图生图，最多4张）</span>
+                        <Upload className="w-4 h-4 text-[#8e8e93]" />
+                        <span className="text-sm font-medium text-[#8e8e93]">参考图片</span>
+                        <span className="text-xs text-[#8e8e93]">（图生图，最多4张）</span>
                       </div>
                       {referenceImages.length > 0 && (
                         <button
@@ -853,7 +853,7 @@ export default function AiImagePage() {
                             referenceImages.forEach(img => URL.revokeObjectURL(img.preview));
                             setReferenceImages([]);
                           }}
-                          className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                          className="text-xs text-[#8e8e93] hover:text-[#ff3b30] transition-colors"
                         >
                           清空全部
                         </button>
@@ -863,7 +863,7 @@ export default function AiImagePage() {
                       {referenceImages.map((img, idx) => (
                         <div
                           key={idx}
-                          className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 group"
+                          className="relative w-20 h-20 rounded-xl overflow-hidden border border-[#e5e5ea] group"
                         >
                           <img
                             src={img.preview}
@@ -881,10 +881,10 @@ export default function AiImagePage() {
                       {referenceImages.length < 4 && (
                         <button
                           onClick={() => refImageInputRef.current?.click()}
-                          className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 flex flex-col items-center justify-center gap-1 transition-all duration-200 group"
+                          className="w-20 h-20 rounded-xl border-2 border-dashed border-[#e5e5ea] hover:border-[#e5e5ea] hover:bg-[#f2f2f7] flex flex-col items-center justify-center gap-1 transition-all duration-200 group"
                         >
-                          <Upload className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors" />
-                          <span className="text-[10px] text-slate-400 group-hover:text-slate-500">上传</span>
+                          <Upload className="w-5 h-5 text-[#3a3a3c] group-hover:text-[#8e8e93] transition-colors" />
+                          <span className="text-[10px] text-[#8e8e93] group-hover:text-[#8e8e93]">上传</span>
                         </button>
                       )}
                       <input
@@ -903,8 +903,8 @@ export default function AiImagePage() {
                     disabled={isGenerating || !prompt.trim() || isUploadingRef}
                     className={`w-full mt-4 py-3.5 rounded-xl font-semibold text-sm text-white transition-all duration-300 flex items-center justify-center gap-2 ${
                       isGenerating || !prompt.trim() || isUploadingRef
-                        ? 'bg-slate-300 cursor-not-allowed'
-                        : `bg-gradient-to-r ${accentBg} hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0`
+                        ? 'bg-[rgba(0,0,0,0.1)] cursor-not-allowed'
+                        : `${accentBg} hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0`
                     }`}
                   >
                     {isUploadingRef ? (
@@ -930,7 +930,7 @@ export default function AiImagePage() {
                     <span className={`text-xs px-2.5 py-1 rounded-md ${accentBgLight} ${accentText} font-medium`}>
                       {currentModelName}
                     </span>
-                    <span className="text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 font-medium">
+                    <span className="text-xs px-2.5 py-1 rounded-md bg-[rgba(118,118,128,0.08)] text-[#8e8e93] font-medium">
                       {modelType === 'nano'
                         ? `${nanoAspectRatio} · ${nanoImageSize}`
                         : isGptVip
@@ -941,7 +941,7 @@ export default function AiImagePage() {
                       }
                     </span>
                     {getCurrentPixelValue() && (
-                      <span className="text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 font-medium">
+                      <span className="text-xs px-2.5 py-1 rounded-md bg-[rgba(118,118,128,0.08)] text-[#8e8e93] font-medium">
                         {getCurrentPixelValue()}
                       </span>
                     )}
@@ -950,9 +950,9 @@ export default function AiImagePage() {
 
                 {/* 错误提示 */}
                 {error && (
-                  <div className="px-5 py-4 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                    <span className="text-sm text-red-600">{error}</span>
-                    <button onClick={() => setError('')} className="text-red-400 hover:text-red-600 transition-colors">
+                  <div className="px-5 py-4 rounded-xl bg-[rgba(255,59,48,0.1)] border border-[#ff3b30] flex items-center justify-between">
+                    <span className="text-sm text-[#ff3b30]">{error}</span>
+                    <button onClick={() => setError('')} className="text-[#ff3b30] hover:text-[#ff3b30] transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -961,11 +961,11 @@ export default function AiImagePage() {
 
               {/* ====== 右侧：生成结果 ====== */}
               <div className="lg:col-span-7">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 min-h-[calc(100vh-7.5rem)]">
+                <div className="bg-white rounded-2xl shadow-sm border border-[rgba(229,229,234,0.6)] p-6 min-h-[calc(100vh-7.5rem)]">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2.5">
                       <ImageIcon className={`w-5 h-5 ${accentText}`} />
-                      <span className="text-base font-semibold text-slate-800">生成结果</span>
+                      <span className="text-base font-semibold text-[#8e8e93]">生成结果</span>
                       {generatedImages.length > 0 && (
                         <span className={`text-xs px-2 py-0.5 rounded-md ${accentBgLight} ${accentText} font-bold`}>
                           {generatedImages.length}
@@ -975,7 +975,7 @@ export default function AiImagePage() {
                     {generatedImages.length > 0 && (
                       <button
                         onClick={() => setGeneratedImages([])}
-                        className="text-sm text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1.5"
+                        className="text-sm text-[#8e8e93] hover:text-[#ff3b30] transition-colors flex items-center gap-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         清空全部
@@ -984,19 +984,19 @@ export default function AiImagePage() {
                   </div>
 
                   {generatedImages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-32 text-slate-300">
+                    <div className="flex flex-col items-center justify-center py-32 text-[#3a3a3c]">
                       <div className={`w-24 h-24 rounded-2xl ${accentBgLighter} flex items-center justify-center mb-5`}>
-                        <ImageIcon className="w-10 h-10 text-slate-300" />
+                        <ImageIcon className="w-10 h-10 text-[#3a3a3c]" />
                       </div>
-                      <p className="text-base font-medium text-slate-400 mb-2">还没有生成图片</p>
-                      <p className="text-sm text-slate-300">输入提示词，选择模型和参数，开始创作</p>
+                      <p className="text-base font-medium text-[#8e8e93] mb-2">还没有生成图片</p>
+                      <p className="text-sm text-[#3a3a3c]">输入提示词，选择模型和参数，开始创作</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                       {generatedImages.map((img, index) => (
                         <div
                           key={img.timestamp}
-                          className="group relative rounded-xl overflow-hidden border border-slate-200/80 bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 hover:-translate-y-0.5"
+                          className="group relative rounded-xl overflow-hidden border border-[rgba(229,229,234,0.8)] bg-white hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5"
                         >
                           <div
                             className="aspect-square relative cursor-pointer overflow-hidden"
@@ -1015,7 +1015,7 @@ export default function AiImagePage() {
                             <div className="absolute top-2.5 right-2.5 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                               <button
                                 onClick={(e) => { e.stopPropagation(); setPreviewImage(img.url); }}
-                                className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/60 transition-colors"
+                                className="w-8 h-8 rounded-lg bg-black/10 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/10 transition-colors"
                                 title="预览"
                               >
                                 <Maximize2 className="w-4 h-4" />
@@ -1025,10 +1025,10 @@ export default function AiImagePage() {
                                 disabled={uploadingIdx === index || uploadedIdxs.has(index)}
                                 className={`w-8 h-8 rounded-lg backdrop-blur-sm flex items-center justify-center transition-colors ${
                                   uploadedIdxs.has(index)
-                                    ? 'bg-green-500/80 text-white cursor-default'
+                                    ? 'bg-[#34C759] text-white cursor-default'
                                     : uploadingIdx === index
-                                      ? 'bg-violet-500/60 text-white cursor-wait'
-                                      : 'bg-black/40 text-white/90 hover:bg-violet-500/80'
+                                      ? 'bg-[rgba(0,122,255,0.6)] text-white cursor-wait'
+                                      : 'bg-black/10 text-white/90 hover:bg-[rgba(0,122,255,0.8)]'
                                 }`}
                                 title={uploadedIdxs.has(index) ? '已上传' : `上传到${galleryName}`}
                               >
@@ -1042,7 +1042,7 @@ export default function AiImagePage() {
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDownload(img.url, index); }}
-                                className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/60 transition-colors"
+                                className="w-8 h-8 rounded-lg bg-black/10 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/10 transition-colors"
                                 title="下载"
                               >
                                 <Download className="w-4 h-4" />
@@ -1057,19 +1057,19 @@ export default function AiImagePage() {
                                   || GPT_MODELS.find((m) => m.id === img.model)?.name
                                   || img.model}
                               </span>
-                              <span className="text-xs text-slate-400 truncate">{img.detail}</span>
+                              <span className="text-xs text-[#8e8e93] truncate">{img.detail}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => handleCopyPrompt(img.prompt, index)}
-                                className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                className="p-1.5 rounded-md hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:text-[#8e8e93] transition-colors"
                                 title="复制提示词"
                               >
-                                {copiedIdx === index ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copiedIdx === index ? <Check className="w-3.5 h-3.5 text-[#34c759]" /> : <Copy className="w-3.5 h-3.5" />}
                               </button>
                               <button
                                 onClick={() => handleDeleteImage(img.timestamp)}
-                                className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                                className="p-1.5 rounded-md hover:bg-[rgba(255,59,48,0.1)] text-[#8e8e93] hover:text-[#ff3b30] transition-colors"
                                 title="删除"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1090,7 +1090,7 @@ export default function AiImagePage() {
       {/* 图片预览弹窗 */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8"
+          className="fixed inset-0 z-50 bg-black/10 backdrop-blur-sm flex items-center justify-center p-8"
           onClick={() => setPreviewImage(null)}
         >
           <div className="relative max-w-[90vw] max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
@@ -1101,7 +1101,7 @@ export default function AiImagePage() {
             />
             <button
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all duration-200"
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)] transition-all duration-200"
             >
               <X className="w-4 h-4" />
             </button>

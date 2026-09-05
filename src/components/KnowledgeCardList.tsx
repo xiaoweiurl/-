@@ -99,32 +99,32 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
   );
 
   const getTeamColor = (team: string) => {
-    if (team?.includes('品牌运营')) return 'bg-pink-500/15 text-pink-400 border-pink-500/30';
-    if (team?.includes('产品开发')) return 'bg-violet-500/15 text-violet-400 border-violet-500/30';
-    if (team?.includes('供应链')) return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
-    if (team?.includes('财务')) return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
-    return 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+    if (team?.includes('品牌运营')) return 'bg-[rgba(175,82,222,0.15)] text-[#af52de] border-[rgba(175,82,222,0.3)]';
+    if (team?.includes('产品开发')) return 'bg-[rgba(0,122,255,0.15)] text-[#007aff] border-[rgba(0,122,255,0.3)]';
+    if (team?.includes('供应链')) return 'bg-[rgba(255,149,0,0.15)] text-[#ff9500] border-[rgba(255,149,0,0.3)]';
+    if (team?.includes('财务')) return 'bg-[rgba(52,199,89,0.15)] text-[#34c759] border-[rgba(52,199,89,0.3)]';
+    return 'bg-[rgba(0,0,0,0.015)] text-[#8e8e93] border-[rgba(229,229,234,0.3)]';
   };
 
   const renderEmbeddingBadge = (status?: string) => {
     switch (status) {
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-500/15 text-emerald-400 rounded-full border border-emerald-500/30">
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[rgba(52,199,89,0.15)] text-[#34c759] rounded-full border border-[rgba(52,199,89,0.3)]">
             <CheckCircle2 className="w-3 h-3" />
             已向量化
           </span>
         );
       case 'FAILED':
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-red-500/15 text-red-400 rounded-full border border-red-500/30">
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[rgba(255,59,48,0.15)] text-[#ff3b30] rounded-full border border-[rgba(255,59,48,0.3)]">
             <XCircle className="w-3 h-3" />
             向量化失败
           </span>
         );
       case 'PROCESSING':
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-blue-500/15 text-blue-400 rounded-full border border-blue-500/30">
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[rgba(0,122,255,0.15)] text-[#007aff] rounded-full border border-[rgba(0,122,255,0.3)]">
             <Loader2 className="w-3 h-3 animate-spin" />
             向量化中
           </span>
@@ -132,7 +132,7 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
       case 'PENDING':
       default:
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-slate-500/15 text-slate-400 rounded-full border border-slate-500/30">
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[rgba(0,0,0,0.015)] text-[#8e8e93] rounded-full border border-[rgba(229,229,234,0.3)]">
             <Clock className="w-3 h-3" />
             待向量化
           </span>
@@ -143,7 +143,7 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full" />
+        <div className="animate-spin w-6 h-6 border-2 border-[#007aff] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -151,22 +151,22 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(229,229,234,0.5)] shrink-0">
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-[#8e8e93] absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜索岗位/人员..."
-              className="pl-8 pr-3 py-1.5 text-xs border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-800 text-slate-200 placeholder-slate-500 w-48"
+              className="pl-8 pr-3 py-1.5 text-xs border border-[#e5e5ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.5)] bg-[#ffffff] text-[#1c1c1e] placeholder-[#8e8e93] w-48"
             />
           </div>
-          <span className="text-[10px] text-slate-500">{filtered.length} 张卡片</span>
+          <span className="text-[10px] text-[#8e8e93]">{filtered.length} 张卡片</span>
         </div>
         <button
           onClick={onCreateNew}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg hover:shadow-md hover:shadow-indigo-500/20 transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#007AFF] text-white rounded-lg hover:shadow-md hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
           新建卡片
@@ -176,12 +176,12 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
       {/* Card Grid */}
       <div className="flex-1 overflow-y-auto p-4">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+          <div className="flex flex-col items-center justify-center h-64 text-[#8e8e93]">
             <FileText className="w-12 h-12 mb-3 opacity-30" />
             <p className="text-sm">暂无岗位知识卡片</p>
             <button
               onClick={onCreateNew}
-              className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              className="mt-3 text-xs text-[#007aff] hover:text-[#007aff] flex items-center gap-1"
             >
               <Plus className="w-3 h-3" /> 创建第一张卡片
             </button>
@@ -191,18 +191,18 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
             {filtered.map((card) => (
               <div
                 key={card.id}
-                className="group bg-slate-800/80 border border-slate-700/60 rounded-xl p-4 hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-500/30 transition-all cursor-pointer"
+                className="group bg-white border border-[rgba(229,229,234,0.6)] rounded-xl p-4 hover:shadow-lg hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:border-[rgba(0,122,255,0.3)] transition-all cursor-pointer"
                 onClick={() => onEdit(card)}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                      <Briefcase className="w-4 h-4 text-white" />
+                    <div className="w-8 h-8 bg-[#007AFF] rounded-lg flex items-center justify-center shrink-0">
+                      <Briefcase className="w-4 h-4 text-[#1C1C1E]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100 leading-tight">{card.positionName}</h3>
-                      <span className="text-[10px] text-slate-500">{card.cardCode}</span>
+                      <h3 className="text-sm font-semibold text-[#1c1c1e] leading-tight">{card.positionName}</h3>
+                      <span className="text-[10px] text-[#8e8e93]">{card.cardCode}</span>
                     </div>
                   </div>
                   {renderEmbeddingBadge(card.embeddingStatus)}
@@ -211,7 +211,7 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
                 {/* Info Tags */}
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   {card.department && (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-slate-700/50 text-slate-400 rounded border border-slate-600/50">
+                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-[rgba(118,118,128,0.12)] text-[#8e8e93] rounded border border-[rgba(229,229,234,0.5)]">
                       <Building2 className="w-2.5 h-2.5" />
                       {card.department}
                     </span>
@@ -222,7 +222,7 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
                     </span>
                   )}
                   {card.positionNature && (
-                    <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 bg-blue-500/15 text-blue-400 rounded border border-blue-500/30">
+                    <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 bg-[rgba(0,122,255,0.15)] text-[#007aff] rounded border border-[rgba(0,122,255,0.3)]">
                       {card.positionNature}
                     </span>
                   )}
@@ -230,19 +230,19 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
 
                 {/* Person */}
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Users className="w-3 h-3 text-slate-500" />
-                  <span className="text-xs text-slate-300">{card.onDutyPerson || '未指定'}</span>
+                  <Users className="w-3 h-3 text-[#8e8e93]" />
+                  <span className="text-xs text-[#3a3a3c]">{card.onDutyPerson || '未指定'}</span>
                   {card.reportTo && (
                     <>
-                      <ChevronRight className="w-3 h-3 text-slate-600" />
-                      <span className="text-xs text-slate-500">汇报: {card.reportTo}</span>
+                      <ChevronRight className="w-3 h-3 text-[#8e8e93]" />
+                      <span className="text-xs text-[#8e8e93]">汇报: {card.reportTo}</span>
                     </>
                   )}
                 </div>
 
                 {/* Core Duties Preview */}
                 {card.coreDuties && (
-                  <div className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                  <div className="text-[11px] text-[#8e8e93] line-clamp-2 leading-relaxed">
                     {card.coreDuties.split('\n').filter(Boolean).map((d, i) => (
                       <span key={i}>{i > 0 && ' · '}{d}</span>
                     ))}
@@ -250,25 +250,25 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
                 )}
 
                 {/* Footer */}
-                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-700/50">
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-[rgba(229,229,234,0.5)]">
+                  <span className="text-[10px] text-[#8e8e93] flex items-center gap-1">
                     <Clock className="w-2.5 h-2.5" />
                     {card.createdAt ? new Date(card.createdAt).toLocaleDateString('zh-CN') : ''}
                   </span>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => { e.stopPropagation(); onEdit(card); }}
-                      className="p-1 hover:bg-indigo-500/15 rounded transition-colors"
+                      className="p-1 hover:bg-[rgba(0,122,255,0.15)] rounded transition-colors"
                       title="编辑"
                     >
-                      <Edit3 className="w-3 h-3 text-indigo-400" />
+                      <Edit3 className="w-3 h-3 text-[#007aff]" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDelete(card.id); }}
-                      className="p-1 hover:bg-red-500/15 rounded transition-colors"
+                      className="p-1 hover:bg-[rgba(255,59,48,0.15)] rounded transition-colors"
                       title="删除"
                     >
-                      <Trash2 className="w-3 h-3 text-red-400" />
+                      <Trash2 className="w-3 h-3 text-[#ff3b30]" />
                     </button>
                   </div>
                 </div>

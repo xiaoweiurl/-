@@ -259,12 +259,12 @@ export default function MarketingChatPage() {
   return (
     <div className="h-screen flex flex-col bg-[#f8f9fc]">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-slate-200/50 bg-white/[0.97] backdrop-blur-xl">
+      <div className="flex-shrink-0 border-b border-[rgba(229,229,234,0.5)] bg-white/95 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-5 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => { localStorage.setItem('back_to_portal', 'true'); router.push('/login'); }}
-              className="flex items-center gap-1 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              className="flex items-center gap-1 p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:text-[#8e8e93] transition-colors"
               title="返回主页"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -273,19 +273,19 @@ export default function MarketingChatPage() {
             <div className="flex items-center gap-2.5">
               <div className={cn(
                 "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
-                "bg-gradient-to-br", brand.primaryFrom, brand.primaryTo
+                brand.primaryBg
               )}>
-                <BrandIcon className="w-4 h-4 text-white" />
+                <BrandIcon className="w-4 h-4 text-[#1C1C1E]" />
               </div>
               <div>
-                <h1 className="text-[14px] font-semibold text-slate-800 leading-tight">{brand.name}市场营销AI助手</h1>
-                <p className="text-[11px] text-slate-400">无缝针织行业专属</p>
+                <h1 className="text-[14px] font-semibold text-[#8e8e93] leading-tight">{brand.name}市场营销AI助手</h1>
+                <p className="text-[11px] text-[#8e8e93]">无缝针织行业专属</p>
               </div>
             </div>
           </div>
           <button
             onClick={handleClear}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)] rounded-lg transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
             清空
@@ -300,12 +300,12 @@ export default function MarketingChatPage() {
             <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center">
               <div className={cn(
                 "w-20 h-20 rounded-2xl flex items-center justify-center mb-6",
-                "bg-gradient-to-br", brand.primaryFrom + '/10', brand.primaryTo + '/10'
+                brand.primaryLight
               )}>
                 <BrandIcon className={cn("w-10 h-10", brand.primarySolid)} />
               </div>
-              <h2 className="text-lg font-semibold text-slate-700 mb-1.5">{brand.name}市场营销AI助手</h2>
-              <p className="text-[13px] text-slate-400 mb-6 max-w-md">
+              <h2 className="text-lg font-semibold text-[#1C1C1E] mb-1.5">{brand.name}市场营销AI助手</h2>
+              <p className="text-[13px] text-[#8e8e93] mb-6 max-w-md">
                 专注于无缝针织行业的市场营销专家，为您提供市场分析、品牌策略、产品推广等专业建议
               </p>
               <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
@@ -318,7 +318,7 @@ export default function MarketingChatPage() {
                   <button
                     key={suggestion}
                     onClick={() => { setInput(suggestion); }}
-                    className="px-3 py-2.5 text-[13px] text-left text-slate-500 bg-white border border-slate-200/60 rounded-lg hover:border-amber-300 hover:bg-amber-50/30 hover:text-slate-700 transition-all"
+                    className="px-3 py-2.5 text-[13px] text-left text-[#3A3A3C] bg-white border border-[rgba(229,229,234,0.6)] rounded-lg hover:border-[#ff9500] hover:bg-[rgba(255,149,0,0.03)] hover:text-[#1C1C1E] transition-all"
                   >
                     {suggestion}
                   </button>
@@ -330,14 +330,14 @@ export default function MarketingChatPage() {
           {messages.map((msg) => (
             <div key={msg.id} className={`flex gap-2.5 mb-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
-                <div className={cn("flex-shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-sm", brand.primaryFrom, brand.primaryTo)}>
+                <div className={cn("flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center shadow-sm", brand.primaryBg)}>
                   <Bot className="w-3.5 h-3.5 text-white" />
                 </div>
               )}
               <div className={`max-w-[80%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
                 msg.role === 'user'
-                  ? cn('bg-gradient-to-r text-white shadow-sm', brand.primaryFrom, brand.primaryTo)
-                  : 'bg-white border border-slate-200/60 text-slate-600 shadow-sm'
+                  ? cn('text-white shadow-sm', brand.primaryBg)
+                  : 'bg-white border border-[rgba(229,229,234,0.6)] text-[#3A3A3C] shadow-sm'
               }`}>
                 <div className={msg.role === 'user' ? 'whitespace-pre-wrap break-words' : ''}>
                   {msg.role === 'user' ? (
@@ -353,8 +353,8 @@ export default function MarketingChatPage() {
                 </div>
               </div>
               {msg.role === 'user' && (
-                <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-200/80 flex items-center justify-center">
-                  <User className="w-3.5 h-3.5 text-slate-500" />
+                <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-[rgba(0,0,0,0.048)] flex items-center justify-center">
+                  <User className="w-3.5 h-3.5 text-[#8e8e93]" />
                 </div>
               )}
             </div>
@@ -364,7 +364,7 @@ export default function MarketingChatPage() {
       </div>
 
       {/* Input */}
-      <div className="flex-shrink-0 border-t border-slate-200/50 bg-white/[0.97] backdrop-blur-xl">
+      <div className="flex-shrink-0 border-t border-[rgba(229,229,234,0.5)] bg-white/95 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex gap-2 items-end">
             <textarea
@@ -374,7 +374,7 @@ export default function MarketingChatPage() {
               onKeyDown={handleKeyDown}
               placeholder="输入您的市场营销问题..."
               rows={1}
-              className="flex-1 resize-none rounded-lg border border-slate-200/60 bg-slate-50/50 px-3.5 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-300 focus:bg-white transition-all"
+              className="flex-1 resize-none rounded-lg border border-[rgba(229,229,234,0.6)] bg-[rgba(242,242,247,0.5)] px-3.5 py-2.5 text-[13px] text-[#8e8e93] placeholder:text-[#8e8e93] focus:outline-none focus:ring-2 focus:ring-[rgba(255,149,0,0.15)] focus:border-[#ff9500] focus:bg-white transition-all"
               style={{ minHeight: '40px', maxHeight: '120px' }}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
@@ -386,15 +386,15 @@ export default function MarketingChatPage() {
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               className={cn(
-                "flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-r text-white flex items-center justify-center shadow-sm",
+                "flex-shrink-0 w-9 h-9 rounded-lg text-white flex items-center justify-center shadow-sm",
                 "hover:shadow-md disabled:opacity-40 disabled:shadow-none transition-all",
-                brand.primaryFrom, brand.primaryTo
+                brand.primaryBg
               )}
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-2 text-center">
+          <p className="text-xs text-[#8e8e93] mt-2 text-center">
             基于MiniMax大模型 · 专注无缝针织行业市场营销
           </p>
         </div>

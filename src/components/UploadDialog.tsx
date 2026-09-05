@@ -243,8 +243,8 @@ export default function UploadDialog({
             className={cn(
               'border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer',
               isDragging
-                ? 'border-emerald-500 bg-emerald-50'
-                : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
+                ? 'border-[#34c759] bg-[rgba(52,199,89,0.1)]'
+                : 'border-[#e5e5ea] hover:border-[#34c759] hover:bg-[#f2f2f7]'
             )}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -260,18 +260,18 @@ export default function UploadDialog({
               onChange={e => handleFileSelect(e.target.files)}
             />
             <div className="flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-                <ImageIcon className="w-8 h-8 text-emerald-600" />
+              <div className="w-16 h-16 rounded-full bg-[rgba(52,199,89,0.1)] flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-[#34c759]" />
               </div>
               <div>
-                <p className="text-lg font-medium text-slate-700">
+                <p className="text-lg font-medium text-[#8e8e93]">
                   拖拽知识文件到这里上传
                 </p>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-[#8e8e93] mt-1">
                   或点击选择文件
                 </p>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#8e8e93]">
                 支持 JPG/PNG/GIF/WebP 图片、PDF/Word/Excel/PPT/TXT 文档，单个最大 50MB
               </p>
             </div>
@@ -283,9 +283,9 @@ export default function UploadDialog({
               {uploadingFiles.map(file => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg"
+                  className="flex items-center gap-3 p-3 bg-[#f2f2f7] rounded-lg"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-[rgba(0,0,0,0.06)] flex items-center justify-center overflow-hidden flex-shrink-0">
                     {file.file.type.startsWith('image/') ? (
                       <img
                         src={URL.createObjectURL(file.file)}
@@ -293,23 +293,23 @@ export default function UploadDialog({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <ImageIcon className="w-5 h-5 text-slate-400" />
+                      <ImageIcon className="w-5 h-5 text-[#8e8e93]" />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700 truncate">
+                    <p className="text-sm font-medium text-[#8e8e93] truncate">
                       {file.file.name}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-[#8e8e93]">
                       {formatFileSize(file.file.size)}
                     </p>
 
                     {/* 进度条 */}
                     {file.status === 'uploading' && (
-                      <div className="mt-1.5 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="mt-1.5 h-1.5 bg-[rgba(0,0,0,0.06)] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-violet-500 transition-all duration-300"
+                          className="h-full bg-[#007aff] transition-all duration-300"
                           style={{ width: `${file.progress}%` }}
                         />
                       </div>
@@ -317,13 +317,13 @@ export default function UploadDialog({
 
                     {/* 状态 */}
                     {file.status === 'success' && (
-                      <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                      <p className="text-xs text-[#34c759] flex items-center gap-1 mt-1">
                         <CheckCircle2 className="w-3 h-3" />
                         上传成功
                       </p>
                     )}
                     {file.status === 'error' && (
-                      <p className="text-xs text-red-500 mt-1">{file.error}</p>
+                      <p className="text-xs text-[#ff3b30] mt-1">{file.error}</p>
                     )}
                   </div>
 
@@ -334,10 +334,10 @@ export default function UploadDialog({
                         e.stopPropagation();
                         removeFile(file.id);
                       }}
-                      className="p-1.5 hover:bg-slate-200 rounded-lg transition-colors"
+                      className="p-1.5 hover:bg-[rgba(0,0,0,0.06)] rounded-lg transition-colors"
                       disabled={isUploading}
                     >
-                      <X className="w-4 h-4 text-slate-400" />
+                      <X className="w-4 h-4 text-[#8e8e93]" />
                     </button>
                   )}
                 </div>
@@ -353,7 +353,7 @@ export default function UploadDialog({
             <Button
               onClick={uploadFiles}
               disabled={uploadingFiles.length === 0 || isUploading}
-              className="bg-violet-600 hover:bg-violet-700"
+              className="bg-[#007aff] hover:bg-[#007aff]"
             >
               {isUploading ? (
                 <>

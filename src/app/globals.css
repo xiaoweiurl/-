@@ -43,8 +43,8 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
   --font-sans:
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei',
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC',
+    'Hiragino Sans GB', 'Segoe UI', Roboto, 'Microsoft YaHei',
     'Helvetica Neue', Arial, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -55,44 +55,48 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  /* 深色科技风主题色板 */
-  --background: #0a0e1a;
-  --foreground: #f0f4ff;
-  --card: #111827;
-  --card-foreground: #f0f4ff;
-  --popover: #111827;
-  --popover-foreground: #f0f4ff;
-  --primary: #3b82f6;
+  --radius: 0.75rem;
+  /* iOS 原生设计主题色板（精确色值，勿调整饱和度） */
+  --background: #f2f2f7;
+  --foreground: #1c1c1e;
+  --card: #ffffff;
+  --card-foreground: #1c1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1c1c1e;
+  --primary: #007aff;
   --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #94a3b8;
-  --muted: #1e293b;
-  --muted-foreground: #64748b;
-  --accent: #1e293b;
-  --accent-foreground: #94a3b8;
-  --destructive: #ef4444;
-  --border: rgba(59, 130, 246, 0.15);
-  --input: rgba(59, 130, 246, 0.15);
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #ef4444;
-  --chart-5: #8b5cf6;
-  --sidebar: #070b14;
-  --sidebar-foreground: #94a3b8;
-  --sidebar-primary: #3b82f6;
+  --secondary: #f2f2f7;
+  --secondary-foreground: #3a3a3c;
+  --muted: #f2f2f7;
+  --muted-foreground: #8e8e93;
+  --accent: #e9e9ee;
+  --accent-foreground: #1c1c1e;
+  --destructive: #ff3b30;
+  --border: #e5e5ea;
+  --input: #e5e5ea;
+  --ring: #007aff;
+  /* 功能色：成功/警告/错误/辅助 */
+  --chart-1: #007aff;
+  --chart-2: #34c759;
+  --chart-3: #ff9500;
+  --chart-4: #ff3b30;
+  --chart-5: #af52de;
+  --sidebar: rgba(255, 255, 255, 0.72);
+  --sidebar-foreground: #3a3a3c;
+  --sidebar-primary: #007aff;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(59, 130, 246, 0.1);
-  --sidebar-accent-foreground: #e2e8f0;
-  --sidebar-border: rgba(59, 130, 246, 0.1);
-  --sidebar-ring: #3b82f6;
+  --sidebar-accent: rgba(0, 122, 255, 0.08);
+  --sidebar-accent-foreground: #007aff;
+  --sidebar-border: #e5e5ea;
+  --sidebar-ring: #007aff;
+  /* iOS 阴影 */
+  --shadow-ios: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-ios-hover: 0 6px 24px rgba(0, 0, 0, 0.08);
 }
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
   * {
     @apply border-border outline-ring/50;
@@ -119,116 +123,146 @@ body {
   font-display: swap;
 }
 
-/* ===== 科技风全局样式 ===== */
+/* ===== iOS 原生设计全局样式 ===== */
 
-/* 网格背景 */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background-image:
-    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.02) 0%, transparent 50%);
-  pointer-events: none;
+/* iOS 卡片：纯白实底 + 轻阴影，悬停上浮 3px */
+.ios-card {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: var(--shadow-ios);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
-/* 蓝光扫描线 */
-@keyframes scan-line {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100vh);
-  }
+.ios-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-ios-hover);
 }
 
-/* 科技卡片基础样式 */
-.tech-card {
-  @apply relative overflow-hidden rounded-xl border border-blue-500/10 bg-slate-900/80 backdrop-blur-sm;
-  box-shadow: 0 0 15px rgba(59, 130, 246, 0.05), inset 0 1px 0 rgba(59, 130, 246, 0.1);
-  transition: all 0.3s ease;
+/* iOS 毛玻璃面板（顶栏/侧边栏） */
+.ios-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.tech-card:hover {
-  box-shadow: 0 0 25px rgba(59, 130, 246, 0.1), inset 0 1px 0 rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.2);
+/* iOS 状态标签：淡色背景 + 功能色文字 */
+.ios-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
 }
 
-/* 蓝光顶线 */
-.tech-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent);
+.ios-badge-blue {
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
 }
 
-/* 发光数字 */
-.glow-number {
-  color: #60a5fa;
-  text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+.ios-badge-green {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34c759;
 }
 
-.glow-number-green {
-  color: #34d399;
-  text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+.ios-badge-orange {
+  background: rgba(255, 149, 0, 0.12);
+  color: #ff9500;
 }
 
-.glow-number-amber {
-  color: #fbbf24;
-  text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+.ios-badge-red {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
 }
 
-.glow-number-red {
-  color: #f87171;
-  text-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+.ios-badge-purple {
+  background: rgba(175, 82, 222, 0.12);
+  color: #af52de;
 }
 
-.glow-number-purple {
-  color: #a78bfa;
-  text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+.ios-badge-gray {
+  background: rgba(142, 142, 147, 0.12);
+  color: #8e8e93;
 }
 
-/* 玻璃态面板 */
-.glass-panel {
-  @apply backdrop-blur-xl border border-white/5;
-  background: rgba(15, 23, 42, 0.6);
+/* 数字等宽（数据对齐） */
+.ios-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
 }
 
-/* 脉冲呼吸动画 */
-@keyframes tech-pulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    opacity: 0.7;
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
-  }
+/* iOS 按钮：主按钮 */
+.ios-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #007aff;
+  color: #ffffff;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    opacity 0.2s ease,
+    transform 0.15s ease;
 }
 
-.tech-pulse {
-  animation: tech-pulse 2s ease-in-out infinite;
+.ios-btn-primary:hover {
+  opacity: 0.88;
 }
 
-/* 数字跳动动画 */
-@keyframes count-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.ios-btn-primary:active {
+  transform: scale(0.97);
 }
 
-.animate-count-up {
-  animation: count-up 0.6s ease-out forwards;
+/* iOS 次级按钮：浅灰底 */
+.ios-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(118, 118, 128, 0.12);
+  color: #1c1c1e;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background 0.2s ease,
+    transform 0.15s ease;
+}
+
+.ios-btn-secondary:hover {
+  background: rgba(118, 118, 128, 0.18);
+}
+
+.ios-btn-secondary:active {
+  transform: scale(0.97);
+}
+
+/* iOS 输入框 */
+.ios-input {
+  background: rgba(118, 118, 128, 0.12);
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #1c1c1e;
+  outline: none;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.ios-input:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.35);
+}
+
+.ios-input::placeholder {
+  color: #8e8e93;
 }
 
 /* 页面进入动画 */
@@ -247,6 +281,21 @@ body::before {
   animation: fade-slide-up 0.4s ease-out forwards;
 }
 
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-count-up {
+  animation: count-up 0.6s ease-out forwards;
+}
+
 /* 通知动画 */
 @keyframes slide-in {
   from {
@@ -256,16 +305,6 @@ body::before {
   to {
     opacity: 1;
     transform: translateX(0);
-  }
-}
-
-@keyframes pulse-once {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-    background-color: rgba(59, 130, 246, 0.1);
   }
 }
 
@@ -283,10 +322,6 @@ body::before {
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out forwards;
-}
-
-.animate-pulse-once {
-  animation: pulse-once 0.6s ease-in-out;
 }
 
 .animate-bell-shake {
@@ -309,12 +344,12 @@ body::before {
   animation: unread-pulse 2s ease-in-out infinite;
 }
 
-/* Markdown渲染样式 - 深色主题 */
+/* Markdown渲染样式 - iOS 浅色主题 */
 .markdown-body {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   word-break: break-word;
-  color: #e2e8f0;
+  color: #3a3a3c;
 }
 
 .markdown-body > *:first-child {
@@ -334,23 +369,30 @@ body::before {
 .markdown-body table {
   width: 100%;
   border-collapse: collapse;
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .markdown-body th {
-  background: rgba(59, 130, 246, 0.1);
+  background: #f2f2f7;
   font-weight: 600;
-  color: #93c5fd;
+  color: #1c1c1e;
 }
 
 .markdown-body td, .markdown-body th {
-  padding: 6px 12px;
-  border: 1px solid rgba(59, 130, 246, 0.15);
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e5ea;
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
+}
+
+.markdown-body tr:last-child td {
+  border-bottom: none;
 }
 
 .markdown-body tr:hover td {
-  background: rgba(59, 130, 246, 0.05);
+  background: rgba(0, 122, 255, 0.04);
 }
 
 /* 聊天消息入场动画 */
@@ -379,7 +421,7 @@ body::before {
   }
 }
 
-/* 自定义滚动条 - 深色 */
+/* 自定义滚动条 - 聊天区 */
 .chat-scroll::-webkit-scrollbar {
   width: 4px;
 }
@@ -389,12 +431,12 @@ body::before {
 }
 
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.2);
+  background: rgba(142, 142, 147, 0.3);
   border-radius: 2px;
 }
 
 .chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.4);
+  background: rgba(142, 142, 147, 0.5);
 }
 
 /* details 展开动画 */
@@ -414,49 +456,38 @@ details[open] > .details-content {
   }
 }
 
-/* 全局滚动条 */
+/* 全局滚动条 - iOS 浅色 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0e1a;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.2);
+  background: rgba(142, 142, 147, 0.3);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.4);
+  background: rgba(142, 142, 147, 0.5);
 }
 
-/* 数据状态指示灯 */
+/* 数据状态指示灯（无发光） */
 .status-dot {
   @apply w-2 h-2 rounded-full;
 }
 
 .status-dot-online {
-  background: #34d399;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  background: #34c759;
 }
 
 .status-dot-warning {
-  background: #fbbf24;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  background: #ff9500;
 }
 
 .status-dot-offline {
-  background: #f87171;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
-}
-
-/* 渐变文字 */
-.gradient-text {
-  background: linear-gradient(135deg, #3b82f6, #06b6d4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  background: #ff3b30;
 }

@@ -85,21 +85,21 @@ export default function SwaggerPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-400">加载中...</div>
+      <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center">
+        <div className="text-[#8e8e93]">加载中...</div>
       </div>
     );
   }
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
-        <Lock className="w-16 h-16 text-slate-300" />
-        <h2 className="text-xl font-semibold text-slate-600">无访问权限</h2>
-        <p className="text-slate-400">仅管理员可访问此页面</p>
+      <div className="min-h-screen bg-[#f2f2f7] flex flex-col items-center justify-center gap-4">
+        <Lock className="w-16 h-16 text-[#3a3a3c]" />
+        <h2 className="text-xl font-semibold text-[#8e8e93]">无访问权限</h2>
+        <p className="text-[#8e8e93]">仅管理员可访问此页面</p>
         <button
           onClick={() => router.push('/')}
-          className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+          className="px-4 py-2 bg-[#007aff] text-white rounded-lg hover:bg-[#007aff] transition-colors"
         >
           返回首页
         </button>
@@ -108,11 +108,11 @@ export default function SwaggerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f2f2f7]">
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-800">企业数智中台系统 API 文档</h1>
-          <p className="text-slate-600 mt-2">
+          <h1 className="text-3xl font-bold text-[#8e8e93]">企业数智中台系统 API 文档</h1>
+          <p className="text-[#8e8e93] mt-2">
             基于 OpenAPI 3.0 规范的 RESTful API 文档
           </p>
         </div>

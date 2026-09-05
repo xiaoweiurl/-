@@ -108,10 +108,10 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="p-1 rounded-md text-slate-300 hover:text-slate-400 hover:bg-slate-700/50 transition-all"
+      className="p-1 rounded-md text-[#3a3a3c] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.12)] transition-all"
       title="复制内容"
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? <Check className="w-3.5 h-3.5 text-[#34c759]" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
@@ -644,30 +644,30 @@ export default function ChatPage() {
 
   if (!mounted || !authChecked) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0a0e1a]">
+      <div className="flex h-screen items-center justify-center bg-[#F2F2F7]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-700
+          <div className="w-10 h-10 rounded-xl bg-[rgba(118,118,128,0.12)]
             flex items-center justify-center shadow-md animate-pulse">
-            <Sparkles className="w-5 h-5 text-white" />
+            <Sparkles className="w-5 h-5 text-[#1C1C1E]" />
           </div>
-          <p className="text-xs text-slate-400">加载中...</p>
+          <p className="text-xs text-[#8e8e93]">加载中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0e1a]">
+    <div className="flex h-screen bg-[#F2F2F7]">
       {/* 左侧边栏 */}
       {showSidebar && (
-        <div className="w-72 border-r border-blue-500/10 bg-[#0f172a]/95 backdrop-blur-xl flex flex-col shadow-sm">
+        <div className="w-72 border-r border-[rgba(0,122,255,0.1)] bg-white/95 backdrop-blur-xl flex flex-col shadow-sm">
           {/* 侧边栏头部 */}
-          <div className="p-4 border-b border-slate-700/50">
+          <div className="p-4 border-b border-[rgba(229,229,234,0.5)]">
             <button
               onClick={handleNewChat}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                bg-slate-700 text-white text-sm font-medium
-                hover:bg-slate-800 transition-all shadow-sm hover:shadow-md
+                bg-[rgba(118,118,128,0.12)] text-[#1C1C1E] text-sm font-medium
+                hover:bg-[#ffffff] transition-all shadow-sm hover:shadow-md
                 active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" />
@@ -678,10 +678,10 @@ export default function ChatPage() {
           {/* 对话列表 */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {sessions.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-xs">
+              <div className="text-center py-12 text-[#8e8e93] text-xs">
                 <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-30" />
                 <p>暂无对话记录</p>
-                <p className="text-[10px] mt-1 text-slate-600">点击上方按钮开始新对话</p>
+                <p className="text-[10px] mt-1 text-[#8e8e93]">点击上方按钮开始新对话</p>
               </div>
             ) : (
               sessions.map(s => (
@@ -690,19 +690,19 @@ export default function ChatPage() {
                     onClick={() => handleSwitchChat(s.id)}
                     className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border
                       ${s.id === activeSessionId
-                        ? 'bg-slate-800/80 text-slate-200 border-slate-600/80 shadow-sm'
-                        : 'text-slate-400 border-transparent hover:bg-slate-700/50 hover:text-slate-200'}`}
+                        ? 'bg-white text-[#1c1c1e] border-[rgba(229,229,234,0.8)] shadow-sm'
+                        : 'text-[#8e8e93] border-transparent hover:bg-[rgba(118,118,128,0.12)] hover:text-[#1c1c1e]'}`}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${s.id === activeSessionId ? 'bg-slate-600' : 'bg-slate-300'}`} />
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${s.id === activeSessionId ? 'bg-[rgba(0,0,0,0.08)]' : 'bg-[rgba(0,0,0,0.1)]'}`} />
                       <div className="text-xs font-medium truncate pr-6 flex-1">{s.title}</div>
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-1 ml-4">{formatTime(s.timestamp)}</div>
+                    <div className="text-[10px] text-[#8e8e93] mt-1 ml-4">{formatTime(s.timestamp)}</div>
                   </button>
                   <button
                     onClick={(e) => handleDeleteChat(s.id, e)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg
-                      text-slate-400 hover:text-red-400 hover:bg-red-500/10
+                      text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)]
                       opacity-0 group-hover:opacity-100 transition-all"
                     title="删除对话"
                   >
@@ -714,11 +714,11 @@ export default function ChatPage() {
           </div>
 
           {/* 底部操作 */}
-          <div className="p-3 border-t border-slate-700/50">
+          <div className="p-3 border-t border-[rgba(229,229,234,0.5)]">
             <button
               onClick={() => router.push('/')}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-400
-                hover:bg-slate-700/50 hover:text-slate-300 transition-all"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[#8e8e93]
+                hover:bg-[rgba(118,118,128,0.12)] hover:text-[#3a3a3c] transition-all"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               返回主页
@@ -730,29 +730,29 @@ export default function ChatPage() {
       {/* 主聊天区域 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶部栏 */}
-        <div className="h-14 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl
+        <div className="h-14 border-b border-[rgba(229,229,234,0.5)] bg-[rgba(242,242,247,0.8)] backdrop-blur-xl
           flex items-center justify-between px-5 shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-all"
+              className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.12)] transition-all"
             >
-              <MessageSquare className="w-4 h-4 text-slate-400" />
+              <MessageSquare className="w-4 h-4 text-[#8e8e93]" />
             </button>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-slate-700
+              <div className="w-8 h-8 rounded-xl bg-[rgba(118,118,128,0.12)]
                 flex items-center justify-center shadow-sm">
-                <Sparkles className="w-4 h-4 text-white" />
+                <Sparkles className="w-4 h-4 text-[#1C1C1E]" />
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-slate-200">AI 智能对话</h1>
+                <h1 className="text-sm font-semibold text-[#1c1c1e]">AI 智能对话</h1>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[rgba(52,199,89,0.1)] text-[#34c759] text-[10px] font-medium border border-[rgba(52,199,89,0.2)]">
                     <BookOpen className="w-2.5 h-2.5" />
                     知识库
                   </span>
-                  <span className="text-slate-500 text-[10px]">+</span>
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[10px] font-medium border border-sky-500/20">
+                  <span className="text-[#8e8e93] text-[10px]">+</span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[rgba(0,122,255,0.1)] text-[#007aff] text-[10px] font-medium border border-[rgba(0,122,255,0.2)]">
                     <Globe className="w-2.5 h-2.5" />
                     联网搜索
                   </span>
@@ -763,14 +763,14 @@ export default function ChatPage() {
           <div className="flex items-center gap-1">
             <button
               onClick={handleClearChat}
-              className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className="p-2 rounded-lg text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)] transition-colors"
               title="清空对话"
             >
               <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-2 rounded-lg text-slate-300 hover:bg-slate-700/50 transition-colors hidden lg:block"
+              className="p-2 rounded-lg text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.12)] transition-colors hidden lg:block"
               title="切换侧边栏"
             >
               <MessageSquare className="w-4 h-4" />
@@ -786,29 +786,29 @@ export default function ChatPage() {
               <div className="flex flex-col items-center justify-center py-16">
                 {/* Logo */}
                 <div className="relative mb-6">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-800
-                    flex items-center justify-center shadow-lg shadow-blue-500/10">
+                  <div className="w-16 h-16 rounded-2xl bg-[#007AFF]
+                    flex items-center justify-center shadow-lg shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
                     <Bot className="w-8 h-8 text-white" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-slate-500 to-slate-600
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white
                     flex items-center justify-center shadow-sm">
-                    <Sparkles className="w-2.5 h-2.5 text-white" />
+                    <Sparkles className="w-2.5 h-2.5 text-[#007AFF]" />
                   </div>
                 </div>
 
-                <h2 className="text-lg font-bold text-slate-200 mb-1.5">AI 智能对话</h2>
-                <p className="text-sm text-slate-400 mb-8 text-center max-w-sm leading-relaxed">
+                <h2 className="text-lg font-bold text-[#1c1c1e] mb-1.5">AI 智能对话</h2>
+                <p className="text-sm text-[#8e8e93] mb-8 text-center max-w-sm leading-relaxed">
                   融合知识库与全网搜索，为您提供精准、专业的智能问答
                 </p>
 
                 {/* 两大能力标签 */}
                 <div className="flex items-center gap-3 mb-8">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(52,199,89,0.1)] text-[#34c759] text-xs font-medium border border-[rgba(52,199,89,0.2)]">
                     <BookOpen className="w-3.5 h-3.5" />
                     知识库检索
                   </div>
-                  <div className="w-px h-4 bg-slate-700" />
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 text-xs font-medium border border-sky-500/20">
+                  <div className="w-px h-4 bg-[rgba(118,118,128,0.12)]" />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(0,122,255,0.1)] text-[#007aff] text-xs font-medium border border-[rgba(0,122,255,0.2)]">
                     <Globe className="w-3.5 h-3.5" />
                     联网搜索
                   </div>
@@ -820,12 +820,12 @@ export default function ChatPage() {
                     <button
                       key={i}
                       onClick={() => setInput(q)}
-                      className="group text-left px-4 py-3 rounded-xl border border-slate-600/40 bg-slate-800/60
-                        text-sm text-slate-400 hover:border-slate-500/50 hover:bg-slate-700/60
-                        hover:text-slate-100 hover:shadow-sm transition-all active:scale-[0.98]"
+                      className="group text-left px-4 py-3 rounded-xl border border-[rgba(229,229,234,0.4)] bg-white
+                        text-sm text-[#8e8e93] hover:border-[rgba(229,229,234,0.5)] hover:bg-[rgba(118,118,128,0.16)]
+                        hover:text-[#1c1c1e] hover:shadow-sm transition-all active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-2.5">
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
+                        <ChevronRight className="w-3.5 h-3.5 text-[#3a3a3c] group-hover:text-[#8e8e93] shrink-0 transition-colors" />
                         <span className="text-[13px] leading-snug">{q}</span>
                       </div>
                     </button>
@@ -840,7 +840,7 @@ export default function ChatPage() {
                   className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} chat-msg-enter`}
                 >
                   {msg.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-xl bg-slate-700
+                    <div className="w-8 h-8 rounded-xl bg-[#007AFF]
                       flex items-center justify-center shrink-0 shadow-sm mt-0.5">
                       <Bot className="w-4 h-4 text-white" />
                     </div>
@@ -853,7 +853,7 @@ export default function ChatPage() {
                           <span
                             key={j}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border
-                              bg-emerald-500/10 text-emerald-400 border-emerald-500/20`}
+                              bg-[rgba(52,199,89,0.1)] text-[#34c759] border-[rgba(52,199,89,0.2)]`}
                           >
                             <BookOpen className="w-2.5 h-2.5" />
                             {s.title || '知识库'}
@@ -866,21 +866,21 @@ export default function ChatPage() {
                     {/* 思维链（DeepSeek思考模式） */}
                     {msg.role === 'assistant' && msg.reasoning && (
                       <details className="mb-2.5 group">
-                        <summary className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors select-none py-1">
+                        <summary className="flex items-center gap-2 text-[11px] text-[#8e8e93] cursor-pointer hover:text-[#1c1c1e] transition-colors select-none py-1">
                           <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                           <Lightbulb className="w-3 h-3 shrink-0" />
                           {msg.isThinking ? (
                             <span className="flex items-center gap-1.5">
-                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" />
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[rgba(0,0,0,0.12)] animate-pulse" />
                               正在深度思考...
                             </span>
                           ) : (
                             <span>思考过程</span>
                           )}
                         </summary>
-                        <div className="mt-1.5 p-3 bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/60 rounded-xl text-[11.5px] text-slate-400 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
+                        <div className="mt-1.5 p-3 bg-white border border-[rgba(229,229,234,0.6)] rounded-xl text-[11.5px] text-[#8e8e93] leading-relaxed max-h-52 overflow-y-auto whitespace-pre-wrap shadow-sm">
                           {msg.reasoning}
                         </div>
                       </details>
@@ -889,14 +889,14 @@ export default function ChatPage() {
                     {/* 联网搜索结果 */}
                     {msg.role === 'assistant' && msg.searchResults && (
                       <details className="mb-2.5 group" open>
-                        <summary className="flex items-center gap-2 text-[11px] text-sky-500 cursor-pointer hover:text-sky-600 transition-colors select-none py-1">
+                        <summary className="flex items-center gap-2 text-[11px] text-[#007aff] cursor-pointer hover:text-[#007aff] transition-colors select-none py-1">
                           <svg className="w-3 h-3 transition-transform group-open:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                           <Globe className="w-3 h-3 shrink-0" />
                           <span>联网搜索结果</span>
                         </summary>
-                        <div className="mt-1.5 text-[11.5px] text-sky-400/80 bg-gradient-to-br from-sky-900/20 to-blue-900/10 rounded-xl p-3 whitespace-pre-wrap border border-sky-500/20 shadow-sm leading-relaxed">
+                        <div className="mt-1.5 text-[11.5px] text-[#007aff] bg-[rgba(0,122,255,0.06)] rounded-xl p-3 whitespace-pre-wrap border border-[rgba(0,122,255,0.15)] shadow-sm leading-relaxed">
                           {msg.searchResults}
                         </div>
                       </details>
@@ -905,8 +905,8 @@ export default function ChatPage() {
                     {/* 消息内容 */}
                     <div className={`relative group/msg
                       ${msg.role === 'user'
-                        ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/20'
-                        : 'px-4 py-3 rounded-2xl rounded-tl-md bg-slate-800/80 border border-blue-500/20 text-slate-200 shadow-lg shadow-black/20'}`}
+                        ? 'px-4 py-3 rounded-2xl rounded-tr-md bg-[#007AFF] text-white shadow-lg shadow-[0_2px_12px_rgba(0,0,0,0.04)]'
+                        : 'px-4 py-3 rounded-2xl rounded-tl-md bg-white border border-[#E5E5EA] text-[#1c1c1e] shadow-sm'}`}
                     >
                       {msg.role === 'user' ? (
                         <div>
@@ -916,8 +916,8 @@ export default function ChatPage() {
                                 att.type === 'image' ? (
                                   <img key={i} src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} className="w-16 h-16 rounded-lg object-cover opacity-90" />
                                 ) : (
-                                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 text-white/80 text-[11px]">
-                                    <FileText className="w-3.5 h-3.5 text-red-300" />
+                                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[rgba(118,118,128,0.12)] text-[#1C1C1E]/80 text-[11px]">
+                                    <FileText className="w-3.5 h-3.5 text-[#ff3b30]" />
                                     <span className="truncate max-w-[80px]">{att.name}</span>
                                   </div>
                                 )
@@ -931,7 +931,7 @@ export default function ChatPage() {
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
-                          ${msg.isThinking ? 'bg-blue-400' : 'bg-blue-500'}`} />
+                          ${msg.isThinking ? 'bg-[#007aff]' : 'bg-[#007aff]'}`} />
                       )}
 
                       {/* 复制按钮 - 仅assistant消息完成时显示 */}
@@ -945,7 +945,7 @@ export default function ChatPage() {
                     {/* 图片结果 */}
                     {msg.images && msg.images.length > 0 && (
                       <div className="mt-3 space-y-3">
-                        <div className="text-xs text-slate-400 mb-2 flex items-center gap-1.5">
+                        <div className="text-xs text-[#8e8e93] mb-2 flex items-center gap-1.5">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                               d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -953,14 +953,14 @@ export default function ChatPage() {
                           为您找到 {msg.images.length} 个相关产品
                         </div>
                         {msg.images.map((product: ChatImage & { mainImage?: ChatImage; detailImages?: ChatImage[]; productName?: string; albumName?: string }, pIdx: number) => (
-                          <div key={pIdx} className="rounded-xl border border-slate-600/40 bg-slate-800/80 shadow-sm overflow-hidden">
+                          <div key={pIdx} className="rounded-xl border border-[rgba(229,229,234,0.4)] bg-white shadow-sm overflow-hidden">
                             {(product.productName || product.albumName) && (
-                              <div className="px-3 py-2 border-b border-slate-700/50 bg-slate-800/50">
-                                <p className="text-xs font-medium text-slate-300 truncate">
+                              <div className="px-3 py-2 border-b border-[rgba(229,229,234,0.5)] bg-white">
+                                <p className="text-xs font-medium text-[#3a3a3c] truncate">
                                   {product.productName || ''}
                                 </p>
                                 {product.albumName && (
-                                  <p className="text-[10px] text-slate-400 truncate">{product.albumName}</p>
+                                  <p className="text-[10px] text-[#8e8e93] truncate">{product.albumName}</p>
                                 )}
                               </div>
                             )}
@@ -970,7 +970,7 @@ export default function ChatPage() {
                                   href={product.mainImage.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="group block rounded-lg overflow-hidden border border-slate-700/60 bg-slate-800/30 relative"
+                                  className="group block rounded-lg overflow-hidden border border-[rgba(229,229,234,0.6)] bg-white relative"
                                 >
                                   <div className="aspect-[4/3] relative">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -983,13 +983,13 @@ export default function ChatPage() {
                                         (e.target as HTMLImageElement).src = '/file.svg';
                                       }}
                                     />
-                                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-700 text-white text-[10px] font-medium">
+                                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-[rgba(118,118,128,0.12)] text-[#1C1C1E] text-[10px] font-medium">
                                       主图
                                     </span>
                                   </div>
                                   {product.mainImage.title && (
                                     <div className="px-2 py-1.5">
-                                      <p className="text-xs text-slate-400 truncate">{product.mainImage.title}</p>
+                                      <p className="text-xs text-[#8e8e93] truncate">{product.mainImage.title}</p>
                                     </div>
                                   )}
                                 </a>
@@ -997,7 +997,7 @@ export default function ChatPage() {
                             )}
                             {product.detailImages && product.detailImages.length > 0 && (
                               <div className="px-2 pb-2">
-                                <p className="text-[10px] text-slate-400 mb-1.5">详情图 ({product.detailImages.length}张)</p>
+                                <p className="text-[10px] text-[#8e8e93] mb-1.5">详情图 ({product.detailImages.length}张)</p>
                                 <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
                                   {product.detailImages.map((img: ChatImage, dIdx: number) => (
                                     <a
@@ -1005,7 +1005,7 @@ export default function ChatPage() {
                                       href={img.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="group block rounded-lg overflow-hidden border border-slate-600/40 bg-slate-800/80"
+                                      className="group block rounded-lg overflow-hidden border border-[rgba(229,229,234,0.4)] bg-white"
                                       title={img.title || '详情图'}
                                     >
                                       <div className="aspect-square relative">
@@ -1031,7 +1031,7 @@ export default function ChatPage() {
                     )}
                   </div>
                   {msg.role === 'user' && (
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600
+                    <div className="w-8 h-8 rounded-xl bg-[#007AFF]
                       flex items-center justify-center shrink-0 mt-0.5">
                       <User className="w-4 h-4 text-white" />
                     </div>
@@ -1044,7 +1044,7 @@ export default function ChatPage() {
         </div>
 
         {/* 输入框区域 */}
-        <div className="border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-xl p-4 shrink-0">
+        <div className="border-t border-[rgba(229,229,234,0.5)] bg-[rgba(242,242,247,0.8)] backdrop-blur-xl p-4 shrink-0">
           <div className="max-w-3xl mx-auto">
             {/* 附件预览区 */}
             {chatAttachments.length > 0 && (
@@ -1053,16 +1053,16 @@ export default function ChatPage() {
                   <div key={i} className="relative group">
                     {att.type === 'image' ? (
                       <img src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name}
-                        className="w-14 h-14 rounded-lg object-cover border border-slate-600 shadow-sm" />
+                        className="w-14 h-14 rounded-lg object-cover border border-[#e5e5ea] shadow-sm" />
                     ) : (
-                      <div className="w-14 h-14 rounded-lg border border-slate-600 bg-slate-800 flex flex-col items-center justify-center gap-0.5 shadow-sm">
-                        <FileText className="w-5 h-5 text-red-400" />
-                        <span className="text-[8px] text-slate-400 truncate max-w-[48px] px-0.5">{att.name.length > 8 ? att.name.slice(0, 8) + '…' : att.name}</span>
+                      <div className="w-14 h-14 rounded-lg border border-[#e5e5ea] bg-[#ffffff] flex flex-col items-center justify-center gap-0.5 shadow-sm">
+                        <FileText className="w-5 h-5 text-[#ff3b30]" />
+                        <span className="text-[8px] text-[#8e8e93] truncate max-w-[48px] px-0.5">{att.name.length > 8 ? att.name.slice(0, 8) + '…' : att.name}</span>
                       </div>
                     )}
                     <button
                       onClick={() => setChatAttachments(prev => prev.filter((_, idx) => idx !== i))}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ff3b30] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
                     ><X className="w-3 h-3" /></button>
                   </div>
                 ))}
@@ -1076,8 +1076,8 @@ export default function ChatPage() {
                 disabled={isChatting || chatAttachments.length >= 5}
                 className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all border
                   ${isChatting || chatAttachments.length >= 5
-                    ? 'bg-slate-700/50 text-slate-500 border-slate-700/50 cursor-not-allowed'
-                    : 'bg-gradient-to-br from-blue-600/20 to-cyan-500/20 text-cyan-400 border-cyan-500/40 hover:border-cyan-400 hover:text-cyan-300 hover:from-blue-600/30 hover:to-cyan-500/30 shadow-sm shadow-cyan-500/10'}`}
+                    ? 'bg-[rgba(118,118,128,0.12)] text-[#8e8e93] border-[rgba(229,229,234,0.5)] cursor-not-allowed'
+                    : 'bg-[rgba(0,122,255,0.12)] text-[#007aff] border-transparent hover:bg-[rgba(0,122,255,0.2)] shadow-sm'}`}
                 title="上传图片或PDF文档(最多5个)"
               >
                 <Paperclip className="w-[18px] h-[18px]" />
@@ -1095,10 +1095,10 @@ export default function ChatPage() {
                   }}
                   placeholder="输入您的问题... 左侧按钮可上传图片或PDF"
                   rows={1}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-700/50
-                    bg-slate-800/50 text-slate-200 text-[13px] resize-none
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50
-                    placeholder:text-slate-500 placeholder:font-normal transition-all shadow-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-[rgba(229,229,234,0.5)]
+                    bg-white text-[#1c1c1e] text-[13px] resize-none
+                    focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.3)] focus:border-[rgba(0,122,255,0.5)]
+                    placeholder:text-[#8e8e93] placeholder:font-normal transition-all shadow-sm"
                   style={{ maxHeight: '120px', minHeight: '44px' }}
                   disabled={isChatting}
                 />
@@ -1108,25 +1108,25 @@ export default function ChatPage() {
                 disabled={isChatting || !input.trim()}
                 className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all
                   ${isChatting || !input.trim()
-                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50 active:scale-95'}`}
+                    ? 'bg-[rgba(118,118,128,0.12)] text-[#8e8e93] cursor-not-allowed'
+                    : 'bg-[#007AFF] text-white shadow-md shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-lg hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-95'}`}
               >
                 {isChatting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
             <div className="mt-2 flex items-center justify-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(52,199,89,0.1)] text-[#34c759] text-[10px] font-medium border border-[rgba(52,199,89,0.2)]">
                 <BookOpen className="w-2.5 h-2.5" />
                 知识库
               </span>
-              <span className="text-slate-500 text-[10px]">+</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[10px] font-medium border border-sky-500/20">
+              <span className="text-[#8e8e93] text-[10px]">+</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(0,122,255,0.1)] text-[#007aff] text-[10px] font-medium border border-[rgba(0,122,255,0.2)]">
                 <Globe className="w-2.5 h-2.5" />
                 联网搜索
               </span>
-              <span className="text-slate-600 text-[10px]">|</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700/60 text-white text-[10px] font-medium tracking-wide">
-                <Zap className="w-2.5 h-2.5 text-yellow-400" />
+              <span className="text-[#8e8e93] text-[10px]">|</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(0,0,0,0.03)] text-[#1C1C1E] text-[10px] font-medium tracking-wide">
+                <Zap className="w-2.5 h-2.5 text-[#ff9500]" />
                 DeepSeek V4 Pro
               </span>
             </div>

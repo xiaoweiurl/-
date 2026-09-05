@@ -175,25 +175,25 @@ export default function DataModelsPage() {
   const filtered = models.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="min-h-screen bg-[#0a0e1a] text-slate-100">
+    <div className="min-h-screen bg-[#F2F2F7] text-[#1c1c1e]">
       {/* 顶栏 */}
-      <div className="sticky top-0 z-30 bg-[#0f172a]/90 backdrop-blur-xl border-b border-blue-500/20 px-6 py-4">
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-[rgba(0,122,255,0.2)] px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Database className="w-6 h-6 text-blue-400" />
+            <Database className="w-6 h-6 text-[#007aff]" />
             <div>
               <h1 className="text-xl font-bold">数据模型</h1>
-              <p className="text-xs text-slate-400">元数据驱动 · 动态字段 · 自定义表单 · 可配置数据模型</p>
+              <p className="text-xs text-[#8e8e93]">元数据驱动 · 动态字段 · 自定义表单 · 可配置数据模型</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {tab !== 'models' && (
               <button onClick={() => { setTab('models'); setSelectedModel(null); }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm transition">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] hover:bg-[rgba(0,0,0,0.08)] text-sm transition">
                 <ArrowLeft className="w-4 h-4" />返回列表
               </button>
             )}
-            <button onClick={fetchModels} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition">
+            <button onClick={fetchModels} className="p-2 rounded-lg bg-[rgba(118,118,128,0.12)] hover:bg-[rgba(0,0,0,0.08)] transition">
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
@@ -203,10 +203,10 @@ export default function DataModelsPage() {
       <div className="max-w-7xl mx-auto p-6">
         {/* Tab导航 */}
         {selectedModel && (
-          <div className="flex gap-1 mb-6 bg-slate-800/50 rounded-xl p-1">
+          <div className="flex gap-1 mb-6 bg-white rounded-xl p-1">
             {([['fields', '字段配置', Settings], ['records', '数据记录', Table2], ['detail', '模型详情', FileText]] as const).map(([key, label, Icon]) => (
               <button key={key} onClick={() => setTab(key as Tab)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition ${tab === key ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}>
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition ${tab === key ? 'bg-[#007aff] text-white shadow-lg shadow-[0_2px_12px_rgba(0,0,0,0.04)]' : 'text-[#8e8e93] hover:text-[#1c1c1e] hover:bg-[rgba(118,118,128,0.12)]'}`}>
                 <Icon className="w-4 h-4" />{label}
               </button>
             ))}
@@ -282,22 +282,22 @@ function ModelsList({ models, loading, search, setSearch, onSelect, onDelete, on
     <div>
       <div className="flex items-center justify-between mb-6">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8e8e93]" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="搜索数据模型..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800 border border-slate-600 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+            placeholder="搜索数据模型..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#ffffff] border border-[#e5e5ea] text-sm focus:border-[#007aff] focus:ring-1 focus:ring-[#007aff] outline-none" />
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium shadow-lg shadow-blue-600/20 transition">
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#007aff] hover:bg-[#007aff] text-sm font-medium shadow-lg shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition">
           <Plus className="w-4 h-4" />新建模型
         </button>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => <div key={i} className="h-40 rounded-xl bg-slate-800/50 animate-pulse" />)}
+          {[1, 2, 3].map(i => <div key={i} className="h-40 rounded-xl bg-white animate-pulse" />)}
         </div>
       ) : models.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
+        <div className="text-center py-20 text-[#8e8e93]">
           <Database className="w-16 h-16 mx-auto mb-4 opacity-30" />
           <p className="text-lg">暂无数据模型</p>
           <p className="text-sm mt-1">点击「新建模型」创建您的第一个数据模型</p>
@@ -306,7 +306,7 @@ function ModelsList({ models, loading, search, setSearch, onSelect, onDelete, on
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {models.map(m => (
             <div key={m.id} onClick={() => onSelect(m)}
-              className="group relative p-5 rounded-xl bg-slate-800/70 border border-slate-700 hover:border-blue-500/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.08)] cursor-pointer transition-all">
+              className="group relative p-5 rounded-xl bg-white border border-[#e5e5ea] hover:border-[rgba(0,122,255,0.4)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] cursor-pointer transition-all">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
@@ -314,19 +314,19 @@ function ModelsList({ models, loading, search, setSearch, onSelect, onDelete, on
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-100">{m.name}</h3>
-                    <p className="text-xs text-slate-400">{m.fields?.length ?? 0} 个字段</p>
+                    <h3 className="font-semibold text-[#1c1c1e]">{m.name}</h3>
+                    <p className="text-xs text-[#8e8e93]">{m.fields?.length ?? 0} 个字段</p>
                   </div>
                 </div>
                 <button onClick={e => { e.stopPropagation(); onDelete(m.id); }}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition">
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-[rgba(255,59,48,0.2)] text-[#8e8e93] hover:text-[#ff3b30] transition">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              {m.description && <p className="text-sm text-slate-400 mb-3 line-clamp-2">{m.description}</p>}
-              <div className="flex items-center justify-between text-xs text-slate-500">
+              {m.description && <p className="text-sm text-[#8e8e93] mb-3 line-clamp-2">{m.description}</p>}
+              <div className="flex items-center justify-between text-xs text-[#8e8e93]">
                 <span>{m.recordCount ?? 0} 条记录</span>
-                <ChevronRight className="w-4 h-4 group-hover:text-blue-400 transition" />
+                <ChevronRight className="w-4 h-4 group-hover:text-[#007aff] transition" />
               </div>
             </div>
           ))}
@@ -344,27 +344,27 @@ function CreateModelModal({ onCreate, onClose }: { onCreate: (n: string, d: stri
   const [desc, setDesc] = useState('');
   const [color, setColor] = useState(MODEL_COLORS[0]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md p-6 rounded-2xl bg-slate-800 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md p-6 rounded-2xl bg-[#ffffff] border border-[#e5e5ea] shadow-2xl" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold mb-4">新建数据模型</h2>
-        <label className="block text-sm text-slate-300 mb-1">模型名称</label>
+        <label className="block text-sm text-[#3a3a3c] mb-1">模型名称</label>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="如：供应商信息、产品规格"
-          className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm mb-3 focus:border-blue-500 outline-none" />
-        <label className="block text-sm text-slate-300 mb-1">描述</label>
+          className="w-full px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm mb-3 focus:border-[#007aff] outline-none" />
+        <label className="block text-sm text-[#3a3a3c] mb-1">描述</label>
         <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="可选" rows={2}
-          className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm mb-3 resize-none focus:border-blue-500 outline-none" />
-        <label className="block text-sm text-slate-300 mb-2">颜色</label>
+          className="w-full px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm mb-3 resize-none focus:border-[#007aff] outline-none" />
+        <label className="block text-sm text-[#3a3a3c] mb-2">颜色</label>
         <div className="flex gap-2 mb-5">
           {MODEL_COLORS.map(c => (
             <button key={c} onClick={() => setColor(c)}
-              className={`w-8 h-8 rounded-lg transition ${color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800' : 'hover:scale-110'}`}
+              className={`w-8 h-8 rounded-lg transition ${color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-white' : 'hover:scale-110'}`}
               style={{ background: c }} />
           ))}
         </div>
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">取消</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] text-sm">取消</button>
           <button onClick={() => name.trim() && onCreate(name.trim(), desc, color)} disabled={!name.trim()}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-medium disabled:opacity-50">创建</button>
+            className="px-4 py-2 rounded-lg bg-[#007aff] hover:bg-[#007aff] text-sm font-medium disabled:opacity-50">创建</button>
         </div>
       </div>
     </div>
@@ -417,84 +417,84 @@ function FieldsEditor({ model, onSave }: { model: DataModel; onSave: (m: DataMod
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold flex items-center gap-2">
-          <Settings className="w-5 h-5 text-blue-400" />字段配置
-          <span className="text-sm font-normal text-slate-400">（{fields.length} 个字段）</span>
+          <Settings className="w-5 h-5 text-[#007aff]" />字段配置
+          <span className="text-sm font-normal text-[#8e8e93]">（{fields.length} 个字段）</span>
         </h2>
         <div className="flex gap-2">
-          <button onClick={addField} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm transition">
+          <button onClick={addField} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-[#007aff] hover:bg-[#007aff] text-sm transition">
             <Plus className="w-4 h-4" />添加字段
           </button>
-          <button onClick={save} disabled={saving} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-sm transition disabled:opacity-50">
+          <button onClick={save} disabled={saving} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-[#34c759] hover:bg-[#34c759] text-sm transition disabled:opacity-50">
             <Save className="w-4 h-4" />{saving ? '保存中...' : '保存'}
           </button>
         </div>
       </div>
 
       {fields.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-[#8e8e93]">
           <Settings className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>暂无字段，点击「添加字段」开始配置</p>
         </div>
       ) : (
         <div className="space-y-2">
           {fields.map((f, idx) => (
-            <div key={f.id} className={`group rounded-xl border transition ${editing === f.id ? 'bg-slate-800 border-blue-500/40' : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'}`}>
+            <div key={f.id} className={`group rounded-xl border transition ${editing === f.id ? 'bg-[#ffffff] border-[rgba(0,122,255,0.4)]' : 'bg-white border-[#e5e5ea] hover:border-[#e5e5ea]'}`}>
               {editing === f.id ? (
                 /* 编辑模式 */
                 <div className="p-4 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">字段名（英文标识）</label>
+                      <label className="block text-xs text-[#8e8e93] mb-1">字段名（英文标识）</label>
                       <input value={f.name} onChange={e => updateField(f.id!, { name: e.target.value.replace(/\s/g, '_') })}
-                        className="w-full px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none" />
+                        className="w-full px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm focus:border-[#007aff] outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">显示标签</label>
+                      <label className="block text-xs text-[#8e8e93] mb-1">显示标签</label>
                       <input value={f.label} onChange={e => updateField(f.id!, { label: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none" />
+                        className="w-full px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm focus:border-[#007aff] outline-none" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">类型</label>
+                      <label className="block text-xs text-[#8e8e93] mb-1">类型</label>
                       <select value={f.type} onChange={e => updateField(f.id!, { type: e.target.value as FieldDef['type'] })}
-                        className="w-full px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none">
+                        className="w-full px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm focus:border-[#007aff] outline-none">
                         {ALL_FIELD_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">默认值</label>
+                      <label className="block text-xs text-[#8e8e93] mb-1">默认值</label>
                       <input value={f.defaultValue ?? ''} onChange={e => updateField(f.id!, { defaultValue: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none" />
+                        className="w-full px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm focus:border-[#007aff] outline-none" />
                     </div>
                   </div>
                   {f.type === 'select' && (
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">选项（逗号分隔）</label>
+                      <label className="block text-xs text-[#8e8e93] mb-1">选项（逗号分隔）</label>
                       <input value={f.options ?? ''} onChange={e => updateField(f.id!, { options: e.target.value })}
                         placeholder="选项1,选项2,选项3"
-                        className="w-full px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none" />
+                        className="w-full px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm focus:border-[#007aff] outline-none" />
                     </div>
                   )}
                   <div className="flex items-center gap-4">
                     <button onClick={() => updateField(f.id!, { required: !f.required })}
-                      className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition">
-                      {f.required ? <ToggleRight className="w-5 h-5 text-blue-400" /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
+                      className="flex items-center gap-1.5 text-sm text-[#3a3a3c] hover:text-[#1C1C1E] transition">
+                      {f.required ? <ToggleRight className="w-5 h-5 text-[#007aff]" /> : <ToggleLeft className="w-5 h-5 text-[#8e8e93]" />}
                       必填
                     </button>
                     <button onClick={() => updateField(f.id!, { visible: !f.visible })}
-                      className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition">
-                      {f.visible ? <Eye className="w-4 h-4 text-blue-400" /> : <EyeOff className="w-4 h-4 text-slate-500" />}
+                      className="flex items-center gap-1.5 text-sm text-[#3a3a3c] hover:text-[#1C1C1E] transition">
+                      {f.visible ? <Eye className="w-4 h-4 text-[#007aff]" /> : <EyeOff className="w-4 h-4 text-[#8e8e93]" />}
                       列表可见
                     </button>
                     <button onClick={() => updateField(f.id!, { searchable: !f.searchable })}
-                      className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition">
-                      {f.searchable ? <ToggleRight className="w-5 h-5 text-blue-400" /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
+                      className="flex items-center gap-1.5 text-sm text-[#3a3a3c] hover:text-[#1C1C1E] transition">
+                      {f.searchable ? <ToggleRight className="w-5 h-5 text-[#007aff]" /> : <ToggleLeft className="w-5 h-5 text-[#8e8e93]" />}
                       可搜索
                     </button>
                   </div>
                   <div className="flex justify-end">
-                    <button onClick={() => setEditing(null)} className="px-3 py-1.5 rounded-lg bg-slate-700 text-sm hover:bg-slate-600 transition">
+                    <button onClick={() => setEditing(null)} className="px-3 py-1.5 rounded-lg bg-[rgba(118,118,128,0.12)] text-sm hover:bg-[rgba(0,0,0,0.08)] transition">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -503,18 +503,18 @@ function FieldsEditor({ model, onSave }: { model: DataModel; onSave: (m: DataMod
                 /* 显示模式 */
                 <div className="flex items-center gap-3 p-3">
                   <div className="flex flex-col gap-0.5 opacity-40">
-                    <button onClick={() => moveField(idx, -1)} className="p-0.5 hover:text-white"><GripVertical className="w-4 h-3" /></button>
+                    <button onClick={() => moveField(idx, -1)} className="p-0.5 hover:text-[#1C1C1E]"><GripVertical className="w-4 h-3" /></button>
                   </div>
-                  <div className="px-2 py-0.5 rounded text-xs font-mono bg-slate-700 text-slate-300">{f.name}</div>
+                  <div className="px-2 py-0.5 rounded text-xs font-mono bg-[rgba(118,118,128,0.12)] text-[#3a3a3c]">{f.name}</div>
                   <div className="flex-1 font-medium text-sm">{f.label}</div>
-                  <span className="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-300">{TYPE_LABELS[f.type]}</span>
-                  {f.required && <span className="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-300">必填</span>}
-                  {!f.visible && <EyeOff className="w-3.5 h-3.5 text-slate-500" />}
-                  {f.searchable && <Search className="w-3.5 h-3.5 text-green-400" />}
-                  <button onClick={() => setEditing(f.id!)} className="p-1 rounded hover:bg-slate-600 text-slate-400 hover:text-white transition">
+                  <span className="px-2 py-0.5 rounded text-xs bg-[rgba(0,122,255,0.2)] text-[#007aff]">{TYPE_LABELS[f.type]}</span>
+                  {f.required && <span className="px-2 py-0.5 rounded text-xs bg-[rgba(255,59,48,0.2)] text-[#ff3b30]">必填</span>}
+                  {!f.visible && <EyeOff className="w-3.5 h-3.5 text-[#8e8e93]" />}
+                  {f.searchable && <Search className="w-3.5 h-3.5 text-[#34c759]" />}
+                  <button onClick={() => setEditing(f.id!)} className="p-1 rounded hover:bg-[rgba(0,0,0,0.08)] text-[#8e8e93] hover:text-[#1C1C1E] transition">
                     <Edit3 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => removeField(f.id!)} className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition">
+                  <button onClick={() => removeField(f.id!)} className="p-1 rounded hover:bg-[rgba(255,59,48,0.2)] text-[#8e8e93] hover:text-[#ff3b30] transition">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -569,14 +569,14 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
   /** 根据字段定义动态渲染表单输入控件 */
   const renderInput = (f: FieldDef) => {
     const val = formData[f.name] ?? f.defaultValue ?? '';
-    const baseClass = 'w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm focus:border-blue-500 outline-none';
+    const baseClass = 'w-full px-3 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] border border-[#e5e5ea] text-sm focus:border-[#007aff] outline-none';
 
     switch (f.type) {
       case 'boolean':
         return (
           <button type="button" onClick={() => setFormData({ ...formData, [f.name]: !val })}
             className="flex items-center gap-2 text-sm">
-            {val ? <ToggleRight className="w-6 h-6 text-blue-400" /> : <ToggleLeft className="w-6 h-6 text-slate-500" />}
+            {val ? <ToggleRight className="w-6 h-6 text-[#007aff]" /> : <ToggleLeft className="w-6 h-6 text-[#8e8e93]" />}
             {val ? '是' : '否'}
           </button>
         );
@@ -599,7 +599,7 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
           <div className="flex flex-wrap gap-2">
             {opts.map(o => (
               <button key={o} type="button" onClick={() => toggle(o)}
-                className={`px-3 py-1 rounded-lg text-sm transition ${selected.includes(o) ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
+                className={`px-3 py-1 rounded-lg text-sm transition ${selected.includes(o) ? 'bg-[#007aff] text-white' : 'bg-[rgba(118,118,128,0.12)] text-[#3a3a3c] hover:bg-[rgba(0,0,0,0.08)]'}`}>
                 {o}
               </button>
             ))}
@@ -630,23 +630,23 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
   /** 根据字段定义动态渲染单元格值 */
   const renderCellValue = (f: FieldDef, data: Record<string, unknown>) => {
     const val = data[f.name];
-    if (val === undefined || val === null || val === '') return <span className="text-slate-500">-</span>;
+    if (val === undefined || val === null || val === '') return <span className="text-[#8e8e93]">-</span>;
     switch (f.type) {
       case 'boolean':
-        return val ? <span className="text-green-400">✓</span> : <span className="text-slate-500">✗</span>;
+        return val ? <span className="text-[#34c759]">✓</span> : <span className="text-[#8e8e93]">✗</span>;
       case 'multi_select':
-        return <span className="text-slate-200">{String(val)}</span>;
+        return <span className="text-[#1c1c1e]">{String(val)}</span>;
       case 'number':
       case 'decimal':
-        return <span className="font-mono text-slate-200">{String(val)}</span>;
+        return <span className="font-mono text-[#1c1c1e]">{String(val)}</span>;
       case 'date':
-        return <span className="text-slate-200">{String(val)}</span>;
+        return <span className="text-[#1c1c1e]">{String(val)}</span>;
       case 'url':
-        return <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block max-w-[200px]">{String(val)}</a>;
+        return <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-[#007aff] hover:underline truncate block max-w-[200px]">{String(val)}</a>;
       case 'email':
-        return <a href={`mailto:${val}`} className="text-blue-400 hover:underline">{String(val)}</a>;
+        return <a href={`mailto:${val}`} className="text-[#007aff] hover:underline">{String(val)}</a>;
       default:
-        return <span className="text-slate-200">{String(val)}</span>;
+        return <span className="text-[#1c1c1e]">{String(val)}</span>;
     }
   };
 
@@ -654,35 +654,35 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold flex items-center gap-2">
-          <Table2 className="w-5 h-5 text-green-400" />数据记录
-          <span className="text-sm font-normal text-slate-400">（{records.length} 条）</span>
+          <Table2 className="w-5 h-5 text-[#34c759]" />数据记录
+          <span className="text-sm font-normal text-[#8e8e93]">（{records.length} 条）</span>
         </h2>
         <button onClick={() => { setFormData({}); setEditingId(null); setShowForm(true); }}
-          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-sm transition">
+          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-[#34c759] hover:bg-[#34c759] text-sm transition">
           <Plus className="w-4 h-4" />新增记录
         </button>
       </div>
 
       {/* 动态表单弹窗 - 完全由字段定义驱动 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 rounded-2xl bg-slate-800 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm" onClick={() => setShowForm(false)}>
+          <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 rounded-2xl bg-[#ffffff] border border-[#e5e5ea] shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-4">{editingId ? '编辑记录' : '新增记录'}</h3>
             <div className="space-y-4">
               {allFields.map(f => (
                 <div key={f.id}>
-                  <label className="block text-sm text-slate-300 mb-1">
-                    {f.label}{f.required && <span className="text-red-400 ml-1">*</span>}
-                    <span className="ml-2 text-xs text-slate-500">({TYPE_LABELS[f.type] ?? f.type})</span>
+                  <label className="block text-sm text-[#3a3a3c] mb-1">
+                    {f.label}{f.required && <span className="text-[#ff3b30] ml-1">*</span>}
+                    <span className="ml-2 text-xs text-[#8e8e93]">({TYPE_LABELS[f.type] ?? f.type})</span>
                   </label>
                   {renderInput(f)}
                 </div>
               ))}
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">取消</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-[rgba(118,118,128,0.12)] text-sm">取消</button>
               <button onClick={editingId ? () => updateRecord(editingId) : createRecord}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-medium">
+                className="px-4 py-2 rounded-lg bg-[#007aff] hover:bg-[#007aff] text-sm font-medium">
                 {editingId ? '更新' : '创建'}
               </button>
             </div>
@@ -692,40 +692,40 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
 
       {/* 动态表格 - 列由字段定义驱动 */}
       {records.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-[#8e8e93]">
           <Table2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>暂无数据记录</p>
         </div>
       ) : visibleFields.length === 0 ? (
-        <div className="text-center py-12 text-slate-400">
+        <div className="text-center py-12 text-[#8e8e93]">
           <p>请在「字段配置」中添加并设置字段可见性</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-700">
+        <div className="overflow-x-auto rounded-xl border border-[#e5e5ea]">
           <table className="w-full text-sm">
-            <thead className="bg-slate-800/80">
+            <thead className="bg-white">
               <tr>
                 {visibleFields.map(f => (
-                  <th key={f.id} className="px-4 py-3 text-left text-slate-300 font-medium whitespace-nowrap">
+                  <th key={f.id} className="px-4 py-3 text-left text-[#3a3a3c] font-medium whitespace-nowrap">
                     {f.label}
-                    <span className="ml-1 text-xs text-slate-500">({TYPE_LABELS[f.type] ?? f.type})</span>
+                    <span className="ml-1 text-xs text-[#8e8e93]">({TYPE_LABELS[f.type] ?? f.type})</span>
                   </th>
                 ))}
-                <th className="px-4 py-3 text-right text-slate-300 font-medium w-24">操作</th>
+                <th className="px-4 py-3 text-right text-[#3a3a3c] font-medium w-24">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
+            <tbody className="divide-y divide-[rgba(229,229,234,0.5)]">
               {records.map(r => {
                 const data = safeData(r);
                 return (
-                  <tr key={r.id} className="hover:bg-slate-800/50 transition">
+                  <tr key={r.id} className="hover:bg-white transition">
                     {visibleFields.map(f => (
                       <td key={f.id} className="px-4 py-3">{renderCellValue(f, data)}</td>
                     ))}
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => startEdit(r)} className="p-1 rounded hover:bg-slate-600 text-slate-400 hover:text-blue-400 transition"><Edit3 className="w-4 h-4" /></button>
-                        <button onClick={() => deleteRecord(r.id)} className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => startEdit(r)} className="p-1 rounded hover:bg-[rgba(0,0,0,0.08)] text-[#8e8e93] hover:text-[#007aff] transition"><Edit3 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteRecord(r.id)} className="p-1 rounded hover:bg-[rgba(255,59,48,0.2)] text-[#8e8e93] hover:text-[#ff3b30] transition"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -743,7 +743,7 @@ function RecordsView({ model, records, onRefresh }: { model: DataModel; records:
 function ModelDetail({ model, recordCount }: { model: DataModel; recordCount: number; }) {
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-xl bg-slate-800/70 border border-slate-700">
+      <div className="p-6 rounded-xl bg-white border border-[#e5e5ea]">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl"
             style={{ background: `${model.color || '#3b82f6'}20`, color: model.color || '#3b82f6' }}>
@@ -751,39 +751,39 @@ function ModelDetail({ model, recordCount }: { model: DataModel; recordCount: nu
           </div>
           <div>
             <h2 className="text-xl font-bold">{model.name}</h2>
-            <p className="text-sm text-slate-400">{model.description || '无描述'}</p>
+            <p className="text-sm text-[#8e8e93]">{model.description || '无描述'}</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <div className="p-3 rounded-lg bg-slate-700/50 text-center">
-            <p className="text-2xl font-bold text-blue-400">{model.fields?.length ?? 0}</p>
-            <p className="text-xs text-slate-400">字段数</p>
+          <div className="p-3 rounded-lg bg-[rgba(118,118,128,0.12)] text-center">
+            <p className="text-2xl font-bold text-[#007aff]">{model.fields?.length ?? 0}</p>
+            <p className="text-xs text-[#8e8e93]">字段数</p>
           </div>
-          <div className="p-3 rounded-lg bg-slate-700/50 text-center">
-            <p className="text-2xl font-bold text-green-400">{recordCount}</p>
-            <p className="text-xs text-slate-400">记录数</p>
+          <div className="p-3 rounded-lg bg-[rgba(118,118,128,0.12)] text-center">
+            <p className="text-2xl font-bold text-[#34c759]">{recordCount}</p>
+            <p className="text-xs text-[#8e8e93]">记录数</p>
           </div>
-          <div className="p-3 rounded-lg bg-slate-700/50 text-center">
-            <p className="text-2xl font-bold text-amber-400">{(model.fields ?? []).filter(f => f.required).length}</p>
-            <p className="text-xs text-slate-400">必填字段</p>
+          <div className="p-3 rounded-lg bg-[rgba(118,118,128,0.12)] text-center">
+            <p className="text-2xl font-bold text-[#ff9500]">{(model.fields ?? []).filter(f => f.required).length}</p>
+            <p className="text-xs text-[#8e8e93]">必填字段</p>
           </div>
         </div>
       </div>
-      <div className="p-6 rounded-xl bg-slate-800/70 border border-slate-700">
-        <h3 className="font-bold mb-3 flex items-center gap-2"><Settings className="w-4 h-4 text-blue-400" />字段列表</h3>
+      <div className="p-6 rounded-xl bg-white border border-[#e5e5ea]">
+        <h3 className="font-bold mb-3 flex items-center gap-2"><Settings className="w-4 h-4 text-[#007aff]" />字段列表</h3>
         <div className="space-y-2">
           {(model.fields ?? []).map(f => (
-            <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-700/30">
-              <span className="px-2 py-0.5 rounded text-xs font-mono bg-slate-700 text-slate-300">{f.name}</span>
+            <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg bg-[rgba(0,0,0,0.015)]">
+              <span className="px-2 py-0.5 rounded text-xs font-mono bg-[rgba(118,118,128,0.12)] text-[#3a3a3c]">{f.name}</span>
               <span className="flex-1 text-sm">{f.label}</span>
-              <span className="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-300">{TYPE_LABELS[f.type]}</span>
-              {f.required && <span className="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-300">必填</span>}
-              {f.searchable && <span className="px-2 py-0.5 rounded text-xs bg-green-500/20 text-green-300">可搜索</span>}
+              <span className="px-2 py-0.5 rounded text-xs bg-[rgba(0,122,255,0.2)] text-[#007aff]">{TYPE_LABELS[f.type]}</span>
+              {f.required && <span className="px-2 py-0.5 rounded text-xs bg-[rgba(255,59,48,0.2)] text-[#ff3b30]">必填</span>}
+              {f.searchable && <span className="px-2 py-0.5 rounded text-xs bg-[rgba(52,199,89,0.2)] text-[#34c759]">可搜索</span>}
             </div>
           ))}
         </div>
       </div>
-      <div className="text-xs text-slate-500">
+      <div className="text-xs text-[#8e8e93]">
         创建于 {new Date(model.createdAt).toLocaleString()} · 更新于 {new Date(model.updatedAt).toLocaleString()}
       </div>
     </div>

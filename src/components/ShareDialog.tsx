@@ -171,11 +171,11 @@ export default function ShareDialog({
   };
 
   const getShareStatus = (expiresAt: string | null) => {
-    if (!expiresAt) return { text: '有效', color: 'text-green-600' };
+    if (!expiresAt) return { text: '有效', color: 'text-[#34c759]' };
     const expired = new Date(expiresAt) < new Date();
     return expired
-      ? { text: '已过期', color: 'text-red-600' }
-      : { text: '有效', color: 'text-green-600' };
+      ? { text: '已过期', color: 'text-[#ff3b30]' }
+      : { text: '有效', color: 'text-[#34c759]' };
   };
 
   return (
@@ -202,9 +202,9 @@ export default function ShareDialog({
             </div>
 
             {loading ? (
-              <div className="text-center py-8 text-gray-500">加载中...</div>
+              <div className="text-center py-8 text-[#8e8e93]">加载中...</div>
             ) : shareLinks.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-[#8e8e93]">
                 暂无分享链接，点击上方按钮创建
               </div>
             ) : (
@@ -214,12 +214,12 @@ export default function ShareDialog({
                   return (
                     <div
                       key={link.id}
-                      className="p-4 border rounded-lg hover:bg-gray-50"
+                      className="p-4 border rounded-lg hover:bg-[#f2f2f7]"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <Link className="w-4 h-4 text-gray-400" />
-                          <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+                          <Link className="w-4 h-4 text-[#8e8e93]" />
+                          <code className="text-sm bg-[rgba(118,118,128,0.08)] px-2 py-1 rounded">
                             /share/{link.shareCode}
                           </code>
                         </div>
@@ -239,12 +239,12 @@ export default function ShareDialog({
                             variant="ghost"
                             onClick={() => deleteShareLink(link.shareCode)}
                           >
-                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <Trash2 className="w-4 h-4 text-[#ff3b30]" />
                           </Button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-4 text-sm text-[#8e8e93]">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {link.expiresAt ? (
@@ -314,10 +314,10 @@ export default function ShareDialog({
                 </div>
 
                 {!hasExpiry ? (
-                  <p className="text-sm text-gray-500">未设置有效期，链接将永久有效</p>
+                  <p className="text-sm text-[#8e8e93]">未设置有效期，链接将永久有效</p>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">有效期：</span>
+                    <span className="text-sm text-[#8e8e93]">有效期：</span>
                     <Select value={expiryDays} onValueChange={setExpiryDays}>
                       <SelectTrigger className="w-32">
                         <SelectValue />

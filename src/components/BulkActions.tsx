@@ -53,15 +53,15 @@ export default function BulkActions({
 
   return (
     <>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white rounded-2xl shadow-2xl border border-slate-200/60 p-2 flex items-center gap-2 animate-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white rounded-2xl shadow-2xl border border-[rgba(229,229,234,0.6)] p-2 flex items-center gap-2 animate-in slide-in-from-bottom-4 duration-300">
         {/* 已选择计数 */}
         <div className={cn(
           "flex items-center gap-2 px-3 py-2 rounded-lg",
-          isTrash ? "bg-red-50" : "bg-violet-50"
+          isTrash ? "bg-[rgba(255,59,48,0.1)]" : "bg-[rgba(0,122,255,0.1)]"
         )}>
           <span className={cn(
             "text-sm font-medium",
-            isTrash ? "text-red-700" : "text-violet-700"
+            isTrash ? "text-[#ff3b30]" : "text-[#007aff]"
           )}>
             已选择 {selectedCount} 张图片
           </span>
@@ -69,14 +69,14 @@ export default function BulkActions({
             onClick={onClearSelection}
             className={cn(
               "p-1 rounded transition-colors",
-              isTrash ? "hover:bg-red-100 text-red-600" : "hover:bg-violet-100 text-violet-600"
+              isTrash ? "hover:bg-[rgba(255,59,48,0.1)] text-[#ff3b30]" : "hover:bg-[rgba(0,122,255,0.1)] text-[#007aff]"
             )}
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="w-px h-8 bg-slate-200" />
+        <div className="w-px h-8 bg-[rgba(0,0,0,0.06)]" />
 
         {/* 操作按钮 */}
         <div className="flex items-center gap-1">
@@ -88,7 +88,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={onRestore}
-                  className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  className="gap-2 text-[#34c759] hover:text-[#34c759] hover:bg-[rgba(52,199,89,0.1)]"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>恢复</span>
@@ -99,7 +99,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={onPermanentDelete}
-                  className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="gap-2 text-[#ff3b30] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)]"
                 >
                   <AlertTriangle className="w-4 h-4" />
                   <span>永久删除</span>
@@ -114,7 +114,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowTagDialog(true)}
-                  className="gap-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  className="gap-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
                 >
                   <Tag className="w-4 h-4" />
                   <span>标签</span>
@@ -126,7 +126,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={onMove}
-                  className="gap-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  className="gap-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
                 >
                   <FolderOpen className="w-4 h-4" />
                   <span>移动</span>
@@ -138,7 +138,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={onFavorite}
-                  className="gap-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  className="gap-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
                 >
                   <Heart className="w-4 h-4" />
                   <span>收藏</span>
@@ -150,7 +150,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={onDownload}
-                  className="gap-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  className="gap-2 text-[#8e8e93] hover:text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
                 >
                   <Download className="w-4 h-4" />
                   <span>下载</span>
@@ -162,7 +162,7 @@ export default function BulkActions({
                   variant="ghost"
                   size="sm"
                   onClick={onDelete}
-                  className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="gap-2 text-[#ff3b30] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)]"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>删除</span>
@@ -178,7 +178,7 @@ export default function BulkActions({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Tag className="w-5 h-5 text-violet-600" />
+              <Tag className="w-5 h-5 text-[#007aff]" />
               为 {selectedCount} 张图片设置标签
             </DialogTitle>
           </DialogHeader>
@@ -196,7 +196,7 @@ export default function BulkActions({
             <Button 
               onClick={handleBatchUpdateTags} 
               disabled={selectedTags.length === 0}
-              className="bg-violet-600 hover:bg-violet-700"
+              className="bg-[#007aff] hover:bg-[#007aff]"
             >
               <Plus className="w-4 h-4 mr-2" />
               应用标签

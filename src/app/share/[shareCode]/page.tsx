@@ -137,10 +137,10 @@ export default function SharePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f7]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">加载中...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#007aff] mx-auto mb-4"></div>
+          <p className="text-[#8e8e93]">加载中...</p>
         </div>
       </div>
     );
@@ -148,11 +148,11 @@ export default function SharePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f7]">
         <div className="text-center max-w-md p-8 bg-white rounded-xl shadow-lg">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">访问失败</h1>
-          <p className="text-gray-500">{error}</p>
+          <AlertCircle className="w-16 h-16 text-[#ff3b30] mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-[#8e8e93] mb-2">访问失败</h1>
+          <p className="text-[#8e8e93]">{error}</p>
         </div>
       </div>
     );
@@ -160,14 +160,14 @@ export default function SharePage() {
 
   if (needPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f7]">
         <div className="text-center max-w-md p-8 bg-white rounded-xl shadow-lg">
-          <Lock className="w-16 h-16 text-violet-600 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">需要密码</h1>
+          <Lock className="w-16 h-16 text-[#007aff] mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-[#8e8e93] mb-2">需要密码</h1>
           {shareData?.resourceName && (
-            <p className="text-violet-600 font-medium mb-2">{shareData.resourceName}</p>
+            <p className="text-[#007aff] font-medium mb-2">{shareData.resourceName}</p>
           )}
-          <p className="text-gray-500 mb-6">此分享链接需要密码才能访问</p>
+          <p className="text-[#8e8e93] mb-6">此分享链接需要密码才能访问</p>
           <form onSubmit={handleSubmitPassword}>
             <div className="flex gap-2">
               <Input
@@ -197,25 +197,25 @@ export default function SharePage() {
 
   if (isExpired) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f7]">
         <div className="text-center max-w-md p-8 bg-white rounded-xl shadow-lg">
-          <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">分享已过期</h1>
-          <p className="text-gray-500">此分享链接已过期，请联系分享者获取新的链接</p>
+          <Calendar className="w-16 h-16 text-[#8e8e93] mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-[#8e8e93] mb-2">分享已过期</h1>
+          <p className="text-[#8e8e93]">此分享链接已过期，请联系分享者获取新的链接</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f2f2f7]">
       {/* 头部 */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">{shareData.resourceName}</h1>
-              <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+              <h1 className="text-xl font-bold text-[#8e8e93]">{shareData.resourceName}</h1>
+              <div className="flex items-center gap-4 text-sm text-[#8e8e93] mt-1">
                 <span className="flex items-center gap-1">
                   <Eye className="w-4 h-4" />
                   分享内容
@@ -239,7 +239,7 @@ export default function SharePage() {
             {shareData.images.map((image) => (
               <div
                 key={image.id}
-                className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer group"
+                className="relative aspect-square rounded-lg overflow-hidden bg-[rgba(118,118,128,0.08)] cursor-pointer group"
                 onClick={() => setSelectedImage(image.url)}
               >
                 <Image
@@ -249,7 +249,7 @@ export default function SharePage() {
                   className="object-cover group-hover:scale-105 transition-transform duration-300"
                   unoptimized
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
               </div>
             ))}
           </div>
@@ -259,14 +259,14 @@ export default function SharePage() {
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h2 className="text-2xl font-bold mb-4">{shareData.album.name}</h2>
             {shareData.album.description && (
-              <p className="text-gray-600 mb-6">{shareData.album.description}</p>
+              <p className="text-[#8e8e93] mb-6">{shareData.album.description}</p>
             )}
             {shareData.images && shareData.images.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {shareData.images.map((image) => (
                   <div
                     key={image.id}
-                    className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer group"
+                    className="relative aspect-square rounded-lg overflow-hidden bg-[rgba(118,118,128,0.08)] cursor-pointer group"
                     onClick={() => setSelectedImage(image.url)}
                   >
                     <Image
@@ -276,12 +276,12 @@ export default function SharePage() {
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
                       unoptimized
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-8">暂无图片</p>
+              <p className="text-[#8e8e93] text-center py-8">暂无图片</p>
             )}
           </div>
         )}
@@ -294,7 +294,7 @@ export default function SharePage() {
           onClick={() => setSelectedImage(null)}
         >
           <button
-            className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300"
+            className="absolute top-4 right-4 text-[#1C1C1E] text-4xl hover:text-[#3a3a3c]"
             onClick={() => setSelectedImage(null)}
           >
             ×

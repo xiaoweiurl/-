@@ -89,13 +89,13 @@ export default function NotificationsPage() {
   // 通知图标和颜色
   const getNotificationStyle = (type: string) => {
     const styles: Record<string, { icon: string; color: string; bgColor: string }> = {
-      system: { icon: '📢', color: 'text-blue-600', bgColor: 'bg-blue-50' },
-      upload: { icon: '📤', color: 'text-green-600', bgColor: 'bg-green-50' },
-      album: { icon: '📁', color: 'text-amber-600', bgColor: 'bg-amber-50' },
-      share: { icon: '🔗', color: 'text-purple-600', bgColor: 'bg-purple-50' },
-      comment: { icon: '💬', color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
-      like: { icon: '❤️', color: 'text-red-600', bgColor: 'bg-red-50' },
-      warning: { icon: '⚠️', color: 'text-orange-600', bgColor: 'bg-orange-50' },
+      system: { icon: '📢', color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
+      upload: { icon: '📤', color: 'text-[#34c759]', bgColor: 'bg-[rgba(52,199,89,0.1)]' },
+      album: { icon: '📁', color: 'text-[#ff9500]', bgColor: 'bg-[rgba(255,149,0,0.1)]' },
+      share: { icon: '🔗', color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
+      comment: { icon: '💬', color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
+      like: { icon: '❤️', color: 'text-[#ff3b30]', bgColor: 'bg-[rgba(255,59,48,0.1)]' },
+      warning: { icon: '⚠️', color: 'text-[#ff9500]', bgColor: 'bg-[rgba(255,149,0,0.1)]' },
     };
     return styles[type] || styles.system;
   };
@@ -115,29 +115,29 @@ export default function NotificationsPage() {
 
   if (isLoading && notifications.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+      <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#007aff] animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f2f2f7]">
       <Toaster position="top-center" richColors closeButton />
       
       {/* 顶部导航 */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
+      <header className="bg-white border-b border-[#e5e5ea] sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button 
               onClick={handleBack}
-              className="text-slate-500 hover:text-slate-700 transition-colors shrink-0"
+              className="text-[#8e8e93] hover:text-[#8e8e93] transition-colors shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg sm:text-xl font-semibold text-slate-800 truncate">通知中心</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-[#8e8e93] truncate">通知中心</h1>
             {unreadCount > 0 && (
-              <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full animate-pulse">
+              <span className="px-2 py-0.5 bg-[#ff3b30] text-white text-xs rounded-full animate-pulse">
                 {unreadCount} 条未读
               </span>
             )}
@@ -180,8 +180,8 @@ export default function NotificationsPage() {
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* 实时更新提示 */}
-        <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+        <div className="flex items-center gap-2 mb-4 text-sm text-[#8e8e93]">
+          <span className="w-2 h-2 bg-[#34c759] rounded-full animate-pulse" />
           实时更新中（每30秒自动刷新）
         </div>
 
@@ -192,8 +192,8 @@ export default function NotificationsPage() {
             className={cn(
               "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
               filter === 'all'
-                ? "bg-violet-100 text-violet-700"
-                : "bg-white text-slate-600 hover:bg-slate-100"
+                ? "bg-[rgba(0,122,255,0.1)] text-[#007aff]"
+                : "bg-white text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
             )}
           >
             全部通知 ({notifications.length})
@@ -203,8 +203,8 @@ export default function NotificationsPage() {
             className={cn(
               "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
               filter === 'unread'
-                ? "bg-violet-100 text-violet-700"
-                : "bg-white text-slate-600 hover:bg-slate-100"
+                ? "bg-[rgba(0,122,255,0.1)] text-[#007aff]"
+                : "bg-white text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)]"
             )}
           >
             未读 ({unreadCount})
@@ -212,16 +212,16 @@ export default function NotificationsPage() {
         </div>
 
         {/* 通知列表 */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-[#e5e5ea] overflow-hidden">
           {filteredNotifications.length === 0 ? (
             <div className="p-16 text-center">
-              <BellOff className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-              <p className="text-slate-500 text-lg">
+              <BellOff className="w-16 h-16 text-[#1c1c1e] mx-auto mb-4" />
+              <p className="text-[#8e8e93] text-lg">
                 {filter === 'unread' ? '没有未读通知' : '暂无通知'}
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-[#e5e5ea]">
               {filteredNotifications.map((notification, index) => {
                 const style = getNotificationStyle(notification.type);
                 
@@ -229,8 +229,8 @@ export default function NotificationsPage() {
                   <div
                     key={notification.id}
                     className={cn(
-                      "p-4 sm:p-5 hover:bg-slate-50 transition-all",
-                      !notification.read && "bg-violet-50/30",
+                      "p-4 sm:p-5 hover:bg-[#f2f2f7] transition-all",
+                      !notification.read && "bg-[rgba(0,122,255,0.03)]",
                       notification.isNew && "animate-slide-in"
                     )}
                     style={{ animationDelay: `${index * 50}ms` }}
@@ -250,21 +250,21 @@ export default function NotificationsPage() {
                           <div className="min-w-0">
                             <h3 className={cn(
                               "text-sm sm:text-base font-medium truncate",
-                              notification.read ? "text-slate-700" : "text-slate-900"
+                              notification.read ? "text-[#8e8e93]" : "text-[#8e8e93]"
                             )}>
                               {notification.title}
                             </h3>
-                            <p className="text-xs sm:text-sm text-slate-600 mt-1 line-clamp-2">
+                            <p className="text-xs sm:text-sm text-[#8e8e93] mt-1 line-clamp-2">
                               {notification.message}
                             </p>
                           </div>
                           {!notification.read && (
-                            <span className="w-2.5 h-2.5 bg-violet-500 rounded-full shrink-0 mt-2 animate-pulse" />
+                            <span className="w-2.5 h-2.5 bg-[#007aff] rounded-full shrink-0 mt-2 animate-pulse" />
                           )}
                         </div>
                         
                         <div className="flex items-center justify-between mt-3">
-                          <span className="text-xs text-slate-400">
+                          <span className="text-xs text-[#8e8e93]">
                             {formatTime(notification.createdAt)}
                           </span>
                           <div className="flex items-center gap-1 sm:gap-2">
@@ -273,7 +273,7 @@ export default function NotificationsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleMarkAsRead(notification.id)}
-                                className="h-8 px-2 sm:px-3 text-violet-600 hover:text-violet-700 hover:bg-violet-50"
+                                className="h-8 px-2 sm:px-3 text-[#007aff] hover:text-[#007aff] hover:bg-[rgba(0,122,255,0.1)]"
                               >
                                 <Check className="w-4 h-4 sm:mr-1" />
                                 <span className="hidden sm:inline">标记已读</span>
@@ -283,7 +283,7 @@ export default function NotificationsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteNotification(notification.id)}
-                              className="h-8 px-2 sm:px-3 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                              className="h-8 px-2 sm:px-3 text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)]"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -300,7 +300,7 @@ export default function NotificationsPage() {
 
         {/* 底部提示 */}
         {filteredNotifications.length > 0 && (
-          <p className="text-center text-sm text-slate-400 mt-6">
+          <p className="text-center text-sm text-[#8e8e93] mt-6">
             共 {filteredNotifications.length} 条通知
           </p>
         )}

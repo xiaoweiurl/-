@@ -63,17 +63,17 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  login: 'bg-blue-100 text-blue-700',
-  logout: 'bg-gray-100 text-gray-700',
-  upload: 'bg-green-100 text-green-700',
-  delete: 'bg-red-100 text-red-700',
-  update: 'bg-yellow-100 text-yellow-700',
-  create: 'bg-purple-100 text-purple-700',
-  download: 'bg-cyan-100 text-cyan-700',
-  share: 'bg-pink-100 text-pink-700',
-  restore: 'bg-orange-100 text-orange-700',
-  move: 'bg-indigo-100 text-indigo-700',
-  backup: 'bg-teal-100 text-teal-700',
+  login: 'bg-[rgba(0,122,255,0.1)] text-[#007aff]',
+  logout: 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]',
+  upload: 'bg-[rgba(52,199,89,0.1)] text-[#34c759]',
+  delete: 'bg-[rgba(255,59,48,0.1)] text-[#ff3b30]',
+  update: 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]',
+  create: 'bg-[rgba(0,122,255,0.1)] text-[#007aff]',
+  download: 'bg-[rgba(0,122,255,0.1)] text-[#007aff]',
+  share: 'bg-[rgba(175,82,222,0.1)] text-[#af52de]',
+  restore: 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]',
+  move: 'bg-[rgba(0,122,255,0.1)] text-[#007aff]',
+  backup: 'bg-[rgba(52,199,89,0.1)] text-[#34c759]',
 };
 
 export default function AuditLogs() {
@@ -120,7 +120,7 @@ export default function AuditLogs() {
   };
 
   const getActionColor = (action: string) => {
-    return ACTION_COLORS[action] || 'bg-gray-100 text-gray-700';
+    return ACTION_COLORS[action] || 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]';
   };
 
   return (
@@ -152,10 +152,10 @@ export default function AuditLogs() {
       <CardContent>
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-[#8e8e93]" />
           </div>
         ) : logs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">暂无操作日志</div>
+          <div className="text-center py-8 text-[#8e8e93]">暂无操作日志</div>
         ) : (
           <>
             <Table>
@@ -171,7 +171,7 @@ export default function AuditLogs() {
               <TableBody>
                 {logs.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell className="text-sm text-gray-500">
+                    <TableCell className="text-sm text-[#8e8e93]">
                       {formatDate(log.createdAt)}
                     </TableCell>
                     <TableCell>{log.username}</TableCell>
@@ -183,7 +183,7 @@ export default function AuditLogs() {
                     <TableCell className="max-w-xs truncate">
                       {log.details}
                     </TableCell>
-                    <TableCell className="text-sm text-gray-500">
+                    <TableCell className="text-sm text-[#8e8e93]">
                       {log.ipAddress}
                     </TableCell>
                   </TableRow>
@@ -202,7 +202,7 @@ export default function AuditLogs() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-[#8e8e93]">
                   {page} / {totalPages}
                 </span>
                 <Button

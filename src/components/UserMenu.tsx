@@ -42,13 +42,13 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-xl',
-          'bg-white/80 border border-slate-200/60',
-          'hover:bg-slate-50 transition-all duration-200',
+          'bg-white/80 border border-[rgba(229,229,234,0.6)]',
+          'hover:bg-[#f2f2f7] transition-all duration-200',
           'shadow-sm'
         )}
       >
         {/* 头像 */}
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center overflow-hidden">
+        <div className="w-8 h-8 rounded-full bg-[#007AFF] flex items-center justify-center overflow-hidden">
           {user.avatar ? (
             <img 
               src={user.avatar} 
@@ -60,21 +60,21 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
               }}
             />
           ) : null}
-          <User className="w-4 h-4 text-white" />
+          <User className="w-4 h-4 text-[#1C1C1E]" />
         </div>
         
         {/* 用户名和角色 */}
         <div className="text-left hidden sm:block">
-          <p className="text-sm font-medium text-slate-700">{user.username}</p>
+          <p className="text-sm font-medium text-[#8e8e93]">{user.username}</p>
           <div className="flex items-center gap-1">
             {isAdmin ? (
-              <Shield className="w-3 h-3 text-violet-500" />
+              <Shield className="w-3 h-3 text-[#007aff]" />
             ) : (
-              <User className="w-3 h-3 text-slate-400" />
+              <User className="w-3 h-3 text-[#8e8e93]" />
             )}
             <span className={cn(
               'text-xs',
-              isAdmin ? 'text-violet-500' : 'text-slate-400'
+              isAdmin ? 'text-[#007aff]' : 'text-[#8e8e93]'
             )}>
               {isAdmin ? '管理员' : '普通用户'}
             </span>
@@ -82,7 +82,7 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
         </div>
         
         <ChevronDown className={cn(
-          'w-4 h-4 text-slate-400 transition-transform',
+          'w-4 h-4 text-[#8e8e93] transition-transform',
           isOpen && 'rotate-180'
         )} />
       </button>
@@ -91,14 +91,14 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
       {isOpen && (
         <div className={cn(
           'absolute right-0 top-full mt-2 w-56',
-          'bg-white rounded-xl shadow-lg border border-slate-200/60',
+          'bg-white rounded-xl shadow-lg border border-[rgba(229,229,234,0.6)]',
           'py-2 z-50',
           'animate-in fade-in-0 zoom-in-95 duration-200'
         )}>
           {/* 用户信息 */}
-          <div className="px-4 py-3 border-b border-slate-100">
+          <div className="px-4 py-3 border-b border-[#e5e5ea]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-[#007AFF] flex items-center justify-center overflow-hidden">
                 {user.avatar ? (
                   <img 
                     src={user.avatar} 
@@ -109,18 +109,18 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
                     }}
                   />
                 ) : null}
-                <User className="w-5 h-5 text-white" />
+                <User className="w-5 h-5 text-[#1C1C1E]" />
               </div>
               <div>
-                <p className="font-medium text-slate-800">{user.username}</p>
-                <p className="text-xs text-slate-400">{user.email}</p>
+                <p className="font-medium text-[#8e8e93]">{user.username}</p>
+                <p className="text-xs text-[#8e8e93]">{user.email}</p>
               </div>
             </div>
             <div className={cn(
               'mt-2 px-2 py-1 rounded-lg text-xs font-medium inline-flex items-center gap-1',
               isAdmin 
-                ? 'bg-violet-100 text-violet-700' 
-                : 'bg-slate-100 text-slate-600'
+                ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' 
+                : 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]'
             )}>
               {isAdmin ? (
                 <>
@@ -146,11 +146,11 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
                 }}
                 className={cn(
                   'w-full px-4 py-2 text-left text-sm',
-                  'hover:bg-slate-50 transition-colors',
-                  'flex items-center gap-2 text-slate-700'
+                  'hover:bg-[#f2f2f7] transition-colors',
+                  'flex items-center gap-2 text-[#8e8e93]'
                 )}
               >
-                <Shield className="w-4 h-4 text-violet-500" />
+                <Shield className="w-4 h-4 text-[#007aff]" />
                 用户管理
               </button>
             )}
@@ -162,8 +162,8 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
               }}
               className={cn(
                 'w-full px-4 py-2 text-left text-sm',
-                'hover:bg-red-50 transition-colors',
-                'flex items-center gap-2 text-red-600'
+                'hover:bg-[rgba(255,59,48,0.1)] transition-colors',
+                'flex items-center gap-2 text-[#ff3b30]'
               )}
             >
               <LogOut className="w-4 h-4" />

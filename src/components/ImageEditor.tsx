@@ -23,10 +23,10 @@ const TuiImageEditor = dynamic(
   { 
     ssr: false,
     loading: () => (
-      <div className="flex items-center justify-center h-full bg-slate-900">
+      <div className="flex items-center justify-center h-full bg-[#f2f2f7]">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-10 h-10 animate-spin text-violet-600" />
-          <span className="text-slate-400">加载编辑器...</span>
+          <Loader2 className="w-10 h-10 animate-spin text-[#007aff]" />
+          <span className="text-[#8e8e93]">加载编辑器...</span>
         </div>
       </div>
     )
@@ -121,38 +121,38 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
         name: image.title || 'image',
       },
       theme: {
-        'common.background': '#0f172a',
-        'common.border': '#1e293b',
-        'header.background': '#1e293b',
-        'header.border': '#334155',
-        'menu.normalIcon.path': '#94a3b8',
-        'menu.normalIcon.name': '#94a3b8',
-        'menu.disabledIcon.path': '#475569',
-        'menu.disabledIcon.name': '#475569',
-        'menu.hoverIcon.path': '#f8fafc',
-        'menu.hoverIcon.name': '#f8fafc',
-        'menu.activeIcon.path': '#8b5cf6',
-        'menu.activeIcon.name': '#8b5cf6',
-        'submenu.background': '#1e293b',
-        'submenu.partition.color': '#334155',
-        'submenu.normalLabel.color': '#94a3b8',
-        'submenu.normalLabel.path': '#94a3b8',
-        'submenu.normalLabel.name': '#94a3b8',
-        'submenu.activeLabel.color': '#f8fafc',
-        'submenu.activeLabel.path': '#f8fafc',
-        'submenu.activeLabel.name': '#f8fafc',
-        'checkbox.background': '#334155',
-        'checkbox.border': '#475569',
-        'checkbox.disabledBackground': '#1e293b',
-        'checkbox.disabledBorder': '#334155',
-        'range.pointer.color': '#8b5cf6',
-        'range.bar.color': '#334155',
-        'range.subbar.color': '#8b5cf6',
-        'range.value.color': '#f8fafc',
+        'common.background': '#F2F2F7',
+        'common.border': '#E5E5EA',
+        'header.background': '#FFFFFF',
+        'header.border': '#E5E5EA',
+        'menu.normalIcon.path': '#8E8E93',
+        'menu.normalIcon.name': '#8E8E93',
+        'menu.disabledIcon.path': '#C7C7CC',
+        'menu.disabledIcon.name': '#C7C7CC',
+        'menu.hoverIcon.path': '#1C1C1E',
+        'menu.hoverIcon.name': '#1C1C1E',
+        'menu.activeIcon.path': '#007AFF',
+        'menu.activeIcon.name': '#007AFF',
+        'submenu.background': '#FFFFFF',
+        'submenu.partition.color': '#E5E5EA',
+        'submenu.normalLabel.color': '#8E8E93',
+        'submenu.normalLabel.path': '#8E8E93',
+        'submenu.normalLabel.name': '#8E8E93',
+        'submenu.activeLabel.color': '#1C1C1E',
+        'submenu.activeLabel.path': '#1C1C1E',
+        'submenu.activeLabel.name': '#1C1C1E',
+        'checkbox.background': '#E5E5EA',
+        'checkbox.border': '#C7C7CC',
+        'checkbox.disabledBackground': '#F2F2F7',
+        'checkbox.disabledBorder': '#E5E5EA',
+        'range.pointer.color': '#007AFF',
+        'range.bar.color': '#E5E5EA',
+        'range.subbar.color': '#007AFF',
+        'range.value.color': '#1C1C1E',
         'range.value.fontWeight': 'normal',
         'range.value.fontSize': '12px',
-        'colorpicker.button.border': '#475569',
-        'colorpicker.title.color': '#f8fafc',
+        'colorpicker.button.border': '#C7C7CC',
+        'colorpicker.title.color': '#1C1C1E',
       },
       menu: ['crop', 'flip', 'rotate', 'draw', 'shape', 'icon', 'text', 'mask', 'filter'],
       initMenu: 'filter',
@@ -172,21 +172,21 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-slate-950">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#f2f2f7]">
       {/* 顶部工具栏 */}
-      <div className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+      <div className="h-14 bg-[#f2f2f7] border-b border-[#e5e5ea] flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
           >
             <X className="w-4 h-4 mr-1" />
             关闭
           </Button>
-          <span className="text-slate-600">|</span>
-          <span className="text-white font-medium truncate max-w-[300px]">
+          <span className="text-[#8e8e93]">|</span>
+          <span className="text-[#1C1C1E] font-medium truncate max-w-[300px]">
             {image.title}
           </span>
         </div>
@@ -197,7 +197,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={() => handleRotate(-90)}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="向左旋转"
           >
             <RotateCcw className="w-4 h-4" />
@@ -206,7 +206,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={() => handleRotate(90)}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="向右旋转"
           >
             <RotateCw className="w-4 h-4" />
@@ -215,7 +215,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={() => handleFlip('flipX')}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="水平翻转"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -226,7 +226,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={() => handleFlip('flipY')}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="垂直翻转"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -237,7 +237,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={() => handleZoom(1.5)}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="放大"
           >
             <Maximize className="w-4 h-4" />
@@ -246,7 +246,7 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={() => handleZoom(0.5)}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="缩小"
           >
             <Minimize className="w-4 h-4" />
@@ -255,19 +255,19 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
             variant="ghost"
             size="sm"
             onClick={handleReset}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-[#8e8e93] hover:text-[#1C1C1E] hover:bg-[#ffffff]"
             title="重置"
           >
             <RotateCcw className="w-4 h-4" />
           </Button>
           
-          <div className="w-px h-6 bg-slate-700 mx-2" />
+          <div className="w-px h-6 bg-[rgba(118,118,128,0.12)] mx-2" />
           
           <Button
             size="sm"
             onClick={handleDownload}
             disabled={isSaving}
-            className="bg-violet-600 hover:bg-violet-700 text-white"
+            className="bg-[#007aff] hover:bg-[#007aff] text-white"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -290,17 +290,17 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
         
         {/* 加载遮罩 */}
         {isLoading && (
-          <div className="absolute inset-0 bg-slate-900 flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-[#f2f2f7] flex items-center justify-center z-10">
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-10 h-10 animate-spin text-violet-600" />
-              <span className="text-slate-400">加载编辑器...</span>
+              <Loader2 className="w-10 h-10 animate-spin text-[#007aff]" />
+              <span className="text-[#8e8e93]">加载编辑器...</span>
             </div>
           </div>
         )}
       </div>
 
       {/* 底部提示 */}
-      <div className="h-8 bg-slate-900 border-t border-slate-800 flex items-center justify-center text-xs text-slate-500">
+      <div className="h-8 bg-[#f2f2f7] border-t border-[#e5e5ea] flex items-center justify-center text-xs text-[#8e8e93]">
         使用底部工具栏进行裁剪、旋转、滤镜、绘图、文字、形状等编辑操作
       </div>
     </div>

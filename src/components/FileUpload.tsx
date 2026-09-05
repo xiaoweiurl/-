@@ -561,14 +561,14 @@ export default function FileUpload({
     <>
       <div className={cn("flex flex-col h-full", className)}>
         {/* 标签页 */}
-        <div className="flex border-b border-slate-200 px-4">
+        <div className="flex border-b border-[#e5e5ea] px-4">
           <button
             onClick={() => setActiveTab('upload')}
             className={cn(
               'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
               activeTab === 'upload'
-                ? 'border-violet-500 text-violet-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-[#007aff] text-[#007aff]'
+                : 'border-transparent text-[#8e8e93] hover:text-[#8e8e93]'
             )}
           >
             上传文件
@@ -578,8 +578,8 @@ export default function FileUpload({
             className={cn(
               'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
               activeTab === 'history'
-                ? 'border-violet-500 text-violet-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-[#007aff] text-[#007aff]'
+                : 'border-transparent text-[#8e8e93] hover:text-[#8e8e93]'
             )}
           >
             上传历史 ({uploadHistory.length})
@@ -591,9 +591,9 @@ export default function FileUpload({
             {/* 图片上传区域 */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <ImageIcon className="w-5 h-5 text-violet-500" />
-                <h3 className="text-sm font-medium text-slate-700">上传图片</h3>
-                <span className="text-xs text-slate-400">（支持 JPG, PNG, GIF, WebP 等）</span>
+                <ImageIcon className="w-5 h-5 text-[#007aff]" />
+                <h3 className="text-sm font-medium text-[#8e8e93]">上传图片</h3>
+                <span className="text-xs text-[#8e8e93]">（支持 JPG, PNG, GIF, WebP 等）</span>
               </div>
               <div
                 onDragOver={handleImageDragOver}
@@ -603,8 +603,8 @@ export default function FileUpload({
                 className={cn(
                   'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all',
                   isDraggingImage
-                    ? 'border-violet-500 bg-violet-50'
-                    : 'border-slate-300 hover:border-violet-400 hover:bg-slate-50'
+                    ? 'border-[#007aff] bg-[rgba(0,122,255,0.1)]'
+                    : 'border-[#e5e5ea] hover:border-[#007aff] hover:bg-[#f2f2f7]'
                 )}
               >
                 <input
@@ -617,12 +617,12 @@ export default function FileUpload({
                 />
                 <Image className={cn(
                   'w-10 h-10 mx-auto mb-3 transition-colors',
-                  isDraggingImage ? 'text-violet-500' : 'text-slate-400'
+                  isDraggingImage ? 'text-[#007aff]' : 'text-[#8e8e93]'
                 )} />
-                <p className="text-sm font-medium text-slate-700 mb-1">
+                <p className="text-sm font-medium text-[#8e8e93] mb-1">
                   {isDraggingImage ? '松开以上传图片' : '拖拽图片到此处，或点击选择'}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[#8e8e93]">
                   最大 {formatFileSize(maxImageSize)}
                 </p>
               </div>
@@ -631,9 +631,9 @@ export default function FileUpload({
             {/* 文档上传区域 */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <FileIcon className="w-5 h-5 text-emerald-500" />
-                <h3 className="text-sm font-medium text-slate-700">上传文档</h3>
-                <span className="text-xs text-slate-400">（支持 PDF, Word, Excel, PPT, ZIP 等）</span>
+                <FileIcon className="w-5 h-5 text-[#34c759]" />
+                <h3 className="text-sm font-medium text-[#8e8e93]">上传文档</h3>
+                <span className="text-xs text-[#8e8e93]">（支持 PDF, Word, Excel, PPT, ZIP 等）</span>
               </div>
               <div
                 onDragOver={handleDocumentDragOver}
@@ -643,8 +643,8 @@ export default function FileUpload({
                 className={cn(
                   'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all',
                   isDraggingDocument
-                    ? 'border-emerald-500 bg-emerald-50'
-                    : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50'
+                    ? 'border-[#34c759] bg-[rgba(52,199,89,0.1)]'
+                    : 'border-[#e5e5ea] hover:border-[#34c759] hover:bg-[#f2f2f7]'
                 )}
               >
                 <input
@@ -656,12 +656,12 @@ export default function FileUpload({
                 />
                 <File className={cn(
                   'w-10 h-10 mx-auto mb-3 transition-colors',
-                  isDraggingDocument ? 'text-emerald-500' : 'text-slate-400'
+                  isDraggingDocument ? 'text-[#34c759]' : 'text-[#8e8e93]'
                 )} />
-                <p className="text-sm font-medium text-slate-700 mb-1">
+                <p className="text-sm font-medium text-[#8e8e93] mb-1">
                   {isDraggingDocument ? '松开以上传文档' : '拖拽文档到此处，或点击选择'}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[#8e8e93]">
                   最大 {formatFileSize(maxDocumentSize)}
                 </p>
               </div>
@@ -673,34 +673,34 @@ export default function FileUpload({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {totalProgress > 0 && totalProgress < 100 && (
-                      <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
+                      <Loader2 className="w-4 h-4 animate-spin text-[#007aff]" />
                     )}
-                    <span className="text-sm font-medium text-slate-700">
+                    <span className="text-sm font-medium text-[#8e8e93]">
                       {completedCount}/{uploadingFiles.length} 个文件已完成
                       {totalProgress > 0 && ` (${totalProgress}%)`}
                     </span>
                     {imageCount > 0 && (
-                      <span className="text-xs text-violet-500">({imageCount} 图片)</span>
+                      <span className="text-xs text-[#007aff]">({imageCount} 图片)</span>
                     )}
                     {documentCount > 0 && (
-                      <span className="text-xs text-emerald-500">({documentCount} 文档)</span>
+                      <span className="text-xs text-[#34c759]">({documentCount} 文档)</span>
                     )}
                   </div>
                   <div className="flex gap-2">
                     {failedCount > 0 && (
-                      <span className="text-sm text-red-500">{failedCount} 个失败</span>
+                      <span className="text-sm text-[#ff3b30]">{failedCount} 个失败</span>
                     )}
                     {completedCount > 0 && (
                       <button
                         onClick={handleClearCompleted}
-                        className="text-sm text-slate-500 hover:text-slate-700"
+                        className="text-sm text-[#8e8e93] hover:text-[#8e8e93]"
                       >
                         清空已完成
                       </button>
                     )}
                     <button
                       onClick={handleCancelAll}
-                      className="text-sm text-slate-500 hover:text-red-500"
+                      className="text-sm text-[#8e8e93] hover:text-[#ff3b30]"
                     >
                       取消全部
                     </button>
@@ -716,53 +716,53 @@ export default function FileUpload({
                     return (
                       <div
                         key={file.id}
-                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200"
+                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[#e5e5ea]"
                       >
                         <div className={cn(
                           'flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center',
-                          file.category === 'image' ? 'bg-violet-100' : 'bg-emerald-100'
+                          file.category === 'image' ? 'bg-[rgba(0,122,255,0.1)]' : 'bg-[rgba(52,199,89,0.1)]'
                         )}>
                           <FileIcon className={cn(
                             'w-5 h-5',
-                            file.category === 'image' ? 'text-violet-500' : 'text-emerald-500'
+                            file.category === 'image' ? 'text-[#007aff]' : 'text-[#34c759]'
                           )} />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-700 truncate">
+                          <p className="text-sm font-medium text-[#8e8e93] truncate">
                             {file.name}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-[#8e8e93]">
                               {formatFileSize(file.size)}
                             </span>
                             <span className={cn(
                               'text-xs px-1.5 py-0.5 rounded',
-                              file.category === 'image' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
+                              file.category === 'image' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' : 'bg-[rgba(52,199,89,0.1)] text-[#34c759]'
                             )}>
                               {file.category === 'image' ? '图片' : '文档'}
                             </span>
                             {file.status === 'uploading' && (
-                              <span className="text-xs text-violet-500">
+                              <span className="text-xs text-[#007aff]">
                                 {file.progress}%
                               </span>
                             )}
                             {file.status === 'failed' && (
-                              <span className="text-xs text-red-500">
+                              <span className="text-xs text-[#ff3b30]">
                                 {file.error}
                               </span>
                             )}
                             {file.status === 'completed' && (
-                              <span className="text-xs text-green-500">已完成</span>
+                              <span className="text-xs text-[#34c759]">已完成</span>
                             )}
                           </div>
                           
                           {file.status === 'uploading' && (
-                            <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="mt-1.5 h-1 bg-[rgba(118,118,128,0.08)] rounded-full overflow-hidden">
                               <div
                                 className={cn(
                                   'h-full transition-all duration-300',
-                                  file.category === 'image' ? 'bg-violet-500' : 'bg-emerald-500'
+                                  file.category === 'image' ? 'bg-[#007aff]' : 'bg-[#34c759]'
                                 )}
                                 style={{ width: `${file.progress}%` }}
                               />
@@ -774,7 +774,7 @@ export default function FileUpload({
                           {file.status === 'completed' && previewable && (
                             <button
                               onClick={() => handlePreview(file)}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                              className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                               title="预览"
                             >
                               <Eye className="w-4 h-4" />
@@ -784,14 +784,14 @@ export default function FileUpload({
                             <>
                               <button
                                 onClick={() => handleCopyLink(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                                 title="复制链接"
                               >
                                 <Copy className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDownload(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                                 title="下载"
                               >
                                 <Download className="w-4 h-4" />
@@ -801,7 +801,7 @@ export default function FileUpload({
                           {file.status !== 'completed' && (
                             <button
                               onClick={() => handleDelete(file.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-slate-500 hover:text-red-500"
+                              className="p-1.5 rounded-lg hover:bg-[rgba(255,59,48,0.1)] text-[#8e8e93] hover:text-[#ff3b30]"
                               title="取消"
                             >
                               <X className="w-4 h-4" />
@@ -822,30 +822,30 @@ export default function FileUpload({
             {imageHistory.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <ImageIcon className="w-5 h-5 text-violet-500" />
-                  <h3 className="text-sm font-medium text-slate-700">图片 ({imageHistory.length})</h3>
+                  <ImageIcon className="w-5 h-5 text-[#007aff]" />
+                  <h3 className="text-sm font-medium text-[#8e8e93]">图片 ({imageHistory.length})</h3>
                 </div>
                 <div className="space-y-2">
                   {imageHistory.slice(0, 10).map((file) => {
                     return (
                       <div
                         key={file.id}
-                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
+                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[#e5e5ea] hover:border-[#e5e5ea] transition-colors"
                       >
-                        <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-violet-100">
-                          <ImageIcon className="w-5 h-5 text-violet-500" />
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-[rgba(0,122,255,0.1)]">
+                          <ImageIcon className="w-5 h-5 text-[#007aff]" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-700 truncate">
+                          <p className="text-sm font-medium text-[#8e8e93] truncate">
                             {file.name}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-[#8e8e93]">
                               {formatFileSize(file.size)}
                             </span>
-                            <span className="text-xs text-slate-400">·</span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-[#8e8e93]">·</span>
+                            <span className="text-xs text-[#8e8e93]">
                               {formatDate(file.createdAt)}
                             </span>
                           </div>
@@ -854,7 +854,7 @@ export default function FileUpload({
                         <div className="flex-shrink-0 flex items-center gap-1">
                           <button
                             onClick={() => handlePreview(file)}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                            className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                             title="预览"
                           >
                             <Eye className="w-4 h-4" />
@@ -863,14 +863,14 @@ export default function FileUpload({
                             <>
                               <button
                                 onClick={() => handleCopyLink(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                                 title="复制链接"
                               >
                                 <Copy className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDownload(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                                 title="下载"
                               >
                                 <Download className="w-4 h-4" />
@@ -889,8 +889,8 @@ export default function FileUpload({
             {documentHistory.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <FileIcon className="w-5 h-5 text-emerald-500" />
-                  <h3 className="text-sm font-medium text-slate-700">文档 ({documentHistory.length})</h3>
+                  <FileIcon className="w-5 h-5 text-[#34c759]" />
+                  <h3 className="text-sm font-medium text-[#8e8e93]">文档 ({documentHistory.length})</h3>
                 </div>
                 <div className="space-y-2">
                   {documentHistory.slice(0, 10).map((file) => {
@@ -900,22 +900,22 @@ export default function FileUpload({
                     return (
                       <div
                         key={file.id}
-                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
+                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[#e5e5ea] hover:border-[#e5e5ea] transition-colors"
                       >
-                        <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-100">
-                          <FileIcon className="w-5 h-5 text-emerald-500" />
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-[rgba(52,199,89,0.1)]">
+                          <FileIcon className="w-5 h-5 text-[#34c759]" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-700 truncate">
+                          <p className="text-sm font-medium text-[#8e8e93] truncate">
                             {file.name}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-[#8e8e93]">
                               {formatFileSize(file.size)}
                             </span>
-                            <span className="text-xs text-slate-400">·</span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-[#8e8e93]">·</span>
+                            <span className="text-xs text-[#8e8e93]">
                               {formatDate(file.createdAt)}
                             </span>
                           </div>
@@ -925,7 +925,7 @@ export default function FileUpload({
                           {previewable && (
                             <button
                               onClick={() => handlePreview(file)}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                              className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                               title="预览"
                             >
                               <Eye className="w-4 h-4" />
@@ -935,14 +935,14 @@ export default function FileUpload({
                             <>
                               <button
                                 onClick={() => handleCopyLink(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                                 title="复制链接"
                               >
                                 <Copy className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDownload(file)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+                                className="p-1.5 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                                 title="下载"
                               >
                                 <Download className="w-4 h-4" />
@@ -959,8 +959,8 @@ export default function FileUpload({
 
             {uploadHistory.length === 0 && (
               <div className="text-center py-12">
-                <FolderOpen className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                <p className="text-slate-500">暂无上传历史</p>
+                <FolderOpen className="w-12 h-12 mx-auto text-[#3a3a3c] mb-4" />
+                <p className="text-[#8e8e93]">暂无上传历史</p>
               </div>
             )}
           </div>
@@ -970,19 +970,19 @@ export default function FileUpload({
       {/* 预览模态框 */}
       {viewingFile && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4"
           onClick={() => setViewingFile(null)}
         >
           <div
             className="relative max-w-5xl max-h-full bg-white rounded-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+            <div className="flex items-center justify-between p-4 border-b border-[#e5e5ea]">
               <div className="flex-1 min-w-0 mr-4">
-                <p className="text-sm font-medium text-slate-700 truncate">
+                <p className="text-sm font-medium text-[#8e8e93] truncate">
                   {viewingFile.name}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[#8e8e93]">
                   {formatFileSize(viewingFile.size)}
                 </p>
               </div>
@@ -991,14 +991,14 @@ export default function FileUpload({
                   <>
                     <button
                       onClick={() => handleCopyLink(viewingFile)}
-                      className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                      className="p-2 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                       title="复制链接"
                     >
                       <Copy className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => handleDownload(viewingFile)}
-                      className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                      className="p-2 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                       title="下载"
                     >
                       <Download className="w-5 h-5" />
@@ -1007,14 +1007,14 @@ export default function FileUpload({
                 )}
                 <button
                   onClick={() => setViewingFile(null)}
-                  className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                  className="p-2 rounded-lg hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
             
-            <div className="p-4 max-h-[calc(100vh-200px)] overflow-auto bg-slate-50">
+            <div className="p-4 max-h-[calc(100vh-200px)] overflow-auto bg-[#f2f2f7]">
               {viewingFile.type.startsWith('image/') && viewingFile.url && (
                 <img
                   src={getFullFileUrl(viewingFile.url)}
@@ -1047,8 +1047,8 @@ export default function FileUpload({
                !viewingFile.type.startsWith('audio/') && 
                !viewingFile.type.includes('pdf') && (
                 <div className="text-center py-12">
-                  <File className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500">该文件类型不支持在线预览</p>
+                  <File className="w-16 h-16 mx-auto text-[#3a3a3c] mb-4" />
+                  <p className="text-[#8e8e93]">该文件类型不支持在线预览</p>
                   {viewingFile.url && (
                     <Button
                       onClick={() => handleDownload(viewingFile)}

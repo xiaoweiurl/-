@@ -13,7 +13,7 @@ export default function HighlightedText({
   text,
   query,
   className = '',
-  highlightClassName = 'bg-yellow-200 text-yellow-900 px-0.5 rounded',
+  highlightClassName = 'bg-[#ff9500] text-[#ff9500] px-0.5 rounded',
 }: HighlightedTextProps) {
   // 如果没有查询或查询为空，直接返回原文
   if (!query || query.trim() === '') {
@@ -64,7 +64,7 @@ export function MultiHighlightedText({
   text,
   queries,
   className = '',
-  highlightClassName = 'bg-yellow-200 text-yellow-900 px-0.5 rounded',
+  highlightClassName = 'bg-[#ff9500] text-[#ff9500] px-0.5 rounded',
 }: MultiHighlightedTextProps) {
   // 过滤掉空查询
   const validQueries = queries.filter(q => q && q.trim() !== '');
@@ -148,8 +148,8 @@ export function HighlightedTags({
           key={index}
           text={tag}
           query={query}
-          className="inline-block px-2 py-0.5 mr-1 mb-1 text-xs rounded-full bg-slate-100 text-slate-600"
-          highlightClassName="bg-yellow-200 text-yellow-900 px-0.5 rounded"
+          className="inline-block px-2 py-0.5 mr-1 mb-1 text-xs rounded-full bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
+          highlightClassName="bg-[#ff9500] text-[#ff9500] px-0.5 rounded"
         />
       ))}
     </div>

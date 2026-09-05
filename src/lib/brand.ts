@@ -29,7 +29,11 @@ export interface BrandConfig {
   // 按钮配色
   buttonGradient: string;
   buttonShadow: string;
-  
+
+  // 纯色背景（iOS 风格，无渐变）
+  primaryBg: string;
+  primaryLight: string;
+
   // 标签配色
   tagBg: string;
   tagText: string;
@@ -47,25 +51,28 @@ export const BRANDS: Record<BrandKey, BrandConfig> = {
     slogan: '品质生活 从芯开始',
     logoIcon: 'Scissors',
     
-    primaryFrom: 'from-rose-500',
-    primaryTo: 'to-pink-600',
-    primarySolid: 'text-rose-600',
+    primaryFrom: 'from-[#007aff]',
+    primaryTo: 'to-[#af52de]',
+    primarySolid: 'text-[#007aff]',
     
-    accentFrom: 'from-rose-500',
-    accentTo: 'to-red-600',
+    accentFrom: 'from-[#007aff]',
+    accentTo: 'to-[#ff3b30]',
     
-    sidebarActiveBg: 'bg-rose-50',
-    sidebarActiveText: 'text-rose-700',
-    sidebarHoverBg: 'hover:bg-rose-50',
+    sidebarActiveBg: 'bg-[rgba(0,122,255,0.1)]',
+    sidebarActiveText: 'text-[#007aff]',
+    sidebarHoverBg: 'hover:bg-[rgba(0,122,255,0.1)]',
     
-    buttonGradient: 'bg-gradient-to-r from-rose-500 to-pink-600',
-    buttonShadow: 'shadow-rose-500/25',
-    
-    tagBg: 'bg-rose-100',
-    tagText: 'text-rose-700',
-    
-    loginBg: 'bg-gradient-to-br from-rose-50 via-white to-pink-50',
-    loginCardHoverBorder: 'hover:border-rose-300',
+    buttonGradient: 'bg-[#007AFF]',
+    buttonShadow: 'shadow-[0_2px_12px_rgba(0,0,0,0.04)]',
+
+    primaryBg: 'bg-[#007AFF]',
+    primaryLight: 'bg-[rgba(0,122,255,0.12)]',
+
+    tagBg: 'bg-[rgba(0,122,255,0.1)]',
+    tagText: 'text-[#007aff]',
+
+    loginBg: 'bg-[#F2F2F7]',
+    loginCardHoverBorder: 'hover:border-[#007aff]',
   },
   yingyun: {
     key: 'yingyun',
@@ -74,25 +81,28 @@ export const BRANDS: Record<BrandKey, BrandConfig> = {
     slogan: '品质生活 从芯开始',
     logoIcon: 'Cloud',
     
-    primaryFrom: 'from-violet-500',
-    primaryTo: 'to-purple-600',
-    primarySolid: 'text-violet-600',
+    primaryFrom: 'from-[#007aff]',
+    primaryTo: 'to-[#007aff]',
+    primarySolid: 'text-[#007aff]',
     
-    accentFrom: 'from-violet-500',
-    accentTo: 'to-purple-600',
+    accentFrom: 'from-[#007aff]',
+    accentTo: 'to-[#007aff]',
     
-    sidebarActiveBg: 'bg-violet-50',
-    sidebarActiveText: 'text-violet-700',
-    sidebarHoverBg: 'hover:bg-violet-50',
+    sidebarActiveBg: 'bg-[rgba(0,122,255,0.1)]',
+    sidebarActiveText: 'text-[#007aff]',
+    sidebarHoverBg: 'hover:bg-[rgba(0,122,255,0.1)]',
     
-    buttonGradient: 'bg-gradient-to-r from-violet-500 to-purple-600',
-    buttonShadow: 'shadow-violet-500/25',
-    
-    tagBg: 'bg-indigo-100',
-    tagText: 'text-indigo-700',
-    
-    loginBg: 'bg-gradient-to-br from-violet-50 via-white to-purple-50',
-    loginCardHoverBorder: 'hover:border-violet-300',
+    buttonGradient: 'bg-[#007AFF]',
+    buttonShadow: 'shadow-[0_2px_12px_rgba(0,0,0,0.04)]',
+
+    primaryBg: 'bg-[#007AFF]',
+    primaryLight: 'bg-[rgba(0,122,255,0.12)]',
+
+    tagBg: 'bg-[rgba(0,122,255,0.1)]',
+    tagText: 'text-[#007aff]',
+
+    loginBg: 'bg-[#F2F2F7]',
+    loginCardHoverBorder: 'hover:border-[#007aff]',
   },
 };
 

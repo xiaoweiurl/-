@@ -127,24 +127,27 @@ npx tsc --noEmit          # TypeScript 类型检查
 - 圆角统一使用 `rounded-xl` 或 `rounded-2xl`
 - 阴影使用 `shadow-sm`, `shadow-lg`, `shadow-2xl`
 
-### 配色方案
-- 主色调: 紫色渐变 (`from-violet-500 to-purple-600`)
-- 背景: 柔和灰白色 (`slate-50`, `slate-100`)
-- 强调色: 紫色 (`violet-700`, `purple-600`)
-- 成功色: 绿色 (`green-400`)
-- 危险色: 红色 (`red-500`)
+### 配色方案（iOS 原生设计）
+- 主色: iOS 系统蓝 `#007AFF`（仅选中态/主按钮/关键强调）
+- 功能色: 成功 `#34C759` / 警告 `#FF9500` / 错误 `#FF3B30` / 辅助 `#AF52DE`
+- 背景: 全局 `#F2F2F7`，卡片 `#FFFFFF`
+- 文字: 一级 `#1C1C1E` / 二级 `#3A3A3C` / 辅助 `#8E8E93`
+- 分割线: `#E5E5EA`（1px）
+- 详细规范见 `DESIGN.md`
 
 ### 交互效果
 - 过渡动画: `transition-all duration-200` 或 `duration-300`
-- 悬停效果: `hover:shadow-lg`, `hover:-translate-y-1`
-- 渐变背景: `bg-gradient-to-r from-violet-500/10 to-purple-500/10`
+- 悬停效果: 卡片上浮 3px + 阴影加深
+- 按钮点击: 轻微缩放反馈
+- **禁止**: 渐变背景、深色混搭、发光效果、高饱和色
 
 ## 关键组件说明
 
 ### Sidebar (侧边导航栏)
 - 支持展开/折叠菜单
 - 显示知识数量统计
-- 渐变背景高亮选中项
+- iOS 选中态：蓝底白字圆角高亮
+- 毛玻璃容器：`ios-glass`（blur 20px + rgba(255,255,255,0.72)）
 - 通知徽章显示未读数
 
 ### ImageCard (知识卡片)

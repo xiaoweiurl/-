@@ -22,7 +22,8 @@ import java.util.Set;
 public class HistoryOrderServiceImpl implements HistoryOrderService {
 
     /** 已审核状态值（state：0→编辑、1→审核、其他→待审核） */
-    private static final String STATE_APPROVED = "1";
+    /** 实际库中 state 存中文文本："审核"=已审核投入生产、"未审核"=未审核（表注释中的0/1与实际数据不符，以实际为准） */
+    private static final String STATE_APPROVED = "审核";
 
     /** 排序字段白名单（防注入） */
     private static final Set<String> SORT_FIELDS = Set.of("zhdate", "jh_date", "sl_sum", "dh");
@@ -63,12 +64,27 @@ public class HistoryOrderServiceImpl implements HistoryOrderService {
             }
         }
         if (zxtate != null && !zxtate.isBlank()) {
-            where.append(" AND xs.zxtate = ?");
-            params.add(zxtate.trim());
+            // zxtate 实际值可能是中文（未审核/已复审/已经终审）或代码（0/1/其他），做双兼容
+            switch (zxtate.trim()) {
+                case "reviewed", "1", "已复审" -> where.append(" AND xs.zxtate IN ('1', '已复审')");
+                case "unaudited", "0", "未审核" -> where.append(" AND xs.zxtate IN ('0', '未审核')");
+                case "final", "已经终审" ->
+                        where.append(" AND xs.zxtate NOT IN ('0', '1', '未审核', '已复审')" +
+                                " AND BTRIM(COALESCE(xs.zxtate, '')) <> ''");
+                default -> {
+                    where.append(" AND xs.zxtate = ?");
+                    params.add(zxtate.trim());
+                }
+            }
         }
         if (sfplan != null && !sfplan.isBlank()) {
-            where.append(" AND COALESCE(xs.sfplan, '否') = ?");
-            params.add(sfplan.trim());
+            // sfplan 实际值兼容"是"/"已下计划"
+            if ("是".equals(sfplan.trim()) || "已下计划".equals(sfplan.trim())) {
+                where.append(" AND xs.sfplan IN ('是', '已下计划')");
+            } else {
+                where.append(" AND COALESCE(xs.sfplan, '否') = ?");
+                params.add(sfplan.trim());
+            }
         }
         if (dateFrom != null && !dateFrom.isBlank()) {
             where.append(" AND xs.zhdate >= ?::date");
@@ -113,7 +129,7 @@ public class HistoryOrderServiceImpl implements HistoryOrderService {
             Map<String, Object> row = jdbcTemplate.queryForMap(
                     "SELECT COUNT(*) AS total_orders, COALESCE(SUM(sl_sum), 0) AS total_quantity," +
                             " COUNT(DISTINCT khname) AS customer_count," +
-                            " COUNT(*) FILTER (WHERE sfplan = '是') AS planned_count," +
+                            " COUNT(*) FILTER (WHERE sfplan IN ('是', '已下计划')) AS planned_count," +
                             " COUNT(*) FILTER (WHERE zhdate >= date_trunc('month', CURRENT_DATE)) AS month_new_count" +
                             " FROM order_xs_list WHERE state = ?", STATE_APPROVED);
             result.put("totalOrders", row.get("total_orders"));
@@ -164,29 +180,30 @@ public class HistoryOrderServiceImpl implements HistoryOrderService {
         m.put("ywyname", ywy);
         m.put("ywynameText", ywy != null ? ywy : "（业务员数据未维护）");
         m.put("sfplan", row.get("sfplan"));
-        m.put("sfplanText", "是".equals(nz(row.get("sfplan"))) ? "已下计划" : "未下计划");
+        String sfplanVal = nz(row.get("sfplan"));
+        m.put("sfplanText", ("是".equals(sfplanVal) || "已下计划".equals(sfplanVal)) ? "已下计划" : "未下计划");
         m.put("zhuser", row.get("zhuser"));
         m.put("checkuser", row.get("checkuser"));
         m.put("ckeckdate", row.get("ckeckdate"));
         return m;
     }
 
-    /** state：0→编辑、1→审核、其他→待审核 */
+    /** state 实际值为中文（审核/未审核），兼容历史代码值（0/1） */
     private String stateText(String state) {
         if (state == null) return "待审核";
         return switch (state) {
+            case "审核", "1" -> "已审核";
             case "0" -> "编辑";
-            case "1" -> "已审核";
             default -> "待审核";
         };
     }
 
-    /** zxtate（执行状态）：0→未审核、1→已复审、其他→已经终审 */
+    /** zxtate（执行状态）实际值可能为中文（未审核/已复审/已经终审），兼容代码值（0/1/其他） */
     private String zxtateText(String zxtate) {
         if (zxtate == null) return "已经终审";
         return switch (zxtate) {
-            case "0" -> "未审核";
-            case "1" -> "已复审";
+            case "0", "未审核" -> "未审核";
+            case "1", "已复审" -> "已复审";
             default -> "已经终审";
         };
     }

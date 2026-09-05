@@ -47,13 +47,13 @@ const DOCUMENT_CATEGORIES: Record<DocumentCategory, {
   icon: React.ElementType;
   color: string;
 }> = {
-  all: { label: '全部', icon: FolderOpen, color: 'text-slate-600' },
-  pdf: { label: 'PDF', icon: FileText, color: 'text-red-500' },
-  word: { label: 'Word', icon: FileIcon, color: 'text-blue-500' },
-  excel: { label: 'Excel', icon: FileSpreadsheet, color: 'text-green-500' },
-  ppt: { label: 'PPT', icon: Presentation, color: 'text-orange-500' },
-  zip: { label: '压缩包', icon: Archive, color: 'text-purple-500' },
-  other: { label: '其他', icon: File, color: 'text-slate-500' },
+  all: { label: '全部', icon: FolderOpen, color: 'text-[#8e8e93]' },
+  pdf: { label: 'PDF', icon: FileText, color: 'text-[#ff3b30]' },
+  word: { label: 'Word', icon: FileIcon, color: 'text-[#007aff]' },
+  excel: { label: 'Excel', icon: FileSpreadsheet, color: 'text-[#34c759]' },
+  ppt: { label: 'PPT', icon: Presentation, color: 'text-[#ff9500]' },
+  zip: { label: '压缩包', icon: Archive, color: 'text-[#007aff]' },
+  other: { label: '其他', icon: File, color: 'text-[#8e8e93]' },
 };
 
 // 文档类型定义
@@ -463,20 +463,20 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-[#f2f2f7]">
       {/* 顶部操作栏 */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3">
+      <div className="bg-white border-b border-[#e5e5ea] px-4 py-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <FolderOpen className="w-6 h-6 text-emerald-600" />
-            <h1 className="text-lg font-semibold text-slate-800">文档中心</h1>
-            <span className="text-sm text-slate-500">({documents.length} 个文档)</span>
+            <FolderOpen className="w-6 h-6 text-[#34c759]" />
+            <h1 className="text-lg font-semibold text-[#8e8e93]">文档中心</h1>
+            <span className="text-sm text-[#8e8e93]">({documents.length} 个文档)</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-[#34c759] hover:bg-[#34c759]"
             >
               {isUploading ? (
                 <>
@@ -502,7 +502,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
 
         {/* 搜索框 */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8e8e93]" />
           <Input
             type="text"
             placeholder="搜索文档..."
@@ -514,7 +514,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
       </div>
 
       {/* 分类标签 */}
-      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 overflow-x-auto">
+      <div className="bg-white border-b border-[#e5e5ea] px-4 py-2 flex items-center gap-2 overflow-x-auto">
         {Object.entries(DOCUMENT_CATEGORIES).map(([key, config]) => {
           if (key === 'all' || (categoryStats[key] || 0) > 0 || selectedCategory === key) {
             const Icon = config.icon;
@@ -526,8 +526,8 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
                   selectedCategory === key
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "bg-[rgba(52,199,89,0.1)] text-[#34c759]"
+                    : "bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:bg-[rgba(0,0,0,0.06)]"
                 )}
               >
                 <Icon className={cn("w-4 h-4", config.color, selectedCategory === key ? "" : "")} />
@@ -535,7 +535,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
                 {count > 0 && (
                   <span className={cn(
                     "px-1.5 py-0.5 text-xs rounded-full",
-                    selectedCategory === key ? "bg-emerald-200" : "bg-slate-200"
+                    selectedCategory === key ? "bg-[#34c759]" : "bg-[rgba(0,0,0,0.06)]"
                   )}>
                     {count}
                   </span>
@@ -551,11 +551,11 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
       <div className="flex-1 overflow-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#34c759]" />
           </div>
         ) : filteredDocuments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-            <FolderOpen className="w-16 h-16 mb-4 text-slate-300" />
+          <div className="flex flex-col items-center justify-center h-64 text-[#8e8e93]">
+            <FolderOpen className="w-16 h-16 mb-4 text-[#3a3a3c]" />
             <p className="text-lg font-medium">暂无文档</p>
             <p className="text-sm">点击上方"上传文档"按钮开始上传</p>
           </div>
@@ -569,41 +569,41 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
               return (
                 <div
                   key={doc.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 hover:shadow-md transition-all group"
+                  className="bg-white rounded-xl border border-[#e5e5ea] p-4 hover:border-[#e5e5ea] hover:shadow-md transition-all group"
                 >
                   {/* 文件图标和名称 */}
                   <div className="flex items-start gap-3 mb-3">
                     <div className={cn(
                       "w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0",
-                      category === 'pdf' ? 'bg-red-100' :
-                      category === 'word' ? 'bg-blue-100' :
-                      category === 'excel' ? 'bg-green-100' :
-                      category === 'ppt' ? 'bg-orange-100' :
-                      category === 'zip' ? 'bg-purple-100' :
-                      'bg-slate-100'
+                      category === 'pdf' ? 'bg-[rgba(255,59,48,0.1)]' :
+                      category === 'word' ? 'bg-[rgba(0,122,255,0.1)]' :
+                      category === 'excel' ? 'bg-[rgba(52,199,89,0.1)]' :
+                      category === 'ppt' ? 'bg-[rgba(255,149,0,0.1)]' :
+                      category === 'zip' ? 'bg-[rgba(0,122,255,0.1)]' :
+                      'bg-[rgba(118,118,128,0.08)]'
                     )}>
                       <Icon className={cn("w-6 h-6", categoryConfig.color)} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate" title={doc.name}>
+                      <p className="text-sm font-medium text-[#8e8e93] truncate" title={doc.name}>
                         {doc.name}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-[#8e8e93] mt-0.5">
                         {formatFileSize(doc.size)}
                       </p>
                     </div>
                   </div>
 
                   {/* 元信息 */}
-                  <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
+                  <div className="flex items-center justify-between text-xs text-[#8e8e93] mb-3">
                     <span className={cn(
                       "px-2 py-0.5 rounded",
-                      categoryConfig.label === 'PDF' ? 'bg-red-100 text-red-600' :
-                      categoryConfig.label === 'Word' ? 'bg-blue-100 text-blue-600' :
-                      categoryConfig.label === 'Excel' ? 'bg-green-100 text-green-600' :
-                      categoryConfig.label === 'PPT' ? 'bg-orange-100 text-orange-600' :
-                      categoryConfig.label === '压缩包' ? 'bg-purple-100 text-purple-600' :
-                      'bg-slate-100 text-slate-600'
+                      categoryConfig.label === 'PDF' ? 'bg-[rgba(255,59,48,0.1)] text-[#ff3b30]' :
+                      categoryConfig.label === 'Word' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' :
+                      categoryConfig.label === 'Excel' ? 'bg-[rgba(52,199,89,0.1)] text-[#34c759]' :
+                      categoryConfig.label === 'PPT' ? 'bg-[rgba(255,149,0,0.1)] text-[#ff9500]' :
+                      categoryConfig.label === '压缩包' ? 'bg-[rgba(0,122,255,0.1)] text-[#007aff]' :
+                      'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]'
                     )}>
                       {categoryConfig.label}
                     </span>
@@ -615,7 +615,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
                     {isPreviewable(doc) && (
                       <button
                         onClick={() => setPreviewDoc(doc)}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         预览
@@ -623,14 +623,14 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
                     )}
                     <button
                       onClick={() => handleCopyLink(doc.url)}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-[#8e8e93] hover:bg-[rgba(118,118,128,0.08)] rounded-lg transition-colors"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       复制
                     </button>
                     <button
                       onClick={() => handleDelete(doc)}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)] rounded-lg transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       删除
@@ -646,7 +646,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
       {/* PDF 预览对话框 */}
       {previewDoc && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+          className="fixed inset-0 z-50 bg-black/10 backdrop-blur-sm flex items-center justify-center p-6"
           onClick={() => setPreviewDoc(null)}
         >
           <div
@@ -654,16 +654,16 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
             onClick={(e) => e.stopPropagation()}
           >
             {/* 顶部工具栏 */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#e5e5ea] bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  {React.createElement(getFileIcon(previewDoc.extension), { className: "w-5 h-5 text-emerald-600" })}
+                <div className="w-10 h-10 rounded-xl bg-[rgba(52,199,89,0.1)] flex items-center justify-center">
+                  {React.createElement(getFileIcon(previewDoc.extension), { className: "w-5 h-5 text-[#34c759]" })}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 max-w-md truncate">
+                  <p className="text-sm font-semibold text-[#8e8e93] max-w-md truncate">
                     {previewDoc.name}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-[#8e8e93]">
                     {formatFileSize(previewDoc.size)} · {formatDate(previewDoc.uploadTime)}
                   </p>
                 </div>
@@ -671,7 +671,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleDownload(previewDoc)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#34c759] hover:bg-[#34c759] text-white text-sm font-medium transition-colors"
                   title="下载"
                 >
                   <Download className="w-4 h-4" />
@@ -679,7 +679,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
                 </button>
                 <button
                   onClick={() => handleCopyLink(previewDoc.url)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgba(118,118,128,0.08)] hover:bg-[rgba(0,0,0,0.06)] text-[#8e8e93] text-sm font-medium transition-colors"
                   title="复制链接"
                 >
                   <Copy className="w-4 h-4" />
@@ -687,7 +687,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
                 </button>
                 <button
                   onClick={() => setPreviewDoc(null)}
-                  className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors"
+                  className="p-2.5 rounded-xl hover:bg-[rgba(118,118,128,0.08)] text-[#8e8e93] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -695,7 +695,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
             </div>
             
             {/* 预览内容区 */}
-            <div className="flex-1 p-4 bg-slate-100 overflow-hidden">
+            <div className="flex-1 p-4 bg-[rgba(118,118,128,0.08)] overflow-hidden">
               <div className="w-full h-full rounded-xl bg-white shadow-lg overflow-hidden">
                 <iframe
                   src={getPreviewUrl(previewDoc)}
@@ -706,7 +706,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
             </div>
             
             {/* 底部状态栏 */}
-            <div className="flex items-center justify-between px-5 py-2 border-t border-slate-100 bg-slate-50 text-xs text-slate-500">
+            <div className="flex items-center justify-between px-5 py-2 border-t border-[#e5e5ea] bg-[#f2f2f7] text-xs text-[#8e8e93]">
               <div className="flex items-center gap-4">
                 <span>类型：{previewDoc.extension.toUpperCase()}</span>
                 <span>大小：{formatFileSize(previewDoc.size)}</span>

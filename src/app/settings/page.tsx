@@ -241,8 +241,8 @@ export default function SettingsPage() {
 
   if (isLoading || settingsLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+      <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#007aff] animate-spin" />
       </div>
     );
   }
@@ -259,18 +259,18 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f2f2f7]">
       <Toaster position="top-center" richColors closeButton />
 
       {/* 权限拦截 */}
       {accessDenied && (
         <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-          <Lock className="w-16 h-16 text-slate-300" />
-          <h2 className="text-xl font-semibold text-slate-600">无访问权限</h2>
-          <p className="text-slate-400">仅管理员可访问此页面</p>
+          <Lock className="w-16 h-16 text-[#3a3a3c]" />
+          <h2 className="text-xl font-semibold text-[#8e8e93]">无访问权限</h2>
+          <p className="text-[#8e8e93]">仅管理员可访问此页面</p>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+            className="px-4 py-2 bg-[#007aff] text-white rounded-lg hover:bg-[#007aff] transition-colors"
           >
             返回首页
           </button>
@@ -280,23 +280,23 @@ export default function SettingsPage() {
       <>
       
       {/* 顶部导航 */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-[#e5e5ea] sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button 
               onClick={handleBack}
-              className="text-slate-500 hover:text-slate-700 transition-colors"
+              className="text-[#8e8e93] hover:text-[#8e8e93] transition-colors"
             >
               ← 返回
             </button>
-            <h1 className="text-xl font-semibold text-slate-800">账户设置</h1>
+            <h1 className="text-xl font-semibold text-[#8e8e93]">账户设置</h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <p className="text-sm font-medium text-slate-700">{currentUser?.nickname || currentUser?.username}</p>
-              <p className="text-xs text-slate-500">{currentUser?.email}</p>
+              <p className="text-sm font-medium text-[#8e8e93]">{currentUser?.nickname || currentUser?.username}</p>
+              <p className="text-xs text-[#8e8e93]">{currentUser?.email}</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-medium">
+            <div className="w-10 h-10 rounded-full bg-[#007AFF] flex items-center justify-center text-white font-medium">
               {(currentUser?.nickname || currentUser?.username)?.[0]?.toUpperCase()}
             </div>
           </div>
@@ -307,7 +307,7 @@ export default function SettingsPage() {
         <div className="flex gap-8">
           {/* 侧边导航 */}
           <nav className="w-56 shrink-0">
-            <div className="bg-white rounded-2xl border border-slate-200 p-3 sticky top-24">
+            <div className="bg-white rounded-2xl border border-[#e5e5ea] p-3 sticky top-24">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -315,8 +315,8 @@ export default function SettingsPage() {
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors",
                     activeTab === tab.id
-                      ? "bg-violet-50 text-violet-700"
-                      : "text-slate-600 hover:bg-slate-50"
+                      ? "bg-[rgba(0,122,255,0.1)] text-[#007aff]"
+                      : "text-[#8e8e93] hover:bg-[#f2f2f7]"
                   )}
                 >
                   {tab.icon}
@@ -330,8 +330,8 @@ export default function SettingsPage() {
           <main className="flex-1">
             {/* 个人资料 */}
             {activeTab === 'profile' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-6">个人资料</h2>
+              <div className="bg-white rounded-2xl border border-[#e5e5ea] p-6">
+                <h2 className="text-lg font-semibold text-[#8e8e93] mb-6">个人资料</h2>
                 
                 <div className="space-y-6">
                   {/* 头像 */}
@@ -344,13 +344,13 @@ export default function SettingsPage() {
                           className="w-20 h-20 rounded-2xl object-cover shadow-lg"
                         />
                       ) : (
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                        <div className="w-20 h-20 rounded-2xl bg-[#007AFF] flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                           {(currentUser?.nickname || currentUser?.username)?.[0]?.toUpperCase()}
                         </div>
                       )}
                       {isUploadingAvatar && (
                         <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                          <Loader2 className="w-6 h-6 text-[#1C1C1E] animate-spin" />
                         </div>
                       )}
                     </div>
@@ -375,24 +375,24 @@ export default function SettingsPage() {
                         )}
                         更换头像
                       </Button>
-                      <p className="text-xs text-slate-500 mt-2">支持 JPG、PNG 格式，最大 2MB</p>
+                      <p className="text-xs text-[#8e8e93] mt-2">支持 JPG、PNG 格式，最大 2MB</p>
                     </div>
                   </div>
 
                   {/* 用户名 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">用户名</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">用户名</label>
                     <Input
                       value={currentUser?.username || ''}
                       disabled
-                      className="bg-slate-50"
+                      className="bg-[#f2f2f7]"
                     />
-                    <p className="text-xs text-slate-500 mt-1">用户名不可修改</p>
+                    <p className="text-xs text-[#8e8e93] mt-1">用户名不可修改</p>
                   </div>
 
                   {/* 昵称 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">昵称</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">昵称</label>
                     <Input
                       value={profileForm.nickname}
                       onChange={(e) => setProfileForm(prev => ({ ...prev, nickname: e.target.value }))}
@@ -402,7 +402,7 @@ export default function SettingsPage() {
 
                   {/* 邮箱 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">邮箱</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">邮箱</label>
                     <Input
                       type="email"
                       value={profileForm.email}
@@ -412,7 +412,7 @@ export default function SettingsPage() {
 
                   {/* 手机号 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">手机号</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">手机号</label>
                     <Input
                       value={profileForm.phone}
                       onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
@@ -422,21 +422,21 @@ export default function SettingsPage() {
 
                   {/* 个人简介 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">个人简介</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">个人简介</label>
                     <textarea
                       value={profileForm.bio}
                       onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
                       placeholder="介绍一下自己..."
                       rows={3}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
+                      className="w-full px-4 py-3 border border-[#e5e5ea] rounded-xl focus:outline-none focus:ring-2 focus:ring-[rgba(0,122,255,0.2)] focus:border-[#007aff]"
                     />
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100">
+                  <div className="pt-4 border-t border-[#e5e5ea]">
                     <Button
                       onClick={handleSaveProfile}
                       disabled={isSaving}
-                      className="bg-violet-600 hover:bg-violet-700"
+                      className="bg-[#007aff] hover:bg-[#007aff]"
                     >
                       {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                       保存修改
@@ -448,13 +448,13 @@ export default function SettingsPage() {
 
             {/* 账号安全 */}
             {activeTab === 'security' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-6">修改密码</h2>
+              <div className="bg-white rounded-2xl border border-[#e5e5ea] p-6">
+                <h2 className="text-lg font-semibold text-[#8e8e93] mb-6">修改密码</h2>
                 
                 <div className="space-y-6 max-w-md">
                   {/* 当前密码 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">当前密码</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">当前密码</label>
                     <div className="relative">
                       <Input
                         type={showPasswords.old ? 'text' : 'password'}
@@ -465,7 +465,7 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => setShowPasswords(prev => ({ ...prev, old: !prev.old }))}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93]"
                       >
                         {showPasswords.old ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -474,7 +474,7 @@ export default function SettingsPage() {
 
                   {/* 新密码 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">新密码</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">新密码</label>
                     <div className="relative">
                       <Input
                         type={showPasswords.new ? 'text' : 'password'}
@@ -485,7 +485,7 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93]"
                       >
                         {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -494,7 +494,7 @@ export default function SettingsPage() {
 
                   {/* 确认密码 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">确认新密码</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-2">确认新密码</label>
                     <div className="relative">
                       <Input
                         type={showPasswords.confirm ? 'text' : 'password'}
@@ -505,18 +505,18 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93]"
                       >
                         {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100">
+                  <div className="pt-4 border-t border-[#e5e5ea]">
                     <Button
                       onClick={handleChangePassword}
                       disabled={isSaving || !passwordForm.oldPassword || !passwordForm.newPassword}
-                      className="bg-violet-600 hover:bg-violet-700"
+                      className="bg-[#007aff] hover:bg-[#007aff]"
                     >
                       {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
                       修改密码
@@ -525,24 +525,24 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 账号信息 */}
-                <div className="mt-8 pt-8 border-t border-slate-200">
-                  <h3 className="text-lg font-semibold text-slate-800 mb-4">账号信息</h3>
+                <div className="mt-8 pt-8 border-t border-[#e5e5ea]">
+                  <h3 className="text-lg font-semibold text-[#8e8e93] mb-4">账号信息</h3>
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between py-2">
-                      <span className="text-slate-500">账号ID</span>
-                      <span className="text-slate-700 font-mono">{currentUser?.id}</span>
+                      <span className="text-[#8e8e93]">账号ID</span>
+                      <span className="text-[#8e8e93] font-mono">{currentUser?.id}</span>
                     </div>
                     <div className="flex justify-between py-2">
-                      <span className="text-slate-500">角色</span>
-                      <span className="text-slate-700">{currentUser?.role === 'admin' ? '管理员' : '普通用户'}</span>
+                      <span className="text-[#8e8e93]">角色</span>
+                      <span className="text-[#8e8e93]">{currentUser?.role === 'admin' ? '管理员' : '普通用户'}</span>
                     </div>
                     <div className="flex justify-between py-2">
-                      <span className="text-slate-500">注册时间</span>
-                      <span className="text-slate-700">{currentUser?.createdAt}</span>
+                      <span className="text-[#8e8e93]">注册时间</span>
+                      <span className="text-[#8e8e93]">{currentUser?.createdAt}</span>
                     </div>
                     <div className="flex justify-between py-2">
-                      <span className="text-slate-500">最后登录</span>
-                      <span className="text-slate-700">{currentUser?.lastLoginAt ? new Date(currentUser.lastLoginAt).toLocaleString() : '-'}</span>
+                      <span className="text-[#8e8e93]">最后登录</span>
+                      <span className="text-[#8e8e93]">{currentUser?.lastLoginAt ? new Date(currentUser.lastLoginAt).toLocaleString() : '-'}</span>
                     </div>
                   </div>
                 </div>
@@ -551,14 +551,14 @@ export default function SettingsPage() {
 
             {/* 通知设置 */}
             {activeTab === 'notifications' && settings && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-6">通知设置</h2>
+              <div className="bg-white rounded-2xl border border-[#e5e5ea] p-6">
+                <h2 className="text-lg font-semibold text-[#8e8e93] mb-6">通知设置</h2>
                 
                 <div className="space-y-6">
                   <div className="flex items-center justify-between py-3">
                     <div>
-                      <p className="font-medium text-slate-700">邮件通知</p>
-                      <p className="text-sm text-slate-500">接收重要更新和提醒的邮件通知</p>
+                      <p className="font-medium text-[#8e8e93]">邮件通知</p>
+                      <p className="text-sm text-[#8e8e93]">接收重要更新和提醒的邮件通知</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
@@ -567,14 +567,14 @@ export default function SettingsPage() {
                         onChange={(e) => handleUpdateSetting('emailNotifications', e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                      <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between py-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between py-3 border-t border-[#e5e5ea]">
                     <div>
-                      <p className="font-medium text-slate-700">系统通知</p>
-                      <p className="text-sm text-slate-500">接收系统公告和安全提醒</p>
+                      <p className="font-medium text-[#8e8e93]">系统通知</p>
+                      <p className="text-sm text-[#8e8e93]">接收系统公告和安全提醒</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
@@ -583,14 +583,14 @@ export default function SettingsPage() {
                         onChange={(e) => handleUpdateSetting('systemNotifications', e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                      <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between py-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between py-3 border-t border-[#e5e5ea]">
                     <div>
-                      <p className="font-medium text-slate-700">上传通知</p>
-                      <p className="text-sm text-slate-500">图片上传完成后的通知提醒</p>
+                      <p className="font-medium text-[#8e8e93]">上传通知</p>
+                      <p className="text-sm text-[#8e8e93]">图片上传完成后的通知提醒</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
@@ -599,14 +599,14 @@ export default function SettingsPage() {
                         onChange={(e) => handleUpdateSetting('uploadNotifications', e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                      <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between py-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between py-3 border-t border-[#e5e5ea]">
                     <div>
-                      <p className="font-medium text-slate-700">AI智能识别</p>
-                      <p className="text-sm text-slate-500">上传知识时自动识别分类</p>
+                      <p className="font-medium text-[#8e8e93]">AI智能识别</p>
+                      <p className="text-sm text-[#8e8e93]">上传知识时自动识别分类</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
@@ -615,7 +615,7 @@ export default function SettingsPage() {
                         onChange={(e) => handleUpdateSetting('aiRecognitionEnabled', e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                      <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                     </label>
                   </div>
                 </div>
@@ -624,13 +624,13 @@ export default function SettingsPage() {
 
             {/* 外观设置 */}
             {activeTab === 'appearance' && settings && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-6">外观设置</h2>
+              <div className="bg-white rounded-2xl border border-[#e5e5ea] p-6">
+                <h2 className="text-lg font-semibold text-[#8e8e93] mb-6">外观设置</h2>
                 
                 <div className="space-y-6">
                   {/* 主题 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-3">主题模式</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-3">主题模式</label>
                     <div className="grid grid-cols-3 gap-3">
                       {[
                         { value: 'light', label: '浅色', icon: '☀️' },
@@ -643,20 +643,20 @@ export default function SettingsPage() {
                           className={cn(
                             "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors",
                             settings.theme === option.value
-                              ? "border-violet-500 bg-violet-50"
-                              : "border-slate-200 hover:border-slate-300"
+                              ? "border-[#007aff] bg-[rgba(0,122,255,0.1)]"
+                              : "border-[#e5e5ea] hover:border-[#e5e5ea]"
                           )}
                         >
                           <span className="text-2xl">{option.icon}</span>
-                          <span className="text-sm font-medium text-slate-700">{option.label}</span>
+                          <span className="text-sm font-medium text-[#8e8e93]">{option.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* 语言 */}
-                  <div className="pt-4 border-t border-slate-100">
-                    <label className="block text-sm font-medium text-slate-700 mb-3">语言</label>
+                  <div className="pt-4 border-t border-[#e5e5ea]">
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-3">语言</label>
                     <div className="flex gap-3">
                       {[
                         { value: 'zh-CN', label: '简体中文' },
@@ -668,8 +668,8 @@ export default function SettingsPage() {
                           className={cn(
                             "px-4 py-2 rounded-lg border-2 transition-colors",
                             settings.language === option.value
-                              ? "border-violet-500 bg-violet-50 text-violet-700"
-                              : "border-slate-200 text-slate-600 hover:border-slate-300"
+                              ? "border-[#007aff] bg-[rgba(0,122,255,0.1)] text-[#007aff]"
+                              : "border-[#e5e5ea] text-[#8e8e93] hover:border-[#e5e5ea]"
                           )}
                         >
                           {option.label}
@@ -683,13 +683,13 @@ export default function SettingsPage() {
 
             {/* 显示设置 */}
             {activeTab === 'display' && settings && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-6">显示设置</h2>
+              <div className="bg-white rounded-2xl border border-[#e5e5ea] p-6">
+                <h2 className="text-lg font-semibold text-[#8e8e93] mb-6">显示设置</h2>
                 
                 <div className="space-y-6">
                   {/* 默认视图 */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-3">默认视图模式</label>
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-3">默认视图模式</label>
                     <div className="grid grid-cols-3 gap-3">
                       {[
                         { value: 'grid', label: '网格视图', icon: '▦' },
@@ -702,20 +702,20 @@ export default function SettingsPage() {
                           className={cn(
                             "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors",
                             settings.defaultView === option.value
-                              ? "border-violet-500 bg-violet-50"
-                              : "border-slate-200 hover:border-slate-300"
+                              ? "border-[#007aff] bg-[rgba(0,122,255,0.1)]"
+                              : "border-[#e5e5ea] hover:border-[#e5e5ea]"
                           )}
                         >
                           <span className="text-2xl">{option.icon}</span>
-                          <span className="text-sm font-medium text-slate-700">{option.label}</span>
+                          <span className="text-sm font-medium text-[#8e8e93]">{option.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* 每页数量 */}
-                  <div className="pt-4 border-t border-slate-100">
-                    <label className="block text-sm font-medium text-slate-700 mb-3">每页显示数量</label>
+                  <div className="pt-4 border-t border-[#e5e5ea]">
+                    <label className="block text-sm font-medium text-[#8e8e93] mb-3">每页显示数量</label>
                     <div className="flex gap-3">
                       {[20, 40, 60, 100].map((size) => (
                         <button
@@ -724,8 +724,8 @@ export default function SettingsPage() {
                           className={cn(
                             "px-4 py-2 rounded-lg border-2 transition-colors",
                             settings.pageSize === size
-                              ? "border-violet-500 bg-violet-50 text-violet-700"
-                              : "border-slate-200 text-slate-600 hover:border-slate-300"
+                              ? "border-[#007aff] bg-[rgba(0,122,255,0.1)] text-[#007aff]"
+                              : "border-[#e5e5ea] text-[#8e8e93] hover:border-[#e5e5ea]"
                           )}
                         >
                           {size} 张
@@ -735,11 +735,11 @@ export default function SettingsPage() {
                   </div>
 
                   {/* 其他开关 */}
-                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                  <div className="pt-4 border-t border-[#e5e5ea] space-y-4">
                     <div className="flex items-center justify-between py-3">
                       <div>
-                        <p className="font-medium text-slate-700">自动播放视频</p>
-                        <p className="text-sm text-slate-500">鼠标悬停时自动播放视频</p>
+                        <p className="font-medium text-[#8e8e93]">自动播放视频</p>
+                        <p className="text-sm text-[#8e8e93]">鼠标悬停时自动播放视频</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -748,14 +748,14 @@ export default function SettingsPage() {
                           onChange={(e) => handleUpdateSetting('autoPlayVideos', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                        <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                       </label>
                     </div>
 
                     <div className="flex items-center justify-between py-3">
                       <div>
-                        <p className="font-medium text-slate-700">高质量预览</p>
-                        <p className="text-sm text-slate-500">加载高质量图片预览</p>
+                        <p className="font-medium text-[#8e8e93]">高质量预览</p>
+                        <p className="text-sm text-[#8e8e93]">加载高质量图片预览</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -764,14 +764,14 @@ export default function SettingsPage() {
                           onChange={(e) => handleUpdateSetting('highQualityPreviews', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                        <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                       </label>
                     </div>
 
                     <div className="flex items-center justify-between py-3">
                       <div>
-                        <p className="font-medium text-slate-700">紧凑模式</p>
-                        <p className="text-sm text-slate-500">减少元素间距，显示更多内容</p>
+                        <p className="font-medium text-[#8e8e93]">紧凑模式</p>
+                        <p className="text-sm text-[#8e8e93]">减少元素间距，显示更多内容</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -780,14 +780,14 @@ export default function SettingsPage() {
                           onChange={(e) => handleUpdateSetting('compactMode', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                        <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                       </label>
                     </div>
 
                     <div className="flex items-center justify-between py-3">
                       <div>
-                        <p className="font-medium text-slate-700">显示文件信息</p>
-                        <p className="text-sm text-slate-500">在图片上显示文件名和大小</p>
+                        <p className="font-medium text-[#8e8e93]">显示文件信息</p>
+                        <p className="text-sm text-[#8e8e93]">在图片上显示文件名和大小</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -796,7 +796,7 @@ export default function SettingsPage() {
                           onChange={(e) => handleUpdateSetting('showFileInfo', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                        <div className="w-11 h-6 bg-[rgba(0,0,0,0.06)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007aff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#e5e5ea] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007aff]"></div>
                       </label>
                     </div>
                   </div>

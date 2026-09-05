@@ -283,20 +283,20 @@ export default function LoginPage() {
       onClick={() => setShowDuplicateLoginDialog(false)}
     >
       {/* 遮罩层 */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/10 backdrop-blur-sm" />
       {/* 弹窗主体 */}
       <div
-        className="relative bg-slate-900/95 border border-blue-500/30 backdrop-blur-xl rounded-xl p-6 max-w-md w-full mx-4 shadow-[0_0_30px_rgba(59,130,246,0.2)]"
+        className="relative bg-[rgba(242,242,247,0.95)] border border-[rgba(0,122,255,0.3)] backdrop-blur-xl rounded-xl p-6 max-w-md w-full mx-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题 */}
         <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-5 h-5 text-blue-400" />
-          <h3 className="text-lg font-semibold text-slate-100">账户已登录</h3>
+          <Shield className="w-5 h-5 text-[#007aff]" />
+          <h3 className="text-lg font-semibold text-[#1c1c1e]">账户已登录</h3>
         </div>
         {/* 内容 */}
-        <p className="text-slate-400 text-sm mb-6">
-          账户 <span className="text-blue-400 font-medium">{username}</span> 已在其他地方登录。
+        <p className="text-[#8e8e93] text-sm mb-6">
+          账户 <span className="text-[#007aff] font-medium">{username}</span> 已在其他地方登录。
           <br />
           确认登录将使之前的登录失效，是否继续？
         </p>
@@ -304,13 +304,13 @@ export default function LoginPage() {
         <div className="flex justify-end gap-3">
           <button
             onClick={() => setShowDuplicateLoginDialog(false)}
-            className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors text-sm"
+            className="px-4 py-2 rounded-lg bg-[#ffffff] border border-[#e5e5ea] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.12)] hover:text-[#1c1c1e] transition-colors text-sm"
           >
             取消
           </button>
           <button
             onClick={handleConfirmDuplicateLogin}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm font-medium"
+            className="px-4 py-2 rounded-lg bg-[#007aff] hover:bg-[#007aff] text-white transition-colors text-sm font-medium"
           >
             确认登录
           </button>
@@ -327,39 +327,39 @@ export default function LoginPage() {
         <Toaster position="top-center" richColors closeButton />
 
         {/* 左侧品牌区 */}
-        <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-gradient-to-br from-[#1a1035] via-[#2d1b69] to-[#1a1035]">
+        <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-gradient-to-br from-[#007AFF] via-[#0055D4] to-[#007AFF]">
           {/* 深层光晕 */}
           <div className="absolute inset-0">
-            <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-violet-600/20 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-15%] left-[-10%] w-[500px] h-[500px] bg-fuchsia-500/15 rounded-full blur-[100px]" />
-            <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-indigo-400/10 rounded-full blur-[80px]" />
+            <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-[rgba(0,122,255,0.2)] rounded-full blur-[120px]" />
+            <div className="absolute bottom-[-15%] left-[-10%] w-[500px] h-[500px] bg-[rgba(175,82,222,0.15)] rounded-full blur-[100px]" />
+            <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-[rgba(0,122,255,0.1)] rounded-full blur-[80px]" />
             {/* 细网格 */}
             <div className="absolute inset-0 opacity-[0.03]" style={{
               backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
               backgroundSize: '80px 80px'
             }} />
             {/* 浮动粒子 */}
-            <div className="absolute top-[15%] left-[20%] w-2 h-2 bg-violet-400/40 rounded-full animate-pulse" />
-            <div className="absolute top-[60%] right-[25%] w-1.5 h-1.5 bg-fuchsia-400/30 rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
-            <div className="absolute top-[80%] left-[40%] w-1 h-1 bg-indigo-300/40 rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
+            <div className="absolute top-[15%] left-[20%] w-2 h-2 bg-[rgba(0,122,255,0.4)] rounded-full animate-pulse" />
+            <div className="absolute top-[60%] right-[25%] w-1.5 h-1.5 bg-[rgba(175,82,222,0.3)] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+            <div className="absolute top-[80%] left-[40%] w-1 h-1 bg-[rgba(0,122,255,0.4)] rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
           </div>
 
           {/* 品牌内容 */}
           <div className="relative z-10 flex flex-col justify-between px-14 xl:px-20 py-12 w-full">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+              <div className="w-10 h-10 rounded-lg bg-[rgba(118,118,128,0.16)] backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <span className="text-white/60 text-sm font-medium tracking-wider uppercase">Smart Platform</span>
+              <span className="text-white/70 text-sm font-medium tracking-wider uppercase">Smart Platform</span>
             </div>
 
             <div className="max-w-lg">
               <h1 className="text-[3.2rem] xl:text-[3.8rem] font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
                 企业数智
                 <br />
-                <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-amber-200 bg-clip-text text-transparent">中台系统</span>
+                <span className="text-white/80">中台系统</span>
               </h1>
-              <p className="text-white/50 text-base leading-relaxed mb-10 max-w-md">
+              <p className="text-white/60 text-base leading-relaxed mb-10 max-w-md">
                 融合AI智能与供应链管理，赋能无缝针织行业数字化升级。从设计到生产，从报价到营销，一站式智能解决方案。
               </p>
 
@@ -371,8 +371,8 @@ export default function LoginPage() {
                   { value: '50+', label: '企业客户' },
                 ].map((item, i) => (
                   <div key={i}>
-                    <div className="text-xl font-bold text-white/90">{item.value}</div>
-                    <div className="text-xs text-white/35 mt-0.5">{item.label}</div>
+                    <div className="text-xl font-bold text-white">{item.value}</div>
+                    <div className="text-xs text-white/50 mt-0.5">{item.label}</div>
                   </div>
                 ))}
               </div>
@@ -385,13 +385,13 @@ export default function LoginPage() {
                   { icon: Layers, title: '集团一体化', desc: '宝娜斯集团 · 全链路数据 · 统一管理' },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3.5 group cursor-default">
-                    <div className="w-9 h-9 rounded-lg bg-white/[0.07] backdrop-blur-sm flex items-center justify-center border border-white/[0.06] group-hover:bg-white/[0.12] group-hover:border-white/[0.1] transition-all duration-300">
-                      <item.icon className="w-4 h-4 text-white/70" />
+                    <div className="w-9 h-9 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-white/25 transition-all duration-300">
+                      <item.icon className="w-4 h-4 text-white/80" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-white/85 text-sm font-semibold">{item.title}</span>
-                        <span className="text-white/30 text-xs">{item.desc}</span>
+                        <span className="text-white/90 text-sm font-semibold">{item.title}</span>
+                        <span className="text-white/40 text-xs">{item.desc}</span>
                       </div>
                     </div>
                   </div>
@@ -399,7 +399,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="text-white/20 text-xs">
+            <div className="text-white/30 text-xs">
               © 2024 企业数智中台系统 · v2.0
             </div>
           </div>
@@ -409,7 +409,7 @@ export default function LoginPage() {
         <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe] relative">
           {/* 移动端 Logo */}
           <div className="lg:hidden absolute top-8 left-1/2 -translate-x-1/2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+            <div className="w-12 h-12 rounded-xl bg-[#007AFF] flex items-center justify-center shadow-lg">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
           </div>
@@ -417,23 +417,23 @@ export default function LoginPage() {
           <div className="w-full max-w-[380px]">
             {/* 标题 */}
             <div className="mb-10">
-              <h2 className="text-[1.65rem] font-bold text-slate-800 tracking-tight">欢迎回来</h2>
-              <p className="text-slate-400 mt-1.5 text-sm">登录以访问您的工作空间</p>
+              <h2 className="text-[1.65rem] font-bold text-[#8e8e93] tracking-tight">欢迎回来</h2>
+              <p className="text-[#8e8e93] mt-1.5 text-sm">登录以访问您的工作空间</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
               {/* 用户名 */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">用户名</label>
+                <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2">用户名</label>
                 <div className={cn(
                   'relative rounded-xl border transition-all duration-200',
                   focusedField === 'username'
-                    ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)] bg-white shadow-sm'
+                    : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                 )}>
                   <div className={cn(
                     'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                    focusedField === 'username' ? 'text-violet-500' : 'text-slate-400'
+                    focusedField === 'username' ? 'text-[#007aff]' : 'text-[#8e8e93]'
                   )}>
                     <User className="w-[17px] h-[17px]" />
                   </div>
@@ -444,23 +444,23 @@ export default function LoginPage() {
                     onFocus={() => setFocusedField('username')}
                     onBlur={() => setFocusedField(null)}
                     placeholder="请输入用户名"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-[#3a3a3c] text-[#8e8e93] text-sm"
                   />
                 </div>
               </div>
 
               {/* 密码 */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">密码</label>
+                <label className="block text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-2">密码</label>
                 <div className={cn(
                   'relative rounded-xl border transition-all duration-200',
                   focusedField === 'password'
-                    ? 'border-violet-400 ring-[3px] ring-violet-500/10 bg-white shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-[#007aff] ring-[3px] ring-[rgba(0,122,255,0.1)] bg-white shadow-sm'
+                    : 'border-[#e5e5ea] bg-white hover:border-[#e5e5ea]'
                 )}>
                   <div className={cn(
                     'absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200',
-                    focusedField === 'password' ? 'text-violet-500' : 'text-slate-400'
+                    focusedField === 'password' ? 'text-[#007aff]' : 'text-[#8e8e93]'
                   )}>
                     <Lock className="w-[17px] h-[17px]" />
                   </div>
@@ -471,12 +471,12 @@ export default function LoginPage() {
                     onFocus={() => setFocusedField('password')}
                     onBlur={() => setFocusedField(null)}
                     placeholder="请输入密码"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-slate-300 text-slate-700 text-sm"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-transparent focus:outline-none placeholder:text-[#3a3a3c] text-[#8e8e93] text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#8e8e93] transition-colors p-0.5"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -489,22 +489,22 @@ export default function LoginPage() {
                   <div className={cn(
                     'w-4 h-4 rounded border flex items-center justify-center transition-all duration-200',
                     rememberMe
-                      ? 'bg-violet-500 border-violet-500'
-                      : 'border-slate-300 group-hover:border-slate-400'
+                      ? 'bg-[#007aff] border-[#007aff]'
+                      : 'border-[#e5e5ea] group-hover:border-[#e5e5ea]'
                   )}>
                     {rememberMe && (
-                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
+                      <svg className="w-2.5 h-2.5 text-[#1C1C1E]" viewBox="0 0 12 12" fill="none">
                         <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
                   </div>
                   <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only" />
-                  <span className="ml-2 text-sm text-slate-500 group-hover:text-slate-700 transition-colors">记住我</span>
+                  <span className="ml-2 text-sm text-[#8e8e93] group-hover:text-[#8e8e93] transition-colors">记住我</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => router.push('/forgot-password')}
-                  className="text-xs text-violet-500 hover:text-violet-700 font-medium transition-colors"
+                  className="text-xs text-[#007aff] hover:text-[#007aff] font-medium transition-colors"
                 >
                   忘记密码？
                 </button>
@@ -516,13 +516,10 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className={cn(
                   'w-full py-2.5 h-auto text-white font-semibold text-sm rounded-xl',
-                  'bg-gradient-to-r from-violet-600 to-fuchsia-600',
-                  'shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)]',
-                  'hover:shadow-[0_6px_20px_-2px_rgba(124,58,237,0.5)]',
-                  'hover:from-violet-500 hover:to-fuchsia-500',
+                  'bg-[#007AFF] hover:opacity-90',
                   'active:scale-[0.98]',
                   'transition-all duration-200',
-                  'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)] disabled:active:scale-100'
+                  'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100'
                 )}
               >
                 {isLoading ? (
@@ -540,14 +537,14 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => router.push('/register')}
-                className="text-sm text-slate-400 hover:text-violet-600 transition-colors"
+                className="text-sm text-[#8e8e93] hover:text-[#007aff] transition-colors"
               >
                 没有账号？<span className="font-semibold">立即注册</span>
               </button>
             </div>
 
             {/* 安全提示 */}
-            <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-300">
+            <div className="mt-8 pt-6 border-t border-[#e5e5ea] flex items-center justify-center gap-4 text-[11px] text-[#3a3a3c]">
               <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> 加密传输</span>
               <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> 安全连接</span>
             </div>
@@ -567,10 +564,10 @@ export default function LoginPage() {
         <Toaster position="top-center" richColors closeButton />
 
         {/* 左侧 */}
-        <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gradient-to-br from-[#1a1035] via-[#2d1b69] to-[#1a1035]">
+        <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gradient-to-br from-[#007AFF] via-[#0055D4] to-[#007AFF]">
           <div className="absolute inset-0">
-            <div className="absolute top-[-5%] right-[10%] w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-orange-500/10 rounded-full blur-[100px]" />
+            <div className="absolute top-[-5%] right-[10%] w-[500px] h-[500px] bg-[rgba(255,149,0,0.1)] rounded-full blur-[120px]" />
+            <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-[rgba(255,149,0,0.1)] rounded-full blur-[100px]" />
             <div className="absolute inset-0 opacity-[0.03]" style={{
               backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
               backgroundSize: '80px 80px'
@@ -579,21 +576,21 @@ export default function LoginPage() {
 
           <div className="relative z-10 flex flex-col justify-center px-14 xl:px-20">
             <div className="max-w-md">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 mb-10">
+              <div className="w-12 h-12 rounded-xl bg-[rgba(118,118,128,0.16)] backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg mb-10">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <h2 className="text-[2.8rem] font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
                 选择您的
                 <br />
-                <span className="bg-gradient-to-r from-amber-300 to-orange-200 bg-clip-text text-transparent">所属公司</span>
+                <span className="text-white/80">所属公司</span>
               </h2>
-              <p className="text-white/45 text-base leading-relaxed mb-8">
+              <p className="text-white/60 text-base leading-relaxed mb-8">
                 此选择将永久绑定到您的账号，绑定后不可更改。
               </p>
               {loggedInUser?.user?.username && (
-                <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/[0.08]">
-                  <User className="w-4 h-4 text-white/60" />
-                  <span className="text-white/70 text-sm font-medium">当前账号：{loggedInUser.user.username}</span>
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-[rgba(118,118,128,0.16)] backdrop-blur-sm rounded-xl border border-white/30">
+                  <User className="w-4 h-4 text-white/80" />
+                  <span className="text-white/90 text-sm font-medium">当前账号：{loggedInUser.user.username}</span>
                 </div>
               )}
             </div>
@@ -604,47 +601,45 @@ export default function LoginPage() {
         <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe]">
           <div className="w-full max-w-xl">
             <div className="lg:hidden text-center mb-8">
-              <div className="w-12 h-12 mx-auto rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg mb-4">
+              <div className="w-12 h-12 mx-auto rounded-xl bg-[#007AFF] flex items-center justify-center shadow-lg mb-4">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-slate-800">选择您所属的公司</h1>
-              <p className="text-slate-400 mt-1 text-sm">此选择将绑定到您的账号，不可更改</p>
+              <h1 className="text-xl font-bold text-[#1C1C1E]">选择您所属的公司</h1>
+              <p className="text-[#8E8E93] mt-1 text-sm">此选择将绑定到您的账号，不可更改</p>
             </div>
 
             <div className="space-y-3">
               {COMPANY_OPTIONS.map((company) => {
                 const isBonasi = company.key === 'bonasi';
                 const Icon = isBonasi ? Scissors : Cloud;
-                const gradientFrom = isBonasi ? 'from-rose-500' : 'from-violet-500';
-                const gradientTo = isBonasi ? 'to-pink-600' : 'to-fuchsia-600';
-                const shadowColor = isBonasi ? 'shadow-rose-500/25' : 'shadow-violet-500/25';
-                const hoverBorder = isBonasi ? 'hover:border-rose-200' : 'hover:border-violet-200';
-                const accentColor = isBonasi ? 'text-rose-500' : 'text-violet-500';
+                const iconBg = isBonasi ? 'bg-[#007AFF]' : 'bg-[#AF52DE]';
+                const hoverBorder = isBonasi ? 'hover:border-[#007aff]' : 'hover:border-[#007aff]';
+                const accentColor = isBonasi ? 'text-[#007aff]' : 'text-[#007aff]';
 
                 return (
                   <button
                     key={company.key}
                     onClick={() => handleSelectCompany(company.key)}
                     className={cn(
-                      'group w-full bg-white rounded-2xl border border-slate-150 p-5',
+                      'group w-full bg-white rounded-2xl border border-[#e5e5ea] p-5',
                       'hover:shadow-lg hover:-translate-y-0.5',
                       hoverBorder,
                       'transition-all duration-300 text-left flex items-center gap-4'
                     )}
                   >
                     <div className={cn(
-                      'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
-                      gradientFrom, gradientTo, shadowColor
+                      'w-12 h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0',
+                      iconBg
                     )}>
                       <Icon className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-base font-bold text-slate-800">{company.fullName}</h2>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">{company.description}</p>
+                      <h2 className="text-base font-bold text-[#1C1C1E]">{company.fullName}</h2>
+                      <p className="text-xs text-[#8e8e93] mt-0.5 truncate">{company.description}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                      <ChevronRight className={cn('w-4 h-4 text-slate-300 group-hover:translate-x-0.5 transition-all duration-300', accentColor)} />
-                      <span className="text-[10px] text-amber-600/80 bg-amber-50 px-1.5 py-0.5 rounded-md font-medium">
+                      <ChevronRight className={cn('w-4 h-4 text-[#3a3a3c] group-hover:translate-x-0.5 transition-all duration-300', accentColor)} />
+                      <span className="text-[10px] text-[rgba(255,149,0,0.8)] bg-[rgba(255,149,0,0.1)] px-1.5 py-0.5 rounded-md font-medium">
                         不可更改
                       </span>
                     </div>
@@ -656,7 +651,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setStep('login')}
-              className="mt-6 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mx-auto"
+              className="mt-6 flex items-center gap-1.5 text-sm text-[#8e8e93] hover:text-[#8e8e93] transition-colors mx-auto"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               返回登录
@@ -672,9 +667,9 @@ export default function LoginPage() {
   // ========== Step 3: 选择入口 ==========
   const Icon = selectedBrand === 'bonasi' ? Scissors : Cloud;
   const companyName = brand.name;
-  const brandGradientFrom = selectedBrand === 'bonasi' ? 'from-rose-600' : 'from-violet-600';
-  const brandGradientVia = selectedBrand === 'bonasi' ? 'via-pink-700' : 'via-purple-700';
-  const brandGradientTo = selectedBrand === 'bonasi' ? 'to-rose-800' : 'to-indigo-800';
+  const brandGradientFrom = selectedBrand === 'bonasi' ? 'from-[#007aff]' : 'from-[#007aff]';
+  const brandGradientVia = selectedBrand === 'bonasi' ? 'via-[#af52de]' : 'via-[#007aff]';
+  const brandGradientTo = selectedBrand === 'bonasi' ? 'to-[#007aff]' : 'to-[#007aff]';
 
   const portalCards = [
     {
@@ -682,30 +677,30 @@ export default function LoginPage() {
       icon: Palette,
       title: '设计师入口',
       desc: '知识库管理 · 图片上传 · AI识别 · 文档中心',
-      gradient: 'from-violet-500 to-fuchsia-600',
-      shadow: 'shadow-violet-500/25',
-      hoverBorder: 'hover:border-violet-200',
-      accent: 'text-violet-500',
+      gradient: 'bg-[#007AFF]',
+      shadow: 'shadow-[0_2px_12px_rgba(0,0,0,0.04)]',
+      hoverBorder: 'hover:border-[#007aff]',
+      accent: 'text-[#007aff]',
     },
     {
       key: 'factory' as PortalType,
       icon: Factory,
       title: '工厂 / 供应链入口',
       desc: '产品报价 · 原料管理 · 生产计划 · 辅料采购',
-      gradient: 'from-amber-500 to-orange-600',
-      shadow: 'shadow-amber-500/25',
-      hoverBorder: 'hover:border-amber-200',
-      accent: 'text-amber-500',
+      gradient: 'bg-[#FF9500]',
+      shadow: 'shadow-[0_2px_12px_rgba(0,0,0,0.04)]',
+      hoverBorder: 'hover:border-[#ff9500]',
+      accent: 'text-[#ff9500]',
     },
     {
       key: 'marketing' as PortalType,
       icon: Megaphone,
       title: '市场营销 AI 入口',
       desc: '营销策略 · 市场分析 · 文案生成 · 行业洞察',
-      gradient: 'from-emerald-500 to-teal-600',
-      shadow: 'shadow-emerald-500/25',
-      hoverBorder: 'hover:border-emerald-200',
-      accent: 'text-emerald-500',
+      gradient: 'bg-[#34C759]',
+      shadow: 'shadow-[0_2px_12px_rgba(0,0,0,0.04)]',
+      hoverBorder: 'hover:border-[#34c759]',
+      accent: 'text-[#34c759]',
     },
   ];
 
@@ -727,19 +722,19 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex flex-col justify-center px-14 xl:px-20">
           <div className="max-w-md">
-            <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center mb-10 border border-white/10">
+            <div className="w-12 h-12 rounded-xl bg-[rgba(118,118,128,0.16)] backdrop-blur-sm flex items-center justify-center mb-10 border border-white/30">
               <Icon className="w-6 h-6 text-white" />
             </div>
             <h2 className="text-[2.8rem] font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
               {companyName}
               <br />
-              <span className="text-white/70">企业数智中台系统</span>
+              <span className="text-white/80">企业数智中台系统</span>
             </h2>
-            <p className="text-white/40 text-base leading-relaxed mb-8">{brand.slogan}</p>
+            <p className="text-white/60 text-base leading-relaxed mb-8">{brand.slogan}</p>
 
-            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/[0.07] backdrop-blur-sm rounded-xl border border-white/[0.08]">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-white/60 text-sm font-medium">已绑定：{companyName}</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-[rgba(118,118,128,0.16)] backdrop-blur-sm rounded-xl border border-white/30">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#34c759]" />
+              <span className="text-white/80 text-sm font-medium">已绑定：{companyName}</span>
             </div>
           </div>
         </div>
@@ -749,13 +744,13 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-8 bg-[#fafafe]">
         <div className="w-full max-w-lg">
           <div className="lg:hidden text-center mb-8">
-            <div className={cn('w-12 h-12 mx-auto rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-4', brandGradientFrom, brandGradientTo)}>
+            <div className="w-12 h-12 mx-auto rounded-xl bg-[#007AFF] flex items-center justify-center shadow-lg mb-4">
               <Icon className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-slate-800">{companyName}企业数智中台系统</h1>
-            <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-lg">
-              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-              <span className="text-[11px] text-emerald-700 font-medium">已绑定：{companyName}</span>
+            <h1 className="text-xl font-bold text-[#1C1C1E]">{companyName}企业数智中台系统</h1>
+            <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-[rgba(52,199,89,0.1)] border border-[#34c759] rounded-lg">
+              <CheckCircle2 className="w-3 h-3 text-[#34c759]" />
+              <span className="text-[11px] text-[#34c759] font-medium">已绑定：{companyName}</span>
             </div>
           </div>
 
@@ -767,7 +762,7 @@ export default function LoginPage() {
                   key={card.key}
                   onClick={() => handleSelectPortal(card.key)}
                   className={cn(
-                    'group w-full bg-white rounded-2xl border border-slate-150 p-5',
+                    'group w-full bg-white rounded-2xl border border-[#e5e5ea] p-5',
                     'hover:shadow-lg hover:-translate-y-0.5',
                     card.hoverBorder,
                     'transition-all duration-300 text-left flex items-center gap-4'
@@ -777,13 +772,13 @@ export default function LoginPage() {
                     'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
                     card.gradient, card.shadow
                   )}>
-                    <CardIcon className="w-6 h-6 text-white" />
+                    <CardIcon className="w-6 h-6 text-[#1C1C1E]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-base font-bold text-slate-800">{card.title}</h2>
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">{card.desc}</p>
+                    <h2 className="text-base font-bold text-[#8e8e93]">{card.title}</h2>
+                    <p className="text-xs text-[#8e8e93] mt-0.5 truncate">{card.desc}</p>
                   </div>
-                  <ChevronRight className={cn('w-4 h-4 text-slate-300 group-hover:translate-x-0.5 transition-all duration-300', card.accent)} />
+                  <ChevronRight className={cn('w-4 h-4 text-[#3a3a3c] group-hover:translate-x-0.5 transition-all duration-300', card.accent)} />
                 </button>
               );
             })}
@@ -794,7 +789,7 @@ export default function LoginPage() {
             onClick={() => {
               setStep(loggedInUser?.user?.company ? 'login' : 'company');
             }}
-            className="mt-6 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mx-auto"
+            className="mt-6 flex items-center gap-1.5 text-sm text-[#8e8e93] hover:text-[#8e8e93] transition-colors mx-auto"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             返回上一步

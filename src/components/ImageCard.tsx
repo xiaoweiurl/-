@@ -383,9 +383,9 @@ export default function ImageCard({
     <div
       ref={cardRef}
       className={cn(
-        'group relative bg-white rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/60 hover:-translate-y-0.5',
+        'group relative bg-white rounded-xl transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
         viewMode === 'grid' ? 'aspect-square' : viewMode === 'list' ? 'flex items-center gap-4 p-3' : 'aspect-auto',
-        isSelected && 'ring-2 ring-violet-500 ring-offset-1',
+        isSelected && 'ring-2 ring-[#007aff] ring-offset-1',
         // 菜单打开时移除 overflow-hidden，允许菜单完整显示
         !showMoreMenu && 'overflow-hidden'
       )}
@@ -397,7 +397,7 @@ export default function ImageCard({
       {/* 收藏动画效果 */}
       {isFavoriting && image.favorite && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-          <Heart className="w-20 h-20 text-red-500 fill-red-500 animate-ping" />
+          <Heart className="w-20 h-20 text-[#ff3b30] fill-[#ff3b30] animate-ping" />
         </div>
       )}
       
@@ -410,11 +410,11 @@ export default function ImageCard({
         className={cn(
           'absolute top-3 left-3 z-10 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200',
           isSelected
-            ? 'bg-violet-500 border-violet-500'
-            : 'bg-white/90 border-slate-300 opacity-0 group-hover:opacity-100'
+            ? 'bg-[#007aff] border-[#007aff]'
+            : 'bg-white/90 border-[#e5e5ea] opacity-0 group-hover:opacity-100'
         )}
       >
-        {isSelected && <Check className="w-4 h-4 text-white" />}
+        {isSelected && <Check className="w-4 h-4 text-[#1C1C1E]" />}
       </button>
 
       {/* 图片 */}
@@ -426,7 +426,7 @@ export default function ImageCard({
       >
         <div
           className={cn(
-            'absolute inset-0 bg-slate-200 animate-pulse',
+            'absolute inset-0 bg-[rgba(0,0,0,0.06)] animate-pulse',
             imageLoaded && 'hidden'
           )}
         />
@@ -491,17 +491,17 @@ export default function ImageCard({
             <>
               <button
                 onClick={handleRestore}
-                className="p-2 bg-green-500/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-green-500 transition-colors"
+                className="p-2 bg-[rgba(52,199,89,0.9)] backdrop-blur-sm rounded-lg shadow-lg hover:bg-[#34c759] transition-colors"
                 title="恢复图片"
               >
-                <ArrowLeft className="w-4 h-4 text-white rotate-180" />
+                <ArrowLeft className="w-4 h-4 text-[#1C1C1E] rotate-180" />
               </button>
               <button
                 onClick={handlePermanentDelete}
-                className="p-2 bg-red-500/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-red-500 transition-colors"
+                className="p-2 bg-[rgba(255,59,48,0.9)] backdrop-blur-sm rounded-lg shadow-lg hover:bg-[#ff3b30] transition-colors"
                 title="永久删除"
               >
-                <Trash2 className="w-4 h-4 text-white" />
+                <Trash2 className="w-4 h-4 text-[#1C1C1E]" />
               </button>
             </>
           ) : (
@@ -512,7 +512,7 @@ export default function ImageCard({
                 className={cn(
                   'p-2 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300',
                   image.favorite 
-                    ? 'bg-red-50 hover:bg-red-100 ring-2 ring-red-200' 
+                    ? 'bg-[rgba(255,59,48,0.1)] hover:bg-[rgba(255,59,48,0.1)] ring-2 ring-[#ff3b30]' 
                     : 'bg-white/90 hover:bg-white'
                 )}
                 title={image.favorite ? '取消收藏' : '添加收藏'}
@@ -521,8 +521,8 @@ export default function ImageCard({
                   className={cn(
                     'w-4 h-4 transition-all duration-300',
                     image.favorite 
-                      ? 'fill-red-500 text-red-500 scale-110' 
-                      : 'text-slate-600 hover:text-red-400'
+                      ? 'fill-[#ff3b30] text-[#ff3b30] scale-110' 
+                      : 'text-[#8e8e93] hover:text-[#ff3b30]'
                   )}
                 />
               </button>
@@ -531,7 +531,7 @@ export default function ImageCard({
                 className="p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
                 title="下载图片"
               >
-                <Download className="w-4 h-4 text-slate-600" />
+                <Download className="w-4 h-4 text-[#8e8e93]" />
               </button>
               <button
                 ref={menuButtonRef}
@@ -554,7 +554,7 @@ export default function ImageCard({
                 className="p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
                 title="更多操作"
               >
-                <MoreVertical className="w-4 h-4 text-slate-600" />
+                <MoreVertical className="w-4 h-4 text-[#8e8e93]" />
               </button>
             </>
           )}
@@ -568,14 +568,14 @@ export default function ImageCard({
               showActions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             )}
           >
-            <h3 className="text-white font-medium text-sm truncate mb-1">
+            <h3 className="text-[#1C1C1E] font-medium text-sm truncate mb-1">
               <HighlightedText
                 text={image.title}
                 query={searchQuery}
-                highlightClassName="bg-yellow-300 text-yellow-900 px-0.5 rounded"
+                highlightClassName="bg-[#ff9500] text-[#ff9500] px-0.5 rounded"
               />
             </h3>
-            <div className="flex items-center gap-3 text-white/80 text-xs">
+            <div className="flex items-center gap-3 text-[#1C1C1E]/80 text-xs">
               <span>{image.resolution}</span>
               <span>•</span>
               <span>{image.size}</span>
@@ -587,14 +587,14 @@ export default function ImageCard({
       {/* List 视图的文件信息 */}
       {viewMode === 'list' && showFileInfo && (
         <div className="flex-1 min-w-0">
-          <h3 className="text-slate-800 font-medium text-sm truncate mb-1">
+          <h3 className="text-[#8e8e93] font-medium text-sm truncate mb-1">
             <HighlightedText
               text={image.title}
               query={searchQuery}
-              highlightClassName="bg-yellow-200 text-yellow-900 px-0.5 rounded"
+              highlightClassName="bg-[#ff9500] text-[#ff9500] px-0.5 rounded"
             />
           </h3>
-          <div className="flex items-center gap-3 text-slate-500 text-xs">
+          <div className="flex items-center gap-3 text-[#8e8e93] text-xs">
             <span>{image.resolution}</span>
             <span>•</span>
             <span>{image.size}</span>
@@ -602,7 +602,7 @@ export default function ImageCard({
             <span>{image.date}</span>
           </div>
           {image.albumName && (
-            <div className="flex items-center gap-1 mt-1 text-xs text-violet-600">
+            <div className="flex items-center gap-1 mt-1 text-xs text-[#007aff]">
               <FolderOpen className="w-3 h-3" />
               <span>{image.albumName}</span>
             </div>
@@ -627,8 +627,8 @@ export default function ImageCard({
               className={cn(
                 'p-2 rounded-lg transition-colors',
                 image.favorite 
-                  ? 'bg-red-50 text-red-500' 
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  ? 'bg-[rgba(255,59,48,0.1)] text-[#ff3b30]' 
+                  : 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93] hover:bg-[rgba(0,0,0,0.06)]'
               )}
             >
               <Heart className={cn('w-4 h-4', image.favorite && 'fill-current')} />
@@ -637,7 +637,7 @@ export default function ImageCard({
           {!isTrash && (
             <button
               onClick={handleDownload}
-              className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors"
+              className="p-2 bg-[rgba(118,118,128,0.08)] text-[#8e8e93] rounded-lg hover:bg-[rgba(0,0,0,0.06)] transition-colors"
             >
               <Download className="w-4 h-4" />
             </button>
@@ -646,14 +646,14 @@ export default function ImageCard({
             <>
               <button
                 onClick={handleRestore}
-                className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                className="p-2 bg-[rgba(52,199,89,0.1)] text-[#34c759] rounded-lg hover:bg-[#34c759] transition-colors"
                 title="恢复图片"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={handlePermanentDelete}
-                className="p-2 bg-red-100 text-red-500 rounded-lg hover:bg-red-200 transition-colors"
+                className="p-2 bg-[rgba(255,59,48,0.1)] text-[#ff3b30] rounded-lg hover:bg-[#ff3b30] transition-colors"
                 title="永久删除"
               >
                 <Trash2 className="w-4 h-4" />
@@ -662,7 +662,7 @@ export default function ImageCard({
           ) : (
             <button
               onClick={handleDelete}
-              className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-red-100 hover:text-red-500 transition-colors"
+              className="p-2 bg-[rgba(118,118,128,0.08)] text-[#8e8e93] rounded-lg hover:bg-[rgba(255,59,48,0.1)] hover:text-[#ff3b30] transition-colors"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -675,7 +675,7 @@ export default function ImageCard({
         <div 
           ref={menuRef}
           className={cn(
-            "fixed bg-white rounded-xl shadow-2xl border border-slate-200/60 animate-in fade-in slide-in-from-top-2 duration-200 z-[9999]",
+            "fixed bg-white rounded-xl shadow-2xl border border-[rgba(229,229,234,0.6)] animate-in fade-in slide-in-from-top-2 duration-200 z-[9999]",
             menuView === 'albums' ? 'w-56' : 'w-48'
           )}
           style={{
@@ -689,18 +689,18 @@ export default function ImageCard({
               <div className="p-1">
                 <button
                   onClick={handleEdit}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-violet-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group"
                 >
-                  <Edit3 className="w-4 h-4 text-slate-500 group-hover:text-violet-500" />
-                  <span className="text-sm text-slate-700 group-hover:text-violet-600">编辑图片</span>
+                  <Edit3 className="w-4 h-4 text-[#8e8e93] group-hover:text-[#007aff]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#007aff]">编辑图片</span>
                 </button>
                 <button
                   onClick={handleMoveClick}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#f2f2f7] transition-colors text-left"
                 >
-                  <Move className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm text-slate-700 flex-1">移动到相册</span>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <Move className="w-4 h-4 text-[#8e8e93]" />
+                  <span className="text-sm text-[#8e8e93] flex-1">移动到相册</span>
+                  <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
                 </button>
                 {/* 设为主图按钮 - 只在有productId且非主图时显示 */}
                 {(() => {
@@ -712,120 +712,120 @@ export default function ImageCard({
                 })() && (
                   <button
                     onClick={handleSetMain}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-amber-50 transition-colors text-left group"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(255,149,0,0.1)] transition-colors text-left group"
                   >
-                    <Star className="w-4 h-4 text-slate-500 group-hover:text-amber-500" />
-                    <span className="text-sm text-slate-700 group-hover:text-amber-600">设为主图</span>
+                    <Star className="w-4 h-4 text-[#8e8e93] group-hover:text-[#ff9500]" />
+                    <span className="text-sm text-[#8e8e93] group-hover:text-[#ff9500]">设为主图</span>
                   </button>
                 )}
                 <button
                   onClick={handleCopyLink}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#f2f2f7] transition-colors text-left"
                 >
-                  <Copy className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm text-slate-700">复制链接</span>
+                  <Copy className="w-4 h-4 text-[#8e8e93]" />
+                  <span className="text-sm text-[#8e8e93]">复制链接</span>
                 </button>
                 <button
                   onClick={handleOpenInNew}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#f2f2f7] transition-colors text-left"
                 >
-                  <ExternalLink className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm text-slate-700">新标签页打开</span>
+                  <ExternalLink className="w-4 h-4 text-[#8e8e93]" />
+                  <span className="text-sm text-[#8e8e93]">新标签页打开</span>
                 </button>
                 <button
                   onClick={openShareMenu}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#f2f2f7] transition-colors text-left"
                 >
-                  <Share2 className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm text-slate-700">分享</span>
+                  <Share2 className="w-4 h-4 text-[#8e8e93]" />
+                  <span className="text-sm text-[#8e8e93]">分享</span>
                 </button>
               </div>
-              <div className="p-1 border-t border-slate-100">
+              <div className="p-1 border-t border-[#e5e5ea]">
                 <button
                   onClick={handleDelete}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(255,59,48,0.1)] transition-colors text-left group"
                 >
-                  <Trash2 className="w-4 h-4 text-slate-500 group-hover:text-red-500" />
-                  <span className="text-sm text-slate-700 group-hover:text-red-600">删除</span>
+                  <Trash2 className="w-4 h-4 text-[#8e8e93] group-hover:text-[#ff3b30]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#ff3b30]">删除</span>
                 </button>
               </div>
             </>
           ) : menuView === 'share' ? (
             <>
               {/* 分享子菜单 */}
-              <div className="p-2 border-b border-slate-100 flex items-center gap-2">
+              <div className="p-2 border-b border-[#e5e5ea] flex items-center gap-2">
                 <button
                   onClick={backToMain}
-                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg hover:bg-[rgba(118,118,128,0.08)] transition-colors"
                 >
-                  <ArrowLeft className="w-4 h-4 text-slate-500" />
+                  <ArrowLeft className="w-4 h-4 text-[#8e8e93]" />
                 </button>
-                <span className="text-sm font-medium text-slate-700">分享到</span>
+                <span className="text-sm font-medium text-[#8e8e93]">分享到</span>
               </div>
               <div className="p-1">
                 <button
                   onClick={shareToWeibo}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-orange-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(255,149,0,0.1)] transition-colors text-left group"
                 >
-                  <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">微</span>
+                  <div className="w-6 h-6 rounded-full bg-[#ff9500] flex items-center justify-center">
+                    <span className="text-[#1C1C1E] text-xs font-bold">微</span>
                   </div>
-                  <span className="text-sm text-slate-700 group-hover:text-orange-600">新浪微博</span>
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#ff9500]">新浪微博</span>
                 </button>
                 <button
                   onClick={shareToTwitter}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sky-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group"
                 >
-                  <Twitter className="w-6 h-6 text-sky-500" />
-                  <span className="text-sm text-slate-700 group-hover:text-sky-600">Twitter</span>
+                  <Twitter className="w-6 h-6 text-[#007aff]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#007aff]">Twitter</span>
                 </button>
                 <button
                   onClick={shareToFacebook}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group"
                 >
-                  <Facebook className="w-6 h-6 text-blue-600" />
-                  <span className="text-sm text-slate-700 group-hover:text-blue-600">Facebook</span>
+                  <Facebook className="w-6 h-6 text-[#007aff]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#007aff]">Facebook</span>
                 </button>
                 <button
                   onClick={shareToLinkedIn}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group"
                 >
-                  <Linkedin className="w-6 h-6 text-blue-700" />
-                  <span className="text-sm text-slate-700 group-hover:text-blue-700">LinkedIn</span>
+                  <Linkedin className="w-6 h-6 text-[#007aff]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#007aff]">LinkedIn</span>
                 </button>
               </div>
-              <div className="p-1 border-t border-slate-100">
+              <div className="p-1 border-t border-[#e5e5ea]">
                 <button
                   onClick={copyShareLink}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-violet-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group"
                 >
-                  <Copy className="w-6 h-6 text-slate-500" />
-                  <span className="text-sm text-slate-700 group-hover:text-violet-600">复制分享链接</span>
+                  <Copy className="w-6 h-6 text-[#8e8e93]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#007aff]">复制分享链接</span>
                 </button>
                 <button
                   onClick={openCreateShareLink}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-violet-50 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group"
                 >
-                  <Share2 className="w-6 h-6 text-violet-500" />
-                  <span className="text-sm text-slate-700 group-hover:text-violet-600">创建分享链接</span>
+                  <Share2 className="w-6 h-6 text-[#007aff]" />
+                  <span className="text-sm text-[#8e8e93] group-hover:text-[#007aff]">创建分享链接</span>
                 </button>
               </div>
             </>
           ) : menuView === 'albums' ? (
             <>
               {/* 相册子菜单 */}
-              <div className="p-2 border-b border-slate-100 flex items-center gap-2 sticky top-0 bg-white z-10">
+              <div className="p-2 border-b border-[#e5e5ea] flex items-center gap-2 sticky top-0 bg-white z-10">
                 <button
                   onClick={backToMain}
-                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg hover:bg-[rgba(118,118,128,0.08)] transition-colors"
                 >
-                  <ArrowLeft className="w-4 h-4 text-slate-500" />
+                  <ArrowLeft className="w-4 h-4 text-[#8e8e93]" />
                 </button>
-                <span className="text-sm font-medium text-slate-700">移动到相册</span>
+                <span className="text-sm font-medium text-[#8e8e93]">移动到相册</span>
               </div>
               <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
                 {albums.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-sm text-slate-500">
+                  <div className="px-3 py-4 text-center text-sm text-[#8e8e93]">
                     暂无相册
                   </div>
                 ) : (
@@ -834,11 +834,11 @@ export default function ImageCard({
                       key={album.id}
                       onClick={(e) => handleMoveToAlbum(album.id, e)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-violet-50 transition-colors text-left group",
-                        image.albumId === album.id && "bg-violet-50"
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(0,122,255,0.1)] transition-colors text-left group",
+                        image.albumId === album.id && "bg-[rgba(0,122,255,0.1)]"
                       )}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-[rgba(118,118,128,0.08)] overflow-hidden flex items-center justify-center flex-shrink-0">
                         {album.coverUrl ? (
                           <img 
                             src={album.coverUrl} 
@@ -846,21 +846,21 @@ export default function ImageCard({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <FolderOpen className="w-4 h-4 text-slate-400" />
+                          <FolderOpen className="w-4 h-4 text-[#8e8e93]" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-slate-700 group-hover:text-violet-600 truncate">
+                        <div className="text-sm text-[#8e8e93] group-hover:text-[#007aff] truncate">
                           {album.name}
                         </div>
                         {album.imageCount !== undefined && (
-                          <div className="text-xs text-slate-400">
+                          <div className="text-xs text-[#8e8e93]">
                             {album.imageCount} 张图片
                           </div>
                         )}
                       </div>
                       {image.albumId === album.id && (
-                        <Check className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                        <Check className="w-4 h-4 text-[#007aff] flex-shrink-0" />
                       )}
                     </button>
                   ))
@@ -885,7 +885,7 @@ export default function ImageCard({
           {image.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="px-2 py-1 text-xs bg-white/90 backdrop-blur-sm text-slate-700 rounded-md font-medium"
+              className="px-2 py-1 text-xs bg-white/90 backdrop-blur-sm text-[#8e8e93] rounded-md font-medium"
             >
               {tag}
             </span>
