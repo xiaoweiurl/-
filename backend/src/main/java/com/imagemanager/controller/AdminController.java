@@ -30,6 +30,9 @@ public class AdminController {
     
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private com.imagemanager.service.AuthService authService;
     
     /**
      * 获取所有用户列表
@@ -119,17 +122,39 @@ public class AdminController {
      * 重置用户密码
      */
     @PostMapping("/users/{id}/reset-password")
-    @Operation(summary = "重置密码", description = "重置用户密码（仅管理员）")
+    @Operation(summary = "重置密码", description = "重置用户密码（仅管理员；三级权限：管理员不能修改其他管理员/超级管理员的密码，超级管理员不受限）")
     public ApiResponse<Void> resetPassword(
             @PathVariable String id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
         log.info("管理员重置用户密码：{}", id);
-        
+
+        // 三级权限校验：管理员不能修改其他管理员/超级管理员的密码（本人除外），超级管理员不受限
+        com.imagemanager.dto.LoginResponse.UserInfo operator;
+        try {
+            operator = authService.validateSession(sessionId);
+        } catch (Exception e) {
+            return ApiResponse.error(401, "会话校验失败，请重新登录");
+        }
+        if (operator == null) {
+            return ApiResponse.error(401, "会话已过期，请重新登录");
+        }
+        User target = userService.getUserById(id);
+        if (target == null) {
+            return ApiResponse.error(404, "目标用户不存在");
+        }
+        boolean operatorIsSuperAdmin = "superadmin".equalsIgnoreCase(operator.getRole());
+        boolean targetIsAdminOrAbove = "admin".equalsIgnoreCase(target.getRole())
+                || "superadmin".equalsIgnoreCase(target.getRole());
+        if (!operatorIsSuperAdmin && targetIsAdminOrAbove && !operator.getId().equals(id)) {
+            return ApiResponse.error(403, "管理员不能修改其他管理员的密码");
+        }
+
         String newPassword = request.get("newPassword");
         if (newPassword == null || newPassword.length() < 6) {
             return ApiResponse.error(400, "密码长度至少6位");
         }
-        
+
         try {
             userService.resetPassword(id, newPassword);
             return ApiResponse.success("密码重置成功", null);

@@ -206,6 +206,23 @@ logging:
   pattern:
     console: "%d{HH:mm:ss} [%thread] %msg%n"
 
+# 外部 ERP 系统接口配置（数据同步）
+# 地址规则：登录接口独立地址；业务接口统一前缀 base-url，所有业务接口路径在此前缀后拼接。
+# 基地址仅在此配置（可用环境变量覆盖），禁止硬编码到每个请求中。
+erp:
+  # 业务接口统一前缀
+  base-url: ${ERP_BASE_URL:http://mpro42.ywhzsoft.com/netWf2024Unitive_Ent}
+  # 登录接口独立完整地址（为空时默认 base-url + login-path）
+  login-url: ${ERP_LOGIN_URL:}
+  # 登录接口相对路径（login-url 为空时拼接使用）
+  login-path: ${ERP_LOGIN_PATH:/Auth/checkLogin.aspx}
+  # 默认账套码（登录时可由前端覆盖）
+  custom-id: ${ERP_CUSTOM_ID:8D7C1BDE-C05F-4A11-BD96-D71D94D35633}
+  # 请求超时（毫秒）
+  timeout: ${ERP_TIMEOUT:10000}
+  # 演示模式：true 时不请求真实 ERP，使用内置模拟数据（ERP 不可达时也会自动降级为演示数据）
+  demo-enabled: ${ERP_DEMO_ENABLED:true}
+
 # Milvus 向量数据库配置（200G 业务员数据）
 milvus:
   enabled: ${MILVUS_ENABLED:true}

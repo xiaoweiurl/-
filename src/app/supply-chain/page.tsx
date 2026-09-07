@@ -4,76 +4,18 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
 import {
-  Package, TrendingUp, DollarSign, Factory,
-  Search, Upload, Download, Plus, Edit3, Trash2, ChevronLeft,
-  ChevronRight, RefreshCw, Calculator, Target, Zap,
-  ChevronDown, Check, AlertCircle, Info, Warehouse,
-  ShoppingBag, BoxIcon, Cog, BarChart3, Sparkles, Scissors, Cloud,
-  ArrowLeft, MessageSquare, Send, Bot, User, X, Copy, CheckCircle, Globe,
-  Lightbulb, ImageIcon, Paperclip, FileText, ClipboardList
+  Target, Zap, Check, ArrowLeft, Scissors, Cloud,
+  BarChart3, MessageSquare, Send, Bot, User, X, Copy, Globe,
+  Lightbulb, Paperclip, FileText, ClipboardList, RefreshCcw
 } from 'lucide-react';
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
+import { isAdminOrAbove } from '@/lib/auth';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import PdfExportButton from '@/components/PdfExportButton';
+import DocumentStatsDashboard from '@/components/DocumentStatsDashboard';
 
 // ============ 类型定义 ============
-interface QuotationItem {
-  id: number; productCode: string; productionCode: string; documentNo: string;
-  period: string; customer: string; salesperson: string; productCategory: string;
-  frontQuotationNo: string; approvalStatus: string; salesType: string;
-  rawMaterialName1: string; materialUsage1: number; materialUnitPrice1: number;
-  rawMaterialName2: string; materialUsage2: number; materialUnitPrice2: number;
-  rawMaterialName3: string; materialUsage3: number; materialUnitPrice3: number;
-  rawMaterialName4: string; materialUsage4: number; materialUnitPrice4: number;
-  rawMaterialName5: string; materialUsage5: number; materialUnitPrice5: number;
-  rawMaterialName6: string; materialUsage6: number; materialUnitPrice6: number;
-  accessoryName: string; accessoryPrice: number;
-}
-
-interface WarehouseItem {
-  id: number; productCode: string; color: string; batchNo: string;
-  unit: string; unitPrice: number;
-  huohao?: string; size?: string; component?: string; supplier?: string; materialName?: string;
-  specification?: string; materialColor?: string; twistDirection?: string;
-  usagePerUnit?: number; lossRate?: number; remark?: string;
-}
-
-interface PurchaseItem {
-  id: number; materialCode: string; unit: string; supplier: string;
-  batchNo: string; unitPrice: number;
-}
-
-interface PlanItem {
-  id: number; semiProductCode: string; productCode: string;
-  sewingWeight: number; machineType: string; needleCount: string;
-  seconds: number; machineCount: number; singleMachineOutput: number;
-}
-
-interface AccessoryItem {
-  id: number; accessoryName: string; accessoryCategory: string;
-  unit: string; supplier: string; accessoryUnitPrice: number;
-}
-
-interface SmartQuoteResult {
-  productCode: string; productionCode: string; customer: string;
-  materials: { name: string; usage: number; unitPrice: number; unitPricePerGram?: number; purchaseRefPrice?: number; cost: number; bestSupplier: string }[];
-  accessoryCost: number; accessoryName: string;
-  totalMaterialCost: number; processingCostPerUnit: number;
-  totalCostPerUnit: number; suggestedPrice: number; profitRate: number;
-  dailyCapacity: number; sewingWeight: number;
-  machineHourlyRate: number; singleMachineOutput: number;
-  weavingCost: number; productWeight: number;
-  dyeingUnitPrice: number; postProcessCost: number;
-  manufacturingCost: number; costPrice: number;
-  yieldRate: number; netCost: number;
-}
-
-interface SupplierCompare {
-  materialCode: string; suppliers: { supplier: string; unitPrice: number }[];
-  bestPrice: number; bestSupplier: string; worstPrice: number; savingRate: number;
-}
-
 interface QuotationOrderRow {
   dh: string; chima?: string; huohao?: string;
   sbdj?: number | string; lyl?: number | string; zpl?: number | string;
@@ -84,17 +26,11 @@ interface QuotationOrderRow {
   jcb?: number | string; shuijin?: number | string; shuijinSg?: number | string; xscb?: number | string;
 }
 
-type TabKey = 'chat' | 'dashboard' | 'smart-quote' | 'quotation' | 'warehouse' | 'purchase' | 'plan' | 'accessory';
+type TabKey = 'chat' | 'dashboard';
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'chat', label: 'AI 对话', icon: <MessageSquare className="w-4 h-4" /> },
-  { key: 'dashboard', label: '智能仪表盘', icon: <BarChart3 className="w-4 h-4" /> },
-  { key: 'smart-quote', label: '智能报价', icon: <Sparkles className="w-4 h-4" /> },
-  { key: 'quotation', label: '产品报价', icon: <FileText className="w-4 h-4" /> },
-  { key: 'warehouse', label: '原料入库', icon: <Warehouse className="w-4 h-4" /> },
-  { key: 'purchase', label: '原料采购', icon: <ShoppingBag className="w-4 h-4" /> },
-  { key: 'plan', label: '生产计划', icon: <Cog className="w-4 h-4" /> },
-  { key: 'accessory', label: '辅料采购', icon: <BoxIcon className="w-4 h-4" /> },
+  { key: 'dashboard', label: '单据概览', icon: <BarChart3 className="w-4 h-4" /> },
 ];
 
 // ============ 工具函数 ============
@@ -114,30 +50,14 @@ function CopyButton({ text }: { text: string }) {
       className="p-1 rounded-md text-[#8e8e93] hover:text-[#1c1c1e] hover:bg-[rgba(118,118,128,0.12)] transition-all"
       title="复制内容"
     >
-      {copied ? <CheckCircle className="w-3.5 h-3.5 text-[#34c759]" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? <Check className="w-3.5 h-3.5 text-[#34c759]" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
-function formatMoney(val: number | string | null): string {
-  if (val == null) return '-';
-  const n = typeof val === 'string' ? parseFloat(val) : val;
-  if (isNaN(n)) return '-';
-  return n.toFixed(4);
-}
-
-function formatMoneyShort(val: number | string | null): string {
-  if (val == null) return '-';
-  const n = typeof val === 'string' ? parseFloat(val) : val;
-  if (isNaN(n)) return '-';
-  if (n >= 1) return n.toFixed(2);
-  return n.toFixed(4);
-}
-
 // ============ 主组件 ============
 export default function SupplyChainPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
-  const [loading, setLoading] = useState(false);
 
   // AI对话状态
   const [chatMessages, setChatMessages] = useState<Array<{
@@ -158,28 +78,10 @@ export default function SupplyChainPage() {
   const isUserScrollingRef = useRef(false);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // 数据
-  const [quotations, setQuotations] = useState<QuotationItem[]>([]);
-  const [warehouse, setWarehouse] = useState<WarehouseItem[]>([]);
-  const [purchases, setPurchases] = useState<PurchaseItem[]>([]);
-  const [plans, setPlans] = useState<PlanItem[]>([]);
-  const [accessories, setAccessories] = useState<AccessoryItem[]>([]);
-  const [smartQuotes, setSmartQuotes] = useState<SmartQuoteResult[]>([]);
-  const [supplierCompares, setSupplierCompares] = useState<SupplierCompare[]>([]);
-  const [stats, setStats] = useState({ productCount: 0, materialCount: 0, supplierCount: 0, avgProfitRate: 0 });
+  // 当前用户角色（用于 ERP 同步入口可见性：仅管理员以上）
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
-  // 报价参数
-  const [targetProfitRate, setTargetProfitRate] = useState(30);
-  const [processingCost, setProcessingCost] = useState(0.05);
-
-  // 分页搜索
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const pageSize = 20;
-
-  // 认证检查 - 后端不可用时进入降级模式
+  // 认证检查 - 后端不可用时进入降级模式；同时获取当前用户角色
   useEffect(() => {
     const sessionId = localStorage.getItem('session_id');
     if (!sessionId) {
@@ -193,6 +95,12 @@ export default function SupplyChainPage() {
         console.log('[SupplyChain] 后端不可用，进入降级模式');
       });
     }
+    fetch('/api/auth/login', { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.success && data.data?.role) setCurrentUserRole(String(data.data.role).toLowerCase());
+      })
+      .catch(() => {});
   }, []);
 
   // 加载工厂AI对话历史
@@ -216,127 +124,6 @@ export default function SupplyChainPage() {
       })
       .catch(() => {});
   }, []);
-
-  // 统一走 Next.js 代理，避免外网 CORS 问题
-  const getApiBase = useCallback(() => {
-    return '/api/proxy';
-  }, []);
-
-  // 安全的 fetch + json 解析，401 时跳转登录
-  const safeFetch = useCallback(async (url: string) => {
-    try {
-      const sessionId = localStorage.getItem('session_id');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (sessionId) headers['X-Session-Id'] = sessionId;
-      const res = await fetch(`${getApiBase()}/supply-chain${url}`, { headers });
-      if (res.status === 401) {
-        // 401 只在后端可用时才跳转，后端不可用时降级
-        console.log('[SupplyChain] 401 未授权');
-        return null;
-      }
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // 加载所有数据
-  const loadAllData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [qRes, wRes, pRes, plRes, aRes, sqRes, scRes, stRes] = await Promise.all([
-        safeFetch('/quotations?page=1&pageSize=100'),
-        safeFetch('/warehouse?page=1&pageSize=100'),
-        safeFetch('/purchases?page=1&pageSize=100'),
-        safeFetch('/plans?page=1&pageSize=100'),
-        safeFetch('/accessories?page=1&pageSize=100'),
-        safeFetch(`/smart-quote/product-list?targetProfitRate=${targetProfitRate / 100}&processingCost=${processingCost}`),
-        safeFetch('/smart-quote/supplier-comparison'),
-        safeFetch(`/stats?targetProfitRate=${targetProfitRate / 100}&processingCost=${processingCost}`),
-      ]);
-      // 后端 pageResult 返回 {items: [...], total: N}
-      // 后端 smart-quotes 返回 {items: [...]}
-      // 后端 supplier-comparison 返回 [...]
-      // 后端 stats 返回 {productCount, materialCount, ...}
-      const extractItems = (res: any) => res?.items || res?.data?.items || res?.data?.content || res?.content || [];
-      const extractData = (res: any) => res?.data || res || [];
-
-      setQuotations(extractItems(qRes));
-      setWarehouse(extractItems(wRes));
-      setPurchases(extractItems(pRes));
-      setPlans(extractItems(plRes));
-      setAccessories(extractItems(aRes));
-      // smart-quote/product-list 返回 {products: [...]}
-      // supplier-comparison 返回 {comparison: {materialCode: [...]}}
-      setSmartQuotes((sqRes?.products || []).map((p: any) => ({
-        ...p,
-        materials: (p.materialDetails || p.materials || []).map((m: any) => ({
-          ...m,
-          bestSupplier: m.bestSupplier ?? m.supplier ?? '',
-        })),
-        totalMaterialCost: p.totalMaterialCost ?? p.materialCost,
-        processingCostPerUnit: p.processingCostPerUnit ?? p.processingCost,
-        totalCostPerUnit: p.totalCostPerUnit ?? p.totalCost,
-      })));
-      // 供应商对比数据后端返回 {comparison: {materialCode: [{supplier, unitPrice},...]}}
-      const comparisonMap = scRes?.comparison || {};
-      const scList: SupplierCompare[] = Object.entries(comparisonMap).map(([code, suppliers]: [string, any]) => {
-        const sups = (suppliers || []).sort((a: any, b: any) => (a.unitPrice || 0) - (b.unitPrice || 0));
-        const best = sups[0];
-        const worst = sups[sups.length - 1];
-        return {
-          materialCode: code,
-          suppliers: sups,
-          bestPrice: best?.unitPrice || 0,
-          bestSupplier: best?.supplier || '',
-          worstPrice: worst?.unitPrice || 0,
-          savingRate: worst?.unitPrice ? ((worst.unitPrice - (best?.unitPrice || 0)) / worst.unitPrice) : 0,
-        };
-      });
-      setSupplierCompares(scList);
-      const s = extractData(stRes);
-      setStats({ productCount: s?.productCount || 0, materialCount: s?.materialCount || 0, supplierCount: s?.supplierCount || 0, avgProfitRate: s?.avgProfitRate || 0 });
-    } catch (e) {
-      console.error('加载数据失败', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [targetProfitRate, processingCost]);
-
-  useEffect(() => { loadAllData(); }, [loadAllData]);
-
-  // 删除
-  const handleDelete = async (type: string, id: number) => {
-    if (!confirm('确定删除此条数据？')) return;
-    try {
-      const sessionId = localStorage.getItem('session_id');
-      const headers: Record<string, string> = {};
-      if (sessionId) headers['X-Session-Id'] = sessionId;
-      await fetch(`${getApiBase()}/supply-chain/${type}/${id}`, { method: 'DELETE', headers });
-      loadAllData();
-    } catch { alert('删除失败'); }
-  };
-
-  // Excel导入
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', activeTab === 'quotation' ? 'quotation' : activeTab === 'warehouse' ? 'warehouse' : activeTab === 'purchase' ? 'purchase' : activeTab === 'plan' ? 'plan' : 'accessory');
-    try {
-      const sessionId = localStorage.getItem('session_id');
-      const headers: Record<string, string> = {};
-      if (sessionId) headers['X-Session-Id'] = sessionId;
-      const res = await fetch(`${getApiBase()}/supply-chain/import`, { method: 'POST', headers, body: formData });
-      const result = await res.json();
-      if (result.code === 200) { alert(`成功导入 ${result.data} 条数据`); loadAllData(); }
-      else alert('导入失败: ' + (result.message || '未知错误'));
-    } catch { alert('导入失败'); }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
   // ============ 退出登录 ============
   // ============ AI对话 ============
@@ -564,450 +351,6 @@ export default function SupplyChainPage() {
     window.location.href = '/login';
   };
 
-  // ============ 渲染：智能仪表盘 ============
-  const renderDashboard = () => {
-    const profitRateColor = stats.avgProfitRate >= 0.3 ? 'text-[#34c759]' : stats.avgProfitRate >= 0.2 ? 'text-[#ff9500]' : 'text-[#ff3b30]';
-    return (
-      <div className="space-y-6">
-        {/* 统计卡片（iOS 风格：淡色底图标 + 大数字 + hover 上浮） */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: '产品数量', value: stats.productCount, icon: <Package className="w-5 h-5" />, iconBg: 'bg-[#FF9500]/10', iconColor: 'text-[#FF9500]', suffix: '款' },
-            { label: '原料种类', value: stats.materialCount, icon: <Warehouse className="w-5 h-5" />, iconBg: 'bg-[#007AFF]/10', iconColor: 'text-[#007AFF]', suffix: '种' },
-            { label: '供应商数', value: stats.supplierCount, icon: <ShoppingBag className="w-5 h-5" />, iconBg: 'bg-[#AF52DE]/10', iconColor: 'text-[#AF52DE]', suffix: '家' },
-            { label: '平均利润率', value: (stats.avgProfitRate * 100).toFixed(1), icon: <TrendingUp className="w-5 h-5" />, iconBg: 'bg-[#34C759]/10', iconColor: 'text-[#34C759]', suffix: '%', valueColor: profitRateColor },
-          ].map((card, i) => (
-            <div key={i} className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:-translate-y-[3px] transition-all duration-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center ${card.iconColor}`}>
-                  {card.icon}
-                </div>
-              </div>
-              <h3 className={`text-2xl font-bold tabular-nums ${card.valueColor || 'text-[#1C1C1E]'}`}>
-                {card.value}<span className="text-sm font-normal text-[#8E8E93] ml-1">{card.suffix}</span>
-              </h3>
-              <p className="text-sm text-[#8E8E93] mt-1">{card.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* 产品报价概览 */}
-        <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-          <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-[#ff9500]" />产品报价概览
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[#E5E5EA]">
-                  <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">产品编码</th>
-                  <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">生产编码</th>
-                  <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">客户</th>
-                  <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">销售员</th>
-                  <th className="text-left py-3 px-3 text-[#8e8e93] font-medium">审批状态</th>
-                  <th className="text-right py-3 px-3 text-[#8e8e93] font-medium">辅料费用</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(quotations || []).map((q: any) => (
-                  <tr key={q.id} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB] transition-colors">
-                    <td className="py-3 px-3 font-medium text-[#1c1c1e]">{q.productCode}</td>
-                    <td className="py-3 px-3 text-[#8e8e93]">{q.productionCode}</td>
-                    <td className="py-3 px-3 text-[#8e8e93]">{q.customer}</td>
-                    <td className="py-3 px-3 text-[#8e8e93]">{q.salesperson}</td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${q.approvalStatus === '已终审' ? 'bg-[rgba(52,199,89,0.15)] text-[#34c759]' : 'bg-[rgba(255,149,0,0.15)] text-[#ff9500]'}`}>
-                        {q.approvalStatus}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono text-[#3a3a3c]">¥{formatMoneyShort(q.accessoryPrice)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 供应商最优推荐 */}
-        <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-          <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-[#007aff]" />供应商最优推荐
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(supplierCompares || []).map((sc, i) => (
-              <div key={i} className="bg-[#F9F9FB] rounded-xl p-4 hover:bg-[rgba(0,122,255,0.06)] transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-[#1c1c1e]">{sc.materialCode}</span>
-                  <span className="text-xs bg-[rgba(52,199,89,0.15)] text-[#34c759] px-2 py-0.5 rounded-full">节省{(sc.savingRate * 100).toFixed(1)}%</span>
-                </div>
-                <div className="text-sm text-[#8e8e93] mb-1">最优: <span className="text-[#34c759] font-medium">{sc.bestSupplier}</span> ¥{formatMoneyShort(sc.bestPrice)}</div>
-                <div className="flex gap-2 flex-wrap">
-                  {(sc.suppliers || []).filter((s: any) => s.supplier !== sc.bestSupplier).map((s: any, j: number) => (
-                    <span key={j} className="text-xs bg-[rgba(118,118,128,0.12)] text-[#8e8e93] px-2 py-0.5 rounded">
-                      {s.supplier} ¥{formatMoneyShort(s.unitPrice)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ============ 渲染：智能报价 ============
-  const renderSmartQuote = () => (
-    <div className="space-y-6">
-      {/* 参数配置 */}
-      <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-        <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
-          <Calculator className="w-5 h-5 text-[#ff9500]" />报价参数配置
-        </h3>
-        <div className="flex flex-wrap gap-6 items-end">
-          <div>
-            <label className="block text-sm text-[#8e8e93] mb-1">目标利润率 (%)</label>
-            <input type="number" value={targetProfitRate} onChange={e => setTargetProfitRate(Number(e.target.value))}
-              className="w-28 px-3 py-2 border border-[#e5e5ea] rounded-lg text-sm focus:ring-2 focus:ring-[#007AFF]/30 focus:border-[#007AFF] outline-none bg-[rgba(118,118,128,0.12)]" />
-          </div>
-          <div>
-            <label className="block text-sm text-[#8e8e93] mb-1">加工费 (元/条)</label>
-            <input type="number" step="0.01" value={processingCost} onChange={e => setProcessingCost(Number(e.target.value))}
-              className="w-28 px-3 py-2 border border-[#e5e5ea] rounded-lg text-sm focus:ring-2 focus:ring-[#007AFF]/30 focus:border-[#007AFF] outline-none bg-[rgba(118,118,128,0.12)]" />
-          </div>
-          <button onClick={loadAllData} className="px-4 py-2 bg-[#007AFF] text-white rounded-xl text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all">
-            <RefreshCw className="w-4 h-4 inline mr-1" />重新计算
-          </button>
-        </div>
-      </div>
-
-      {/* 逐产品报价卡片 */}
-      {(smartQuotes || []).map((sq, idx) => {
-        const profitColor = sq.profitRate >= 0.3 ? 'text-[#34c759]' : sq.profitRate >= 0.2 ? 'text-[#ff9500]' : 'text-[#ff3b30]';
-        const profitBg = sq.profitRate >= 0.3 ? 'bg-[#34C759]/10' : sq.profitRate >= 0.2 ? 'bg-[#FF9500]/10' : 'bg-[#FF3B30]/10';
-        return (
-          <div key={idx} className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-            <div className="px-5 py-4 border-b border-[#E5E5EA] flex items-center justify-between">
-              <div>
-                <h4 className="text-lg font-bold text-[#1c1c1e]">{sq.productCode}
-                  <span className="text-sm font-normal text-[#8e8e93] ml-2">({sq.productionCode})</span>
-                </h4>
-                <div className="text-sm text-[#8e8e93] mt-0.5">客户: {sq.customer} | 下机克重: {sq.productWeight || sq.sewingWeight}g | 日产能: {sq.dailyCapacity}条</div>
-              </div>
-              <div className={`px-4 py-2 rounded-xl ${profitBg}`}>
-                <div className="text-xs text-[#8e8e93]">利润率</div>
-                <div className={`text-xl font-bold ${profitColor}`}>{(sq.profitRate * 100).toFixed(1)}%</div>
-              </div>
-            </div>
-            <div className="p-5">
-              {/* 成本构成表格 */}
-              <div className="overflow-x-auto mb-4">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#E5E5EA]">
-                      <th className="text-left py-2 px-3 text-[#8e8e93] font-semibold">原料名称</th>
-                      <th className="text-right py-2 px-3 text-[#8e8e93] font-semibold">用量(g)</th>
-                      <th className="text-right py-2 px-3 text-[#8e8e93] font-semibold">单价(元/kg)</th>
-                      <th className="text-right py-2 px-3 text-[#8e8e93] font-semibold">采购参考价</th>
-                      <th className="text-right py-2 px-3 text-[#8e8e93] font-semibold">原料成本</th>
-                      <th className="text-left py-2 px-3 text-[#8e8e93] font-semibold">最优供应商</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {((sq.materials || [])).map((m: any, mi: number) => (
-                      <tr key={mi} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB]">
-                        <td className="py-2 px-3 text-[#1c1c1e] font-medium">{m.name}</td>
-                        <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">{m.usage}</td>
-                        <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">¥{formatMoney(m.unitPrice)}</td>
-                        <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">{m.purchaseRefPrice ? `¥${formatMoney(m.purchaseRefPrice)}/kg` : '-'}</td>
-                        <td className="py-2 px-3 text-right font-mono text-[#ff9500] font-semibold">¥{formatMoney(m.cost)}</td>
-                        <td className="py-2 px-3 text-[#8e8e93] text-xs">{m.bestSupplier || '-'}</td>
-                      </tr>
-                    ))}
-                    {/* 辅料行 */}
-                    <tr className="border-b border-[#E5E5EA] bg-[rgba(0,122,255,0.1)]">
-                      <td className="py-2 px-3 text-[#007aff] font-medium">{sq.accessoryName || '辅料'}</td>
-                      <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-[#007aff] font-semibold">¥{formatMoney(sq.accessoryCost)}</td>
-                      <td className="py-2 px-3 text-[#8e8e93] text-xs">-</td>
-                    </tr>
-                    {/* 制造部分小计 */}
-                    <tr className="border-b border-[#E5E5EA] bg-[rgba(0,122,255,0.1)]">
-                      <td className="py-2 px-3 text-[#007aff] font-medium">制造合计(织造+后整理)</td>
-                      <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-[#8e8e93]">-</td>
-                      <td className="py-2 px-3 text-right font-mono text-[#007aff] font-semibold">¥{formatMoney(sq.manufacturingCost)}</td>
-                      <td className="py-2 px-3 text-[#007aff] text-xs">R/P + M/1000×D</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 制造部分明细 - 新公式 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">机台费率 R(元/h)</div>
-                  <div className="text-sm font-bold text-[#1c1c1e]">{sq.machineHourlyRate || 50}</div>
-                </div>
-                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">单机产量 P(双/h)</div>
-                  <div className="text-sm font-bold text-[#1c1c1e]">{sq.singleMachineOutput || 1000}</div>
-                </div>
-                <div className="bg-[rgba(0,122,255,0.1)] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">织造成本 R/P</div>
-                  <div className="text-sm font-bold text-[#007aff]">¥{formatMoney(sq.weavingCost)}</div>
-                </div>
-                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">下机克重 M(g)</div>
-                  <div className="text-sm font-bold text-[#1c1c1e]">{sq.productWeight || sq.sewingWeight}</div>
-                </div>
-                <div className="bg-[#F9F9FB] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">染色单价 D(元/kg)</div>
-                  <div className="text-sm font-bold text-[#1c1c1e]">{sq.dyeingUnitPrice || '-'}</div>
-                </div>
-                <div className="bg-[rgba(255,149,0,0.1)] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">后整理 M/1000×D</div>
-                  <div className="text-sm font-bold text-[#ff9500]">¥{formatMoney(sq.postProcessCost)}</div>
-                </div>
-                <div className="bg-[rgba(0,122,255,0.1)] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">制造合计</div>
-                  <div className="text-sm font-bold text-[#007aff]">¥{formatMoney(sq.manufacturingCost)}</div>
-                </div>
-                <div className="bg-[rgba(0,122,255,0.1)] rounded-lg p-2.5 text-center">
-                  <div className="text-xs text-[#8e8e93]">正品率</div>
-                  <div className="text-sm font-bold text-[#007aff]">{sq.yieldRate || 100}%</div>
-                </div>
-              </div>
-
-              {/* 汇总行 */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div className="bg-[#F9F9FB] rounded-lg p-3 text-center">
-                  <div className="text-xs text-[#8e8e93] mb-1">原料成本</div>
-                  <div className="text-lg font-bold text-[#1c1c1e]">¥{formatMoneyShort(sq.totalMaterialCost)}</div>
-                </div>
-                <div className="bg-[rgba(0,122,255,0.1)] rounded-lg p-3 text-center">
-                  <div className="text-xs text-[#8e8e93] mb-1">辅料成本</div>
-                  <div className="text-lg font-bold text-[#007aff]">¥{formatMoneyShort(sq.accessoryCost)}</div>
-                </div>
-                <div className="bg-[rgba(0,122,255,0.1)] rounded-lg p-3 text-center">
-                  <div className="text-xs text-[#8e8e93] mb-1">制造合计</div>
-                  <div className="text-lg font-bold text-[#007aff]">¥{formatMoneyShort(sq.manufacturingCost)}</div>
-                </div>
-                <div className="bg-[rgba(255,149,0,0.1)] rounded-lg p-3 text-center">
-                  <div className="text-xs text-[#8e8e93] mb-1">净成本/条</div>
-                  <div className="text-lg font-bold text-[#ff9500]">¥{formatMoneyShort(sq.netCost)}</div>
-                </div>
-                <div className="bg-[rgba(52,199,89,0.1)] rounded-lg p-3 text-center">
-                  <div className="text-xs text-[#8e8e93] mb-1">建议报价/条</div>
-                  <div className="text-lg font-bold text-[#34c759]">¥{formatMoneyShort(sq.suggestedPrice)}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* 供应商对比 */}
-      <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-        <h3 className="text-lg font-semibold text-[#1c1c1e] mb-4 flex items-center gap-2">
-          <Target className="w-5 h-5 text-[#007aff]" />原料采购供应商对比
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E5E5EA]">
-                <th className="text-left py-3 px-3 text-[#8e8e93] font-semibold">原料编码</th>
-                <th className="text-left py-3 px-3 text-[#8e8e93] font-semibold">最优供应商</th>
-                <th className="text-right py-3 px-3 text-[#8e8e93] font-semibold">最低价</th>
-                <th className="text-right py-3 px-3 text-[#8e8e93] font-semibold">最高价</th>
-                <th className="text-right py-3 px-3 text-[#8e8e93] font-semibold">节省比例</th>
-                <th className="text-left py-3 px-3 text-[#8e8e93] font-semibold">全部供应商</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(supplierCompares || []).map((sc, i) => (
-                <tr key={i} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB]">
-                  <td className="py-3 px-3 font-medium text-[#1c1c1e]">{sc.materialCode}</td>
-                  <td className="py-3 px-3">
-                    <span className="text-[#34c759] font-medium">{sc.bestSupplier}</span>
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-[#34c759] font-semibold">¥{formatMoney(sc.bestPrice)}</td>
-                  <td className="py-3 px-3 text-right font-mono text-[#ff3b30]">¥{formatMoney(sc.worstPrice)}</td>
-                  <td className="py-3 px-3 text-right">
-                    <span className="bg-[rgba(52,199,89,0.15)] text-[#34c759] px-2 py-0.5 rounded-full text-xs font-medium">
-                      -{(sc.savingRate * 100).toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="py-3 px-3">
-                    <div className="flex flex-wrap gap-1">
-                      {(sc.suppliers || []).map((s: any, j: number) => (
-                        <span key={j} className={`text-xs px-2 py-0.5 rounded ${s.supplier === sc.bestSupplier ? 'bg-[rgba(52,199,89,0.15)] text-[#34c759]' : 'bg-[rgba(118,118,128,0.12)] text-[#8e8e93]'}`}>
-                          {s.supplier} ¥{formatMoneyShort(s.unitPrice)}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ============ 渲染：通用数据表 ============
-  const renderDataTable = () => {
-    let data: any[] = [];
-    let columns: { key: string; label: string; align?: string; format?: (v: any) => string }[] = [];
-    let apiType = '';
-
-    switch (activeTab) {
-      case 'quotation':
-        apiType = 'quotations';
-        data = quotations;
-        columns = [
-          { key: 'productCode', label: '产品编码' },
-          { key: 'productionCode', label: '生产编码' },
-          { key: 'customer', label: '客户' },
-          { key: 'salesperson', label: '销售员' },
-          { key: 'approvalStatus', label: '审批状态' },
-          { key: 'rawMaterialName1', label: '原料1' },
-          { key: 'materialUsage1', label: '用量1', align: 'right', format: formatMoney },
-          { key: 'materialUnitPrice1', label: '单价1', align: 'right', format: formatMoney },
-          { key: 'rawMaterialName2', label: '原料2' },
-          { key: 'materialUsage2', label: '用量2', align: 'right', format: formatMoney },
-          { key: 'materialUnitPrice2', label: '单价2', align: 'right', format: formatMoney },
-          { key: 'accessoryName', label: '辅料' },
-          { key: 'accessoryPrice', label: '辅料价', align: 'right', format: formatMoneyShort },
-        ];
-        break;
-      case 'warehouse':
-        apiType = 'warehouse';
-        data = warehouse;
-        columns = [
-          { key: 'huohao', label: '货号' },
-          { key: 'productCode', label: '原料编码' },
-          { key: 'color', label: '颜色' },
-          { key: 'size', label: '尺码' },
-          { key: 'component', label: '部件' },
-          { key: 'supplier', label: '供应商' },
-          { key: 'materialName', label: '物料名称' },
-          { key: 'specification', label: '规格' },
-          { key: 'materialColor', label: '物料颜色' },
-          { key: 'batchNo', label: '批号' },
-          { key: 'twistDirection', label: '捻向' },
-          { key: 'unit', label: '单位' },
-          { key: 'usagePerUnit', label: '单件用量', align: 'right', format: formatMoney },
-          { key: 'lossRate', label: '损耗(%)', align: 'right', format: formatMoney },
-          { key: 'unitPrice', label: '单价', align: 'right', format: formatMoneyShort },
-          { key: 'remark', label: '备注' },
-        ];
-        break;
-      case 'purchase':
-        apiType = 'purchases';
-        data = purchases;
-        columns = [
-          { key: 'materialCode', label: '原料编码' },
-          { key: 'unit', label: '单位' },
-          { key: 'supplier', label: '供应商' },
-          { key: 'batchNo', label: '批次号' },
-          { key: 'unitPrice', label: '单价', align: 'right', format: formatMoney },
-        ];
-        break;
-      case 'plan':
-        apiType = 'plans';
-        data = plans;
-        columns = [
-          { key: 'semiProductCode', label: '半成品编码' },
-          { key: 'productCode', label: '产品编码' },
-          { key: 'sewingWeight', label: '缝头重量(g)', align: 'right' },
-          { key: 'machineType', label: '机型' },
-          { key: 'needleCount', label: '针数' },
-          { key: 'seconds', label: '耗时(秒)', align: 'right' },
-          { key: 'machineCount', label: '机台数', align: 'right' },
-          { key: 'singleMachineOutput', label: '单机产量', align: 'right' },
-        ];
-        break;
-      case 'accessory':
-        apiType = 'accessories';
-        data = accessories;
-        columns = [
-          { key: 'accessoryName', label: '辅料名称' },
-          { key: 'accessoryCategory', label: '分类' },
-          { key: 'unit', label: '单位' },
-          { key: 'supplier', label: '供应商' },
-          { key: 'accessoryUnitPrice', label: '单价', align: 'right', format: formatMoneyShort },
-        ];
-        break;
-      default:
-        return null;
-    }
-
-    const deleteType = activeTab === 'quotation' ? 'quotations' : activeTab === 'warehouse' ? 'warehouse' : activeTab === 'purchase' ? 'purchases' : activeTab === 'plan' ? 'plans' : 'accessories';
-
-    return (
-      <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
-        {/* 工具栏 */}
-        <div className="px-4 py-3 border-b border-[#E5E5EA] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" />
-              <input type="text" placeholder="搜索..." value={searchKeyword}
-                onChange={e => setSearchKeyword(e.target.value)}
-                  className="pl-9 pr-3 py-1.5 text-[13px] border border-[#E5E5EA] rounded-lg w-52 focus:ring-2 focus:ring-[#007AFF]/30 focus:border-[#007AFF] outline-none bg-[rgba(118,118,128,0.12)] transition-colors placeholder:text-[#8e8e93]" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="file" ref={fileInputRef} onChange={handleImport} accept=".xlsx,.xls" className="hidden" />
-            <button onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#007AFF] text-white text-[13px] font-medium rounded-xl hover:opacity-90 active:scale-[0.97] transition-all">
-              <Upload className="w-3.5 h-3.5" />导入Excel
-            </button>
-          </div>
-        </div>
-        {/* 表格 */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="bg-[#F9F9FB] border-b border-[#E5E5EA]">
-                {columns.map(col => (
-                  <th key={col.key} className={`py-2.5 px-3 text-[#8e8e93] font-semibold text-[12px] uppercase tracking-wider ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
-                    {col.label}
-                  </th>
-                ))}
-                <th className="py-2.5 px-3 text-[#8e8e93] font-semibold text-[12px] uppercase tracking-wider text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data || []).length === 0 ? (
-                <tr><td colSpan={columns.length + 1} className="py-12 text-center text-[#8e8e93] text-[13px]">暂无数据</td></tr>
-              ) : (data || []).map((row: any, ri: number) => (
-                <tr key={row.id || ri} className="border-b border-[#E5E5EA] hover:bg-[#F9F9FB] transition-colors">
-                  {columns.map((col: any) => (
-                    <td key={col.key} className={`py-2.5 px-3 text-[#3a3a3c] ${col.align === 'right' ? 'text-right font-mono text-[12px]' : ''}`}>
-                      {col.format ? col.format(row[col.key]) : (row[col.key] ?? '-')}
-                    </td>
-                  ))}
-                  <td className="py-2.5 px-3 text-right">
-                    <button onClick={() => handleDelete(deleteType, row.id)}
-                      className="p-1.5 text-[#ff3b30] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)] rounded-lg transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-4 py-2.5 border-t border-[#e5e5ea] text-[12px] text-[#8e8e93]">
-          共 {data.length} 条记录
-        </div>
-      </div>
-    );
-  };
-
   // ============ 主渲染 ============
   const [brand, setBrand] = useState(BRANDS.yingyun);
   const BrandIcon = brand.key === 'bonasi' ? Scissors : Cloud;
@@ -1066,16 +409,17 @@ export default function SupplyChainPage() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all text-[#8e8e93] hover:bg-[rgba(118,118,128,0.12)] hover:text-[#1c1c1e] border-l border-[rgba(229,229,234,0.5)] ml-1 pl-3">
             <ClipboardList className="w-4 h-4" />历史订单
           </button>
+          {/* ERP 数据同步（仅管理员以上可见） */}
+          {isAdminOrAbove(currentUserRole) && (
+            <button onClick={() => router.push('/erp-sync')}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all text-[#8e8e93] hover:bg-[rgba(118,118,128,0.12)] hover:text-[#1c1c1e]">
+              <RefreshCcw className="w-4 h-4" />ERP 同步
+            </button>
+          )}
         </div>
 
         {/* 内容区 */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <RefreshCw className="w-6 h-6 text-[#007AFF] animate-spin mr-2" />
-            <span className="text-[#8e8e93]">加载数据中...</span>
-          </div>
-        ) : (
-          <>
+        <>
             {activeTab === 'chat' && (
               <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
                 {/* 聊天消息区 */}
@@ -1378,11 +722,8 @@ export default function SupplyChainPage() {
                 </div>
               </div>
             )}
-            {activeTab === 'dashboard' && renderDashboard()}
-            {activeTab === 'smart-quote' && renderSmartQuote()}
-            {['quotation', 'warehouse', 'purchase', 'plan', 'accessory'].includes(activeTab) && renderDataTable()}
+            {activeTab === 'dashboard' && <DocumentStatsDashboard />}
           </>
-        )}
       </div>
     </div>
   );

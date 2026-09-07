@@ -11,12 +11,15 @@ import { Input } from '@/components/ui/input';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { isAdminOrAbove, isSuperAdmin, canResetPasswordOf, roleDisplayName } from '@/lib/auth';
+
+type RoleType = 'admin' | 'user' | 'superadmin';
 
 interface UserInfo {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'user';
+  role: RoleType;
   avatar?: string;
   nickname?: string;
   bio?: string;
@@ -29,7 +32,7 @@ interface CurrentUser {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'user';
+  role: RoleType;
   nickname?: string;
 }
 
@@ -49,7 +52,7 @@ export default function UsersPage() {
     username: '',
     password: '',
     email: '',
-    role: 'user' as 'admin' | 'user',
+    role: 'user' as RoleType,
     nickname: '',
     phone: '',
   });
@@ -57,7 +60,7 @@ export default function UsersPage() {
   // 编辑用户表单
   const [editForm, setEditForm] = React.useState({
     email: '',
-    role: 'user' as 'admin' | 'user',
+    role: 'user' as RoleType,
     nickname: '',
     phone: '',
     password: '',
@@ -76,8 +79,8 @@ export default function UsersPage() {
           return;
         }
         
-        // 检查是否为管理员
-        if (authData.data.role !== 'admin') {
+        // 检查是否为管理员及以上（admin / superadmin）
+        if (!isAdminOrAbove(authData.data.role)) {
           toast.error('权限不足');
           router.push('/');
           return;
@@ -160,7 +163,7 @@ export default function UsersPage() {
     setSelectedUser(user);
     setEditForm({
       email: user.email,
-      role: (user.role?.toLowerCase() || 'user') as 'admin' | 'user',
+      role: (user.role?.toLowerCase() || 'user') as RoleType,
       nickname: user.nickname || '',
       phone: user.phone || '',
       password: '',
@@ -242,6 +245,36 @@ export default function UsersPage() {
     router.push('/');
   };
 
+  // 角色徽章样式（三级）
+  const roleBadgeClass = (role: RoleType) => {
+    if (role === 'superadmin') return 'bg-[rgba(175,82,222,0.1)] text-[#AF52DE]';
+    if (role === 'admin') return 'bg-[rgba(0,122,255,0.1)] text-[#007aff]';
+    return 'bg-[rgba(118,118,128,0.08)] text-[#8e8e93]';
+  };
+
+  // 角色头像底色（三级）
+  const roleAvatarClass = (role: RoleType) => {
+    if (role === 'superadmin') return 'bg-[#AF52DE]';
+    if (role === 'admin') return 'bg-[#007AFF]';
+    return 'bg-[#8E8E93]';
+  };
+
+  // 是否可编辑目标用户（管理员不能编辑其他管理员/超级管理员，超级管理员不受限）
+  const canEditTarget = (target: UserInfo) => {
+    if (!currentUser) return false;
+    if (isSuperAdmin(currentUser.role)) return true;
+    if (target.id === currentUser.id) return true;
+    return !isAdminOrAbove(target.role);
+  };
+
+  // 是否可删除目标用户
+  const canDeleteTarget = (target: UserInfo) => {
+    if (!currentUser) return false;
+    if (target.id === currentUser.id) return false; // 不能删除自己
+    if (isSuperAdmin(currentUser.role)) return target.role !== 'superadmin'; // 超管不能删超管
+    return !isAdminOrAbove(target.role);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center">
@@ -313,9 +346,7 @@ export default function UsersPage() {
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center text-white font-medium",
-                        user.role === 'admin'
-                          ? "bg-[#007AFF]"
-                          : "bg-[#8E8E93]"
+                        roleAvatarClass(user.role)
                       )}>
                         {(user.nickname || user.username)?.[0]?.toUpperCase()}
                       </div>
@@ -329,12 +360,10 @@ export default function UsersPage() {
                   <td className="px-6 py-4">
                     <span className={cn(
                       "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
-                      user.role === 'admin'
-                        ? "bg-[rgba(0,122,255,0.1)] text-[#007aff]"
-                        : "bg-[rgba(118,118,128,0.08)] text-[#8e8e93]"
+                      roleBadgeClass(user.role)
                     )}>
-                      {user.role === 'admin' && <Shield className="w-3 h-3" />}
-                      {user.role === 'admin' ? '管理员' : '普通用户'}
+                      {isAdminOrAbove(user.role) && <Shield className="w-3 h-3" />}
+                      {roleDisplayName(user.role)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-[#8e8e93]">{user.createdAt}</td>
@@ -347,7 +376,9 @@ export default function UsersPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditModal(user)}
-                        className="text-[#8e8e93] hover:text-[#007aff]"
+                        disabled={!canEditTarget(user)}
+                        title={!canEditTarget(user) ? '管理员不能修改其他管理员的账号' : ''}
+                        className="text-[#8e8e93] hover:text-[#007aff] disabled:opacity-30"
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
@@ -355,8 +386,8 @@ export default function UsersPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteUser(user)}
-                        disabled={user.id === currentUser?.id}
-                        className="text-[#8e8e93] hover:text-[#ff3b30] disabled:opacity-50"
+                        disabled={!canDeleteTarget(user)}
+                        className="text-[#8e8e93] hover:text-[#ff3b30] disabled:opacity-30"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -376,18 +407,24 @@ export default function UsersPage() {
         </div>
 
         {/* 统计信息 */}
-        <div className="mt-6 flex gap-4">
-          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4 flex-1">
+        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4">
             <p className="text-sm text-[#8e8e93]">总用户数</p>
-            <p className="text-2xl font-semibold text-[#8e8e93]">{users.length}</p>
+            <p className="text-2xl font-semibold text-[#1c1c1e]">{users.length}</p>
           </div>
-          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4 flex-1">
+          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4">
+            <p className="text-sm text-[#8e8e93]">超级管理员</p>
+            <p className="text-2xl font-semibold text-[#AF52DE]">
+              {users.filter(u => u.role === 'superadmin').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4">
             <p className="text-sm text-[#8e8e93]">管理员</p>
             <p className="text-2xl font-semibold text-[#007aff]">
               {users.filter(u => u.role === 'admin').length}
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4 flex-1">
+          <div className="bg-white rounded-xl border border-[#e5e5ea] p-4">
             <p className="text-sm text-[#8e8e93]">普通用户</p>
             <p className="text-2xl font-semibold text-[#8e8e93]">
               {users.filter(u => u.role === 'user').length}
@@ -481,6 +518,19 @@ export default function UsersPage() {
                   >
                     管理员
                   </button>
+                  {isSuperAdmin(currentUser?.role) && (
+                    <button
+                      onClick={() => setNewUserForm(prev => ({ ...prev, role: 'superadmin' }))}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg border-2 transition-colors",
+                        newUserForm.role === 'superadmin'
+                          ? "border-[#AF52DE] bg-[rgba(175,82,222,0.1)] text-[#AF52DE]"
+                          : "border-[#e5e5ea] text-[#8e8e93]"
+                      )}
+                    >
+                      超级管理员
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -518,9 +568,7 @@ export default function UsersPage() {
               <div className="flex items-center gap-3 p-3 bg-[#f2f2f7] rounded-xl">
                 <div className={cn(
                   "w-12 h-12 rounded-xl flex items-center justify-center text-white font-medium",
-                  selectedUser.role === 'admin'
-                    ? "bg-[#007AFF]"
-                    : "bg-[#8E8E93]"
+                  roleAvatarClass(selectedUser.role)
                 )}>
                   {(selectedUser.nickname || selectedUser.username)?.[0]?.toUpperCase()}
                 </div>
@@ -561,10 +609,18 @@ export default function UsersPage() {
                   type="password"
                   value={editForm.password}
                   onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
-                  placeholder="留空则不修改密码"
+                  placeholder={
+                    canResetPasswordOf(currentUser?.role, currentUser?.id || '', selectedUser.role, selectedUser.id)
+                      ? '留空则不修改密码'
+                      : '管理员不能修改其他管理员的密码'
+                  }
+                  disabled={!canResetPasswordOf(currentUser?.role, currentUser?.id || '', selectedUser.role, selectedUser.id)}
                 />
+                {!canResetPasswordOf(currentUser?.role, currentUser?.id || '', selectedUser.role, selectedUser.id) && (
+                  <p className="mt-1.5 text-xs text-[#FF9500]">仅超级管理员可重置其他管理员的密码</p>
+                )}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-[#8e8e93] mb-2">角色</label>
                 <div className="flex gap-3">
@@ -592,6 +648,20 @@ export default function UsersPage() {
                   >
                     管理员
                   </button>
+                  {isSuperAdmin(currentUser?.role) && (
+                    <button
+                      onClick={() => setEditForm(prev => ({ ...prev, role: 'superadmin' }))}
+                      disabled={selectedUser.id === currentUser?.id}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg border-2 transition-colors disabled:opacity-50",
+                        editForm.role === 'superadmin'
+                          ? "border-[#AF52DE] bg-[rgba(175,82,222,0.1)] text-[#AF52DE]"
+                          : "border-[#e5e5ea] text-[#8e8e93]"
+                      )}
+                    >
+                      超级管理员
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

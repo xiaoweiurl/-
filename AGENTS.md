@@ -323,46 +323,43 @@ npx tsc --noEmit          # TypeScript 类型检查
 
 ## 用户认证与权限管理
 
-### 用户角色
-系统支持两种用户角色：
-- **管理员 (admin)**: 拥有所有权限，包括用户管理、系统配置等
+### 用户角色（三级权限）
+系统支持三种用户角色：
+- **超级管理员 (superadmin)**: 最高权限，不受密码重置限制
+- **管理员 (admin)**: 拥有管理权限，可访问 ERP 数据同步页；**不能重置其他管理员/超级管理员的密码**（本人除外）
 - **普通用户 (user)**: 基础权限，可管理自己的知识和分类
 
 ### 预置用户账号
 | 用户名 | 密码 | 角色 | 说明 |
 |--------|------|------|------|
-| admin | Admin@123 | ADMIN | 系统管理员账号 |
+| superadmin | Super@123 | superadmin | 超级管理员账号 |
+| admin | Admin@123 | admin | 系统管理员账号 |
 | user | User@123 | user | 普通用户账号 |
 
 ### 权限配置
 ```typescript
 // src/lib/auth.ts
-export const PERMISSIONS = {
-  // 知识管理
-  UPLOAD_IMAGE: 'upload_image',
-  DELETE_OWN_IMAGE: 'delete_own_image',
-  DELETE_ANY_IMAGE: 'delete_any_image',
-  
-  // 分类管理
-  CREATE_ALBUM: 'create_album',
-  DELETE_OWN_ALBUM: 'delete_own_album',
-  DELETE_ANY_ALBUM: 'delete_any_album',
-  
-  // 用户管理
-  MANAGE_USERS: 'manage_users',
-  VIEW_ALL_USERS: 'view_all_users',
-};
+export type UserRole = 'user' | 'admin' | 'superadmin';
 
-export const ROLE_PERMISSIONS = {
-  admin: Object.values(PERMISSIONS), // 管理员拥有所有权限
-  user: [
-    PERMISSIONS.UPLOAD_IMAGE,
-    PERMISSIONS.DELETE_OWN_IMAGE,
-    PERMISSIONS.CREATE_ALBUM,
-    PERMISSIONS.DELETE_OWN_ALBUM,
-  ], // 普通用户仅有基础权限
-};
+// 角色能力配置对象（superadmin / admin / user 三键）
+export const PERMISSIONS = {
+  superadmin: { canUpload: true, canDelete: true, ..., canErpSync: true },
+  admin:      { canUpload: true, canDelete: true, ..., canErpSync: true },
+  user:       { canUpload: true, canDelete: false, ..., canErpSync: false },
+} as const;
+
+// 三级权限辅助函数
+isAdminOrAbove(role)       // 是否管理员及以上（ERP 同步页可见性）
+isSuperAdmin(role)         // 是否超级管理员
+roleDisplayName(role)      // 角色显示名（超级管理员/管理员/普通用户）
+canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
+// 规则：superadmin 不限；admin 不能改其他 admin/superadmin 密码（本人除外）
 ```
+
+**后端对应实现**：
+- `AdminController.resetPassword`：X-Session-Id 解析操作者，非 superadmin 且目标为 admin/superadmin 且非本人 → 403
+- `AuthServiceImpl.initDefaultData`：预置 superadmin 账号（existsByUsername 独立判断，兼容已有环境）
+- 前端 `users/page.tsx`：角色三级徽章 + 重置密码按钮按 `canResetPasswordOf` 禁用
 
 ### API 端点
 
@@ -547,6 +544,40 @@ export const ROLE_PERMISSIONS = {
 - `GET /api/products/main-images` - 获取商品主图列表
 - `GET /api/products/{id}` - 获取商品详情
 - `GET /api/products/{id}/images` - 获取商品所有图片
+
+#### ERP 数据同步（仅管理员及以上）
+外部 ERP（`http://mpro42.ywhzsoft.com/netWf2024Unitive_Ent/`）增量同步，Java 后端（`ErpSyncController` + `ErpSyncServiceImpl` + `ErpAuthServiceImpl` + `ErpClient` + `ErpProperties`）+ Next.js 通配代理（`/api/erp-sync/[[...path]]` → `/erp-sync/*`）：
+
+- `POST /api/erp-sync/login` - ERP 登录（uid/password/customId → token 缓存服务端，登录接口独立地址）
+- `GET /api/erp-sync/auth-state` - 登录态（loggedIn/uid/loginTime/demo/baseUrl，不返 token）
+- `POST /api/erp-sync/logout` - 登出清除 token
+- `GET /api/erp-sync/status` - 同步状态概览（7 模块游标 + summary 汇总）
+- `POST /api/erp-sync/sync/{moduleKey}` - 单模块增量同步（数据库最新时间→当前时间）
+- `POST /api/erp-sync/sync-all` - 全部模块串行同步
+- `GET /api/erp-sync/logs?limit=50` / `DELETE /api/erp-sync/logs` - 日志查询/清空
+
+**接口规范**：统一响应 `{code, message, result}`（1 成功 / 0 失败 / -100 鉴权失败 / -101 超时 / -200 无效账套码）；业务接口 Header 带 `Authorization: Bearer {token}`；401 时前端跳 ERP 登录。
+
+**7 个同步模块**：orders(销售订单，支持 dates/datee 时间过滤)、neiyi-gongyidan、siwa-gongyidan、gongyi-bujian、gongyi-gongxu、gongxu-gongjia、yuanliao-bom（工艺类 ERP 端不支持时间过滤，本地游标记增量）。
+
+**配置**（`application.yml` erp 段，全部环境变量可覆盖）：`erp.base-url`（业务统一前缀，全局常量）/ `erp.login-url` / `erp.login-path` / `erp.custom-id` / `erp.timeout` / `erp.demo-enabled`（演示模式：ERP 不可达自动降级，按时间跨度×模块日均量生成模拟增量）。
+
+**数据表**（V57）：`erp_sync_state`（module_key PK + last_sync_time 游标 + total_records + last_status）、`erp_sync_log`（同步明细：sync_type/range_start/range_end/added/failed/status/duration_ms/source）。
+
+**前端页面**：`/erp-sync`（权限守卫非管理员显示无权限页 + ERP 登录卡 + 4 概览卡片 + 7 模块列表单模块同步 + 全部同步进度 + 日志表格清空），入口在供应链主页 TABS 区（仅 `isAdminOrAbove` 可见）。
+
+#### 三单据统计（报价单/销售单/工艺单）
+供应链主页「单据概览」Tab 数据源，Java 后端（`DocumentStatsController` + `DocumentStatsServiceImpl`：JdbcTemplate）+ Next.js 通配代理（`/api/document-stats/[[...path]]` → `/document-stats/*`）：
+
+- `GET /api/document-stats/overview` - 6 概览卡片（quotationAmount/quotationCount/salesAmount/salesOrderCount/gongyidanCount/passRate + 月度环比）
+- `GET /api/document-stats/trend?days=30` - 报价&销售金额双系列趋势（按 zhdate 聚合 MM-DD）
+- `GET /api/document-stats/gongyidan-status` - 工艺单按 hhtype 分布（空归"未分类"）
+- `GET /api/document-stats/recent-quotations` - 最近报价单（dh/date/customer/huohao/spname/saleprice/cost/passRate）
+- `GET /api/document-stats/recent-gongyidan` - 最近工艺单（bh/hhtype/huohao/spname + bomCount/machineCount/processCount/priceCount 四个关联子查询）
+
+**数据口径**：销售金额=SUM(sl_sum×货号最新报价) 估算（order_xs_list 无金额字段）；合格率=AVG(zpl) 兼容 0-1/0-100；工艺单关联=jfk.huohao=buj/gxp/gxpr.hhname=raw_material_warehouse.huohao。
+
+**前端组件**：`src/components/DocumentStatsDashboard.tsx`（6 卡片 + 手绘 SVG 双折线趋势图 + 环形图 + 两个最近列表）。供应链主页已移除原 6 个业务 Tab（智能报价/产品报价/原料入库/原料采购/生产计划/辅料采购），仅保留「AI 对话」与「单据概览」。
 
 #### 商品库（Goods Library）
 文件夹式商品管理，Java 后端（`GoodsLibraryController` + `GoodsLibraryServiceImpl`：JdbcTemplate + FileStorageService）+ Next.js 通配代理（`/api/goods-library/[[...path]]` → `/goods-library/*`）：

@@ -80,6 +80,27 @@ public class AuthServiceImpl implements AuthService {
      */
     @PostConstruct
     public void initDefaultData() {
+        // 三级权限：预置超级管理员（独立判断，兼容已有环境）
+        if (!userRepository.existsByUsername("superadmin")) {
+            User superAdmin = User.builder()
+                    .id("superadmin-1")
+                    .username("superadmin")
+                    .password(passwordEncoder.encode("Super@123"))
+                    .email("superadmin@example.com")
+                    .avatarUrl(null)
+                    .nickname("超级管理员")
+                    .bio("超级管理员账号（三级权限最高级）")
+                    .phone("13700137000")
+                    .role("superadmin")
+                    .membership("premium")
+                    .storageUsed(0L)
+                    .storageLimit(1024L * 1024 * 1024 * 100)
+                    .createdAt(LocalDateTime.now())
+                    .lastLoginAt(null)
+                    .build();
+            userRepository.save(superAdmin);
+            log.info("创建超级管理员用户: superadmin / Super@123");
+        }
         if (userRepository.count() > 0) {
             log.info("用户数据已存在，跳过初始化");
         } else {
