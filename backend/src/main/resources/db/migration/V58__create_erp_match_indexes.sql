@@ -1,33 +1,55 @@
--- V58: ERP「仅新增同步」批量匹配索引
--- 无唯一约束的业务表（order_buj_component / order_gongxu_process / order_gongxu_price / raw_material_warehouse）
--- 使用 md5(业务键) 表达式索引：
---   1. 分批 IN 查询匹配走索引扫描，避免全表扫描与 N+1
---   2. md5 定长 16 字节，规避多列 varchar(500) 组合索引超 2704 字节上限的风险
--- 注意（两处易错点，同步侧 Java 计算的 md5 规则必须与下方 SQL 表达式完全一致）：
---   1. 所有键列统一 ::text 转换（order_buj_component.zbj 为 integer，直接 COALESCE(int_col,'') 会报
---      "无效的类型 integer 输入语法"）
---   2. 所有键列统一 TRIM（Java 侧取值带 trim，SQL 侧必须同步，否则历史带空格数据匹配失败被误判为新增）
---   规则：md5(concat_ws('|', COALESCE(TRIM(col::text),'') ...))，Java 侧 null 键段按 "" 参与拼接
+-- ============================================================
+-- V58: ERP 数据同步「仅新增」匹配索引
+-- ============================================================
+-- 为 4 张无唯一约束的业务表创建 md5(业务键) 表达式索引，
+-- 用于 ERP 同步时快速匹配存量数据（避免全表扫描 + 避免组合索引超 2704 字节上限）。
+--
+-- 索引表达式规则（与 ErpDataPersister.buildMd5Expr 完全一致）：
+--   键段取值：COALESCE(TRIM(col::text), '')    —— 兼容 integer/text 列、去首尾空格、null 按 ''
+--   键段连接：'|' 字符串连接符                  —— || (textcat) 是 IMMUTABLE；
+--       ⚠️ 禁止使用 concat_ws：它是 STABLE 函数，索引表达式要求 IMMUTABLE，会报错
+--         "索引表达式中函数必需标记为 IMMUTABLE"
+--   外层哈希：md5(text) 定长 16 字节 IMMUTABLE
+-- Java 侧 ErpDataPersister.joinKey 取值规则与之一一对应（str() 取值带 trim，null 段按 ""）。
+-- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_buj_match_md5 ON order_buj_component (
-    md5(concat_ws('|',
-        COALESCE(TRIM(hhname::text), ''), COALESCE(TRIM(color::text), ''), COALESCE(TRIM(chima::text), ''),
-        COALESCE(TRIM(buj::text), ''), COALESCE(TRIM(zbj::text), ''), COALESCE(TRIM(jix::text), '')))
-);
+-- 工艺部件表：货号+颜色+尺码+部件+主编号+机型
+CREATE INDEX IF NOT EXISTS idx_buj_match_md5
+    ON order_buj_component (md5(
+        COALESCE(TRIM(hhname::text), '') || '|' ||
+        COALESCE(TRIM(color::text), '') || '|' ||
+        COALESCE(TRIM(chima::text), '') || '|' ||
+        COALESCE(TRIM(buj::text), '') || '|' ||
+        COALESCE(TRIM(zbj::text), '') || '|' ||
+        COALESCE(TRIM(jix::text), '')
+    ));
 
-CREATE INDEX IF NOT EXISTS idx_gxp_match_md5 ON order_gongxu_process (
-    md5(concat_ws('|',
-        COALESCE(TRIM(hhname::text), ''), COALESCE(TRIM(wtname::text), ''), COALESCE(TRIM(jizhong::text), ''),
-        COALESCE(TRIM(zhenju::text), ''), COALESCE(TRIM(zhenhao::text), ''), COALESCE(TRIM(zhenmu::text), '')))
-);
+-- 工艺工序表：货号+工序+机种+针距+针号+针目
+CREATE INDEX IF NOT EXISTS idx_gxp_match_md5
+    ON order_gongxu_process (md5(
+        COALESCE(TRIM(hhname::text), '') || '|' ||
+        COALESCE(TRIM(wtname::text), '') || '|' ||
+        COALESCE(TRIM(jizhong::text), '') || '|' ||
+        COALESCE(TRIM(zhenju::text), '') || '|' ||
+        COALESCE(TRIM(zhenhao::text), '') || '|' ||
+        COALESCE(TRIM(zhenmu::text), '')
+    ));
 
-CREATE INDEX IF NOT EXISTS idx_gxpr_match_md5 ON order_gongxu_price (
-    md5(concat_ws('|', COALESCE(TRIM(hhname::text), ''), COALESCE(TRIM(wtname::text), '')))
-);
+-- 工序工价表：货号+工序
+CREATE INDEX IF NOT EXISTS idx_gxpr_match_md5
+    ON order_gongxu_price (md5(
+        COALESCE(TRIM(hhname::text), '') || '|' ||
+        COALESCE(TRIM(wtname::text), '')
+    ));
 
-CREATE INDEX IF NOT EXISTS idx_rmw_match_md5 ON raw_material_warehouse (
-    md5(concat_ws('|',
-        COALESCE(TRIM(huohao::text), ''), COALESCE(TRIM(color::text), ''), COALESCE(TRIM(size::text), ''),
-        COALESCE(TRIM(component::text), ''), COALESCE(TRIM(material_name::text), ''),
-        COALESCE(TRIM(specification::text), ''), COALESCE(TRIM(batch_no::text), '')))
-);
+-- 原料仓表：货号+颜色+尺码+部件+原料名+规格+批号
+CREATE INDEX IF NOT EXISTS idx_rmw_match_md5
+    ON raw_material_warehouse (md5(
+        COALESCE(TRIM(huohao::text), '') || '|' ||
+        COALESCE(TRIM(color::text), '') || '|' ||
+        COALESCE(TRIM(size::text), '') || '|' ||
+        COALESCE(TRIM(component::text), '') || '|' ||
+        COALESCE(TRIM(material_name::text), '') || '|' ||
+        COALESCE(TRIM(specification::text), '') || '|' ||
+        COALESCE(TRIM(batch_no::text), '')
+    ));

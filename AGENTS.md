@@ -563,7 +563,8 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 **业务数据「仅新增同步」落库（ErpDataPersister，分批独立事务）**：
 - 核心规则：拉取 ERP 全量数据与本地表匹配比对，**仅插入匹配失败的新增数据；已匹配存量数据不做任何修改/更新**；重复执行幂等
 - 有主键表：`order_xs_list`(PK dh) / `order_jfk_gongyidan`(PK bh) / `order_sw_gongyidan`(PK bh) → `INSERT ... ON CONFLICT (pk) DO NOTHING`（主键唯一索引匹配）
-- 无唯一约束表（`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` / `raw_material_warehouse`）→ V58 md5(业务键) 表达式索引（规避多列 varchar(500) 组合索引超 2704 字节上限），分批 `WHERE md5(...) IN (...)` 一次查询走索引批量比对，差集即新增；Java md5 计算与 SQL 表达式规则严格一致（UTF-8 小写 hex + `COALESCE(TRIM(col::text),'')` 以 '|' 连接，Java 侧 null 键段按 "" 参与、取值带 trim——已实测含 integer 列/空格/null 混合场景两侧 md5 完全一致）
+- 无唯一约束表（`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` / `raw_material_warehouse`）→ V58 md5(业务键) 表达式索引（规避多列 varchar(500) 组合索引超 2704 字节上限），分批 `WHERE md5(...) IN (...)` 一次查询走索引批量比对，差集即新增；Java md5 计算与 SQL 表达式规则严格一致（UTF-8 小写 hex + `COALESCE(TRIM(col::text),'')` 以 IMMUTABLE 的 `||` 连接，Java 侧 null 键段按 "" 参与、取值带 trim——已实测含 integer 列/空格/null 混合场景两侧 md5 完全一致）
+- ⚠️ 索引表达式陷阱：`concat_ws` 是 STABLE 函数不能用于索引（报"索引表达式中函数必需标记为 IMMUTABLE"），必须用 `||`(textcat)；TRIM/md5 是 IMMUTABLE，COALESCE 是表达式非函数
 - ⚠️ 参数类型陷阱：varchar 列必须 `str()`（BigDecimal/Integer setObject 到 varchar 报类型错误）；int4/numeric 列可 str()（PG 隐式转换）或 decimal()/integer()；`order_buj_component.zbj/zs=int4`、`tongjing/kez/xjtime/llcl=numeric`；`order_gongxu_process` 仅 yongl/tims=numeric、sort=int4，zhenju~sline/yongl2 均为 varchar
 - 业务键：部件=hhname+color+chima+buj+zbj+jix；工序=hhname+wtname+jizhong+zhenju+zhenhao+zhenmu；工价=hhname+wtname；原料=huohao+color+size+component+material_name+specification+batch_no（原料本地维护字段 unit_price 等因"不更新"天然受保护）
 - 事务控制：每批 `erp.sync-batch-size`（默认1000）独立 TransactionTemplate 事务；某批失败仅回滚当前批、记录失败明细（message 中"失败批次：批次N(X条)失败: 原因"），状态置 `partial`；批内业务键去重保幂等

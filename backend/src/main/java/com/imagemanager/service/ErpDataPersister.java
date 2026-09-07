@@ -302,18 +302,22 @@ public class ErpDataPersister {
     // 工具方法
     // ================================================================
 
-    /** 构造与 V58 索引一致的 md5(业务键) SQL 表达式 */
+    /**
+     * 构造与 V58 索引一致的 md5(业务键) SQL 表达式。
+     * ⚠️ 禁止使用 concat_ws：它是 STABLE 函数，索引表达式要求 IMMUTABLE 会报错。
+     * 改用 IMMUTABLE 的 || (textcat) 连接符；TRIM/md5 均为 IMMUTABLE，COALESCE 是表达式非函数。
+     */
     private static String buildMd5Expr(List<String> localKeyCols) {
-        StringBuilder sb = new StringBuilder("md5(concat_ws('|', ");
+        StringBuilder sb = new StringBuilder("md5(");
         for (int i = 0; i < localKeyCols.size(); i++) {
             if (i > 0) {
-                sb.append(", ");
+                sb.append(" || '|' || ");
             }
             // 统一 ::text 转换：order_buj_component.zbj 等列是 integer，直接 COALESCE(int_col,'') 会报类型错误；
             // 统一 TRIM：Java 侧 str() 带 trim，SQL 侧必须同步 TRIM，否则历史带空格数据匹配失败被误判为新增
             sb.append("COALESCE(TRIM(").append(localKeyCols.get(i)).append("::text), '')");
         }
-        return sb.append("))").toString();
+        return sb.append(")").toString();
     }
 
     /** 按 ERP 字段拼接业务键（null/缺失统一为空串，与 SQL COALESCE(col,'') 对齐） */
