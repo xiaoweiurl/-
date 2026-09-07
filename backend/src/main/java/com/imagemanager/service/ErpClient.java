@@ -80,7 +80,17 @@ public class ErpClient {
         JsonNode body = executeGet(url, null);
         int code = body.path("code").asInt(0);
         if (code == 1) {
-            String token = body.path("result").asText(null);
+            // result 兼容两种格式：1) 直接是 token 字符串；2) 对象 {uid, uname, token, ...}
+            JsonNode result = body.path("result");
+            String token = null;
+            if (result.isTextual()) {
+                token = result.asText();
+            } else if (result.isObject()) {
+                JsonNode tokenNode = result.path("token");
+                if (tokenNode.isTextual()) {
+                    token = tokenNode.asText();
+                }
+            }
             if (token == null || token.isBlank()) {
                 throw new ErpBizException("ERP 登录成功但未返回 token");
             }
