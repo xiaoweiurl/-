@@ -560,12 +560,16 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 
 **凭证固定配置（用户要求定死，无需手动输入）**：`erp.uid=88888` / `erp.password=123` / `erp.custom-id=8D7C1BDE-C05F-4A11-BD96-D71D94D35633`；同步时 `ensureToken()` 自动登录换取 token；token 失效自动重登重试一次；登录接口独立地址 `Auth/checkLogin.aspx`（postman 实测路径）。
 
-**业务数据真正落库（ErpDataPersister，TransactionTemplate 事务包裹）**：
-- 有主键表 upsert：`order_xs_list`(PK dh) / `order_jfk_gongyidan`(PK bh) / `order_sw_gongyidan`(PK bh) → ON CONFLICT DO UPDATE
-- 无主键明细表全量替换：`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` → 事务内 DELETE + 批量 INSERT
-- `raw_material_warehouse` 按业务键（货号+颜色+尺码+部件+供应商+物料+规格+批号）merge，**绝不覆盖本地维护字段** unit_price/company/product_code
+**业务数据「仅新增同步」落库（ErpDataPersister，分批独立事务）**：
+- 核心规则：拉取 ERP 全量数据与本地表匹配比对，**仅插入匹配失败的新增数据；已匹配存量数据不做任何修改/更新**；重复执行幂等
+- 有主键表：`order_xs_list`(PK dh) / `order_jfk_gongyidan`(PK bh) / `order_sw_gongyidan`(PK bh) → `INSERT ... ON CONFLICT (pk) DO NOTHING`（主键唯一索引匹配）
+- 无唯一约束表（`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` / `raw_material_warehouse`）→ V58 md5(业务键) 表达式索引（规避多列 varchar(500) 组合索引超 2704 字节上限），分批 `WHERE md5(...) IN (...)` 一次查询走索引批量比对，差集即新增；Java md5 计算与 SQL 表达式规则严格一致（UTF-8 小写 hex + COALESCE(col,'') 以 '|' 连接）
+- 业务键：部件=hhname+color+chima+buj+zbj+jix；工序=hhname+wtname+jizhong+zhenju+zhenhao+zhenmu；工价=hhname+wtname；原料=huohao+color+size+component+material_name+specification+batch_no（原料本地维护字段 unit_price 等因"不更新"天然受保护）
+- 事务控制：每批 `erp.sync-batch-size`（默认1000）独立 TransactionTemplate 事务；某批失败仅回滚当前批、记录失败明细（message 中"失败批次：批次N(X条)失败: 原因"），状态置 `partial`；批内业务键去重保幂等
+- 杜绝 N+1：PK 表纯批量 INSERT；无约束表每批 1 次 IN 查询 + 1 次 batchUpdate
 - state/zxtate 落库存中文文本（与 HistoryOrder 查询 `state='审核'` 实际口径一致，表注释 0/1 与实际数据不符）
 - 同步状态/日志写库（persistSyncResult/clearLogs）同样 TransactionTemplate 事务（HikariCP auto-commit=false 陷阱）
+- PersistResult 语义：inserted（实际插入）/ skipped（已存在跳过+批内重复）/ failed（失败批次条数）/ total（ERP 返回总数）
 
 **7 个同步模块**：orders(销售订单 `getOrdeListQuery`，支持 dates/datee 时间过滤+state/recheck 全量状态)、neiyi-gongyidan(`Technology/NGyMainQuery`)、siwa-gongyidan(`Technology/SGyMainQuery`)、gongyi-bujian(`Technology/NGyBujQuery`)、gongyi-gongxu(`Technology/NGyWorkTypeQuery`)、gongxu-gongjia(`Technology/NGyHuohaoPriceQuery`)、yuanliao-bom(`Material/MaterialYLQuery`)；`ErpProperties.resolveApiUrl` 自动补 `.aspx` 后缀；工艺类 ERP 端不支持时间过滤，本地游标记增量（落库幂等）。
 

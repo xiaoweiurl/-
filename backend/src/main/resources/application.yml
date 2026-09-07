@@ -225,6 +225,8 @@ erp:
   timeout: ${ERP_TIMEOUT:10000}
   # 演示模式：true 时不请求真实 ERP，使用内置模拟数据；false 时请求真实 ERP（不可达时自动降级为演示数据）
   demo-enabled: ${ERP_DEMO_ENABLED:false}
+  # 「仅新增同步」每批处理条数：每批独立事务提交，某批失败仅回滚当前批
+  sync-batch-size: ${ERP_SYNC_BATCH_SIZE:1000}
 
 # Milvus 向量数据库配置（200G 业务员数据）
 milvus:

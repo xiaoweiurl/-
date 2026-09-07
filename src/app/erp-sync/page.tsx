@@ -50,6 +50,7 @@ interface SyncLog {
   rangeStart?: string | null;
   rangeEnd?: string | null;
   added?: number | null;
+  skipped?: number | null;
   failed?: number | null;
   status: string;
   duration?: number | null;

@@ -197,7 +197,9 @@ public class ErpSyncServiceImpl implements ErpSyncService {
         LocalDateTime rangeStart = incremental ? lastSync : now.minusDays(FIRST_SYNC_LOOKBACK_DAYS);
 
         int added = 0;
+        int skipped = 0;
         int failed = 0;
+        String failedDetail = "";
         String status = "success";
         String message;
         String source = "erp";
@@ -208,25 +210,33 @@ public class ErpSyncServiceImpl implements ErpSyncService {
                 added = generateDemoIncrement(def, rangeStart, now);
                 source = "demo";
                 simulateLatency();
-                message = buildSyncMessage(def, added, rangeStart, now, incremental, true);
+                message = buildSyncMessage(def, added, skipped, rangeStart, now, incremental, true);
             } else {
                 try {
-                    added = fetchAndPersist(def, rangeStart, now, token);
-                    message = buildSyncMessage(def, added, rangeStart, now, incremental, false);
+                    com.imagemanager.service.ErpDataPersister.PersistResult pr = fetchAndPersist(def, rangeStart, now, token);
+                    added = pr.inserted();
+                    skipped = pr.skipped();
+                    failed = pr.failed();
+                    failedDetail = joinFailedDetails(pr.failedBatchDetails());
+                    message = buildSyncMessage(def, added, skipped, rangeStart, now, incremental, false) + failedDetail;
                 } catch (ErpClient.ErpAuthException e) {
                     // token 失效：清理后用固定凭证自动重登，重试一次；仍失败则向上抛（前端 401 提示）
                     log.warn("[ERP同步] {} token 失效，自动重新登录后重试: {}", def.name(), e.getMessage());
                     erpAuthService.clearToken();
                     token = erpAuthService.ensureToken();
-                    added = fetchAndPersist(def, rangeStart, now, token);
-                    message = buildSyncMessage(def, added, rangeStart, now, incremental, false);
+                    com.imagemanager.service.ErpDataPersister.PersistResult pr = fetchAndPersist(def, rangeStart, now, token);
+                    added = pr.inserted();
+                    skipped = pr.skipped();
+                    failed = pr.failed();
+                    failedDetail = joinFailedDetails(pr.failedBatchDetails());
+                    message = buildSyncMessage(def, added, skipped, rangeStart, now, incremental, false) + failedDetail;
                 } catch (ErpClient.ErpNetworkException e) {
                     // ERP 不可达：降级为演示数据，保证同步流程可演示
                     log.warn("[ERP同步] {} 真实 ERP 不可达，降级演示数据: {}", def.name(), e.getMessage());
                     added = generateDemoIncrement(def, rangeStart, now);
                     source = "demo";
                     simulateLatency();
-                    message = buildSyncMessage(def, added, rangeStart, now, incremental, true)
+                    message = buildSyncMessage(def, added, skipped, rangeStart, now, incremental, true)
                             + "（ERP 不可达，已降级演示数据）";
                 }
             }
@@ -234,9 +244,14 @@ public class ErpSyncServiceImpl implements ErpSyncService {
             throw e;
         } catch (Exception e) {
             status = "failed";
-            failed = 1;
+            failed = Math.max(failed, 1);
             message = "同步失败: " + e.getMessage();
             log.error("[ERP同步] {} 同步失败", def.name(), e);
+        }
+
+        // 部分批次失败但整体流程完成：标记 partial，message 中已含失败批次明细
+        if ("success".equals(status) && failed > 0) {
+            status = "partial";
         }
 
         long duration = System.currentTimeMillis() - startMs;
@@ -249,6 +264,7 @@ public class ErpSyncServiceImpl implements ErpSyncService {
         logEntry.put("rangeStart", rangeStart.format(FMT));
         logEntry.put("rangeEnd", now.format(FMT));
         logEntry.put("added", added);
+        logEntry.put("skipped", skipped);
         logEntry.put("failed", failed);
         logEntry.put("status", status);
         logEntry.put("duration", duration);
@@ -258,14 +274,14 @@ public class ErpSyncServiceImpl implements ErpSyncService {
     }
 
     /**
-     * 真实模式：调用 ERP 接口拉取数据并落库到本地业务表（事务包裹）
+     * 真实模式：调用 ERP 接口拉取全量数据，「仅新增」落库到本地业务表。
      *
-     * 落库策略见 ErpDataPersister：有主键表 upsert、无主键明细表全量替换、
-     * 原料 BOM 按业务键 merge（保护本地维护字段）。
-     *
-     * @return 落库处理条数（插入+更新）
+     * 落库策略见 ErpDataPersister：有主键表 ON CONFLICT DO NOTHING（主键索引匹配），
+     * 无唯一约束表 md5(业务键) 表达式索引分批比对；分批独立事务，失败批次隔离记录；
+     * 已存在的存量数据不做任何修改/更新；重复执行幂等。
      */
-    private int fetchAndPersist(ModuleDef def, LocalDateTime rangeStart, LocalDateTime now, String token) {
+    private com.imagemanager.service.ErpDataPersister.PersistResult fetchAndPersist(
+            ModuleDef def, LocalDateTime rangeStart, LocalDateTime now, String token) {
         Map<String, String> params = new LinkedHashMap<>();
         if (def.supportsTimeFilter()) {
             // 订单模块：ERP 原生时间过滤 dates/datee（增量起点=数据库最新同步时间）
@@ -275,19 +291,30 @@ public class ErpSyncServiceImpl implements ErpSyncService {
             params.put("state", "0,1,3");
             params.put("recheck", "0,1,2");
         } else {
-            // 工艺类模块：ERP 端不支持时间过滤，空参全量拉取；落库幂等（upsert/全量替换/merge）
+            // 工艺类模块：ERP 端不支持时间过滤，空参全量拉取；本地按业务键匹配仅新增（幂等）
             params.put("id", "");
         }
         JsonNode result = erpClient.callApi(def.endpoint(), params, token);
         if (result == null || !result.isArray() || result.isEmpty()) {
-            return 0;
+            return com.imagemanager.service.ErpDataPersister.PersistResult.empty();
         }
-        // 业务数据真正落库（事务包裹，auto-commit=false 环境下确保提交）
+        // 业务数据「仅新增」落库（分批独立事务，auto-commit=false 环境下确保提交）
         com.imagemanager.service.ErpDataPersister.PersistResult pr = erpDataPersister.persist(def.key(), result);
-        if (pr.updated() > 0) {
-            log.info("[ERP同步] {} 落库完成：新增 {} 条，更新 {} 条", def.name(), pr.inserted(), pr.updated());
+        log.info("[ERP同步] {} 落库完成：全量 {} 条，新增 {} 条，已存在跳过 {} 条，失败 {} 条",
+                def.name(), pr.total(), pr.inserted(), pr.skipped(), pr.failed());
+        return pr;
+    }
+
+    /** 拼接失败批次明细（最多展示 5 条，避免 message 过长） */
+    private String joinFailedDetails(java.util.List<String> failedBatchDetails) {
+        if (failedBatchDetails == null || failedBatchDetails.isEmpty()) {
+            return "";
         }
-        return pr.total();
+        String joined = String.join("；", failedBatchDetails.stream().limit(5).toList());
+        String suffix = failedBatchDetails.size() > 5
+                ? " 等 " + failedBatchDetails.size() + " 个批次失败"
+                : "";
+        return "；失败批次：" + joined + suffix + "（已回滚对应批次，其余批次已提交）";
     }
 
     /** 演示模式：按时间跨度 × 模块日均量生成增量记录数（含随机波动） */
@@ -308,15 +335,25 @@ public class ErpSyncServiceImpl implements ErpSyncService {
         }
     }
 
-    private String buildSyncMessage(ModuleDef def, int added, LocalDateTime rangeStart, LocalDateTime now,
+    private String buildSyncMessage(ModuleDef def, int added, int skipped, LocalDateTime rangeStart, LocalDateTime now,
                                     boolean incremental, boolean demo) {
         String type = incremental ? "增量同步" : "首次全量同步";
         String range = rangeStart.format(FMT) + " → " + now.format(FMT);
         String src = demo ? "演示数据" : "ERP";
-        if (added == 0) {
-            return type + "完成：范围内无新增数据（" + range + "，来源 " + src + "）";
+        if (demo) {
+            if (added == 0) {
+                return type + "完成：范围内无新增数据（" + range + "，来源 " + src + "）";
+            }
+            return type + "完成：新增 " + added + " 条记录（" + range + "，来源 " + src + "）";
         }
-        return type + "完成：新增 " + added + " 条记录（" + range + "，来源 " + src + "）";
+        // 真实模式：体现「仅新增」口径（新增 / 已存在跳过）
+        if (added == 0 && skipped == 0) {
+            return type + "完成：范围内无数据（" + range + "，来源 " + src + "）";
+        }
+        if (added == 0) {
+            return type + "完成：无新增数据，已存在跳过 " + skipped + " 条（" + range + "，来源 " + src + "）";
+        }
+        return type + "完成：新增 " + added + " 条，已存在跳过 " + skipped + " 条（" + range + "，来源 " + src + "）";
     }
 
     /** 状态表 upsert + 日志表 insert（同一事务） */

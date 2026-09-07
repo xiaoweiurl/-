@@ -41,6 +41,9 @@ public class ErpProperties {
     /** 演示模式：true 时不请求真实 ERP，使用内置模拟数据 */
     private boolean demoEnabled = true;
 
+    /** 「仅新增同步」每批处理条数：每批独立事务提交，失败仅回滚当前批 */
+    private int syncBatchSize = 1000;
+
     /**
      * 解析登录接口完整地址
      */

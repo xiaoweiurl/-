@@ -1,402 +1,421 @@
 package com.imagemanager.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import lombok.extern.slf4j.Slf4j;
+import com.imagemanager.config.ErpProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
- * ERP 同步数据落库器：将 ERP 接口返回的 JSON 数组解析并写入本地业务表。
- *
- * 落库策略（项目 HikariCP auto-commit=false，所有写库必须在事务中）：
- * - 有主键表（order_xs_list / order_jfk_gongyidan / order_sw_gongyidan）：
- *   ON CONFLICT (主键) DO UPDATE，天然幂等，增量/全量通用
- * - 无主键明细表（order_buj_component / order_gongxu_process / order_gongxu_price）：
- *   事务内 DELETE 全量 + 批量 INSERT（数据以 ERP 为准，全量替换幂等）
- * - raw_material_warehouse：含本地维护字段（unit_price/company/product_code），
- *   按业务键 merge——存在则仅更新 ERP 侧字段（保护本地字段），不存在则插入
- *
- * 字段名兼容：ERP（ASP.NET）JSON 序列化可能为 camelCase 或 PascalCase，读取时两种都尝试。
- * 日期兼容："yyyy-MM-dd HH:mm:ss" / ISO "yyyy-MM-ddTHH:mm:ss" / ASP.NET "/Date(millis)/"。
+ * ERP 业务数据落库器 —— 「仅新增同步」
+ * <p>
+ * 规则：拉取 ERP 全量数据与本地表匹配比对，仅插入匹配失败的新增数据；
+ * 已匹配到的存量数据不做任何修改/更新。
+ * <p>
+ * 匹配策略（杜绝 N+1，利用索引，内存可控）：
+ * <ul>
+ *   <li>有主键表（order_xs_list / order_jfk_gongyidan / order_sw_gongyidan）：
+ *       INSERT ... ON CONFLICT (pk) DO NOTHING，由数据库主键唯一索引完成匹配。</li>
+ *   <li>无唯一约束表（order_buj_component / order_gongxu_process / order_gongxu_price / raw_material_warehouse）：
+ *       依赖 V58 的 md5(业务键) 表达式索引，分批用 WHERE md5(...) IN (...) 一次查询批量比对，
+ *       差集即新增。md5 定长 16 字节，规避多列 varchar(500) 组合索引超 2704 字节上限。</li>
+ * </ul>
+ * 事务控制：每批（默认 1000 条，erp.sync-batch-size 可调）独立事务提交；
+ * 某批失败仅回滚当前批、记录失败明细，不影响已提交批次；重复执行幂等。
+ * <p>
+ * ⚠️ 事务陷阱：application.yml 中 HikariCP auto-commit=false，无事务时 JdbcTemplate
+ * 写操作会被连接池回滚，因此所有写库操作均通过 TransactionTemplate 编程式事务。
  */
-@Slf4j
 @Component
 public class ErpDataPersister {
 
-    /** 落库结果：处理条数（插入+更新） */
-    public record PersistResult(int inserted, int updated) {
-        public int total() { return inserted + updated; }
-    }
-
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
+    private final ErpProperties erpProperties;
 
-    public ErpDataPersister(JdbcTemplate jdbcTemplate, TransactionTemplate transactionTemplate) {
+    public ErpDataPersister(JdbcTemplate jdbcTemplate,
+                            TransactionTemplate transactionTemplate,
+                            ErpProperties erpProperties) {
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
+        this.erpProperties = erpProperties;
     }
 
-    /**
-     * 按模块落库（事务包裹）
-     *
-     * @param moduleKey 模块标识
-     * @param rows      ERP 接口返回的 result 数组
-     * @return 落库结果（新增/更新条数）
-     */
+    /** 同步落库结果：inserted=实际插入，skipped=已存在跳过，failed=失败条数，total=ERP 返回总数 */
+    public record PersistResult(int inserted, int skipped, int failed, int total,
+                                List<String> failedBatchDetails) {
+        public static PersistResult empty() {
+            return new PersistResult(0, 0, 0, 0, List.of());
+        }
+    }
+
+    /** 将 ERP 返回的数组按模块落库（仅新增） */
     public PersistResult persist(String moduleKey, JsonNode rows) {
         if (rows == null || !rows.isArray() || rows.isEmpty()) {
-            return new PersistResult(0, 0);
+            return PersistResult.empty();
         }
-        return switch (moduleKey) {
-            case "orders" -> persistOrders(rows);
-            case "neiyi-gongyidan" -> persistNeiyiGongyidan(rows);
-            case "siwa-gongyidan" -> persistSiwaGongyidan(rows);
-            case "gongyi-bujian" -> replaceAll("order_buj_component", rows, ErpDataPersister::bujRow);
-            case "gongyi-gongxu" -> replaceAll("order_gongxu_process", rows, ErpDataPersister::gongxuRow);
-            case "gongxu-gongjia" -> replaceAll("order_gongxu_price", rows, ErpDataPersister::gongjiaRow);
-            case "yuanliao-bom" -> mergeRawMaterials(rows);
-            default -> {
-                log.warn("[ERP落库] 未知模块 {}，跳过落库", moduleKey);
-                yield new PersistResult(0, 0);
+        List<JsonNode> list = new ArrayList<>(rows.size());
+        rows.forEach(list::add);
+        int batchSize = Math.max(1, erpProperties.getSyncBatchSize());
+        try {
+            return switch (moduleKey) {
+                case "orders" -> persistWithPk(list, INSERT_SALES_ORDER, ErpDataPersister::buildSalesOrderArgs, batchSize);
+                case "neiyi-gongyidan" -> persistWithPk(list, INSERT_JFK_GYD, ErpDataPersister::buildJfkArgs, batchSize);
+                case "siwa-gongyidan" -> persistWithPk(list, INSERT_SW_GYD, ErpDataPersister::buildSwArgs, batchSize);
+                case "gongyi-bujian" -> persistInsertOnly(list, "order_buj_component",
+                        List.of("hhname", "color", "chima", "buj", "zbj", "jix"),
+                        List.of("hhname", "color", "chima", "buj", "zbj", "jix"),
+                        INSERT_BUJ, ErpDataPersister::buildBujArgs, batchSize);
+                case "gongyi-gongxu" -> persistInsertOnly(list, "order_gongxu_process",
+                        List.of("hhname", "wtname", "jizhong", "zhenju", "zhenhao", "zhenmu"),
+                        List.of("hhname", "wtname", "jizhong", "zhenju", "zhenhao", "zhenmu"),
+                        INSERT_GONGXU, ErpDataPersister::buildGongxuArgs, batchSize);
+                case "gongxu-gongjia" -> persistInsertOnly(list, "order_gongxu_price",
+                        List.of("hhname", "wtname"),
+                        List.of("hhname", "wtname"),
+                        INSERT_GONGJIA, ErpDataPersister::buildGongjiaArgs, batchSize);
+                case "yuanliao-bom" -> persistInsertOnly(list, "raw_material_warehouse",
+                        List.of("huohao", "color", "size", "component", "material_name", "specification", "batch_no"),
+                        List.of("hhname", "color", "chima", "buj", "wlname", "guige", "pihao"),
+                        INSERT_MATERIAL, ErpDataPersister::buildMaterialArgs, batchSize);
+                default -> new PersistResult(0, 0, 0, list.size(),
+                        List.of("未知模块: " + moduleKey));
+            };
+        } catch (Exception e) {
+            return new PersistResult(0, 0, list.size(), list.size(),
+                    List.of("落库异常: " + e.getMessage()));
+        }
+    }
+
+    // ================================================================
+    // 有主键表：INSERT ... ON CONFLICT (pk) DO NOTHING（主键索引匹配，天然幂等）
+    // ================================================================
+
+    private PersistResult persistWithPk(List<JsonNode> rows, String insertSql,
+                                        Function<JsonNode, Object[]> argsBuilder, int batchSize) {
+        int inserted = 0, skipped = 0, failed = 0;
+        List<String> failedDetails = new ArrayList<>();
+        for (int start = 0, batchNo = 1; start < rows.size(); start += batchSize, batchNo++) {
+            List<JsonNode> batch = rows.subList(start, Math.min(start + batchSize, rows.size()));
+            List<Object[]> argsList = new ArrayList<>(batch.size());
+            for (JsonNode row : batch) {
+                argsList.add(argsBuilder.apply(row));
             }
-        };
-    }
-
-    // ==================== 销售订单（PK: dh，upsert） ====================
-
-    private static final String ORDER_INSERT_SQL =
-            "INSERT INTO order_xs_list (dh, zhdate, state, zxtate, printnum, jh_date, business_dh, ddtype, "
-                    + "khname, detailhuohaocp, detailhuohao, sl_sum, remark, ywyname, sfplan, zhuser, checkuser, ckeckdate) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
-                    + "ON CONFLICT (dh) DO UPDATE SET zhdate=EXCLUDED.zhdate, state=EXCLUDED.state, "
-                    + "zxtate=EXCLUDED.zxtate, printnum=EXCLUDED.printnum, jh_date=EXCLUDED.jh_date, "
-                    + "business_dh=EXCLUDED.business_dh, ddtype=EXCLUDED.ddtype, khname=EXCLUDED.khname, "
-                    + "detailhuohaocp=EXCLUDED.detailhuohaocp, detailhuohao=EXCLUDED.detailhuohao, "
-                    + "sl_sum=EXCLUDED.sl_sum, remark=EXCLUDED.remark, ywyname=EXCLUDED.ywyname, "
-                    + "sfplan=EXCLUDED.sfplan, zhuser=EXCLUDED.zhuser, checkuser=EXCLUDED.checkuser, "
-                    + "ckeckdate=EXCLUDED.ckeckdate";
-
-    private PersistResult persistOrders(JsonNode rows) {
-        List<Object[]> batch = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode row : rows) {
-            String dh = text(row, "dh");
-            if (dh == null || !seen.add(dh)) continue; // 无单号或重复跳过
-            batch.add(new Object[]{
-                    dh, ts(row, "zhdate"), text(row, "state"), text(row, "zxtate"),
-                    integer(row, "printnum"), ts(row, "jh_date"), text(row, "business_dh"),
-                    text(row, "ddtype"), text(row, "khname"), text(row, "detailhuohaocp"),
-                    text(row, "detailhuohao"), dec(row, "sl_sum"), text(row, "remark"),
-                    text(row, "ywyname"), text(row, "sfplan"), text(row, "zhuser"),
-                    text(row, "checkuser"), ts(row, "ckeckdate")
-            });
-        }
-        if (batch.isEmpty()) return new PersistResult(0, 0);
-        transactionTemplate.executeWithoutResult(tx -> jdbcTemplate.batchUpdate(ORDER_INSERT_SQL, batch));
-        log.info("[ERP落库] 销售订单 upsert {} 条", batch.size());
-        return new PersistResult(batch.size(), 0);
-    }
-
-    // ==================== 内衣工艺单（PK: bh，upsert） ====================
-
-    private static final String NEIYI_INSERT_SQL =
-            "INSERT INTO order_jfk_gongyidan (bh, hhtype, huohao, spname, designer, dw, rsjgh, "
-                    + "qd_dys, hd_dys, dybanhao, remark) VALUES (?,?,?,?,?,?,?,?,?,?,?) "
-                    + "ON CONFLICT (bh) DO UPDATE SET hhtype=EXCLUDED.hhtype, huohao=EXCLUDED.huohao, "
-                    + "spname=EXCLUDED.spname, designer=EXCLUDED.designer, dw=EXCLUDED.dw, "
-                    + "rsjgh=EXCLUDED.rsjgh, qd_dys=EXCLUDED.qd_dys, hd_dys=EXCLUDED.hd_dys, "
-                    + "dybanhao=EXCLUDED.dybanhao, remark=EXCLUDED.remark";
-
-    private PersistResult persistNeiyiGongyidan(JsonNode rows) {
-        List<Object[]> batch = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode row : rows) {
-            String bh = text(row, "bh");
-            if (bh == null || !seen.add(bh)) continue;
-            batch.add(new Object[]{
-                    bh, text(row, "hhtype"), text(row, "huohao"), text(row, "spname"),
-                    text(row, "designer"), text(row, "dw"), text(row, "rsjgh"),
-                    text(row, "qd_dys"), text(row, "hd_dys"), text(row, "dybanhao"),
-                    text(row, "remark")
-            });
-        }
-        if (batch.isEmpty()) return new PersistResult(0, 0);
-        transactionTemplate.executeWithoutResult(tx -> jdbcTemplate.batchUpdate(NEIYI_INSERT_SQL, batch));
-        log.info("[ERP落库] 内衣工艺单 upsert {} 条", batch.size());
-        return new PersistResult(batch.size(), 0);
-    }
-
-    // ==================== 丝袜工艺单（PK: bh，upsert） ====================
-
-    private static final String SIWA_INSERT_SQL =
-            "INSERT INTO order_sw_gongyidan (bh, hhtype, huohao, spname, dybanhao, cxm, xjkz, xjsl, "
-                    + "pfkz, cpkz, zcl, jix, zs, yajiao, nd, djcl, hhywy, qd_dys, hd_dys, dw, remark) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
-                    + "ON CONFLICT (bh) DO UPDATE SET hhtype=EXCLUDED.hhtype, huohao=EXCLUDED.huohao, "
-                    + "spname=EXCLUDED.spname, dybanhao=EXCLUDED.dybanhao, cxm=EXCLUDED.cxm, "
-                    + "xjkz=EXCLUDED.xjkz, xjsl=EXCLUDED.xjsl, pfkz=EXCLUDED.pfkz, cpkz=EXCLUDED.cpkz, "
-                    + "zcl=EXCLUDED.zcl, jix=EXCLUDED.jix, zs=EXCLUDED.zs, yajiao=EXCLUDED.yajiao, "
-                    + "nd=EXCLUDED.nd, djcl=EXCLUDED.djcl, hhywy=EXCLUDED.hhywy, qd_dys=EXCLUDED.qd_dys, "
-                    + "hd_dys=EXCLUDED.hd_dys, dw=EXCLUDED.dw, remark=EXCLUDED.remark";
-
-    private PersistResult persistSiwaGongyidan(JsonNode rows) {
-        List<Object[]> batch = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode row : rows) {
-            String bh = text(row, "bh");
-            if (bh == null || !seen.add(bh)) continue;
-            batch.add(new Object[]{
-                    bh, text(row, "hhtype"), text(row, "huohao"), text(row, "spname"),
-                    text(row, "dybanhao"), text(row, "cxm"), dec(row, "xjkz"), dec(row, "xjsl"),
-                    dec(row, "pfkz"), dec(row, "cpkz"), dec(row, "zcl"), text(row, "jix"),
-                    text(row, "zs"), text(row, "yajiao"), text(row, "nd"), dec(row, "djcl"),
-                    text(row, "hhywy"), text(row, "qd_dys"), text(row, "hd_dys"),
-                    text(row, "dw"), text(row, "remark")
-            });
-        }
-        if (batch.isEmpty()) return new PersistResult(0, 0);
-        transactionTemplate.executeWithoutResult(tx -> jdbcTemplate.batchUpdate(SIWA_INSERT_SQL, batch));
-        log.info("[ERP落库] 丝袜工艺单 upsert {} 条", batch.size());
-        return new PersistResult(batch.size(), 0);
-    }
-
-    // ==================== 无主键明细表：事务内全量替换 ====================
-
-    /** 行解析函数：JsonNode → INSERT 参数数组 */
-    private interface RowMapper {
-        Object[] map(JsonNode row);
-    }
-
-    /** 工艺部件 INSERT（25 列） */
-    private static final String BUJ_INSERT_SQL =
-            "INSERT INTO order_buj_component (hhname, color, chima, buj, zbj, jix, zs, cxm, tongjing, "
-                    + "bili, kez, xjtime, tjcxm, tjxs, tzs, skzjj, xf, zznd, llcl, remark, "
-                    + "vchima, vcolor, vtzs, ischeck, isrecheck) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-    private static Object[] bujRow(JsonNode row) {
-        return new Object[]{
-                text(row, "hhname"), text(row, "color"), text(row, "chima"), text(row, "buj"),
-                integer(row, "zbj"), text(row, "jix"), integer(row, "zs"), text(row, "cxm"),
-                dec(row, "tongjing"), text(row, "bili"), dec(row, "kez"), dec(row, "xjtime"),
-                text(row, "tjcxm"), text(row, "tjxs"), text(row, "tzs"), text(row, "skzjj"),
-                text(row, "xf"), text(row, "zznd"), dec(row, "llcl"), text(row, "remark"),
-                text(row, "vchima"), text(row, "vcolor"), text(row, "vtzs"),
-                text(row, "ischeck"), text(row, "isrecheck")
-        };
-    }
-
-    /** 工艺工序 INSERT（19 列，"sort" 加引号防关键字歧义） */
-    private static final String GONGXU_INSERT_SQL =
-            "INSERT INTO order_gongxu_process (hhname, wtname, jizhong, zhenju, zhenhao, zhenmu, "
-                    + "zhens, zline, sline, yongl, yongl2, \"sort\", tjtype, sctype, using_state, "
-                    + "zhgx, tims, ischeck, isrecheck) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-    private static Object[] gongxuRow(JsonNode row) {
-        return new Object[]{
-                text(row, "hhname"), text(row, "wtname"), text(row, "jizhong"), text(row, "zhenju"),
-                text(row, "zhenhao"), text(row, "zhenmu"), text(row, "zhens"), text(row, "zline"),
-                text(row, "sline"), dec(row, "yongl"), text(row, "yongl2"), integer(row, "sort"),
-                text(row, "tjtype"), text(row, "sctype"), text(row, "using_state"),
-                text(row, "zhgx"), dec(row, "tims"), text(row, "ischeck"), text(row, "isrecheck")
-        };
-    }
-
-    /** 工序工价 INSERT（6 列，remarkgz 本地维护不覆盖） */
-    private static final String GONGJIA_INSERT_SQL =
-            "INSERT INTO order_gongxu_price (hhname, wtname, jsprice, price, tempworker_price, state) "
-                    + "VALUES (?,?,?,?,?,?)";
-
-    private static Object[] gongjiaRow(JsonNode row) {
-        return new Object[]{
-                text(row, "hhname"), text(row, "wtname"), dec(row, "jsprice"), dec(row, "price"),
-                dec(row, "tempworker_price"), text(row, "state")
-        };
-    }
-
-    /**
-     * 无主键明细表全量替换：事务内 DELETE + 批量 INSERT（数据以 ERP 为准，原子替换）
-     */
-    private PersistResult replaceAll(String table, JsonNode rows, RowMapper mapper) {
-        List<Object[]> batch = new ArrayList<>();
-        for (JsonNode row : rows) {
-            batch.add(mapper.map(row));
-        }
-        if (batch.isEmpty()) return new PersistResult(0, 0);
-        String insertSql = switch (table) {
-            case "order_buj_component" -> BUJ_INSERT_SQL;
-            case "order_gongxu_process" -> GONGXU_INSERT_SQL;
-            case "order_gongxu_price" -> GONGJIA_INSERT_SQL;
-            default -> throw new IllegalArgumentException("不支持全量替换的表: " + table);
-        };
-        transactionTemplate.executeWithoutResult(tx -> {
-            jdbcTemplate.update("DELETE FROM " + table);
-            jdbcTemplate.batchUpdate(insertSql, batch);
-        });
-        log.info("[ERP落库] {} 全量替换 {} 条", table, batch.size());
-        return new PersistResult(batch.size(), 0);
-    }
-
-    // ==================== 原料 BOM（merge，保护本地维护字段） ====================
-
-    /** 业务键：货号+颜色+尺码+部件+供应商+物料名称+规格+批号（本地唯一标识一行用料） */
-    private static String rawMaterialKey(String huohao, String color, String size, String component,
-                                         String supplier, String materialName, String specification, String batchNo) {
-        return String.join("",
-                nullToEmpty(huohao), nullToEmpty(color), nullToEmpty(size), nullToEmpty(component),
-                nullToEmpty(supplier), nullToEmpty(materialName), nullToEmpty(specification), nullToEmpty(batchNo));
-    }
-
-    private static String nullToEmpty(String s) {
-        return s == null ? "" : s.trim();
-    }
-
-    private static final String RAW_INSERT_SQL =
-            "INSERT INTO raw_material_warehouse (huohao, color, size, component, supplier, material_name, "
-                    + "specification, material_color, batch_no, twist_direction, unit, usage_per_unit, loss_rate, remark) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-    /** 更新时仅更新 ERP 侧字段，绝不覆盖 unit_price / company / product_code（本地维护） */
-    private static final String RAW_UPDATE_SQL =
-            "UPDATE raw_material_warehouse SET material_color=?, twist_direction=?, unit=?, "
-                    + "usage_per_unit=?, loss_rate=?, remark=? WHERE id=?";
-
-    private PersistResult mergeRawMaterials(JsonNode rows) {
-        // 1. 加载现有业务键 → id 映射（一次查询，避免逐行 SELECT）
-        Map<String, Long> existing = new HashMap<>();
-        jdbcTemplate.query(
-                "SELECT id, huohao, color, size, component, supplier, material_name, specification, batch_no "
-                        + "FROM raw_material_warehouse",
-                rs -> {
-                    existing.put(rawMaterialKey(
-                            rs.getString("huohao"), rs.getString("color"), rs.getString("size"),
-                            rs.getString("component"), rs.getString("supplier"), rs.getString("material_name"),
-                            rs.getString("specification"), rs.getString("batch_no")),
-                            rs.getLong("id"));
-                });
-
-        // 2. 分拆插入/更新批次（ERP 返回中的重复业务键只处理一次）
-        List<Object[]> toInsert = new ArrayList<>();
-        List<Object[]> toUpdate = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode row : rows) {
-            String key = rawMaterialKey(
-                    text(row, "hhname"), text(row, "color"), text(row, "chima"), text(row, "buj"),
-                    text(row, "gys"), text(row, "wlname"), text(row, "guige"), text(row, "pihao"));
-            if (!seen.add(key)) continue;
-            Long existingId = existing.get(key);
-            if (existingId != null) {
-                toUpdate.add(new Object[]{
-                        text(row, "wlcolor"), text(row, "nianx"), text(row, "dw"),
-                        dec(row, "djyl"), dec(row, "sh"), text(row, "remark"), existingId
-                });
-            } else {
-                toInsert.add(new Object[]{
-                        text(row, "hhname"), text(row, "color"), text(row, "chima"), text(row, "buj"),
-                        text(row, "gys"), text(row, "wlname"), text(row, "guige"), text(row, "wlcolor"),
-                        text(row, "pihao"), text(row, "nianx"), text(row, "dw"),
-                        dec(row, "djyl"), dec(row, "sh"), text(row, "remark")
-                });
+            try {
+                int[] results = transactionTemplate.execute(status -> jdbcTemplate.batchUpdate(insertSql, argsList));
+                if (results != null) {
+                    for (int r : results) {
+                        if (r > 0) {
+                            inserted++;
+                        } else if (r == 0 || r == Statement.SUCCESS_NO_INFO) {
+                            skipped++;
+                        } else {
+                            failed++;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                failed += batch.size();
+                failedDetails.add("批次" + batchNo + "(" + batch.size() + "条)失败: " + abbreviate(rootMessage(e)));
             }
         }
-
-        // 3. 事务内批量写入
-        if (!toInsert.isEmpty() || !toUpdate.isEmpty()) {
-            transactionTemplate.executeWithoutResult(tx -> {
-                if (!toInsert.isEmpty()) jdbcTemplate.batchUpdate(RAW_INSERT_SQL, toInsert);
-                if (!toUpdate.isEmpty()) jdbcTemplate.batchUpdate(RAW_UPDATE_SQL, toUpdate);
-            });
-        }
-        log.info("[ERP落库] 原料BOM merge：新增 {} 条，更新 {} 条", toInsert.size(), toUpdate.size());
-        return new PersistResult(toInsert.size(), toUpdate.size());
+        return new PersistResult(inserted, skipped, failed, rows.size(), List.copyOf(failedDetails));
     }
 
-    // ==================== JSON 字段解析工具（camelCase / PascalCase 兼容） ====================
+    // ================================================================
+    // 无唯一约束表：md5(业务键) 表达式索引批量比对 + 差集插入
+    // 每批：1 次 IN 查询（走 idx_*_match_md5 索引）+ 1 次 batchUpdate，无 N+1
+    // ================================================================
 
-    /** 取字段节点：先 camelCase，再尝试 PascalCase（ASP.NET 默认序列化） */
-    private static JsonNode field(JsonNode row, String name) {
-        JsonNode n = row.get(name);
-        if (n == null && !name.isEmpty()) {
-            n = row.get(Character.toUpperCase(name.charAt(0)) + name.substring(1));
+    private PersistResult persistInsertOnly(List<JsonNode> rows, String table,
+                                            List<String> localKeyCols, List<String> erpKeyFields,
+                                            String insertSql, Function<JsonNode, Object[]> argsBuilder,
+                                            int batchSize) {
+        String md5Expr = buildMd5Expr(localKeyCols);
+        int inserted = 0, skipped = 0, failed = 0;
+        List<String> failedDetails = new ArrayList<>();
+
+        for (int start = 0, batchNo = 1; start < rows.size(); start += batchSize, batchNo++) {
+            List<JsonNode> batch = rows.subList(start, Math.min(start + batchSize, rows.size()));
+            // 批内按业务键去重（ERP 数据自身重复时仅保留首条，其余计跳过，保证幂等）
+            Map<String, JsonNode> uniqueRows = new LinkedHashMap<>();
+            int dupInBatch = 0;
+            for (JsonNode row : batch) {
+                String key = md5Hex(joinKey(row, erpKeyFields));
+                if (uniqueRows.putIfAbsent(key, row) != null) {
+                    dupInBatch++;
+                }
+            }
+            skipped += dupInBatch;
+
+            try {
+                int[] counters = transactionTemplate.execute(status -> {
+                    List<String> keys = new ArrayList<>(uniqueRows.keySet());
+                    String inClause = String.join(", ", Collections.nCopies(keys.size(), "?"));
+                    String matchSql = "SELECT " + md5Expr + " FROM " + table
+                            + " WHERE " + md5Expr + " IN (" + inClause + ")";
+                    Set<String> existing = new HashSet<>(
+                            jdbcTemplate.queryForList(matchSql, String.class, keys.toArray()));
+                    List<Object[]> toInsert = new ArrayList<>();
+                    for (Map.Entry<String, JsonNode> entry : uniqueRows.entrySet()) {
+                        if (!existing.contains(entry.getKey())) {
+                            toInsert.add(argsBuilder.apply(entry.getValue()));
+                        }
+                    }
+                    if (!toInsert.isEmpty()) {
+                        jdbcTemplate.batchUpdate(insertSql, toInsert);
+                    }
+                    return new int[]{toInsert.size(), keys.size() - toInsert.size()};
+                });
+                if (counters != null) {
+                    inserted += counters[0];
+                    skipped += counters[1];
+                }
+            } catch (Exception e) {
+                failed += uniqueRows.size();
+                failedDetails.add("批次" + batchNo + "(" + uniqueRows.size() + "条)失败: " + abbreviate(rootMessage(e)));
+            }
         }
-        return n;
+        return new PersistResult(inserted, skipped, failed, rows.size(), List.copyOf(failedDetails));
     }
 
-    /** 字符串字段（空白归一为 null） */
-    private static String text(JsonNode row, String name) {
-        JsonNode n = field(row, name);
-        if (n == null || n.isNull()) return null;
-        String s = n.asText();
-        if (s == null) return null;
+    // ================================================================
+    // INSERT SQL（仅新增；PK 表带 ON CONFLICT DO NOTHING）
+    // ================================================================
+
+    private static final String INSERT_SALES_ORDER =
+            "INSERT INTO order_xs_list (dh, zhdate, state, zxtate, printnum, jh_date, business_dh, ddtype, khname,"
+                    + " detailhuohaocp, detailhuohao, sl_sum, remark, ywyname, sfplan, zhuser, checkuser, ckeckdate)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    + " ON CONFLICT (dh) DO NOTHING";
+
+    private static final String INSERT_JFK_GYD =
+            "INSERT INTO order_jfk_gongyidan (bh, hhtype, huohao, spname, designer, dw, rsjgh, qd_dys, hd_dys, dybanhao, remark)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    + " ON CONFLICT (bh) DO NOTHING";
+
+    private static final String INSERT_SW_GYD =
+            "INSERT INTO order_sw_gongyidan (bh, hhtype, huohao, spname, dybanhao, cxm, xjkz, xjsl, pfkz, cpkz, zcl,"
+                    + " jix, zs, yajiao, nd, djcl, hhywy, qd_dys, hd_dys, dw, remark)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    + " ON CONFLICT (bh) DO NOTHING";
+
+    private static final String INSERT_BUJ =
+            "INSERT INTO order_buj_component (hhname, color, chima, buj, zbj, jix, zs, cxm, tongjing, bili, kez,"
+                    + " xjtime, tjcxm, tjxs, tzs, skzjj, xf, zznd, llcl, remark, vchima, vcolor, vtzs, ischeck, isrecheck)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    private static final String INSERT_GONGXU =
+            "INSERT INTO order_gongxu_process (hhname, wtname, jizhong, zhenju, zhenhao, zhenmu, zhens, zline, sline,"
+                    + " yongl, yongl2, \"sort\", tjtype, sctype, using_state, zhgx, tims, ischeck, isrecheck)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    private static final String INSERT_GONGJIA =
+            "INSERT INTO order_gongxu_price (hhname, wtname, jsprice, price, tempworker_price, state)"
+                    + " VALUES (?, ?, ?, ?, ?, ?)";
+
+    private static final String INSERT_MATERIAL =
+            "INSERT INTO raw_material_warehouse (huohao, color, size, component, supplier, material_name, specification,"
+                    + " material_color, batch_no, twist_direction, unit, usage_per_unit, loss_rate, remark)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    // ================================================================
+    // 行参数构建（ERP 字段 → 本地列）
+    // ================================================================
+
+    private static Object[] buildSalesOrderArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "dh"), toTs(r.get("zhdate")), str(r, "state"), str(r, "zxtate"),
+                integer(r, "printnum"), toTs(r.get("jh_date")), str(r, "business_dh"), str(r, "ddtype"),
+                str(r, "khname"), str(r, "detailhuohaocp"), str(r, "detailhuohao"),
+                decimal(r, "sl_sum"), str(r, "remark"), str(r, "ywyname"), str(r, "sfplan"),
+                str(r, "zhuser"), str(r, "checkuser"), toTs(r.get("ckeckdate"))};
+    }
+
+    private static Object[] buildJfkArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "bh"), str(r, "hhtype"), str(r, "huohao"), str(r, "spname"), str(r, "designer"),
+                str(r, "dw"), integer(r, "rsjgh"), str(r, "qd_dys"), str(r, "hd_dys"),
+                str(r, "dybanhao"), str(r, "remark")};
+    }
+
+    private static Object[] buildSwArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "bh"), str(r, "hhtype"), str(r, "huohao"), str(r, "spname"), str(r, "dybanhao"),
+                str(r, "cxm"), str(r, "xjkz"), integer(r, "xjsl"), str(r, "pfkz"), str(r, "cpkz"),
+                str(r, "zcl"), str(r, "jix"), str(r, "zs"), str(r, "yajiao"), integer(r, "nd"),
+                str(r, "djcl"), str(r, "hhywy"), str(r, "qd_dys"), str(r, "hd_dys"), str(r, "dw"),
+                str(r, "remark")};
+    }
+
+    private static Object[] buildBujArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "hhname"), str(r, "color"), str(r, "chima"), str(r, "buj"), str(r, "zbj"),
+                str(r, "jix"), str(r, "zs"), str(r, "cxm"), str(r, "tongjing"), str(r, "bili"),
+                str(r, "kez"), decimal(r, "xjtime"), str(r, "tjcxm"), decimal(r, "tjxs"), decimal(r, "tzs"),
+                str(r, "skzjj"), decimal(r, "xf"), str(r, "zznd"), str(r, "llcl"), str(r, "remark"),
+                str(r, "vchima"), str(r, "vcolor"), decimal(r, "vtzs"), str(r, "ischeck"), str(r, "isrecheck")};
+    }
+
+    private static Object[] buildGongxuArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "hhname"), str(r, "wtname"), str(r, "jizhong"), integer(r, "zhenju"),
+                integer(r, "zhenhao"), integer(r, "zhenmu"), integer(r, "zhens"), integer(r, "zline"),
+                integer(r, "sline"), integer(r, "yongl"), integer(r, "yongl2"), integer(r, "sort"),
+                str(r, "tjtype"), str(r, "sctype"), str(r, "using_state"), str(r, "zhgx"),
+                integer(r, "tims"), str(r, "ischeck"), str(r, "isrecheck")};
+    }
+
+    private static Object[] buildGongjiaArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "hhname"), str(r, "wtname"), decimal(r, "jsprice"), decimal(r, "price"),
+                decimal(r, "tempworker_price"), str(r, "state")};
+    }
+
+    private static Object[] buildMaterialArgs(JsonNode r) {
+        return new Object[]{
+                str(r, "hhname"), str(r, "color"), str(r, "chima"), str(r, "buj"), str(r, "gys"),
+                str(r, "wlname"), str(r, "guige"), str(r, "wlcolor"), str(r, "pihao"), str(r, "nianx"),
+                str(r, "dw"), decimal(r, "djyl"), decimal(r, "sh"), str(r, "remark")};
+    }
+
+    // ================================================================
+    // 工具方法
+    // ================================================================
+
+    /** 构造与 V58 索引一致的 md5(业务键) SQL 表达式 */
+    private static String buildMd5Expr(List<String> localKeyCols) {
+        StringBuilder sb = new StringBuilder("md5(concat_ws('|', ");
+        for (int i = 0; i < localKeyCols.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append("COALESCE(").append(localKeyCols.get(i)).append(", '')");
+        }
+        return sb.append("))").toString();
+    }
+
+    /** 按 ERP 字段拼接业务键（null/缺失统一为空串，与 SQL COALESCE(col,'') 对齐） */
+    private static String joinKey(JsonNode row, List<String> erpKeyFields) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < erpKeyFields.size(); i++) {
+            if (i > 0) {
+                sb.append('|');
+            }
+            sb.append(str(row, erpKeyFields.get(i)));
+        }
+        return sb.toString();
+    }
+
+    /** 与 PostgreSQL md5(text) 一致：UTF-8 字节的小写 hex */
+    private static String md5Hex(String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(32);
+            for (byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("MD5 计算失败", e);
+        }
+    }
+
+    private static String str(JsonNode node, String field) {
+        if (node == null) {
+            return null;
+        }
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull()) {
+            return null;
+        }
+        String s = v.isTextual() ? v.asText() : v.toString();
         s = s.trim();
         return s.isEmpty() ? null : s;
     }
 
-    /** 数值字段（number / 数字字符串兼容） */
-    private static BigDecimal dec(JsonNode row, String name) {
-        JsonNode n = field(row, name);
-        if (n == null || n.isNull()) return null;
-        if (n.isNumber()) return n.decimalValue();
-        String s = n.asText("").trim();
-        if (s.isEmpty()) return null;
+    private static BigDecimal decimal(JsonNode node, String field) {
+        String s = str(node, field);
+        if (s == null) {
+            return null;
+        }
         try {
-            return new BigDecimal(s);
+            return new BigDecimal(s.replace(",", ""));
         } catch (NumberFormatException e) {
             return null;
         }
     }
 
-    /** 整数字段 */
-    private static Integer integer(JsonNode row, String name) {
-        BigDecimal d = dec(row, name);
-        return d != null ? d.intValue() : null;
+    private static Integer integer(JsonNode node, String field) {
+        String s = str(node, field);
+        if (s == null) {
+            return null;
+        }
+        try {
+            return new BigDecimal(s.replace(",", "")).intValue();
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
-    /** 时间戳字段：兼容 "yyyy-MM-dd HH:mm:ss" / ISO / ASP.NET "/Date(millis)/" */
-    private static Timestamp ts(JsonNode row, String name) {
-        JsonNode n = field(row, name);
-        if (n == null || n.isNull()) return null;
-        if (n.isNumber()) {
-            return new Timestamp(n.asLong());
+    private static Timestamp toTs(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
         }
-        String s = n.asText("").trim();
-        if (s.isEmpty()) return null;
+        String s = node.isTextual() ? node.asText().trim() : node.toString();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) {
+            return null;
+        }
         try {
-            if (s.startsWith("/Date(")) {
-                int start = s.indexOf('(');
-                int end = s.indexOf(')');
-                if (start > 0 && end > start) {
-                    String millis = s.substring(start + 1, end);
-                    // 兼容 "/Date(1694025600000+0800)/" 时区后缀
-                    int plus = millis.indexOf('+');
-                    int minus = millis.indexOf('-', 1);
-                    if (plus > 0) millis = millis.substring(0, plus);
-                    if (minus > 0) millis = millis.substring(0, minus);
-                    return new Timestamp(Long.parseLong(millis));
-                }
+            if (s.startsWith("/Date(") && s.endsWith(")/")) {
+                long millis = Long.parseLong(s.substring(6, s.length() - 2));
+                return new Timestamp(millis);
             }
             String normalized = s.replace('T', ' ');
             if (normalized.length() == 10) {
                 normalized += " 00:00:00";
             }
-            // 截断到秒（去掉毫秒/时区后缀）
             if (normalized.length() > 19) {
                 normalized = normalized.substring(0, 19);
             }
-            return Timestamp.valueOf(normalized);
+            return Timestamp.valueOf(LocalDateTime.parse(normalized,
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String rootMessage(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null) {
+            t = t.getCause();
+        }
+        String msg = t.getMessage();
+        return msg != null ? msg : t.getClass().getSimpleName();
+    }
+
+    private static String abbreviate(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.length() <= 200 ? s : s.substring(0, 200) + "...";
     }
 }
