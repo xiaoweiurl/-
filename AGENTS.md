@@ -563,7 +563,8 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 **业务数据「仅新增同步」落库（ErpDataPersister，分批独立事务）**：
 - 核心规则：拉取 ERP 全量数据与本地表匹配比对，**仅插入匹配失败的新增数据；已匹配存量数据不做任何修改/更新**；重复执行幂等
 - 有主键表：`order_xs_list`(PK dh) / `order_jfk_gongyidan`(PK bh) / `order_sw_gongyidan`(PK bh) → `INSERT ... ON CONFLICT (pk) DO NOTHING`（主键唯一索引匹配）
-- 无唯一约束表（`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` / `raw_material_warehouse`）→ V58 md5(业务键) 表达式索引（规避多列 varchar(500) 组合索引超 2704 字节上限），分批 `WHERE md5(...) IN (...)` 一次查询走索引批量比对，差集即新增；Java md5 计算与 SQL 表达式规则严格一致（UTF-8 小写 hex + COALESCE(col,'') 以 '|' 连接）
+- 无唯一约束表（`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` / `raw_material_warehouse`）→ V58 md5(业务键) 表达式索引（规避多列 varchar(500) 组合索引超 2704 字节上限），分批 `WHERE md5(...) IN (...)` 一次查询走索引批量比对，差集即新增；Java md5 计算与 SQL 表达式规则严格一致（UTF-8 小写 hex + `COALESCE(TRIM(col::text),'')` 以 '|' 连接，Java 侧 null 键段按 "" 参与、取值带 trim——已实测含 integer 列/空格/null 混合场景两侧 md5 完全一致）
+- ⚠️ 参数类型陷阱：varchar 列必须 `str()`（BigDecimal/Integer setObject 到 varchar 报类型错误）；int4/numeric 列可 str()（PG 隐式转换）或 decimal()/integer()；`order_buj_component.zbj/zs=int4`、`tongjing/kez/xjtime/llcl=numeric`；`order_gongxu_process` 仅 yongl/tims=numeric、sort=int4，zhenju~sline/yongl2 均为 varchar
 - 业务键：部件=hhname+color+chima+buj+zbj+jix；工序=hhname+wtname+jizhong+zhenju+zhenhao+zhenmu；工价=hhname+wtname；原料=huohao+color+size+component+material_name+specification+batch_no（原料本地维护字段 unit_price 等因"不更新"天然受保护）
 - 事务控制：每批 `erp.sync-batch-size`（默认1000）独立 TransactionTemplate 事务；某批失败仅回滚当前批、记录失败明细（message 中"失败批次：批次N(X条)失败: 原因"），状态置 `partial`；批内业务键去重保幂等
 - 杜绝 N+1：PK 表纯批量 INSERT；无约束表每批 1 次 IN 查询 + 1 次 batchUpdate
@@ -571,7 +572,18 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 - 同步状态/日志写库（persistSyncResult/clearLogs）同样 TransactionTemplate 事务（HikariCP auto-commit=false 陷阱）
 - PersistResult 语义：inserted（实际插入）/ skipped（已存在跳过+批内重复）/ failed（失败批次条数）/ total（ERP 返回总数）
 
-**7 个同步模块**：orders(销售订单 `getOrdeListQuery`，支持 dates/datee 时间过滤+state/recheck 全量状态)、neiyi-gongyidan(`Technology/NGyMainQuery`)、siwa-gongyidan(`Technology/SGyMainQuery`)、gongyi-bujian(`Technology/NGyBujQuery`)、gongyi-gongxu(`Technology/NGyWorkTypeQuery`)、gongxu-gongjia(`Technology/NGyHuohaoPriceQuery`)、yuanliao-bom(`Material/MaterialYLQuery`)；`ErpProperties.resolveApiUrl` 自动补 `.aspx` 后缀；工艺类 ERP 端不支持时间过滤，本地游标记增量（落库幂等）。
+**7 个同步模块**（接口文档共 7 个业务接口，全部覆盖；报价单 order_bjd_query 在已提供的 4 份文档中无对应查询接口）：
+| 模块 key | ERP 接口 | 落库表 | 时间过滤 |
+|---|---|---|---|
+| orders | `OrderPrice/getOrdeListQuery` | order_xs_list (PK dh) | 支持 dates/datee |
+| neiyi-gongyidan | `Technology/NGyMainQuery` | order_jfk_gongyidan (PK bh) | 不支持 |
+| siwa-gongyidan | `Technology/SGyMainQuery` | order_sw_gongyidan (PK bh) | 不支持 |
+| gongyi-bujian | `Technology/NGyBujQuery` | order_buj_component | 不支持 |
+| gongyi-gongxu | `Technology/NGyWorkTypeQuery` | order_gongxu_process | 不支持 |
+| gongxu-gongjia | `Technology/NGyHuohaoPriceQuery` | order_gongxu_price | 不支持 |
+| yuanliao-bom | `Material/MaterialYLQuery` | raw_material_warehouse | 不支持 |
+
+`ErpProperties.resolveApiUrl` 自动补 `.aspx` 后缀；工艺类 ERP 端不支持时间过滤，本地游标记增量（落库幂等）。
 
 **配置**（`application.yml` erp 段，全部环境变量可覆盖）：`erp.base-url` / `erp.login-url` / `erp.login-path` / `erp.uid` / `erp.password` / `erp.custom-id` / `erp.timeout` / `erp.demo-enabled`（默认 false 真实优先，ERP 不可达自动降级演示：只记条数不污染业务表）。
 

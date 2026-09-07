@@ -42,7 +42,7 @@ public class ErpSyncServiceImpl implements ErpSyncService {
                              int dailyVolume) {}
 
     private static final List<ModuleDef> MODULES = List.of(
-            new ModuleDef("orders", "销售订单", "getOrdeListQuery", true, 12),
+            new ModuleDef("orders", "销售订单", "OrderPrice/getOrdeListQuery", true, 12),
             new ModuleDef("neiyi-gongyidan", "内衣工艺单", "Technology/NGyMainQuery", false, 5),
             new ModuleDef("siwa-gongyidan", "丝袜工艺单", "Technology/SGyMainQuery", false, 4),
             new ModuleDef("gongyi-bujian", "工艺部件", "Technology/NGyBujQuery", false, 20),

@@ -265,21 +265,24 @@ public class ErpDataPersister {
     }
 
     private static Object[] buildBujArgs(JsonNode r) {
+        // 列类型（order_buj_component）：zbj/zs=int4，tongjing/kez/xjtime/llcl=numeric，其余 varchar/text
+        // varchar 列必须 str()（BigDecimal/Integer setObject 到 varchar 会报类型错误）；数值列可 str()（PG 隐式转换）
         return new Object[]{
                 str(r, "hhname"), str(r, "color"), str(r, "chima"), str(r, "buj"), str(r, "zbj"),
                 str(r, "jix"), str(r, "zs"), str(r, "cxm"), str(r, "tongjing"), str(r, "bili"),
-                str(r, "kez"), decimal(r, "xjtime"), str(r, "tjcxm"), decimal(r, "tjxs"), decimal(r, "tzs"),
-                str(r, "skzjj"), decimal(r, "xf"), str(r, "zznd"), str(r, "llcl"), str(r, "remark"),
-                str(r, "vchima"), str(r, "vcolor"), decimal(r, "vtzs"), str(r, "ischeck"), str(r, "isrecheck")};
+                str(r, "kez"), decimal(r, "xjtime"), str(r, "tjcxm"), str(r, "tjxs"), str(r, "tzs"),
+                str(r, "skzjj"), str(r, "xf"), str(r, "zznd"), str(r, "llcl"), str(r, "remark"),
+                str(r, "vchima"), str(r, "vcolor"), str(r, "vtzs"), str(r, "ischeck"), str(r, "isrecheck")};
     }
 
     private static Object[] buildGongxuArgs(JsonNode r) {
+        // 列类型（order_gongxu_process）：yongl/tims=numeric，sort=int4，zhenju~sline/yongl2 等均为 varchar
         return new Object[]{
-                str(r, "hhname"), str(r, "wtname"), str(r, "jizhong"), integer(r, "zhenju"),
-                integer(r, "zhenhao"), integer(r, "zhenmu"), integer(r, "zhens"), integer(r, "zline"),
-                integer(r, "sline"), integer(r, "yongl"), integer(r, "yongl2"), integer(r, "sort"),
+                str(r, "hhname"), str(r, "wtname"), str(r, "jizhong"), str(r, "zhenju"),
+                str(r, "zhenhao"), str(r, "zhenmu"), str(r, "zhens"), str(r, "zline"),
+                str(r, "sline"), decimal(r, "yongl"), str(r, "yongl2"), integer(r, "sort"),
                 str(r, "tjtype"), str(r, "sctype"), str(r, "using_state"), str(r, "zhgx"),
-                integer(r, "tims"), str(r, "ischeck"), str(r, "isrecheck")};
+                decimal(r, "tims"), str(r, "ischeck"), str(r, "isrecheck")};
     }
 
     private static Object[] buildGongjiaArgs(JsonNode r) {
@@ -306,7 +309,9 @@ public class ErpDataPersister {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append("COALESCE(").append(localKeyCols.get(i)).append(", '')");
+            // 统一 ::text 转换：order_buj_component.zbj 等列是 integer，直接 COALESCE(int_col,'') 会报类型错误；
+            // 统一 TRIM：Java 侧 str() 带 trim，SQL 侧必须同步 TRIM，否则历史带空格数据匹配失败被误判为新增
+            sb.append("COALESCE(TRIM(").append(localKeyCols.get(i)).append("::text), '')");
         }
         return sb.append("))").toString();
     }
@@ -318,7 +323,10 @@ public class ErpDataPersister {
             if (i > 0) {
                 sb.append('|');
             }
-            sb.append(str(row, erpKeyFields.get(i)));
+            // str() 空值返回 null，必须转 "" 与 SQL 侧 COALESCE(TRIM(col::text),'') 严格一致；
+            // 直接 append(null) 会拼入 "null" 字符串导致 md5 永不匹配、存量被误判为新增
+            String v = str(row, erpKeyFields.get(i));
+            sb.append(v == null ? "" : v);
         }
         return sb.toString();
     }
