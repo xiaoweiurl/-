@@ -26,7 +26,13 @@ public class ErpProperties {
     /** 登录接口相对路径（login-url 为空时拼接使用） */
     private String loginPath = "/Auth/checkLogin.aspx";
 
-    /** 默认账套码（登录时前端可覆盖） */
+    /** ERP 登录账号（固定凭证，无需用户输入） */
+    private String uid = "88888";
+
+    /** ERP 登录密码（固定凭证，无需用户输入） */
+    private String password = "123";
+
+    /** 账套码（固定凭证，无需用户输入） */
     private String customId = "8D7C1BDE-C05F-4A11-BD96-D71D94D35633";
 
     /** 请求超时（毫秒） */
@@ -50,6 +56,10 @@ public class ErpProperties {
      */
     public String resolveApiUrl(String relativePath) {
         String path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
+        // 自动补 .aspx 后缀（模块定义中省略后缀，此处统一拼接）
+        if (!path.endsWith(".aspx")) {
+            path = path + ".aspx";
+        }
         return stripTrailingSlash(baseUrl) + path;
     }
 

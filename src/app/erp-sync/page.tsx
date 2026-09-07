@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  RefreshCcw, ArrowLeft, LogOut, LogIn, ShieldAlert, Database, Clock,
-  CheckCircle2, XCircle, AlertCircle, Trash2, Server, ChevronRight,
-  Layers, Activity, KeyRound, User, Globe, Loader2, History
+  RefreshCcw, ArrowLeft, LogOut, ShieldAlert, Database, Clock,
+  CheckCircle2, XCircle, Trash2, Server, ChevronRight,
+  Layers, Activity, KeyRound, Loader2, History
 } from 'lucide-react';
 
 // ==================== 类型定义 ====================
@@ -88,11 +88,9 @@ export default function ErpSyncPage() {
   const [roleChecked, setRoleChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // ERP 登录态
+  // ERP 连接态（凭证固定在后端配置，无需手动输入）
   const [authState, setAuthState] = useState<ErpAuthState | null>(null);
-  const [loginForm, setLoginForm] = useState({ uid: '', password: '', customId: '' });
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const [connectLoading, setConnectLoading] = useState(false);
 
   // 同步状态
   const [modules, setModules] = useState<ModuleState[]>([]);
@@ -124,10 +122,7 @@ export default function ErpSyncPage() {
     try {
       const res = await fetch('/api/erp-sync/auth-state', { headers: sessionHeaders() });
       const json = await res.json();
-      if (json.success) {
-        setAuthState(json.data);
-        if (json.data?.customId) setLoginForm(f => ({ ...f, customId: f.customId || json.data.customId }));
-      }
+      if (json.success) setAuthState(json.data);
     } catch { /* ignore */ }
   }, [sessionHeaders]);
 
@@ -173,45 +168,38 @@ export default function ErpSyncPage() {
     if (isAdmin) loadAll();
   }, [isAdmin, loadAll]);
 
-  // ==================== ERP 登录 / 登出 ====================
+  // ==================== ERP 连接（凭证固定后端配置，自动登录） ====================
 
-  const handleLogin = async () => {
-    if (!loginForm.uid.trim() || !loginForm.password) {
-      setLoginError('请输入 ERP 账号和密码');
-      return;
-    }
-    setLoginLoading(true);
-    setLoginError('');
+  const handleConnect = useCallback(async (silent = false) => {
+    setConnectLoading(true);
     try {
+      // 无需传参：uid/password/customId 由后端配置自动填充
       const res = await fetch('/api/erp-sync/login', {
         method: 'POST',
         headers: sessionHeaders(),
-        body: JSON.stringify({
-          uid: loginForm.uid.trim(),
-          password: loginForm.password,
-          customId: loginForm.customId.trim(),
-        }),
+        body: JSON.stringify({}),
       });
       const json = await res.json();
       if (json.success) {
         setAuthState(s => ({ ...s, ...json.data, loggedIn: true }));
-        showToast('success', json.data?.demo ? '演示模式登录成功' : 'ERP 登录成功');
-        setLoginForm(f => ({ ...f, password: '' }));
-      } else {
-        setLoginError(json.message || '登录失败');
+        if (!silent) showToast('success', json.data?.demo ? '已连接（演示模式）' : 'ERP 连接成功');
+        return true;
       }
+      if (!silent) showToast('error', json.message || 'ERP 连接失败');
+      return false;
     } catch {
-      setLoginError('网络异常，请稍后重试');
+      if (!silent) showToast('error', '网络异常，请稍后重试');
+      return false;
     } finally {
-      setLoginLoading(false);
+      setConnectLoading(false);
     }
-  };
+  }, [sessionHeaders]);
 
-  const handleLogout = async () => {
+  const handleDisconnect = async () => {
     try {
       await fetch('/api/erp-sync/logout', { method: 'POST', headers: sessionHeaders() });
       setAuthState(s => ({ ...s, loggedIn: false, uid: null, loginTime: null }));
-      showToast('success', '已退出 ERP 登录');
+      showToast('success', '已断开 ERP 连接');
     } catch { /* ignore */ }
   };
 
@@ -224,7 +212,7 @@ export default function ErpSyncPage() {
       const json = await res.json();
       if (res.status === 401 || json.code === 401) {
         setAuthState(s => ({ ...s, loggedIn: false }));
-        showToast('error', 'ERP 登录已失效，请重新登录');
+        showToast('error', 'ERP 自动登录失败，请检查后端凭证配置或 ERP 可达性');
         return;
       }
       if (json.success) {
@@ -249,7 +237,7 @@ export default function ErpSyncPage() {
       const json = await res.json();
       if (res.status === 401 || json.code === 401) {
         setAuthState(s => ({ ...s, loggedIn: false }));
-        showToast('error', 'ERP 登录已失效，请重新登录');
+        showToast('error', 'ERP 自动登录失败，请检查后端凭证配置或 ERP 可达性');
         return;
       }
       if (json.success) {
@@ -336,9 +324,9 @@ export default function ErpSyncPage() {
                 {authState?.demo ? '演示模式' : '已连接 ERP'}
               </span>
               <span className="text-[12px] text-[#8E8E93]">{authState?.uid}</span>
-              <button onClick={handleLogout}
+              <button onClick={handleDisconnect}
                 className="h-8 px-3 rounded-lg text-[12px] font-medium text-[#FF3B30] hover:bg-[#FF3B30]/10 transition-all flex items-center gap-1">
-                <LogOut className="w-3.5 h-3.5" />登出
+                <LogOut className="w-3.5 h-3.5" />断开
               </button>
             </div>
           )}
@@ -357,64 +345,30 @@ export default function ErpSyncPage() {
 
       <main className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
 
-        {/* ========== ERP 登录卡 ========== */}
+        {/* ========== ERP 连接卡（凭证固定后端配置） ========== */}
         {!loggedIn ? (
           <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-[#007AFF]/10 flex items-center justify-center">
-                <KeyRound className="w-5 h-5 text-[#007AFF]" />
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#007AFF]/10 flex items-center justify-center">
+                  <KeyRound className="w-5 h-5 text-[#007AFF]" />
+                </div>
+                <div>
+                  <h2 className="text-[16px] font-bold text-[#1C1C1E]">ERP 连接</h2>
+                  <p className="text-[12px] text-[#8E8E93]">
+                    账号凭证由后端固定配置，同步时将自动登录换取 token 并携带于所有业务接口请求头
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-[16px] font-bold text-[#1C1C1E]">ERP 账号登录</h2>
-                <p className="text-[12px] text-[#8E8E93]">登录后获取 token，服务端自动携带于所有业务接口请求头</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E93]" />
-                <input
-                  value={loginForm.uid}
-                  onChange={e => setLoginForm(f => ({ ...f, uid: e.target.value }))}
-                  placeholder="ERP 账号"
-                  className="w-full h-10 pl-9 pr-3 rounded-xl bg-[rgba(118,118,128,0.12)] text-[14px] text-[#1C1C1E] placeholder:text-[#8E8E93] outline-none focus:bg-white focus:ring-2 focus:ring-[#007AFF]/30 transition-all"
-                />
-              </div>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E93]" />
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  placeholder="密码"
-                  className="w-full h-10 pl-9 pr-3 rounded-xl bg-[rgba(118,118,128,0.12)] text-[14px] text-[#1C1C1E] placeholder:text-[#8E8E93] outline-none focus:bg-white focus:ring-2 focus:ring-[#007AFF]/30 transition-all"
-                />
-              </div>
-              <div className="relative">
-                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E93]" />
-                <input
-                  value={loginForm.customId}
-                  onChange={e => setLoginForm(f => ({ ...f, customId: e.target.value }))}
-                  placeholder="账套码（可选）"
-                  className="w-full h-10 pl-9 pr-3 rounded-xl bg-[rgba(118,118,128,0.12)] text-[14px] text-[#1C1C1E] placeholder:text-[#8E8E93] outline-none focus:bg-white focus:ring-2 focus:ring-[#007AFF]/30 transition-all"
-                />
-              </div>
-            </div>
-            {loginError && (
-              <div className="mt-3 flex items-center gap-1.5 text-[12px] text-[#FF3B30]">
-                <AlertCircle className="w-3.5 h-3.5" />{loginError}
-              </div>
-            )}
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-[11px] text-[#8E8E93]">
-                登录接口独立地址；业务接口统一前缀 <span className="font-mono">{authState?.baseUrl || '—'}</span>
-              </p>
-              <button onClick={handleLogin} disabled={loginLoading}
+              <button onClick={() => handleConnect()} disabled={connectLoading}
                 className="h-10 px-6 rounded-xl bg-[#007AFF] text-white text-[14px] font-medium hover:bg-[#0066D6] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center gap-2">
-                {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-                登录
+                {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />}
+                连接 ERP
               </button>
             </div>
+            <p className="mt-3 text-[11px] text-[#8E8E93]">
+              登录接口独立地址；业务接口统一前缀 <span className="font-mono">{authState?.baseUrl || '—'}</span>
+            </p>
           </div>
         ) : (
           <>

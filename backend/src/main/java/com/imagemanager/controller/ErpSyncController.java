@@ -58,15 +58,17 @@ public class ErpSyncController {
     // ==================== ERP 登录态 ====================
 
     @PostMapping("/login")
-    @Operation(summary = "ERP 登录", description = "账号密码换取 token（登录接口独立地址），token 缓存于服务端")
+    @Operation(summary = "ERP 登录", description = "使用后端固定凭证换取 token（登录接口独立地址），token 缓存于服务端；body 可为空")
     public ApiResponse<Map<String, Object>> erpLogin(
-            @RequestBody Map<String, String> request,
+            @RequestBody(required = false) Map<String, String> request,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
         ApiResponse<Void> denied = checkAdminOrAbove(sessionId);
         if (denied != null) return ApiResponse.error(denied.getCode(), denied.getMessage());
         try {
             Map<String, Object> result = erpAuthService.login(
-                    request.get("uid"), request.get("password"), request.get("customId"));
+                    request != null ? request.get("uid") : null,
+                    request != null ? request.get("password") : null,
+                    request != null ? request.get("customId") : null);
             return ApiResponse.success("ERP 登录成功", result);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(400, e.getMessage());

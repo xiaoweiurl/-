@@ -15,7 +15,7 @@ import {
 interface OverviewData {
   quotationAmount: number;
   quotationCount: number;
-  salesAmount: number;
+  salesQuantity: number;
   salesOrderCount: number;
   gongyidanCount: number;
   passRate: number;
@@ -23,8 +23,10 @@ interface OverviewData {
   salesMonthTrend: number | null;
 }
 
-interface TrendPoint { day: string; amount: number }
-interface TrendData { days: number; quotation: TrendPoint[]; sales: TrendPoint[] }
+// 报价系列返回金额 amount；销售系列返回数量 quantity（销售单无金额字段，sl_sum 为数量合计）
+interface QuotationTrendPoint { day: string; amount: number }
+interface SalesTrendPoint { day: string; quantity: number }
+interface TrendData { days: number; quotation: QuotationTrendPoint[]; sales: SalesTrendPoint[] }
 interface StatusSlice { name: string; value: number }
 
 interface RecentQuotation {
@@ -119,8 +121,8 @@ export default function DocumentStatsDashboard() {
     });
     (trend.sales || []).forEach(p => {
       const existing = map.get(p.day);
-      if (existing) existing.sales = Number(p.amount) || 0;
-      else map.set(p.day, { day: p.day, quotation: 0, sales: Number(p.amount) || 0 });
+      if (existing) existing.sales = Number(p.quantity) || 0;
+      else map.set(p.day, { day: p.day, quotation: 0, sales: Number(p.quantity) || 0 });
     });
     return Array.from(map.values());
   }, [trend]);
@@ -161,8 +163,9 @@ export default function DocumentStatsDashboard() {
       suffix: '笔',
     },
     {
-      label: '销售金额', value: `¥${fmtMoney(overview?.salesAmount)}`,
+      label: '销售数量', value: (overview?.salesQuantity ?? 0).toLocaleString(),
       icon: <ShoppingCart className="w-5 h-5" />, iconBg: 'bg-[#34C759]/10', iconColor: 'text-[#34C759]',
+      suffix: '件',
       trend: overview?.salesMonthTrend ?? null,
     },
     {
@@ -203,17 +206,17 @@ export default function DocumentStatsDashboard() {
         ))}
       </div>
       {overview && (
-        <p className="text-xs text-[#8E8E93] -mt-3 px-1">销售金额为估算口径（订单数量 × 货号最新报价），环比为本月与上月笔数对比</p>
+        <p className="text-xs text-[#8E8E93] -mt-3 px-1">报价金额按报价单销售价合计；销售单仅含数量字段（无金额），环比为本月与上月笔数对比</p>
       )}
 
       {/* 图表行：趋势折线图 + 状态环形图 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* 报价 & 销售金额趋势 */}
+        {/* 报价金额 & 销售数量趋势 */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <h3 className="text-lg font-semibold text-[#1c1c1e] mb-1 flex items-center gap-2">
-            <LineChartIcon className="w-5 h-5 text-[#007AFF]" />报价 & 销售金额趋势
+            <LineChartIcon className="w-5 h-5 text-[#007AFF]" />报价金额 & 销售数量趋势
           </h3>
-          <p className="text-xs text-[#8E8E93] mb-4">近 {trend?.days ?? 30} 天按制单日期聚合</p>
+          <p className="text-xs text-[#8E8E93] mb-4">近 {trend?.days ?? 30} 天按制单日期聚合（两条线各自独立归一化，金额单位 ¥ / 数量单位 件）</p>
           {mergedTrend.length === 0 ? (
             <div className="h-64 flex items-center justify-center text-[#8E8E93] text-sm">暂无趋势数据</div>
           ) : (
@@ -232,8 +235,10 @@ export default function DocumentStatsDashboard() {
                   />
                   <Tooltip
                     formatter={(value: number | string, name: string) => [
-                      `¥${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`,
-                      name === 'quotation' ? '报价金额' : '销售金额',
+                      name === 'quotation'
+                        ? `¥${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+                        : `${Number(value).toLocaleString()} 件`,
+                      name === 'quotation' ? '报价金额' : '销售数量',
                     ]}
                     contentStyle={{
                       borderRadius: 12, border: '1px solid #E5E5EA',
@@ -241,7 +246,7 @@ export default function DocumentStatsDashboard() {
                     }}
                   />
                   <Legend
-                    formatter={(v: string) => (v === 'quotation' ? '报价金额' : '销售金额')}
+                    formatter={(v: string) => (v === 'quotation' ? '报价金额' : '销售数量')}
                     wrapperStyle={{ fontSize: 12 }}
                   />
                   <Line type="monotone" dataKey="quotation" stroke="#007AFF" strokeWidth={2.5}

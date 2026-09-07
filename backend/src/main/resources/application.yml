@@ -216,12 +216,15 @@ erp:
   login-url: ${ERP_LOGIN_URL:}
   # 登录接口相对路径（login-url 为空时拼接使用）
   login-path: ${ERP_LOGIN_PATH:/Auth/checkLogin.aspx}
-  # 默认账套码（登录时可由前端覆盖）
+  # ERP 登录凭证（固定值，无需用户手动配置；同步时后端自动登录换取 token）
+  uid: ${ERP_UID:88888}
+  password: ${ERP_PASSWORD:123}
+  # 账套码（固定值）
   custom-id: ${ERP_CUSTOM_ID:8D7C1BDE-C05F-4A11-BD96-D71D94D35633}
   # 请求超时（毫秒）
   timeout: ${ERP_TIMEOUT:10000}
-  # 演示模式：true 时不请求真实 ERP，使用内置模拟数据（ERP 不可达时也会自动降级为演示数据）
-  demo-enabled: ${ERP_DEMO_ENABLED:true}
+  # 演示模式：true 时不请求真实 ERP，使用内置模拟数据；false 时请求真实 ERP（不可达时自动降级为演示数据）
+  demo-enabled: ${ERP_DEMO_ENABLED:false}
 
 # Milvus 向量数据库配置（200G 业务员数据）
 milvus:

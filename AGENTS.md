@@ -546,36 +546,45 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 - `GET /api/products/{id}/images` - 获取商品所有图片
 
 #### ERP 数据同步（仅管理员及以上）
-外部 ERP（`http://mpro42.ywhzsoft.com/netWf2024Unitive_Ent/`）增量同步，Java 后端（`ErpSyncController` + `ErpSyncServiceImpl` + `ErpAuthServiceImpl` + `ErpClient` + `ErpProperties`）+ Next.js 通配代理（`/api/erp-sync/[[...path]]` → `/erp-sync/*`）：
+外部 ERP（`http://mpro42.ywhzsoft.com/netWf2024Unitive_Ent/`）增量同步，Java 后端（`ErpSyncController` + `ErpSyncServiceImpl` + `ErpAuthServiceImpl` + `ErpClient` + `ErpProperties` + `ErpDataPersister`）+ Next.js 通配代理（`/api/erp-sync/[[...path]]` → `/erp-sync/*`）：
 
-- `POST /api/erp-sync/login` - ERP 登录（uid/password/customId → token 缓存服务端，登录接口独立地址）
+- `POST /api/erp-sync/login` - ERP 登录（body 可为空，凭证固定后端配置 → token 缓存服务端）
 - `GET /api/erp-sync/auth-state` - 登录态（loggedIn/uid/loginTime/demo/baseUrl，不返 token）
 - `POST /api/erp-sync/logout` - 登出清除 token
 - `GET /api/erp-sync/status` - 同步状态概览（7 模块游标 + summary 汇总）
-- `POST /api/erp-sync/sync/{moduleKey}` - 单模块增量同步（数据库最新时间→当前时间）
+- `POST /api/erp-sync/sync/{moduleKey}` - 单模块增量同步（数据库最新时间→当前时间，业务数据落库）
 - `POST /api/erp-sync/sync-all` - 全部模块串行同步
 - `GET /api/erp-sync/logs?limit=50` / `DELETE /api/erp-sync/logs` - 日志查询/清空
 
-**接口规范**：统一响应 `{code, message, result}`（1 成功 / 0 失败 / -100 鉴权失败 / -101 超时 / -200 无效账套码）；业务接口 Header 带 `Authorization: Bearer {token}`；401 时前端跳 ERP 登录。
+**接口规范**：统一响应 `{code, message, result}`（1 成功 / 0 失败 / -100 鉴权失败 / -101 超时 / -200 无效账套码）；业务接口 Header 带 `Authorization: Bearer {token}`。
 
-**7 个同步模块**：orders(销售订单，支持 dates/datee 时间过滤)、neiyi-gongyidan、siwa-gongyidan、gongyi-bujian、gongyi-gongxu、gongxu-gongjia、yuanliao-bom（工艺类 ERP 端不支持时间过滤，本地游标记增量）。
+**凭证固定配置（用户要求定死，无需手动输入）**：`erp.uid=88888` / `erp.password=123` / `erp.custom-id=8D7C1BDE-C05F-4A11-BD96-D71D94D35633`；同步时 `ensureToken()` 自动登录换取 token；token 失效自动重登重试一次；登录接口独立地址 `Auth/checkLogin.aspx`（postman 实测路径）。
 
-**配置**（`application.yml` erp 段，全部环境变量可覆盖）：`erp.base-url`（业务统一前缀，全局常量）/ `erp.login-url` / `erp.login-path` / `erp.custom-id` / `erp.timeout` / `erp.demo-enabled`（演示模式：ERP 不可达自动降级，按时间跨度×模块日均量生成模拟增量）。
+**业务数据真正落库（ErpDataPersister，TransactionTemplate 事务包裹）**：
+- 有主键表 upsert：`order_xs_list`(PK dh) / `order_jfk_gongyidan`(PK bh) / `order_sw_gongyidan`(PK bh) → ON CONFLICT DO UPDATE
+- 无主键明细表全量替换：`order_buj_component` / `order_gongxu_process` / `order_gongxu_price` → 事务内 DELETE + 批量 INSERT
+- `raw_material_warehouse` 按业务键（货号+颜色+尺码+部件+供应商+物料+规格+批号）merge，**绝不覆盖本地维护字段** unit_price/company/product_code
+- state/zxtate 落库存中文文本（与 HistoryOrder 查询 `state='审核'` 实际口径一致，表注释 0/1 与实际数据不符）
+- 同步状态/日志写库（persistSyncResult/clearLogs）同样 TransactionTemplate 事务（HikariCP auto-commit=false 陷阱）
+
+**7 个同步模块**：orders(销售订单 `getOrdeListQuery`，支持 dates/datee 时间过滤+state/recheck 全量状态)、neiyi-gongyidan(`Technology/NGyMainQuery`)、siwa-gongyidan(`Technology/SGyMainQuery`)、gongyi-bujian(`Technology/NGyBujQuery`)、gongyi-gongxu(`Technology/NGyWorkTypeQuery`)、gongxu-gongjia(`Technology/NGyHuohaoPriceQuery`)、yuanliao-bom(`Material/MaterialYLQuery`)；`ErpProperties.resolveApiUrl` 自动补 `.aspx` 后缀；工艺类 ERP 端不支持时间过滤，本地游标记增量（落库幂等）。
+
+**配置**（`application.yml` erp 段，全部环境变量可覆盖）：`erp.base-url` / `erp.login-url` / `erp.login-path` / `erp.uid` / `erp.password` / `erp.custom-id` / `erp.timeout` / `erp.demo-enabled`（默认 false 真实优先，ERP 不可达自动降级演示：只记条数不污染业务表）。
 
 **数据表**（V57）：`erp_sync_state`（module_key PK + last_sync_time 游标 + total_records + last_status）、`erp_sync_log`（同步明细：sync_type/range_start/range_end/added/failed/status/duration_ms/source）。
 
-**前端页面**：`/erp-sync`（权限守卫非管理员显示无权限页 + ERP 登录卡 + 4 概览卡片 + 7 模块列表单模块同步 + 全部同步进度 + 日志表格清空），入口在供应链主页 TABS 区（仅 `isAdminOrAbove` 可见）。
+**前端页面**：`/erp-sync`（权限守卫非管理员显示无权限页 + ERP 连接卡〔固定凭证一键连接，无登录表单〕+ 4 概览卡片 + 7 模块列表单模块同步 + 全部同步进度 + 日志表格清空），入口在供应链主页 TABS 区（仅 `isAdminOrAbove` 可见）。
 
 #### 三单据统计（报价单/销售单/工艺单）
 供应链主页「单据概览」Tab 数据源，Java 后端（`DocumentStatsController` + `DocumentStatsServiceImpl`：JdbcTemplate）+ Next.js 通配代理（`/api/document-stats/[[...path]]` → `/document-stats/*`）：
 
-- `GET /api/document-stats/overview` - 6 概览卡片（quotationAmount/quotationCount/salesAmount/salesOrderCount/gongyidanCount/passRate + 月度环比）
-- `GET /api/document-stats/trend?days=30` - 报价&销售金额双系列趋势（按 zhdate 聚合 MM-DD）
+- `GET /api/document-stats/overview` - 6 概览卡片（quotationAmount/quotationCount/salesQuantity/salesOrderCount/gongyidanCount/passRate + 月度环比）
+- `GET /api/document-stats/trend?days=30` - 报价金额&销售数量双系列趋势（按 zhdate 聚合 MM-DD；quotation 系列字段 amount，sales 系列字段 quantity）
 - `GET /api/document-stats/gongyidan-status` - 工艺单按 hhtype 分布（空归"未分类"）
 - `GET /api/document-stats/recent-quotations` - 最近报价单（dh/date/customer/huohao/spname/saleprice/cost/passRate）
 - `GET /api/document-stats/recent-gongyidan` - 最近工艺单（bh/hhtype/huohao/spname + bomCount/machineCount/processCount/priceCount 四个关联子查询）
 
-**数据口径**：销售金额=SUM(sl_sum×货号最新报价) 估算（order_xs_list 无金额字段）；合格率=AVG(zpl) 兼容 0-1/0-100；工艺单关联=jfk.huohao=buj/gxp/gxpr.hhname=raw_material_warehouse.huohao。
+**数据口径**：⚠️ sl_sum 是数量合计字段不是金额——销售单**没有金额字段**，销售指标一律用销售数量 SUM(sl_sum)；报价金额=SUM(order_bjd_query.saleprice)；合格率=AVG(zpl) 兼容 0-1/0-100；工艺单关联=jfk.huohao=buj/gxp/gxpr.hhname=raw_material_warehouse.huohao。
 
 **前端组件**：`src/components/DocumentStatsDashboard.tsx`（6 卡片 + 手绘 SVG 双折线趋势图 + 环形图 + 两个最近列表）。供应链主页已移除原 6 个业务 Tab（智能报价/产品报价/原料入库/原料采购/生产计划/辅料采购），仅保留「AI 对话」与「单据概览」。
 

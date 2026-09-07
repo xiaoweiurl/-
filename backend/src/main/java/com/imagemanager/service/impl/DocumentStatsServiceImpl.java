@@ -58,21 +58,16 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
             out.put("quotationCount", 0);
         }
 
-        // 销售金额（估算）/订单数
+        // 销售数量（sl_sum=数量合计，销售单无金额字段）/订单数
         try {
             Map<String, Object> s = jdbcTemplate.queryForMap(
-                    "SELECT COALESCE(SUM(xs.sl_sum * q.latest_price), 0) AS amount, "
-                            + "COUNT(DISTINCT xs.dh) AS cnt "
-                            + "FROM " + SALES_ORDER_TABLE + " xs "
-                            + "LEFT JOIN (SELECT DISTINCT ON (huohao) huohao, saleprice AS latest_price "
-                            + "FROM " + QUOTATION_TABLE + " WHERE huohao IS NOT NULL AND saleprice > 0 "
-                            + "ORDER BY huohao, zhdate DESC NULLS LAST) q ON xs.detailhuohao = q.huohao "
-                            + "WHERE xs.state = ?", STATE_APPROVED);
-            out.put("salesAmount", round2(s.get("amount")));
+                    "SELECT COALESCE(SUM(sl_sum), 0) AS qty, COUNT(DISTINCT dh) AS cnt "
+                            + "FROM " + SALES_ORDER_TABLE + " WHERE state = ?", STATE_APPROVED);
+            out.put("salesQuantity", ((Number) s.get("qty")).longValue());
             out.put("salesOrderCount", ((Number) s.get("cnt")).longValue());
         } catch (Exception e) {
             log.warn("[三单据统计] 销售统计失败: {}", e.getMessage());
-            out.put("salesAmount", 0);
+            out.put("salesQuantity", 0);
             out.put("salesOrderCount", 0);
         }
 
@@ -132,16 +127,13 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
                         + "FROM " + QUOTATION_TABLE + " WHERE zhdate >= CURRENT_DATE - INTERVAL '" + range + " days' "
                         + "GROUP BY to_char(zhdate, 'MM-DD'), zhdate::date ORDER BY zhdate::date");
 
-        // 销售金额趋势（估算口径，已审核）
+        // 销售数量趋势（sl_sum=数量合计，已审核；销售单无金额字段）
         List<Map<String, Object>> sales = safeQuery(
-                "SELECT to_char(xs.zhdate, 'MM-DD') AS day, COALESCE(SUM(xs.sl_sum * q.latest_price), 0) AS amount "
-                        + "FROM " + SALES_ORDER_TABLE + " xs "
-                        + "LEFT JOIN (SELECT DISTINCT ON (huohao) huohao, saleprice AS latest_price "
-                        + "FROM " + QUOTATION_TABLE + " WHERE huohao IS NOT NULL AND saleprice > 0 "
-                        + "ORDER BY huohao, zhdate DESC NULLS LAST) q ON xs.detailhuohao = q.huohao "
-                        + "WHERE xs.state = '" + STATE_APPROVED + "' "
-                        + "AND xs.zhdate >= CURRENT_DATE - INTERVAL '" + range + " days' "
-                        + "GROUP BY to_char(xs.zhdate, 'MM-DD'), xs.zhdate::date ORDER BY xs.zhdate::date");
+                "SELECT to_char(zhdate, 'MM-DD') AS day, COALESCE(SUM(sl_sum), 0) AS quantity "
+                        + "FROM " + SALES_ORDER_TABLE
+                        + " WHERE state = '" + STATE_APPROVED + "' "
+                        + "AND zhdate >= CURRENT_DATE - INTERVAL '" + range + " days' "
+                        + "GROUP BY to_char(zhdate, 'MM-DD'), zhdate::date ORDER BY zhdate::date");
 
         out.put("days", range);
         out.put("quotation", quotation);

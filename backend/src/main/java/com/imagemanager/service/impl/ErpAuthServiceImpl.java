@@ -15,6 +15,8 @@ import java.util.UUID;
 /**
  * ERP 登录态管理实现
  *
+ * 凭证固定配置在后端（erp.uid / erp.password / erp.custom-id），无需用户手动输入；
+ * 同步流程通过 ensureToken() 自动登录换取 token。
  * token 缓存在服务内存（单实例部署足够）；演示模式下生成模拟 token，
  * 不请求真实 ERP 服务器，保证功能可完整演示。
  */
@@ -38,18 +40,20 @@ public class ErpAuthServiceImpl implements ErpAuthService {
 
     @Override
     public Map<String, Object> login(String uid, String password, String customId) {
-        if (uid == null || uid.isBlank() || password == null || password.isBlank()) {
-            throw new IllegalArgumentException("ERP 账号与密码不能为空");
-        }
+        // 凭证固定在后端配置，入参为空时使用配置默认值（无需用户手动配置）
+        String effectiveUid = (uid == null || uid.isBlank()) ? erpProperties.getUid() : uid.trim();
+        String effectivePassword = (password == null || password.isBlank()) ? erpProperties.getPassword() : password;
+        String effectiveCustomId = (customId == null || customId.isBlank()) ? erpProperties.getCustomId() : customId.trim();
+
         String token;
         boolean demo = erpProperties.isDemoEnabled();
         if (demo) {
             // 演示模式：不请求真实 ERP，生成模拟 token
             token = "demo-" + UUID.randomUUID().toString().replace("-", "");
-            log.info("[ERP登录] 演示模式，账号 {} 登录成功（模拟 token）", uid);
+            log.info("[ERP登录] 演示模式，账号 {} 登录成功（模拟 token）", effectiveUid);
         } else {
             try {
-                token = erpClient.login(uid.trim(), password, customId);
+                token = erpClient.login(effectiveUid, effectivePassword, effectiveCustomId);
             } catch (ErpClient.ErpNetworkException e) {
                 // ERP 不可达时降级为演示 token，保证演示可用
                 token = "demo-" + UUID.randomUUID().toString().replace("-", "");
@@ -58,7 +62,7 @@ public class ErpAuthServiceImpl implements ErpAuthService {
             }
         }
         this.cachedToken = token;
-        this.cachedUid = uid.trim();
+        this.cachedUid = effectiveUid;
         this.loginTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         this.demoToken = demo;
 
@@ -72,6 +76,17 @@ public class ErpAuthServiceImpl implements ErpAuthService {
 
     @Override
     public String getToken() {
+        return cachedToken;
+    }
+
+    @Override
+    public synchronized String ensureToken() {
+        if (cachedToken != null && !cachedToken.isBlank()) {
+            return cachedToken;
+        }
+        // 无缓存 token：使用后端固定凭证自动登录（无需用户手动操作）
+        log.info("[ERP登录] 无缓存 token，使用配置凭证自动登录（账号 {}）", erpProperties.getUid());
+        login(null, null, null);
         return cachedToken;
     }
 

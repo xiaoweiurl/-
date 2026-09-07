@@ -42,13 +42,13 @@ public class ErpSyncServiceImpl implements ErpSyncService {
                              int dailyVolume) {}
 
     private static final List<ModuleDef> MODULES = List.of(
-            new ModuleDef("orders", "销售订单", "OrderPrice/getOrdeListQuery.aspx", true, 12),
-            new ModuleDef("neiyi-gongyidan", "内衣工艺单", "Technology/NGyMainQuery.aspx", false, 5),
-            new ModuleDef("siwa-gongyidan", "丝袜工艺单", "Technology/SGyMainQuery.aspx", false, 4),
-            new ModuleDef("gongyi-bujian", "工艺部件", "Technology/NGyBujQuery.aspx", false, 20),
-            new ModuleDef("gongyi-gongxu", "工艺工序", "Technology/NGyWorkTypeQuery.aspx", false, 25),
-            new ModuleDef("gongxu-gongjia", "工序工价", "Technology/NGyHuohaoPriceQuery.aspx", false, 15),
-            new ModuleDef("yuanliao-bom", "原料BOM", "Technology/MaterialYLQuery.aspx", false, 18)
+            new ModuleDef("orders", "销售订单", "getOrdeListQuery", true, 12),
+            new ModuleDef("neiyi-gongyidan", "内衣工艺单", "Technology/NGyMainQuery", false, 5),
+            new ModuleDef("siwa-gongyidan", "丝袜工艺单", "Technology/SGyMainQuery", false, 4),
+            new ModuleDef("gongyi-bujian", "工艺部件", "Technology/NGyBujQuery", false, 20),
+            new ModuleDef("gongyi-gongxu", "工艺工序", "Technology/NGyWorkTypeQuery", false, 25),
+            new ModuleDef("gongxu-gongjia", "工序工价", "Technology/NGyHuohaoPriceQuery", false, 15),
+            new ModuleDef("yuanliao-bom", "原料BOM", "Material/MaterialYLQuery", false, 18)
     );
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -60,17 +60,20 @@ public class ErpSyncServiceImpl implements ErpSyncService {
     private final ErpAuthService erpAuthService;
     private final ErpClient erpClient;
     private final ErpProperties erpProperties;
+    private final com.imagemanager.service.ErpDataPersister erpDataPersister;
 
     public ErpSyncServiceImpl(JdbcTemplate jdbcTemplate,
                               TransactionTemplate transactionTemplate,
                               ErpAuthService erpAuthService,
                               ErpClient erpClient,
-                              ErpProperties erpProperties) {
+                              ErpProperties erpProperties,
+                              com.imagemanager.service.ErpDataPersister erpDataPersister) {
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
         this.erpAuthService = erpAuthService;
         this.erpClient = erpClient;
         this.erpProperties = erpProperties;
+        this.erpDataPersister = erpDataPersister;
     }
 
     @Override
@@ -180,14 +183,11 @@ public class ErpSyncServiceImpl implements ErpSyncService {
     // ==================== 同步核心逻辑 ====================
 
     /**
-     * 执行单模块增量同步（含日志落库）
+     * 执行单模块增量同步（业务数据落库 + 状态/日志落库，写库均在事务中）
      */
     private Map<String, Object> doSync(ModuleDef def) {
-        String token = erpAuthService.getToken();
-        if (token == null || token.isBlank()) {
-            // 401：未登录，前端据此跳转 ERP 登录
-            throw new ErpClient.ErpAuthException("ERP 未登录，请先登录获取 token");
-        }
+        // 凭证固定在后端配置：无 token 时自动登录换取，无需用户手动操作
+        String token = erpAuthService.ensureToken();
 
         long startMs = System.currentTimeMillis();
         LocalDateTime now = LocalDateTime.now();
@@ -204,19 +204,22 @@ public class ErpSyncServiceImpl implements ErpSyncService {
 
         try {
             if (erpProperties.isDemoEnabled() || isDemoToken(token)) {
-                // 演示模式：按时间跨度生成模拟增量数据
+                // 演示模式：按时间跨度生成模拟增量条数（不污染业务表，仅记录同步状态/日志）
                 added = generateDemoIncrement(def, rangeStart, now);
                 source = "demo";
                 simulateLatency();
                 message = buildSyncMessage(def, added, rangeStart, now, incremental, true);
             } else {
                 try {
-                    added = fetchRealCount(def, rangeStart, now, token);
+                    added = fetchAndPersist(def, rangeStart, now, token);
                     message = buildSyncMessage(def, added, rangeStart, now, incremental, false);
                 } catch (ErpClient.ErpAuthException e) {
-                    // token 失效：清理 token，要求重新登录
+                    // token 失效：清理后用固定凭证自动重登，重试一次；仍失败则向上抛（前端 401 提示）
+                    log.warn("[ERP同步] {} token 失效，自动重新登录后重试: {}", def.name(), e.getMessage());
                     erpAuthService.clearToken();
-                    throw e;
+                    token = erpAuthService.ensureToken();
+                    added = fetchAndPersist(def, rangeStart, now, token);
+                    message = buildSyncMessage(def, added, rangeStart, now, incremental, false);
                 } catch (ErpClient.ErpNetworkException e) {
                     // ERP 不可达：降级为演示数据，保证同步流程可演示
                     log.warn("[ERP同步] {} 真实 ERP 不可达，降级演示数据: {}", def.name(), e.getMessage());
@@ -254,19 +257,37 @@ public class ErpSyncServiceImpl implements ErpSyncService {
         return logEntry;
     }
 
-    /** 真实模式：调用 ERP 接口统计增量条数 */
-    private int fetchRealCount(ModuleDef def, LocalDateTime rangeStart, LocalDateTime now, String token) {
+    /**
+     * 真实模式：调用 ERP 接口拉取数据并落库到本地业务表（事务包裹）
+     *
+     * 落库策略见 ErpDataPersister：有主键表 upsert、无主键明细表全量替换、
+     * 原料 BOM 按业务键 merge（保护本地维护字段）。
+     *
+     * @return 落库处理条数（插入+更新）
+     */
+    private int fetchAndPersist(ModuleDef def, LocalDateTime rangeStart, LocalDateTime now, String token) {
         Map<String, String> params = new LinkedHashMap<>();
         if (def.supportsTimeFilter()) {
-            // 订单模块：ERP 原生时间过滤 dates/datee
+            // 订单模块：ERP 原生时间过滤 dates/datee（增量起点=数据库最新同步时间）
             params.put("dates", rangeStart.format(FMT));
             params.put("datee", now.format(FMT));
+            // 状态/执行状态按接口文档为必填多值：全量状态都拉取
+            params.put("state", "0,1,3");
+            params.put("recheck", "0,1,2");
         } else {
-            // 工艺类模块：ERP 端不支持时间过滤，空参全量拉取，本地记录增量语义
+            // 工艺类模块：ERP 端不支持时间过滤，空参全量拉取；落库幂等（upsert/全量替换/merge）
             params.put("id", "");
         }
         JsonNode result = erpClient.callApi(def.endpoint(), params, token);
-        return result != null && result.isArray() ? result.size() : 0;
+        if (result == null || !result.isArray() || result.isEmpty()) {
+            return 0;
+        }
+        // 业务数据真正落库（事务包裹，auto-commit=false 环境下确保提交）
+        com.imagemanager.service.ErpDataPersister.PersistResult pr = erpDataPersister.persist(def.key(), result);
+        if (pr.updated() > 0) {
+            log.info("[ERP同步] {} 落库完成：新增 {} 条，更新 {} 条", def.name(), pr.inserted(), pr.updated());
+        }
+        return pr.total();
     }
 
     /** 演示模式：按时间跨度 × 模块日均量生成增量记录数（含随机波动） */
