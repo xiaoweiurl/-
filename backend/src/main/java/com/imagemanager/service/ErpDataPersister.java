@@ -224,7 +224,7 @@ public class ErpDataPersister {
     private static final String INSERT_GONGXU =
             "INSERT INTO order_gongxu_process (hhname, wtname, jizhong, zhenju, zhenhao, zhenmu, zhens, zline, sline,"
                     + " yongl, yongl2, \"sort\", tjtype, sctype, using_state, zhgx, tims, ischeck, isrecheck)"
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String INSERT_GONGJIA =
             "INSERT INTO order_gongxu_price (hhname, wtname, jsprice, price, tempworker_price, state)"
@@ -249,29 +249,32 @@ public class ErpDataPersister {
     }
 
     private static Object[] buildJfkArgs(JsonNode r) {
+        // 列类型（order_jfk_gongyidan）：全部 varchar/text（rsjgh 也是 varchar）
         return new Object[]{
                 str(r, "bh"), str(r, "hhtype"), str(r, "huohao"), str(r, "spname"), str(r, "designer"),
-                str(r, "dw"), integer(r, "rsjgh"), str(r, "qd_dys"), str(r, "hd_dys"),
+                str(r, "dw"), str(r, "rsjgh"), str(r, "qd_dys"), str(r, "hd_dys"),
                 str(r, "dybanhao"), str(r, "remark")};
     }
 
     private static Object[] buildSwArgs(JsonNode r) {
+        // 列类型（order_sw_gongyidan，以用户本地建表 SQL 为准）：
+        // xjkz/xjsl/pfkz/cpkz/zcl/djcl=numeric(必须 decimal，PG 无 varchar→numeric 隐式转换)，其余 varchar/text
         return new Object[]{
                 str(r, "bh"), str(r, "hhtype"), str(r, "huohao"), str(r, "spname"), str(r, "dybanhao"),
-                str(r, "cxm"), str(r, "xjkz"), integer(r, "xjsl"), str(r, "pfkz"), str(r, "cpkz"),
-                str(r, "zcl"), str(r, "jix"), str(r, "zs"), str(r, "yajiao"), integer(r, "nd"),
-                str(r, "djcl"), str(r, "hhywy"), str(r, "qd_dys"), str(r, "hd_dys"), str(r, "dw"),
+                str(r, "cxm"), decimal(r, "xjkz"), decimal(r, "xjsl"), decimal(r, "pfkz"), decimal(r, "cpkz"),
+                decimal(r, "zcl"), str(r, "jix"), str(r, "zs"), str(r, "yajiao"), str(r, "nd"),
+                decimal(r, "djcl"), str(r, "hhywy"), str(r, "qd_dys"), str(r, "hd_dys"), str(r, "dw"),
                 str(r, "remark")};
     }
 
     private static Object[] buildBujArgs(JsonNode r) {
-        // 列类型（order_buj_component）：zbj/zs=int4，tongjing/kez/xjtime/llcl=numeric，其余 varchar/text
-        // varchar 列必须 str()（BigDecimal/Integer setObject 到 varchar 会报类型错误）；数值列可 str()（PG 隐式转换）
+        // 列类型（order_buj_component，以用户本地建表 SQL 为准）：zbj/zs=int4(必须 integer)，
+        // tongjing/kez/xjtime/llcl=numeric(必须 decimal)，其余 varchar/text(必须 str)
         return new Object[]{
-                str(r, "hhname"), str(r, "color"), str(r, "chima"), str(r, "buj"), str(r, "zbj"),
-                str(r, "jix"), str(r, "zs"), str(r, "cxm"), str(r, "tongjing"), str(r, "bili"),
-                str(r, "kez"), decimal(r, "xjtime"), str(r, "tjcxm"), str(r, "tjxs"), str(r, "tzs"),
-                str(r, "skzjj"), str(r, "xf"), str(r, "zznd"), str(r, "llcl"), str(r, "remark"),
+                str(r, "hhname"), str(r, "color"), str(r, "chima"), str(r, "buj"), integer(r, "zbj"),
+                str(r, "jix"), integer(r, "zs"), str(r, "cxm"), decimal(r, "tongjing"), str(r, "bili"),
+                decimal(r, "kez"), decimal(r, "xjtime"), str(r, "tjcxm"), str(r, "tjxs"), str(r, "tzs"),
+                str(r, "skzjj"), str(r, "xf"), str(r, "zznd"), decimal(r, "llcl"), str(r, "remark"),
                 str(r, "vchima"), str(r, "vcolor"), str(r, "vtzs"), str(r, "ischeck"), str(r, "isrecheck")};
     }
 
