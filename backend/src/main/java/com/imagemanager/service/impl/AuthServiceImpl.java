@@ -75,94 +75,101 @@ public class AuthServiceImpl implements AuthService {
     // 用户设置存储（生产环境应存储在数据库）
     private final Map<String, UserSettings> userSettingsMap = new HashMap<>();
 
+    // ============ 种子账号配置（安全：仅 local 环境播种，密码必须来自环境变量） ============
+    @org.springframework.beans.factory.annotation.Value("${spring.profiles.active:local}")
+    private String activeProfile;
+
+    @org.springframework.beans.factory.annotation.Value("${app.seed.superadmin-password:}")
+    private String seedSuperadminPassword;
+
+    @org.springframework.beans.factory.annotation.Value("${app.seed.admin-password:}")
+    private String seedAdminPassword;
+
+    @org.springframework.beans.factory.annotation.Value("${app.seed.user-password:}")
+    private String seedUserPassword;
+
     /**
-     * 初始化默认用户
+     * 初始化默认用户（种子账号）
+     * 安全约束：
+     * 1. 仅 local 环境播种，生产环境跳过（账号由管理员手工创建）
+     * 2. 密码一律从环境变量读取，未配置则跳过对应账号，代码无任何默认密码
+     * 3. 日志不打印明文密码
+     * 4. 种子账号 mustChangePassword=true，强制首次登录改密
      */
     @PostConstruct
     public void initDefaultData() {
-        // 三级权限：预置超级管理员（独立判断，兼容已有环境）
-        if (!userRepository.existsByUsername("superadmin")) {
-            User superAdmin = User.builder()
-                    .id("superadmin-1")
-                    .username("superadmin")
-                    .password(passwordEncoder.encode("Super@123"))
-                    .email("superadmin@example.com")
-                    .avatarUrl(null)
-                    .nickname("超级管理员")
-                    .bio("超级管理员账号（三级权限最高级）")
-                    .phone("13700137000")
-                    .role("superadmin")
-                    .membership("premium")
-                    .storageUsed(0L)
-                    .storageLimit(1024L * 1024 * 1024 * 100)
-                    .createdAt(LocalDateTime.now())
-                    .lastLoginAt(null)
-                    .build();
-            userRepository.save(superAdmin);
-            log.info("创建超级管理员用户: superadmin / Super@123");
+        if (!"local".equalsIgnoreCase(activeProfile) && !"dev".equalsIgnoreCase(activeProfile)) {
+            log.info("当前环境[{}]非本地环境，跳过种子账号初始化", activeProfile);
+            return;
         }
+
+        // 三级权限：预置超级管理员（独立判断，兼容已有环境）
+        seedUserIfAbsent("superadmin", "superadmin-1", "超级管理员", "superadmin@example.com",
+                "superadmin", "premium", seedSuperadminPassword);
+
         if (userRepository.count() > 0) {
             log.info("用户数据已存在，跳过初始化");
         } else {
             log.info("初始化默认用户...");
+            seedUserIfAbsent("admin", "admin-1", "Administrator", "admin@example.com",
+                    "admin", "premium", seedAdminPassword);
+            boolean userSeeded = seedUserIfAbsent("user", "user-1", "普通用户", "user@example.com",
+                    "user", "pro", seedUserPassword);
 
-            User adminUser = User.builder()
-                    .id("admin-1")
-                    .username("admin")
-                    .password(passwordEncoder.encode("Admin@123"))
-                    .email("admin@example.com")
-                    .avatarUrl(null)
-                    .nickname("Administrator")
-                    .bio("系统管理员")
-                    .phone("13900139000")
-                    .role("admin")
-                    .membership("premium")
-                    .storageUsed(0L)
-                    .storageLimit(1024L * 1024 * 1024 * 100)
-                    .createdAt(LocalDateTime.now())
-                    .lastLoginAt(null)
-                    .build();
-            userRepository.save(adminUser);
-            log.info("创建管理员用户: admin / Admin@123");
-
-            User defaultUser = User.builder()
-                    .id("user-1")
-                    .username("user")
-                    .password(passwordEncoder.encode("User@123"))
-                    .email("user@example.com")
-                    .avatarUrl(null)
-                    .nickname("普通用户")
-                    .bio("普通用户账号")
-                    .phone("13800138000")
-                    .role("user")
-                    .membership("pro")
-                    .storageUsed(1024L * 1024 * 1024 * 5L)
-                    .storageLimit(1024L * 1024 * 1024 * 50L)
-                    .createdAt(LocalDateTime.now())
-                    .lastLoginAt(null)
-                    .build();
-            userRepository.save(defaultUser);
-            log.info("创建普通用户: user / User@123");
-
-            UserSettings settings = UserSettings.builder()
-                    .theme("system")
-                    .language("zh-CN")
-                    .pageSize(40)
-                    .defaultSort("createdAt")
-                    .aiRecognitionEnabled(true)
-                    .emailNotifications(true)
-                    .systemNotifications(true)
-                    .uploadNotifications(true)
-                    .autoPlayVideos(true)
-                    .highQualityPreviews(true)
-                    .compactMode(false)
-                    .showFileInfo(true)
-                    .defaultView("grid")
-                    .build();
-            userSettingsMap.put("user-1", settings);
-
+            if (userSeeded) {
+                UserSettings settings = UserSettings.builder()
+                        .theme("system")
+                        .language("zh-CN")
+                        .pageSize(40)
+                        .defaultSort("createdAt")
+                        .aiRecognitionEnabled(true)
+                        .emailNotifications(true)
+                        .systemNotifications(true)
+                        .uploadNotifications(true)
+                        .autoPlayVideos(true)
+                        .highQualityPreviews(true)
+                        .compactMode(false)
+                        .showFileInfo(true)
+                        .defaultView("grid")
+                        .build();
+                userSettingsMap.put("user-1", settings);
+            }
             log.info("默认用户初始化完成");
         }
+    }
+
+    /**
+     * 按用户名播种账号（密码来自环境变量，未配置则跳过；日志不打印密码）
+     */
+    private boolean seedUserIfAbsent(String username, String id, String nickname, String email,
+                                     String role, String membership, String rawPassword) {
+        if (userRepository.existsByUsername(username)) {
+            return false;
+        }
+        if (rawPassword == null || rawPassword.isBlank()) {
+            log.warn("种子账号[{}]未配置环境变量密码（seed.{}-password / SEED_*），跳过创建", username, username);
+            return false;
+        }
+        User u = User.builder()
+                .id(id)
+                .username(username)
+                .password(passwordEncoder.encode(rawPassword))
+                .email(email)
+                .avatarUrl(null)
+                .nickname(nickname)
+                .bio("种子账号")
+                .phone(null)
+                .role(role)
+                .membership(membership)
+                .storageUsed(0L)
+                .storageLimit(1024L * 1024 * 1024 * 100)
+                .createdAt(LocalDateTime.now())
+                .lastLoginAt(null)
+                .mustChangePassword(true)
+                .build();
+        userRepository.save(u);
+        log.info("创建种子账号: {}（角色 {}，首次登录需改密）", username, role);
+        return true;
     }
 
     @Override
@@ -250,6 +257,7 @@ public class AuthServiceImpl implements AuthService {
                 .role(user.getRole())
                 .membership(user.getMembership())
                 .company(effectiveCompany)
+                .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
                 .build();
 
         boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
@@ -421,6 +429,7 @@ public class AuthServiceImpl implements AuthService {
                 .role((String) sessionData.get("role"))
                 .membership((String) sessionData.get("membership"))
                 .company((String) sessionData.get("company"))
+                .mustChangePassword(Boolean.parseBoolean((String) sessionData.getOrDefault("mustChangePassword", "false")))
                 .build();
 
         // 续期逻辑：剩余时间不足 2 小时则自动续期
@@ -500,6 +509,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
+        // 改密成功后清除强制改密标志
+        user.setMustChangePassword(false);
         userRepository.save(user);
 
         // 修改密码后踢掉所有 session，强制重新登录
@@ -626,6 +637,7 @@ public class AuthServiceImpl implements AuthService {
         sessionData.put("role", userInfo.getRole());
         sessionData.put("membership", userInfo.getMembership() != null ? userInfo.getMembership() : "");
         sessionData.put("company", userInfo.getCompany() != null ? userInfo.getCompany() : "");
+        sessionData.put("mustChangePassword", String.valueOf(Boolean.TRUE.equals(userInfo.getMustChangePassword())));
         sessionData.put("rememberMe", String.valueOf(rememberMe));
         sessionData.put("createTime", String.valueOf(System.currentTimeMillis()));
         sessionData.put("lastAccessAt", String.valueOf(System.currentTimeMillis()));

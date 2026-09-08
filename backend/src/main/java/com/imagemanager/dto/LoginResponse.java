@@ -57,5 +57,6 @@ public class LoginResponse {
         private String role;
         private String membership;
         private String company;
+        private Boolean mustChangePassword;
     }
 }

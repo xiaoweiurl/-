@@ -471,11 +471,13 @@ public class UserServiceImpl implements UserService {
         
         // 加密新密码
         String encodedPassword = passwordEncoder.encode(newPassword);
-        
+
         user.setPassword(encodedPassword);
+        // 管理员重置密码后，强制用户首次登录改密
+        user.setMustChangePassword(true);
         userRepository.save(user);
-        
-        log.info("密码重置成功");
+
+        log.info("密码重置成功，已标记强制改密");
     }
     
     @Override

@@ -24,7 +24,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Security 配置类 - 完整安全配置
@@ -75,29 +74,37 @@ public class SecurityConfig {
     }
     
     /**
-     * CORS 配置 - 支持跨域请求和 Cookie 传递
+     * CORS 允许来源白名单（逗号分隔），通过 app.cors.allowed-origins 配置。
+     * 安全约束：allowCredentials=true 时禁止使用通配符 *，必须显式列举前端地址。
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:http://localhost:5000}")
+    private String allowedOrigins;
+
+    /**
+     * CORS 配置 - 来源白名单 + Cookie 传递
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许所有来源（开发环境）
-        // 注意：当 allowCredentials=true 时，不能使用 *，必须使用具体的 origin 或 pattern
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        // 白名单来源（禁止 "*" 与 allowCredentials 同用的危险组合）
+        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        // 允许所有请求头
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        // 允许 credentials（Cookie）跨域传递 - 这是关键！
+        // 仅放行实际需要的请求头
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Content-Type", "Authorization", "X-Session-Id", "X-Requested-With"
+        ));
+        // 允许 credentials（Cookie）跨域传递
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
         // 允许暴露的响应头
         configuration.setExposedHeaders(Arrays.asList(
-            "Authorization", 
             "Set-Cookie",
-            "X-Session-Id",
-            "Access-Control-Allow-Credentials",
-            "Access-Control-Allow-Origin"
+            "X-Session-Id"
         ));
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -116,7 +123,10 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             // 添加自定义认证过滤器（在 Spring Security 过滤器之前）
             .addFilterBefore(sessionIdAuthFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
-            // 禁用 CSRF（API 模式下不需要）
+            // CSRF 说明：本系统鉴权不依赖浏览器自动携带的凭证 —— 前端通过自定义请求头
+            // X-Session-Id 传递会话（跨站表单/图片等 CSRF 向量无法附加自定义头），天然免疫 CSRF；
+            // Cookie 仅为同站便捷通道且已设置 SameSite=Lax（见 AuthController），跨站请求不会携带。
+            // 因此保持 CSRF 关闭，避免双通道鉴权下的误拦截。
             .csrf(AbstractHttpConfigurer::disable)
             // 禁用 HTTP Basic
             .httpBasic(AbstractHttpConfigurer::disable)
@@ -137,10 +147,10 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 // 分享链接公开访问 - 无需认证（context-path 已去掉 /api 前缀）
                 .requestMatchers("/share/access/**").permitAll()
-                // 静态资源（图片、文件）- 无需认证
-                .requestMatchers("/uploads/**").permitAll()
                 // API 文档
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // 数据修复/运维/审计/备份端点需要 ADMIN 角色（DataFixController 另有功能开关）
+                .requestMatchers("/fix/**", "/ops/**", "/audit/**", "/backup/**").hasRole("ADMIN")
                 // 管理员端点需要 ADMIN 角色
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // 其他请求需要认证

@@ -25,6 +25,7 @@ interface LoginResponse {
       role: string;
       membership?: string;
       company?: string;
+      mustChangePassword?: boolean;
     };
   };
 }
@@ -195,6 +196,12 @@ export default function LoginPage() {
           localStorage.setItem('user_company', result.data.user.company);
         }
         setLoggedInUser(result.data);
+        // 安全：种子账号/被管理员重置密码后，首次登录强制改密
+        if (result.data.user?.mustChangePassword) {
+          toast.warning('请先修改密码', { description: '首次登录需修改初始密码后才能继续使用' });
+          window.location.href = '/settings?tab=security&forceChange=1';
+          return;
+        }
         const userCompany = result.data.user?.company;
         console.log('[Login] doLogin result:', {
           hasUser: !!result.data.user,

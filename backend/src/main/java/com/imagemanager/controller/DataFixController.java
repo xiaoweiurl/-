@@ -13,9 +13,16 @@ import java.util.Map;
 /**
  * 数据修复控制器
  * 用于修复数据不一致问题
+ *
+ * 安全约束：
+ * 1. 功能开关：仅当 app.datafix.enabled=true 时才注册（生产默认关闭，DATAFIX_ENABLED 环境变量控制）
+ * 2. 权限：SecurityConfig 已将 /fix/** 限定为 ADMIN 角色
  */
 @RestController
 @RequestMapping("/fix")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        prefix = "app.datafix", name = "enabled", havingValue = "true")
+@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
 @Slf4j
 public class DataFixController {
 

@@ -111,8 +111,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
-        
-        return request.getParameter("session_id");
+
+        // 安全：禁止从 URL 查询参数获取 session_id（会话标识会泄露到日志/Referer/浏览器历史）
+        return null;
     }
     
     /**
@@ -127,7 +128,6 @@ public class AuthInterceptor implements HandlerInterceptor {
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||
                path.startsWith("/v3/api-docs") ||
-               path.startsWith("/uploads/") ||  // 公开访问上传的文件
                path.equals("/health") ||
                path.equals("/actuator/health");
     }

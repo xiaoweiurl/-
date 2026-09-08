@@ -42,8 +42,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 "/swagger-ui/**",
                 "/v3/api-docs/**",
                 "/health",
-                "/actuator/health",
-                "/uploads/**"  // 静态资源不需要认证
+                "/actuator/health"
+                // 注意：/uploads/** 不再排除，上传文件访问需登录（浏览器同站 <img> 自动携带 Cookie）
             );
     }
     

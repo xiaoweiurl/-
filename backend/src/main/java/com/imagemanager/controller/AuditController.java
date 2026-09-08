@@ -17,11 +17,13 @@ import java.util.Map;
 
 /**
  * 审计日志控制器
+ * 权限：仅管理员可访问
  */
 @Slf4j
 @RestController
 @RequestMapping("/audit")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
 public class AuditController {
 
     private final AuditService auditService;

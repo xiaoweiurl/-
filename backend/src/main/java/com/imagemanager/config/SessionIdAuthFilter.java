@@ -60,9 +60,12 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
                 request.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, userInfo);
                 
                 // 将认证信息设置到 Spring Security 的 SecurityContext
+                // admin 与 superadmin 均映射 ROLE_ADMIN（超级管理员拥有全部管理权限）
                 String role = userInfo.getRole();
+                boolean isAdmin = role != null
+                        && ("ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role));
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority(
-                    role != null && "ADMIN".equalsIgnoreCase(role) ? "ROLE_ADMIN" : "ROLE_USER"
+                    isAdmin ? "ROLE_ADMIN" : "ROLE_USER"
                 );
                 
                 UsernamePasswordAuthenticationToken authentication = 

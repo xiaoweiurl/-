@@ -190,15 +190,15 @@ export async function POST(request: NextRequest) {
         path: '/',
       });
       
-      // 打印 cookie 设置后的响应头
+      // 打印 cookie 设置后的响应头（安全：不完整打印，含会话标识，仅记录是否存在）
       const setCookieHeader = response.headers.get('set-cookie');
-      console.log('[API] 设置的 Set-Cookie 头:', setCookieHeader);
-      
+      console.log('[API] Set-Cookie 头已设置:', !!setCookieHeader);
+
       // 如果响应头为空，手动添加
       if (!setCookieHeader) {
         const cookieValue = `session_id=${finalSessionId}; Path=/; HttpOnly; Max-Age=${rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60}; SameSite=Lax`;
         response.headers.append('Set-Cookie', cookieValue);
-        console.log('[API] 手动添加 Set-Cookie:', cookieValue);
+        console.log('[API] 手动添加 Set-Cookie: session_id=***');
       }
       
       return response;

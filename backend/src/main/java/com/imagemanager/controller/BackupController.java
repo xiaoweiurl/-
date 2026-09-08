@@ -16,11 +16,13 @@ import java.util.Map;
 
 /**
  * 备份控制器
+ * 权限：仅管理员可访问
  */
 @Slf4j
 @RestController
 @RequestMapping("/backup")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
 public class BackupController {
 
     private final BackupService backupService;

@@ -329,12 +329,29 @@ npx tsc --noEmit          # TypeScript 类型检查
 - **管理员 (admin)**: 拥有管理权限，可访问 ERP 数据同步页；**不能重置其他管理员/超级管理员的密码**（本人除外）
 - **普通用户 (user)**: 基础权限，可管理自己的知识和分类
 
-### 预置用户账号
-| 用户名 | 密码 | 角色 | 说明 |
+### 预置用户账号（种子账号）
+种子账号**仅在 local 环境播种**，密码从环境变量读取，未配置则跳过创建；**首次登录强制改密**（`users.must_change_password`，V59 迁移）。
+
+| 用户名 | 角色 | 密码环境变量 | 说明 |
 |--------|------|------|------|
-| superadmin | Super@123 | superadmin | 超级管理员账号 |
-| admin | Admin@123 | admin | 系统管理员账号 |
-| user | User@123 | user | 普通用户账号 |
+| superadmin | superadmin | `SEED_SUPERADMIN_PASSWORD` | 超级管理员账号 |
+| admin | admin | `SEED_ADMIN_PASSWORD` | 系统管理员账号 |
+| user | user | `SEED_USER_PASSWORD` | 普通用户账号 |
+
+- 本地默认密码在 `backend/src/main/resources/application-local.yml`（已被 .gitignore 排除，禁止提交）
+- 生产环境不播种，账号由管理员手工创建
+- 改密链路：`mustChangePassword=true` → 登录页跳转 `/settings?tab=security&forceChange=1` → 改密成功清标志并强制重新登录
+- 管理员重置密码后同样标记强制改密（`UserServiceImpl.resetPassword`）
+
+### 安全架构（2026-09 安全审计整改）
+- **凭据管理**：`application.yml` 中 `DATABASE_PASSWORD`/`ERP_PASSWORD` 无默认值，非本地环境必须环境变量注入；本地默认值在 `application-local.yml`（gitignored）
+- **CORS**：白名单制（`app.cors.allowed-origins`，默认 `http://localhost:5000`），`allowCredentials=true` 时禁止通配符；重复配置类 `CorsConfig.java` 已删除，`AuthController` 内硬编码 CORS 头已全部移除（统一由 `SecurityConfig.corsConfigurationSource` 输出）
+- **会话传递**：仅接受 `X-Session-Id` 请求头 / Cookie / `Authorization: Bearer`；**禁止 URL 查询参数传 session_id**（`AuthInterceptor.extractSessionId` 已移除该兜底）
+- **CSRF**：保持关闭 —— 鉴权依赖自定义头 `X-Session-Id`（跨站向量无法附加），Cookie 仅同站通道且 `SameSite=Lax`，详见 `SecurityConfig` 注释
+- **上传目录**：`/uploads/**` 不再匿名公开（`SecurityConfig`/`AuthInterceptor`/`WebMvcConfig` 三处均已移除放行），浏览器同站 `<img>` 自动携带 Cookie 不受影响
+- **运维接口**：`/fix/**`、`/ops/**`、`/audit/**`、`/backup/**` 需 ADMIN 角色（`SecurityConfig` + 类级 `@PreAuthorize` 双重保护）；`DataFixController` 另有功能开关 `app.datafix.enabled`（默认 false，`DATAFIX_ENABLED` 环境变量控制，关闭时 Bean 不注册）
+- **日志脱敏**：sessionId 仅打印前 8 位；`AuthController` 登录成功日志、Next 代理 `Set-Cookie` 日志均已脱敏；种子账号明文密码日志已删除
+- **角色映射**：`SessionIdAuthFilter` 中 admin 与 superadmin 均映射 `ROLE_ADMIN`（修复 superadmin 被降级为 ROLE_USER 的 bug）
 
 ### 权限配置
 ```typescript
@@ -358,7 +375,7 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 
 **后端对应实现**：
 - `AdminController.resetPassword`：X-Session-Id 解析操作者，非 superadmin 且目标为 admin/superadmin 且非本人 → 403
-- `AuthServiceImpl.initDefaultData`：预置 superadmin 账号（existsByUsername 独立判断，兼容已有环境）
+- `AuthServiceImpl.initDefaultData`：仅 local 环境播种，密码来自环境变量（见上文"预置用户账号"）
 - 前端 `users/page.tsx`：角色三级徽章 + 重置密码按钮按 `canResetPasswordOf` 禁用
 
 ### API 端点

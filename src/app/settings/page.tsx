@@ -40,7 +40,23 @@ export default function SettingsPage() {
   const [currentUser, setCurrentUser] = React.useState<UserInfo | null>(null);
   const [accessDenied, setAccessDenied] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('profile');
-  
+  // 强制改密模式：种子账号/管理员重置后首次登录，由登录页跳转带入
+  const [forceChangePassword, setForceChangePassword] = React.useState(false);
+
+  // 读取 URL 参数（?tab=security&forceChange=1）
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab === 'security') {
+      setActiveTab('security');
+    }
+    if (params.get('forceChange') === '1') {
+      setActiveTab('security');
+      setForceChangePassword(true);
+    }
+  }, []);
+
   // 表单状态
   const [profileForm, setProfileForm] = React.useState({
     nickname: '',
@@ -450,7 +466,14 @@ export default function SettingsPage() {
             {activeTab === 'security' && (
               <div className="bg-white rounded-2xl border border-[#e5e5ea] p-6">
                 <h2 className="text-lg font-semibold text-[#8e8e93] mb-6">修改密码</h2>
-                
+
+                {forceChangePassword && (
+                  <div className="mb-6 max-w-md rounded-xl border border-[#FF9500]/30 bg-[#FF9500]/10 px-4 py-3">
+                    <p className="text-sm font-medium text-[#FF9500]">首次登录需修改初始密码</p>
+                    <p className="text-xs text-[#8e8e93] mt-1">为保障账号安全，请设置新密码后再继续使用系统。修改成功后需要重新登录。</p>
+                  </div>
+                )}
+
                 <div className="space-y-6 max-w-md">
                   {/* 当前密码 */}
                   <div>

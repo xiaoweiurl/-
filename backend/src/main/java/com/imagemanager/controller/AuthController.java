@@ -67,9 +67,6 @@ public class AuthController {
                 log.info("注册后用户图片表检查完成: username={}, tableCreated={}", username, tableCreated);
             }
             
-            response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-            response.setHeader("Access-Control-Allow-Credentials", "true");
-            response.setHeader("Access-Control-Expose-Headers", "X-Session-Id");
             response.setHeader("X-Session-Id", sessionId);
 
             return ApiResponse.success("注册成功", loginResponse);
@@ -99,8 +96,9 @@ public class AuthController {
             }
 
             String sessionId = loginResponse.getSessionId();
-            log.info("登录成功，sessionId: {}", sessionId);
-            
+            // 安全：会话标识不完整打印，仅保留前 8 位用于排障关联
+            log.info("登录成功，sessionId: {}***", sessionId != null && sessionId.length() > 8 ? sessionId.substring(0, 8) : "***");
+
             // 登录成功后，确保用户图片表存在
             String username = loginResponse.getUser().getUsername();
             if (username != null && !username.isEmpty()) {
@@ -108,10 +106,7 @@ public class AuthController {
                 log.info("用户图片表检查完成: username={}, tableCreated={}", username, tableCreated);
             }
 
-            // 设置 CORS 响应头（关键：允许前端访问）
-            response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-            response.setHeader("Access-Control-Allow-Credentials", "true");
-            response.setHeader("Access-Control-Expose-Headers", "X-Session-Id");
+            // CORS 头由 SecurityConfig 的 CorsConfigurationSource 按白名单统一输出，此处不再硬编码
             // 将 sessionId 通过响应头返回
             response.setHeader("X-Session-Id", sessionId);
 
@@ -148,8 +143,6 @@ public class AuthController {
             authService.logout(sessionId);
         }
 
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-        response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setHeader("Set-Cookie", "session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
 
         return ApiResponse.success("登出成功", null);
@@ -180,8 +173,6 @@ public class AuthController {
             authService.logout(sessionId);
         }
 
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-        response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setHeader("Set-Cookie", "session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
 
         return ApiResponse.success("Redis会话已删除", null);
@@ -195,10 +186,7 @@ public class AuthController {
     public ApiResponse<LoginResponse.UserInfo> validateSession(
             HttpServletRequest request,
             HttpServletResponse response) {
-        
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-        response.setHeader("Access-Control-Allow-Credentials", "true");
-        
+
         String sessionId = extractSessionId(request);
         
         if (sessionId == null) {
@@ -252,10 +240,7 @@ public class AuthController {
     public ApiResponse<java.util.Map<String, Object>> getForgotPasswordUserInfo(
             @RequestParam String username,
             HttpServletResponse response) {
-        
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-        response.setHeader("Access-Control-Allow-Credentials", "true");
-        
+
         log.info("找回密码-查询用户信息: username={}", username);
         
         if (username == null || username.trim().isEmpty()) {
@@ -294,10 +279,7 @@ public class AuthController {
     public ApiResponse<Void> resetPassword(
             @RequestBody java.util.Map<String, String> body,
             HttpServletResponse response) {
-        
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5000");
-        response.setHeader("Access-Control-Allow-Credentials", "true");
-        
+
         String username = body.get("username");
         String verifyValue = body.get("verifyValue");
         String verifyType = body.get("verifyType");

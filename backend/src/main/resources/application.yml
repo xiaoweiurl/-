@@ -27,7 +27,8 @@ spring:
     # 如果 DATABASE_URL_JDBC 未设置，则从 PGDATABASE_URL 解析
     # PGDATABASE_URL 格式: postgresql://user:password@host:port/dbname
     username: ${DATABASE_USERNAME:postgres}
-    password: ${DATABASE_PASSWORD:13369516}
+    # 安全：非本地环境必须通过环境变量注入，代码不含默认密码
+    password: ${DATABASE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     # HikariCP 连接池优化（50人并发×2倍余量）
     hikari:
@@ -217,8 +218,9 @@ erp:
   # 登录接口相对路径（login-url 为空时拼接使用）
   login-path: ${ERP_LOGIN_PATH:/Auth/checkLogin.aspx}
   # ERP 登录凭证（固定值，无需用户手动配置；同步时后端自动登录换取 token）
+  # 安全：非本地环境通过环境变量覆盖密码，默认值仅本地开发可用
   uid: ${ERP_UID:88888}
-  password: ${ERP_PASSWORD:123}
+  password: ${ERP_PASSWORD:}
   # 账套码（固定值）
   custom-id: ${ERP_CUSTOM_ID:8D7C1BDE-C05F-4A11-BD96-D71D94D35633}
   # 请求超时（毫秒）
@@ -260,3 +262,17 @@ knowledge-import:
   max-file-size-mb: ${KI_MAX_FILE_MB:500}
   # 最大并发导入任务数（同时只跑一个任务，避免资源争抢）
   max-concurrent-tasks: ${KI_MAX_CONCURRENT:1}
+
+# 应用安全配置
+app:
+  # CORS 允许的前端来源白名单（逗号分隔；禁止通配符 * 与 allowCredentials 同用）
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5000}
+  # 数据修复接口开关（默认关闭，仅在需要执行数据修复时显式开启）
+  datafix:
+    enabled: ${DATAFIX_ENABLED:false}
+  # 种子账号密码（仅 local 环境播种；生产环境不配置则不播种）
+  seed:
+    superadmin-password: ${SEED_SUPERADMIN_PASSWORD:}
+    admin-password: ${SEED_ADMIN_PASSWORD:}
+    user-password: ${SEED_USER_PASSWORD:}

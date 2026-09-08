@@ -14,11 +14,13 @@ import java.util.Map;
 /**
  * 系统运维中心控制器
  * 提供API监控、错误追踪、性能指标、操作审计、备份管理接口
+ * 权限：仅管理员可访问（类级校验 + SecurityConfig /ops/** 双重保护）
  */
 @Slf4j
 @RestController
 @RequestMapping("/ops")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "系统运维", description = "运维中心：API监控、错误追踪、性能指标")
 public class OpsController {
 

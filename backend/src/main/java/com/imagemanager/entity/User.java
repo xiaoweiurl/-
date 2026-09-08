@@ -113,4 +113,11 @@ public class User {
      */
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+
+    /**
+     * 是否强制首次登录修改密码（种子账号为 true，改密成功后置 false）
+     */
+    @Column(name = "must_change_password")
+    @Builder.Default
+    private Boolean mustChangePassword = false;
 }
