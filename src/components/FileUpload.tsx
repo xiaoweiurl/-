@@ -474,12 +474,12 @@ export default function FileUpload({
     
     // 如果是相对路径（/uploads/xxx），通过 Next.js 代理访问
     if (url.startsWith('/uploads/')) {
-      return `/api/proxy${url}`;
+      return `/api${url}`;
     }
     
     // 其他相对路径
     if (url.startsWith('/')) {
-      return `/api/proxy${url}`;
+      return `/api${url}`;
     }
     
     return url;

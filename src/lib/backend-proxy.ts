@@ -2,7 +2,7 @@
  * 后端 API 代理工具
  * 
  * 两套 URL 策略：
- * 1. 客户端（浏览器）: 走 /api/proxy 同源代理，避免 CORS 和 Private Network Access
+ * 1. 客户端（浏览器）: 走统一 BFF 代理（/api/* 同源转发），避免 CORS 和 Private Network Access
  * 2. 服务端（Next.js API Route）: 直连 http://localhost:8080/api，无 CORS 限制
  */
 
@@ -18,14 +18,14 @@ function isServerSide(): boolean {
 
 /**
  * 获取后端 API URL
- * - 客户端: 返回 /api/proxy（同源代理路径）
+ * - 客户端: 返回 /api（统一 BFF 代理路径）
  * - 服务端: 返回 http://localhost:8080/api（直连 Java 后端）
  */
 const getBackendApiUrl = () => {
   if (isServerSide()) {
     return BACKEND_INTERNAL_URL;
   }
-  return '/api/proxy';
+  return '/api';
 };
 
 /**
@@ -74,7 +74,7 @@ const CACHE_TTL = 30000; // 30秒缓存
 /**
  * 检查后端服务是否可用
  * - 服务端: 直接请求 Java 后端
- * - 客户端: 通过 /api/proxy 代理检测
+ * - 客户端: 通过统一 BFF 代理检测
  */
 export async function isBackendAvailable(): Promise<boolean> {
   const now = Date.now();
@@ -100,8 +100,8 @@ export async function isBackendAvailable(): Promise<boolean> {
       console.log(`[Backend] 服务端检测后端可用性: ${response.status} -> ${backendAvailableCache}`);
       return backendAvailableCache;
     } else {
-      // 客户端：通过 /api/proxy 代理检测
-      const response = await fetch('/api/proxy/albums', {
+      // 客户端：通过统一 BFF 代理检测
+      const response = await fetch('/api/albums', {
         method: 'GET',
         signal: AbortSignal.timeout(20000),
       });
@@ -149,7 +149,7 @@ interface BackendRequestOptions {
 
 /**
  * 发送请求到后端
- * - 客户端: 走 /api/proxy 代理
+ * - 客户端: 走统一 BFF 代理
  * - 服务端: 直连 http://localhost:8080/api
  */
 export async function backendFetch(
@@ -212,7 +212,7 @@ export async function backendFetch(
 
 /**
  * 发送 FormData 请求到后端
- * - 客户端: 走 /api/proxy 代理
+ * - 客户端: 走统一 BFF 代理
  * - 服务端: 直连 http://localhost:8080/api
  */
 export async function backendFetchFormData(

@@ -4,7 +4,7 @@
  */
 
 // 后端 API 基础 URL - 统一走 Next.js 代理，避免外网 CORS 问题
-const API_BASE_URL = '/api/proxy';
+const API_BASE_URL = '/api';
 
 /**
  * 通用请求方法

@@ -165,7 +165,7 @@ export default function SettingsPage() {
         
         // 退出登录，调专用接口删除 Redis 中的 session
         const sessionId = localStorage.getItem('session_id');
-        await fetch('/api/proxy/auth/session', {
+        await fetch('/api/auth/session', {
           method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },

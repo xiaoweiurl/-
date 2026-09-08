@@ -39,7 +39,7 @@ interface DocumentUploadDialogProps {
 }
 
 // 后端 API 基础 URL
-const BACKEND_API_URL = '/api/proxy';
+const BACKEND_API_URL = '/api';
 
 // 文档分类类型
 export type DocumentCategory = 'pdf' | 'word' | 'excel' | 'ppt' | 'zip' | 'other';
@@ -250,7 +250,7 @@ export default function DocumentUploadDialog({
         formData.append('category', uploadingFile.category); // 传递分类
 
         // 通过 Next.js 代理上传
-        const BACKEND_URL = '/api/proxy';
+        const BACKEND_URL = '/api';
         const response = await fetch(`${BACKEND_URL}/documents/upload`, {
           method: 'POST',
           mode: 'cors',

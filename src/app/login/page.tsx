@@ -89,7 +89,7 @@ export default function LoginPage() {
     if (oldSessionId) {
       try {
         // 调专用接口删除 Redis 中的旧 session
-        await fetch('/api/proxy/auth/session', {
+        await fetch('/api/auth/session', {
           method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },

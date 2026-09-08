@@ -15,7 +15,7 @@ import { getSessionId } from '@/lib/auth-client';
 import ExcelBatchUpload from '@/components/ExcelBatchUpload';
 
 // 后端 API 基础 URL
-const BACKEND_API_URL = '/api/proxy';
+const BACKEND_API_URL = '/api';
 
 interface UploadDialogProps {
   open: boolean;
@@ -134,7 +134,7 @@ export default function UploadDialog({
         formData.append('file', uploadingFile.file); // 后端 @RequestParam("file")
 
         // 根据文件类型选择上传API
-        const BACKEND_URL = '/api/proxy';
+        const BACKEND_URL = '/api';
         const file = uploadingFile.file;
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
         const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'tif'];

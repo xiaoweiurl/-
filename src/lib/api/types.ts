@@ -5,7 +5,7 @@
  */
 
 // 后端 API 地址
-export const API_BASE_URL = '/api/proxy';
+export const API_BASE_URL = '/api';
 
 // API 响应类型
 export interface ApiResponse<T = unknown> {

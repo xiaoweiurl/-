@@ -32,7 +32,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 
 // 后端 API 基础 URL - 统一走 Next.js 代理
-const BACKEND_API_URL = '/api/proxy';
+const BACKEND_API_URL = '/api';
 
 // 获取完整的图片 URL
 // 后端代理层已根据请求来源自动替换 localhost:8080，前端直接透传即可
@@ -1016,7 +1016,7 @@ export default function Home() {
     try {
       // 从 localStorage 取 sessionId，调专用接口删除 Redis 中的 session
       const sessionId = localStorage.getItem('session_id');
-      await fetch('/api/proxy/auth/session', {
+      await fetch('/api/auth/session', {
         method: 'DELETE',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

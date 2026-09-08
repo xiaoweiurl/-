@@ -36,7 +36,7 @@ import {
 import { useNotifications } from '@/contexts/NotificationContext';
 
 // 后端 API 基础 URL
-const BACKEND_API_URL = '/api/proxy';
+const BACKEND_API_URL = '/api';
 
 // 文档分类类型
 type DocumentCategory = 'pdf' | 'word' | 'excel' | 'ppt' | 'zip' | 'other' | 'all';

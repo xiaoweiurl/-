@@ -65,7 +65,7 @@ export default function ImagePreview({
   // 记录预览次数
   React.useEffect(() => {
     if (image?.id) {
-      fetch(`/api/proxy/images/${image.id}/view`, { 
+      fetch(`/api/images/${image.id}/view`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       }).catch(err => console.error('[ImagePreview] 记录预览失败:', err));
