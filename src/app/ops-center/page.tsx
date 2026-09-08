@@ -471,7 +471,7 @@ function ErrorsTab({ errors, expandedError, setExpandedError }: { errors: ErrorI
                   {err.status === 'unresolved' && (
                     <button
                       onClick={async () => {
-                        await fetch('/api/ops/errors', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ errorId: err.id, status: 'resolved' }) });
+                        await fetch(`/api/ops/errors/${err.id}/resolve`, { method: 'PATCH' });
                       }}
                       className="text-xs px-3 py-1.5 rounded-lg bg-[rgba(52,199,89,0.1)] text-[#34c759] border border-[rgba(52,199,89,0.2)] hover:bg-[rgba(52,199,89,0.2)] transition-colors"
                     >
@@ -713,7 +713,7 @@ function BackupTab({ backups, onRefresh }: { backups: BackupItem[]; onRefresh: (
           onClick={async () => {
             setCreating(true);
             // 创建备份
-            const res = await fetch('/api/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'full' }) });
+            const res = await fetch('/api/backup/create?backupType=full', { method: 'POST' });
             if (!res.ok) console.error('Backup creation failed');
             setCreating(false);
             onRefresh();

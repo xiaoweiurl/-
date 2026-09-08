@@ -374,7 +374,7 @@ export default function ExcelBatchUpload({
     const poll = async () => {
       console.log('[ExcelUpload] 轮询任务进度...');
       try {
-        const response = await fetch(`/api/images/batch-download-async?taskId=${taskId}`, {
+        const response = await fetch(`/api/images/batch-download/tasks/${taskId}`, {
           credentials: 'include',
         });
 
@@ -626,7 +626,7 @@ export default function ExcelBatchUpload({
         console.log(`[ExcelUpload] 提交第 ${i + 1}/${batches.length} 批次，商品数: ${batch.length}`);
         
         // 异步提交，不等待结果
-        fetch('/api/images/batch-download-async', {
+        fetch('/api/images/batch-download/tasks', {
           method: 'POST',
           credentials: 'include',
           headers: {

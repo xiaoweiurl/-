@@ -55,12 +55,12 @@ export default function SharePage() {
     try {
       // 如果提供了密码，使用 POST 请求验证
       if (pwd) {
-        const response = await fetch(`/api/share/${shareCode}`, {
+        const response = await fetch('/api/share/access', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ password: pwd }),
+          body: JSON.stringify({ shareCode, password: pwd }),
         });
         const data = await response.json();
 
@@ -92,7 +92,7 @@ export default function SharePage() {
       }
 
       // 无密码，直接获取分享内容
-      const url = new URL(`/api/share/${shareCode}`, window.location.origin);
+      const url = new URL(`/api/share/access/${shareCode}`, window.location.origin);
       const response = await fetch(url.toString());
       const data = await response.json();
 

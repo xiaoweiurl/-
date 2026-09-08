@@ -293,7 +293,7 @@ export default function AiImagePage() {
         };
       }
 
-      const response = await fetch('/api/ai-image', {
+      const response = await fetch('/api/ai-image/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),

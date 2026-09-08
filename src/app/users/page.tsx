@@ -188,11 +188,11 @@ export default function UsersPage() {
         updates.password = editForm.password;
       }
       
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
+      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedUser.id, updates }),
+        body: JSON.stringify(updates),
       });
       const data = await res.json();
       
@@ -223,7 +223,7 @@ export default function UsersPage() {
     }
     
     try {
-      const res = await fetch(`/api/admin/users?userId=${user.id}`, {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });

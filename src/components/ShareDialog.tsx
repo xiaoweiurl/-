@@ -70,12 +70,12 @@ export default function ShareDialog({
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/share?resourceType=${resourceType}&resourceId=${resourceId}`
+        `/api/share/my?resourceType=${resourceType}&resourceId=${resourceId}`
       );
       const data = await response.json();
-      if (data.shareLinks) {
-        setShareLinks(data.shareLinks);
-      }
+      // Java 端返回分页结构 Page<ShareLinkDTO>
+      const links = data.shareLinks || data.content || data.data?.content || [];
+      setShareLinks(links);
     } catch (error) {
       console.error('Load share links failed:', error);
     } finally {
@@ -147,7 +147,7 @@ export default function ShareDialog({
     if (!confirm('确定要删除这个分享链接吗？')) return;
 
     try {
-      const response = await fetch(`/api/share/${shareCode}`, {
+      const response = await fetch(`/api/share/code/${shareCode}`, {
         method: 'DELETE',
       });
       const data = await response.json();

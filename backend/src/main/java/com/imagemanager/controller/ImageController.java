@@ -233,6 +233,20 @@ public class ImageController {
         return ApiResponse.success("已设为主图", image);
     }
 
+    /**
+     * 记录浏览次数
+     */
+    @PostMapping("/{id}/view")
+    @Operation(summary = "记录浏览", description = "图片预览时累加浏览次数")
+    public ApiResponse<Void> incrementViewCount(
+            @Parameter(description = "图片ID") @PathVariable String id) {
+        return imageRepository.findById(id).map(image -> {
+            image.setViewCount((image.getViewCount() == null ? 0 : image.getViewCount()) + 1);
+            imageRepository.save(image);
+            return ApiResponse.<Void>success("浏览次数已更新", null);
+        }).orElse(ApiResponse.error(404, "图片不存在"));
+    }
+
     
     /**
      * 批量操作

@@ -8,6 +8,14 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -42,6 +50,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('profile');
   // 强制改密模式：种子账号/管理员重置后首次登录，由登录页跳转带入
   const [forceChangePassword, setForceChangePassword] = React.useState(false);
+  const [showForceChangeDialog, setShowForceChangeDialog] = React.useState(false);
 
   // 读取 URL 参数（?tab=security&forceChange=1）
   React.useEffect(() => {
@@ -54,6 +63,7 @@ export default function SettingsPage() {
     if (params.get('forceChange') === '1') {
       setActiveTab('security');
       setForceChangePassword(true);
+      setShowForceChangeDialog(true);
     }
   }, []);
 
@@ -153,7 +163,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     try {
       const res = await fetch('/api/user/password', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(passwordForm),
       });
@@ -277,6 +287,32 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#f2f2f7]">
       <Toaster position="top-center" richColors closeButton />
+
+      {/* 首次登录强制改密提示弹窗 */}
+      <Dialog open={showForceChangeDialog} onOpenChange={setShowForceChangeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-[#ff9500]" />
+              首次登录请修改密码
+            </DialogTitle>
+            <DialogDescription className="pt-2 leading-relaxed">
+              为了账户安全，首次登录（或密码被管理员重置）后需要先设置新密码，之后才能正常使用系统。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowForceChangeDialog(false);
+                setActiveTab('security');
+              }}
+              className="w-full bg-[#007aff] hover:bg-[#0066d6] text-white"
+            >
+              前往修改密码
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 权限拦截 */}
       {accessDenied && (

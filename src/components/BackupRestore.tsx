@@ -40,10 +40,8 @@ export default function BackupRestore() {
         setProgress((prev) => Math.min(prev + 10, 90));
       }, 200);
 
-      const response = await fetch('/api/backup', {
+      const response = await fetch(`/api/backup/create?backupType=${encodeURIComponent(backupType)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backupType }),
       });
 
       clearInterval(progressInterval);
