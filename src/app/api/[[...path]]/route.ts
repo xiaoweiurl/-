@@ -23,7 +23,9 @@ function getBackendBase(): string {
   const url = process.env.BACKEND_API_URL
     || process.env.NEXT_PUBLIC_BACKEND_API_URL
     || 'http://localhost:8080/api';
-  return url.replace(/\/+$/, '');
+  // 统一剥掉末尾的 /api 与斜杠：请求路径本身已携带 /api 前缀（Java context-path=/api），
+  // 无论环境变量是否配置 /api 后缀，最终拼接结果都是 <origin>/api/<path>
+  return url.replace(/\/api\/?$/, '').replace(/\/+$/, '');
 }
 
 /** 需要跳过的请求头（hop-by-hop / 框架内部头） */
