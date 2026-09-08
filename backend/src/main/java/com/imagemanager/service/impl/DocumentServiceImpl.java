@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.imagemanager.util.SessionUtil;
 
 /**
  * 文档服务实现
@@ -54,9 +55,6 @@ public class DocumentServiceImpl implements DocumentService {
     
     // 存储服务基础URL
     private String baseUrl;
-    
-    // 当前用户ID（TODO: 从会话中获取）
-    private static final String CURRENT_USER_ID = "user-1";
     
     @PostConstruct
     public void init() {
@@ -88,7 +86,7 @@ public class DocumentServiceImpl implements DocumentService {
                     .title(title)
                     .content(content)
                     .resourceId(resourceId)
-                    .userId(CURRENT_USER_ID)
+                    .userId(SessionUtil.requireCurrentUserId())
                     .read(false)
                     .createdAt(LocalDateTime.now())
                     .build();
@@ -176,7 +174,7 @@ public class DocumentServiceImpl implements DocumentService {
                     .contentType(file.getContentType())
                     .extension(extension)
                     .category(autoCategory)
-                    .userId("user-1") // TODO: 从会话中获取实际用户ID
+                    .userId(SessionUtil.requireCurrentUserId())
                     .deleted(false)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
@@ -472,9 +470,9 @@ public class DocumentServiceImpl implements DocumentService {
         
         Page<Document> documentPage;
         if (category == null || category.isEmpty() || "all".equals(category)) {
-            documentPage = documentRepository.findByUserIdAndDeletedFalse("user-1", pageable);
+            documentPage = documentRepository.findByUserIdAndDeletedFalse(SessionUtil.requireCurrentUserId(), pageable);
         } else {
-            documentPage = documentRepository.findByUserIdAndCategoryAndDeletedFalse("user-1", category, pageable);
+            documentPage = documentRepository.findByUserIdAndCategoryAndDeletedFalse(SessionUtil.requireCurrentUserId(), category, pageable);
         }
         
         // 转换为返回格式
@@ -509,7 +507,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public Map<String, Integer> getDocumentStats() {
         // 统计各分类文档数量
-        List<Object[]> categoryStats = documentRepository.countByCategoryGroupByCategory("user-1");
+        List<Object[]> categoryStats = documentRepository.countByCategoryGroupByCategory(SessionUtil.requireCurrentUserId());
         
         Map<String, Integer> stats = new HashMap<>();
         stats.put("pdf", 0);

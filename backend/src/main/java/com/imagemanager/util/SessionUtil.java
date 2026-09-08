@@ -54,6 +54,19 @@ public class SessionUtil {
     }
 
     /**
+     * 获取当前登录用户ID，无会话时直接抛出 401 异常（禁止降级默认用户）。
+     * 所有需要租户隔离的业务代码必须统一使用本方法。
+     */
+    public static String requireCurrentUserId() {
+        String userId = getCurrentUserId();
+        if (userId == null || userId.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "未登录或会话已过期");
+        }
+        return userId;
+    }
+
+    /**
      * 获取当前用户所属公司
      */
     public static String getCurrentCompany() {

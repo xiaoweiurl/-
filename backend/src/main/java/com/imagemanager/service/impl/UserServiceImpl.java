@@ -15,7 +15,6 @@ import com.imagemanager.repository.UserSettingsRepository;
 import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.UserService;
 import com.imagemanager.util.SessionUtil;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -57,100 +56,26 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private ImageTableService imageTableService;
     
-    /**
-     * 初始化默认用户和通知
-     */
-    @PostConstruct
-    public void initDefaultData() {
-        // 检查是否已有用户
-        if (userRepository.count() > 0) {
-            log.info("用户数据已存在，跳过初始化");
-            return;
-        }
-        
-        log.info("初始化默认用户和通知...");
-        
-        // 创建默认用户
-        User defaultUser = User.builder()
-                .id("user-1")
-                .username("Alex Wang")
-                .password("password123")
-                .email("alex@example.com")
-                .avatarUrl(null)
-                .nickname("Alex")
-                .bio("摄影爱好者")
-                .phone("13800138000")
-                .role("user")
-                .membership("pro")
-                .storageUsed(1024L * 1024 * 1024 * 5)  // 5GB
-                .storageLimit(1024L * 1024 * 1024 * 50)  // 50GB
-                .createdAt(LocalDateTime.now().minusYears(1))
-                .lastLoginAt(LocalDateTime.now())
-                .build();
-        userRepository.save(defaultUser);
-        
-        // 创建默认通知
-        Notification notif1 = Notification.builder()
-                .id("notif-1")
-                .title("上传成功")
-                .content("5张新图片上传成功")
-                .type("upload")
-                .read(false)
-                .createdAt(LocalDateTime.now().minusMinutes(2))
-                .userId("user-1")
-                .build();
-        notificationRepository.save(notif1);
-        
-        Notification notif2 = Notification.builder()
-                .id("notif-2")
-                .title("相册更新")
-                .content("相册\"风景\"已更新")
-                .type("album")
-                .read(false)
-                .createdAt(LocalDateTime.now().minusHours(1))
-                .userId("user-1")
-                .build();
-        notificationRepository.save(notif2);
-        
-        Notification notif3 = Notification.builder()
-                .id("notif-3")
-                .title("系统通知")
-                .content("系统维护通知")
-                .type("system")
-                .read(true)
-                .createdAt(LocalDateTime.now().minusDays(2))
-                .userId("user-1")
-                .build();
-        notificationRepository.save(notif3);
-        
-        log.info("默认用户和通知初始化完成");
-    }
     
     @Override
     public User getCurrentUser() {
-        log.info("获取当前用户信息");
-        // 返回默认用户
-        return userRepository.findById("user-1")
+        String currentUserId = SessionUtil.requireCurrentUserId();
+        log.info("获取当前用户信息: {}", currentUserId);
+        return userRepository.findById(currentUserId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
     
     @Override
     public List<Notification> getNotifications() {
         log.info("获取通知列表");
-        String currentUserId = SessionUtil.getCurrentUserId();
-        if (currentUserId == null) {
-            currentUserId = "user-1"; // 降级默认
-        }
+        String currentUserId = SessionUtil.requireCurrentUserId();
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(currentUserId);
     }
     
     @Override
     public Notification createNotification(CreateNotificationRequest request) {
         // 从session获取当前用户ID
-        String currentUserId = SessionUtil.getCurrentUserId();
-        if (currentUserId == null) {
-            currentUserId = "user-1"; // 降级默认
-        }
+        String currentUserId = SessionUtil.requireCurrentUserId();
         log.info("创建通知：userId={}, type={}, title={}", currentUserId, request.getType(), request.getTitle());
 
         Notification notification = Notification.builder()
@@ -207,8 +132,7 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public void markAllNotificationsRead() {
-        String userId = SessionUtil.getCurrentUserId();
-        if (userId == null) userId = "user-1";
+        String userId = SessionUtil.requireCurrentUserId();
         log.info("标记所有通知为已读：{}", userId);
         List<Notification> notifications = notificationRepository.findByUserIdAndReadFalse(userId);
         notifications.forEach(n -> n.setRead(true));
@@ -217,8 +141,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Integer getUnreadCount() {
-        String userId = SessionUtil.getCurrentUserId();
-        if (userId == null) userId = "user-1";
+        String userId = SessionUtil.requireCurrentUserId();
         log.info("获取未读通知数量：{}", userId);
         return notificationRepository.countByUserIdAndReadFalse(userId);
     }

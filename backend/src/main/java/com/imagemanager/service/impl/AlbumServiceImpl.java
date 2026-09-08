@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.imagemanager.util.SessionUtil;
 
 /**
  * 相册服务实现类
@@ -49,7 +50,7 @@ public class AlbumServiceImpl implements AlbumService {
      */
     @Override
     public Optional<Album> findByName(String name) {
-        return albumRepository.findFirstByUserIdAndName("user-1", name);
+        return albumRepository.findFirstByUserIdAndName(SessionUtil.requireCurrentUserId(), name);
     }
     
     /**
@@ -230,7 +231,7 @@ public class AlbumServiceImpl implements AlbumService {
                 .sortOrder((int) count)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
-                .userId("user-1")
+                .userId(SessionUtil.requireCurrentUserId())
                 .build();
         
         Album saved = albumRepository.save(album);
@@ -442,7 +443,7 @@ public class AlbumServiceImpl implements AlbumService {
     public Album createAlbumWithParent(String name, String parentId, String description, List<String> keywords) {
         log.info("创建层级相册：{}，父级：{}", name, parentId);
         
-        String userId = "user-1";
+        String userId = SessionUtil.requireCurrentUserId();
         String path;
         String fullName;
         
@@ -497,7 +498,7 @@ public class AlbumServiceImpl implements AlbumService {
             fullPath = convertedPath;
         }
         
-        String userId = "user-1";
+        String userId = SessionUtil.requireCurrentUserId();
         
         // 检查是否已存在
         Optional<Album> existing = albumRepository.findFirstByUserIdAndPath(userId, fullPath);
@@ -590,6 +591,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public List<Album> getChildAlbums(String parentId) {
-        return albumRepository.findByUserIdAndParentIdOrderBySortOrderAsc("user-1", parentId);
+        return albumRepository.findByUserIdAndParentIdOrderBySortOrderAsc(SessionUtil.requireCurrentUserId(), parentId);
     }
 }

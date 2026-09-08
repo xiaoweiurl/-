@@ -788,8 +788,8 @@ function UsersTab() {
   }>>([]);
 
   useEffect(() => {
-    // 加载真实用户数据
-    fetch('/api/users')
+    // 加载真实用户数据（管理员接口，由 Java 后端鉴权）
+    fetch('/api/admin/users')
       .then(res => res.json())
       .then(data => {
         if (data.success) {

@@ -776,10 +776,7 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 获取当前用户ID（数据隔离）
-            String currentUserId = SessionUtil.getCurrentUserId();
-            if (currentUserId == null) {
-                currentUserId = "user-1"; // 降级默认
-            }
+            String currentUserId = SessionUtil.requireCurrentUserId();
             // 获取当前用户名（用于动态表命名）
             String currentUsername = getCurrentUsernameForTable();
             if (currentUsername == null) {
@@ -1673,10 +1670,7 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 获取当前用户ID（数据隔离）
-            String currentUserId = SessionUtil.getCurrentUserId();
-            if (currentUserId == null) {
-                currentUserId = "user-1"; // 降级默认
-            }
+            String currentUserId = SessionUtil.requireCurrentUserId();
             
             // 创建图片记录
             Image image = Image.builder()
@@ -2062,7 +2056,7 @@ public class ImageServiceImpl implements ImageService {
                             Album subCatAlbum = albumCache.get(subCatCacheKey);
                             if (subCatAlbum == null) {
                                 subCatAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                        currentParentId, decodedSubCategory, "user-1");
+                                        currentParentId, decodedSubCategory, SessionUtil.requireCurrentUserId());
                                 albumCache.put(subCatCacheKey, subCatAlbum);
                             }
                             currentParentId = subCatAlbum.getId();
@@ -2073,7 +2067,7 @@ public class ImageServiceImpl implements ImageService {
                                 targetAlbum = albumCache.get(catCacheKey);
                                 if (targetAlbum == null) {
                                     targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                            currentParentId, decodedCategory, "user-1");
+                                            currentParentId, decodedCategory, SessionUtil.requireCurrentUserId());
                                     albumCache.put(catCacheKey, targetAlbum);
                                 }
                                 log.info("Excel导入 - 三级相册: {} > {} > {}", brandName, decodedSubCategory, decodedCategory);
@@ -2087,7 +2081,7 @@ public class ImageServiceImpl implements ImageService {
                             targetAlbum = albumCache.get(catCacheKey);
                             if (targetAlbum == null) {
                                 targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                        currentParentId, decodedCategory, "user-1");
+                                        currentParentId, decodedCategory, SessionUtil.requireCurrentUserId());
                                 albumCache.put(catCacheKey, targetAlbum);
                             }
                             log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedCategory);
@@ -2109,7 +2103,7 @@ public class ImageServiceImpl implements ImageService {
                             targetAlbum = albumCache.get(catCacheKey);
                             if (targetAlbum == null) {
                                 targetAlbum = albumService.getOrCreateAlbumByParentIdAndName(
-                                        parentAlbum.getId(), decodedCategory, "user-1");
+                                        parentAlbum.getId(), decodedCategory, SessionUtil.requireCurrentUserId());
                                 albumCache.put(catCacheKey, targetAlbum);
                             }
                         } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
@@ -2167,7 +2161,7 @@ public class ImageServiceImpl implements ImageService {
                 product.setDescription(item.getDescription() != null ? CharsetUtil.convertToUtf8(item.getDescription()) : null);
                 product.setCategory(item.getCategory() != null ? CharsetUtil.convertToUtf8(item.getCategory()) : null);
                 product.setAlbumId(albumId);
-                product.setUserId("user-1"); // 默认用户
+                product.setUserId(SessionUtil.requireCurrentUserId());
                 product.setImageCount(0);
                 product = productRepository.save(product);
                 log.info("创建商品记录: ID={}, 名称={}, 分类={}", productId, productName, item.getCategory());
@@ -2589,10 +2583,7 @@ public class ImageServiceImpl implements ImageService {
             }
             
             // 获取当前用户ID（数据隔离）
-            String currentUserId = SessionUtil.getCurrentUserId();
-            if (currentUserId == null) {
-                currentUserId = "user-1"; // 降级默认
-            }
+            String currentUserId = SessionUtil.requireCurrentUserId();
             
             // 创建图片记录
             Image image = Image.builder()

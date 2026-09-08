@@ -29,6 +29,33 @@
 - **会话验证**: 检查本地 Cookie 中的 session_id 即可通过验证
 - **数据**: 使用前端内置的 Mock 数据展示
 
+> **2026-09 安全整改后，上述"降级模式"已全面下线**：
+> - 鉴权统一在 Java 后端（SessionIdAuthFilter/AuthInterceptor），前端无任何 Mock 登录/内存会话（`src/lib/auth.ts` 仅保留 UI 权限辅助函数；`api-middleware.ts`、`db.ts` 死代码已删除）
+> - 后端不可用时统一返回 503 真实错误，禁止任何 Mock 数据兜底
+
+### 代理层架构（2026-09 整合：95 条 → 12 条）
+Next.js 层路由已整合为**统一 BFF 代理 + 少数特殊路由**：
+
+| 路由 | 作用 |
+|------|------|
+| `/api/[[...path]]/route.ts` | **统一 BFF 代理**：所有无专属路由的 `/api/*` 请求透传到 Java `8080/api/*`；流式透传（SSE/大文件不落内存）、multipart 原样转发、Cookie→X-Session-Id 注入、Set-Cookie 多值透传、后端不可达 503 |
+| `/api/auth/login` | 登录入口（SSO 409 冲突、种 Cookie、提取 X-Session-Id） |
+| `/api/auth/register` `/api/auth/forgot-password` | 错误字段适配 |
+| `/api/notifications` | 协议适配层：前端 action 语义（markRead/markAllRead）↔ Java REST 路径映射 |
+| `/api/files/upload` | OSS 直传（coze-coding-dev-sdk S3Storage） |
+| `/api/images/[id]/file` | 图片下载：查详情取 URL 后拉取文件，originalUrl 主备容错 |
+| `/api/data-assets` | 聚合 BFF：并发调 documents/knowledge/images 三端点聚合 |
+| `/api/smart-albums/*` | 智能相册本地预设数据（Java 无端点，纯前端功能） |
+| `/api/swagger` `/api/ops/node-metrics` | 本地 API 文档 / Node 进程监控 |
+
+新增后端接口时**无需再建 Next 代理路由**，前端直接调 `/api/<java路径>` 即自动经统一代理转发。
+
+### 租户隔离（2026-09 整改）
+- Java 业务代码中的 `user-1` 硬编码/降级已全部清除（ImageServiceImpl/AlbumServiceImpl/DocumentServiceImpl/UserServiceImpl/ProductController/AlbumController）
+- 统一使用 `SessionUtil.requireCurrentUserId()` 从会话上下文取用户标识；**无会话直接抛 401，禁止降级默认用户**
+- `AlbumController.getAlbumTree` 不再接受客户端传 userId（防越权）
+- `UserServiceImpl.initDefaultData`（弱密码演示账户 Alex Wang/password123 播种）已删除
+
 ### 核心功能
 1. **侧边导航栏**: 知识分类、上传、回收站、收藏夹、文档中心、设置
 2. **顶部搜索栏**: 搜索知识、用户头像、通知中心

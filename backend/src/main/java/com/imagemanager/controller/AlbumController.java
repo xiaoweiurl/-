@@ -157,9 +157,9 @@ public class AlbumController {
      * 获取相册树
      */
     @GetMapping("/tree")
-    @Operation(summary = "获取相册树", description = "获取用户的层级相册结构")
-    public ApiResponse<List<Album>> getAlbumTree(
-            @Parameter(description = "用户ID") @RequestParam(required = false, defaultValue = "user-1") String userId) {
+    @Operation(summary = "获取相册树", description = "获取当前登录用户的层级相册结构（用户标识取自会话，禁止客户端指定）")
+    public ApiResponse<List<Album>> getAlbumTree() {
+        String userId = com.imagemanager.util.SessionUtil.requireCurrentUserId();
         log.info("获取相册树：{}", userId);
         List<Album> albums = albumService.getAlbumTree(userId);
         return ApiResponse.success(albums);

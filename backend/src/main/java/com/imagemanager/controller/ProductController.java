@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.imagemanager.util.SessionUtil;
 
 /**
  * 商品管理控制器
@@ -62,10 +63,10 @@ public class ProductController {
         // 先获取符合条件的商品ID
         List<String> productIds = null;
         if (keyword != null && !keyword.isEmpty()) {
-            List<Product> products = productRepository.searchByName("user-1", keyword);
+            List<Product> products = productRepository.searchByName(SessionUtil.requireCurrentUserId(), keyword);
             productIds = products.stream().map(Product::getId).collect(Collectors.toList());
         } else if (category != null && !category.isEmpty()) {
-            List<Product> products = productRepository.findByUserIdAndCategory("user-1", category);
+            List<Product> products = productRepository.findByUserIdAndCategory(SessionUtil.requireCurrentUserId(), category);
             productIds = products.stream().map(Product::getId).collect(Collectors.toList());
         }
 
@@ -198,9 +199,9 @@ public class ProductController {
 
         List<Product> products;
         if (category != null && !category.isEmpty()) {
-            products = productRepository.findByUserIdAndCategory("user-1", category);
+            products = productRepository.findByUserIdAndCategory(SessionUtil.requireCurrentUserId(), category);
         } else {
-            products = productRepository.findAllByUserIdOrderByCreatedAtDesc("user-1");
+            products = productRepository.findAllByUserIdOrderByCreatedAtDesc(SessionUtil.requireCurrentUserId());
         }
 
         return ApiResponse.success(products);
