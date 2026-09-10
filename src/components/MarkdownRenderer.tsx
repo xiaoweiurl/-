@@ -10,9 +10,40 @@ interface MarkdownRendererProps {
   darkMode?: boolean;
 }
 
+/**
+ * LLM 输出预处理：将模型自发使用的 HTML 标签转换为等价 Markdown。
+ * react-markdown 默认不渲染原始 HTML（标签连同内部文本被整体丢弃），
+ * 导致 <b>货号</b>、<font color=...>品名</font> 等内容渲染为空白。
+ * 代码块/行内代码内的内容不处理，避免破坏代码示例。
+ */
+function preprocessLlmHtml(content: string): string {
+  if (!content || !/<[a-zA-Z]/.test(content)) return content;
+  const segments = content.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
+  return segments
+    .map((seg, i) => {
+      if (i % 2 === 1) return seg; // 代码段原样保留
+      let s = seg;
+      s = s.replace(/<(b|strong)>([\s\S]*?)<\/\1>/gi, '**$2**');
+      s = s.replace(/<(i|em)>([\s\S]*?)<\/\1>/gi, '*$2*');
+      s = s.replace(/<font[^>]*>([\s\S]*?)<\/font>/gi, '**$1**');
+      s = s.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, '$1');
+      s = s.replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, '**$1**');
+      s = s.replace(/<u>([\s\S]*?)<\/u>/gi, '$1');
+      s = s.replace(/<s>([\s\S]*?)<\/s>/gi, '~~$1~~');
+      s = s.replace(/<br\s*\/?>/gi, '  \n');
+      s = s.replace(/<\/(div|p|section|article)>/gi, '\n');
+      s = s.replace(/<(div|p|section|article)[^>]*>/gi, '\n');
+      // 其余未知标签剥离，保留内部文本
+      s = s.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+      return s;
+    })
+    .join('');
+}
+
 export default function MarkdownRenderer({ content, className = '', darkMode = false }: MarkdownRendererProps) {
   // Color helpers
   const t = (light: string, dark: string) => darkMode ? dark : light;
+  const processedContent = React.useMemo(() => preprocessLlmHtml(content), [content]);
 
   return (
     <div className={`markdown-body ${className}`}>
@@ -21,12 +52,12 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
         components={{
           // 段落
           p: ({ children }) => (
-            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>{children}</p>
+            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>{children}</p>
           ),
           // 标题 - 简洁装饰线
           h1: ({ children }) => (
             <div className="mb-3 mt-5 first:mt-0">
-              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-[#8e8e93]', 'text-[#1C1C1E]')}`}>{children}</h1>
+              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{children}</h1>
               <div className={`h-[2px] w-10 rounded-full ${t('bg-[rgba(118,118,128,0.12)]', 'bg-[#007aff]')}`} />
             </div>
           ),
@@ -34,13 +65,13 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             <div className="mb-2.5 mt-4 first:mt-0">
               <div className="flex items-center gap-2.5 mb-1">
                 <div className={`w-[3px] h-4 rounded-full shrink-0 ${t('bg-[rgba(0,0,0,0.08)]', 'bg-[#007aff]')}`} />
-                <h2 className={`text-[14px] font-bold ${t('text-[#8e8e93]', 'text-[#1C1C1E]')}`}>{children}</h2>
+                <h2 className={`text-[14px] font-bold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{children}</h2>
               </div>
             </div>
           ),
           h3: ({ children }) => (
             <div className="mb-2 mt-3 first:mt-0">
-              <h3 className={`text-[13px] font-semibold flex items-center gap-2 ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>
+              <h3 className={`text-[13px] font-semibold flex items-center gap-2 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
                 <span className={`inline-block w-1.5 h-1.5 rounded-sm shrink-0 ${t('bg-[rgba(0,0,0,0.1)]', 'bg-[#007aff]')}`} />
                 {children}
               </h3>
@@ -67,7 +98,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               : children;
 
             return (
-              <li className={`text-[13px] leading-[1.8] flex items-start gap-2.5 ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>
+              <li className={`text-[13px] leading-[1.8] flex items-start gap-2.5 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
                 <span className={`inline-block w-[5px] h-[5px] rounded-full shrink-0 mt-[8px] ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
                 <span className="flex-1 min-w-0">
                   {textChildren}
@@ -82,7 +113,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           },
           // 加粗
           strong: ({ children }) => (
-            <strong className={`font-semibold ${t('text-[#8e8e93]', 'text-[#1C1C1E]')}`}>{children}</strong>
+            <strong className={`font-semibold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{children}</strong>
           ),
           // 斜体
           em: ({ children }) => (
@@ -123,7 +154,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           blockquote: ({ children }) => (
             <blockquote className={`my-3 pl-4 py-2 relative rounded-r-lg ${t('bg-[rgba(242,242,247,0.6)]', 'bg-[rgba(0,0,0,0.015)]')}`}>
               <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-full ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
-              <div className={`text-[12.5px] leading-[1.7] ${t('text-[#8e8e93]', 'text-[#3a3a3c]')}`}>{children}</div>
+              <div className={`text-[12.5px] leading-[1.7] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{children}</div>
             </blockquote>
           ),
           // 分割线
@@ -164,12 +195,12 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             <tr className={`${t('hover:bg-[rgba(242,242,247,0.8)]', 'hover:bg-[rgba(0,0,0,0.015)]')} transition-colors`}>{children}</tr>
           ),
           th: ({ children }) => (
-            <th className={`px-4 py-2 text-left font-semibold whitespace-nowrap text-[12px] ${t('text-[#8e8e93]', 'text-[#1c1c1e]')}`}>
+            <th className={`px-4 py-2 text-left font-semibold whitespace-nowrap text-[12px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-[#8e8e93]', 'text-[#3a3a3c]')}`}>{children}</td>
+            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{children}</td>
           ),
           // 删除线
           del: ({ children }) => (
@@ -187,7 +218,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           ),
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );
