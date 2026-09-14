@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Sparkles, Brain, MessageSquare, Image, Globe, Search,
-  BarChart3, TrendingUp, Zap, Clock, ArrowRight, Activity,
-  Bot, BookOpen, Eye, Cpu, ChevronRight, RefreshCw,
+  Sparkles, MessageSquare, Image, Globe, Search,
+  BarChart3, Zap, Clock, ArrowRight, Activity,
+  BookOpen, Eye, Cpu, ChevronRight,
   CheckCircle, XCircle, AlertTriangle, Server,
-  Mic, FileText, Wand2, Lightbulb, Layers, Shield,
-  Play, ExternalLink, Database, PieChart
+  Wand2, Layers, Shield,
+  Database, PieChart
 } from 'lucide-react';
 
 // ===== 类型定义 =====

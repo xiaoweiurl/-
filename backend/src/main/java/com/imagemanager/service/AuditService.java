@@ -1,7 +1,6 @@
 package com.imagemanager.service;
 
 import com.imagemanager.dto.AuditLogDTO;
-import com.imagemanager.entity.AuditLog;
 import org.springframework.data.domain.Page;
 
 /**

@@ -2,6 +2,7 @@ package com.imagemanager.scheduler;
 
 import com.imagemanager.entity.Image;
 import com.imagemanager.entity.ShareLink;
+import com.imagemanager.entity.SystemSetting;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ShareLinkRepository;
 import com.imagemanager.repository.SystemSettingRepository;

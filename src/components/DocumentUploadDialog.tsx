@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { getSessionId } from '@/lib/auth-client';
@@ -28,7 +27,6 @@ import {
   FileSpreadsheet,
   Presentation,
   Archive,
-  Image as ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 

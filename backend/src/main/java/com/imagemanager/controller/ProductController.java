@@ -6,6 +6,7 @@ import com.imagemanager.entity.Image;
 import com.imagemanager.entity.Product;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ProductRepository;
+import com.imagemanager.service.ImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -3,7 +3,6 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNotifications } from '@/contexts/NotificationContext';
 import {
@@ -22,13 +21,8 @@ import {
   Shield,
   X,
   FileSpreadsheet,
-  Upload,
   Download,
-  Filter,
   RefreshCw,
-  Sparkles,
-  Scissors,
-  Cloud,
   Zap,
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';

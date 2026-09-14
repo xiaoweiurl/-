@@ -6,7 +6,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.postgresql.util.PGobject;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 /**

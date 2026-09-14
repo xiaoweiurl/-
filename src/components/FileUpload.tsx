@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { 
-  Upload, 
   X, 
   File, 
   FileText, 
@@ -11,11 +10,8 @@ import {
   Image,
   ImageIcon,
   FileIcon,
-  CheckCircle2,
-  AlertCircle,
   Loader2,
   Eye,
-  Trash2,
   Download,
   Copy,
   FolderOpen

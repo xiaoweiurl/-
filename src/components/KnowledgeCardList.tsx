@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
-  FileText, Plus, Trash2, Edit3, Eye, ChevronRight,
+  FileText, Plus, Trash2, Edit3, ChevronRight,
   Briefcase, Users, Building2, Clock, Search, CheckCircle2, XCircle, Loader2
 } from 'lucide-react';
 

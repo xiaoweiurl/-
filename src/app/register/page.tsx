@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { User, Lock, Eye, EyeOff, Loader2, Palette, ArrowLeft, Mail, Building2 } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Loader2, ArrowLeft, Mail, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 

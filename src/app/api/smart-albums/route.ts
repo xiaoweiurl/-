@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { backendFetch } from '@/lib/backend-proxy';
 
 /**
  * 安全解析响应

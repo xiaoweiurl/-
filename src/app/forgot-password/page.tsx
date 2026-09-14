@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   Loader2,
-  Sparkles,
   Shield,
   Mail,
   Phone,

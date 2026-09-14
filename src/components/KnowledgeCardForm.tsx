@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Plus, X, Save, Trash2, ChevronDown, ChevronUp, Loader2,
+  X, Save, ChevronDown, ChevronUp, Loader2,
   FileText, Users, Briefcase, Target, GitBranch, AlertTriangle,
-  TrendingUp, MessageSquare, CheckCircle
+  TrendingUp, MessageSquare
 } from 'lucide-react';
-import { getCurrentBrand } from '@/lib/brand';
 
 interface KnowledgeCard {
   id?: string;

@@ -70,7 +70,7 @@ public class QueryEnhancer {
             不要包含其他内容。
             """, originalQuery);
 
-        String requestBody = mapper.writeValueToString(new java.util.HashMap<String, Object>() {{
+        String requestBody = mapper.writeValueAsString(new java.util.HashMap<String, Object>() {{
             put("model", ollamaModel);
             put("prompt", prompt);
             put("stream", false);

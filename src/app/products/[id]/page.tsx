@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Image from 'next/image';
 import { ArrowLeft, Heart, Share2, Download, Grid3X3, ChevronLeft, ChevronRight, DownloadCloud, Image as ImageIcon, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';

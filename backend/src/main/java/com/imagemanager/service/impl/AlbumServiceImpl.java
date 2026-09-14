@@ -1,6 +1,7 @@
 package com.imagemanager.service.impl;
 
 import com.imagemanager.entity.Album;
+import com.imagemanager.entity.Image;
 import com.imagemanager.repository.AlbumRepository;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.service.AlbumService;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
