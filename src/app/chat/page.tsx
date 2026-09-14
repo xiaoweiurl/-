@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
 import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
-  Bot, User, BookOpen, Brain, Loader2, Sparkles,
+  Bot, User, BookOpen, Loader2, Sparkles,
   Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';

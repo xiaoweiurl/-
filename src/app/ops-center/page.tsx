@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Activity, AlertTriangle, AlertCircle, CheckCircle2, Clock,
-  Cpu, HardDrive, MemoryStick, Network, RefreshCw, Search,
-  Shield, TrendingDown, TrendingUp, Users, Zap, Server,
+  Cpu, HardDrive, MemoryStick, Network, RefreshCw,
+  Shield, Users, Zap, Server,
   Database, ArrowUpDown, ChevronDown, ChevronUp, Eye,
   Download, Trash2, RotateCcw, XCircle, Bug, FileText,
-  BarChart3, Globe, Lock, UserCheck, ArrowRight,
+  Globe, Lock, UserCheck,
 } from 'lucide-react';
 
 // ============ 类型定义 ============

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 /**
  * RAG增强流水线：整合查询增强 + 多路向量并行召回 + 去重 + Reranker重排序。

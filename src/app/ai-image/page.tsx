@@ -11,7 +11,6 @@ import {
   Image as ImageIcon,
   ChevronDown,
   X,
-  ZoomIn,
   Wand2,
   Ratio,
   Maximize2,

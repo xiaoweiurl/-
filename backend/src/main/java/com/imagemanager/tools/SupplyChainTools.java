@@ -1,7 +1,6 @@
 package com.imagemanager.tools;
 
 import com.imagemanager.cache.LlmCacheService;
-import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.service.KnowledgeBaseService;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;

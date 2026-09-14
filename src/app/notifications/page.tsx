@@ -3,14 +3,14 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Bell, BellOff, Check, CheckCheck, Trash2, Loader2,
+  BellOff, Check, CheckCheck, Trash2, Loader2,
   ArrowLeft, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useNotifications, Notification } from '@/contexts/NotificationContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function NotificationsPage() {
   const router = useRouter();

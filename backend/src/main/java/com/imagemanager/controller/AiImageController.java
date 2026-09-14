@@ -10,16 +10,16 @@ import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ImageDynamicRepository;
 import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.FileStorageService;
+import com.imagemanager.util.SessionUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 

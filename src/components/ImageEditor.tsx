@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { X, Loader2, Download, RotateCcw, RotateCw, Maximize, Minimize } from 'lucide-react';
 

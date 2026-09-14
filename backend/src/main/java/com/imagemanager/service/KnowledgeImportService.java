@@ -18,7 +18,7 @@ import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.hwpf.usermodel.Range;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.github.universalchardet.UniversalDetector;
+import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -397,9 +397,10 @@ public class KnowledgeImportService {
         // 立即落一条 RUNNING 记录：任务列表/历史页签第一时间可见，不等首个进度周期
         persistTask(progress, "RUNNING", null);
 
+        final long submittedTaskId = taskId;
         taskExecutor.submit(() -> {
             try {
-                runImport(root, taskId, userId, company);
+                runImport(root, submittedTaskId, userId, company);
             } finally {
                 taskSemaphore().release();
             }

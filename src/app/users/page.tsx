@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  User, Plus, Search, MoreVertical, Edit2, Trash2, 
+  User, Plus, Search, Edit2, Trash2, 
   Shield, Loader2, X, Save
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

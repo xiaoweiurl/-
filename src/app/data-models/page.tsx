@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Database, Plus, Trash2, Edit3, Save, X, ChevronRight,
   Settings, Table2, FileText, Search, RefreshCw, ArrowLeft,
-  ToggleLeft, ToggleRight, GripVertical, Eye, EyeOff, Copy
+  ToggleLeft, ToggleRight, GripVertical, Eye, EyeOff
 } from 'lucide-react';
 
 /* ===== 类型 ===== */

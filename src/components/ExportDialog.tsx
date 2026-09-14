@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Download, FolderOpen, FolderTree, Loader2 } from 'lucide-react';
+import { FolderOpen, FolderTree, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Album } from '@/components/MoveToAlbumDialog';
 

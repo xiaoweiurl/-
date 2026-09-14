@@ -4,7 +4,6 @@ import com.imagemanager.service.KnowledgeImportService;
 import com.imagemanager.util.SessionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -45,7 +44,7 @@ public class KnowledgeImportController {
             return resp;
         }
         try {
-            String userId = SessionUtil.getCurrentUser();
+            String userId = SessionUtil.getCurrentUserId();
             String company = SessionUtil.getCurrentCompany();
             Map<String, Object> result = importService.submitPath(path.trim(), userId, company);
             Map<String, Object> resp = new HashMap<>(result);
@@ -76,7 +75,7 @@ public class KnowledgeImportController {
             return resp;
         }
         try {
-            String userId = SessionUtil.getCurrentUser();
+            String userId = SessionUtil.getCurrentUserId();
             String company = SessionUtil.getCurrentCompany();
             Map<String, Object> result = importService.submitUpload(file, userId, company);
             Map<String, Object> resp = new HashMap<>(result);
@@ -118,12 +117,10 @@ public class KnowledgeImportController {
     public Map<String, Object> cancel(@PathVariable long taskId) {
         Map<String, Object> resp = new HashMap<>();
         try {
-            boolean cancelled = importService.cancel(taskId);
-            resp.put("success", cancelled);
-            resp.put("message", cancelled ? "任务已取消" : "任务已结束，无法取消");
-            if (!cancelled) {
-                resp.put("error", "任务已结束，无法取消");
-            }
+            Map<String, Object> cancelResult = importService.cancel(taskId);
+            resp.put("success", true);
+            resp.put("message", cancelResult.getOrDefault("message", "任务已取消"));
+            resp.putAll(cancelResult);
             return resp;
         } catch (Exception e) {
             resp.put("success", false);

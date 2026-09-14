@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   Database, Brain, Image, FileText, BarChart3, TrendingUp,
   Activity, Cpu, HardDrive, Users, Zap, Search,
-  ArrowUpRight, ArrowDownRight, Clock, RefreshCw,
+  ArrowUpRight, ArrowDownRight,
   Package, ShoppingCart, Factory, DollarSign,
   Layers, Globe, Sparkles, ChevronRight,
 } from 'lucide-react';

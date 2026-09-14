@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Loader2, ChevronLeft, AlertCircle, Download, Undo2, Redo2, Eraser, X, Sparkles } from 'lucide-react';
+import { Loader2, ChevronLeft, AlertCircle, Download, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // 导入 TUI Image Editor 样式

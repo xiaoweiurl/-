@@ -4,8 +4,6 @@ import com.imagemanager.entity.PositionKnowledgeCard;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.util.List;
-
 public interface PositionKnowledgeCardService {
 
     PositionKnowledgeCard createCard(PositionKnowledgeCard card, String userId, String company);

@@ -17,8 +17,6 @@ import com.imagemanager.repository.KnowledgeEmbeddingRepository;
 import com.imagemanager.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;

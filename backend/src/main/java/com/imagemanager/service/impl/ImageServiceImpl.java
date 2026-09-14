@@ -19,9 +19,9 @@ import com.imagemanager.service.ImageEnhancementService;
 import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.ImageService;
+import com.imagemanager.service.UserService;
 import com.imagemanager.util.CharsetUtil;
 import com.imagemanager.util.SessionUtil;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -45,7 +45,6 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.awt.image.BufferedImage;
 
@@ -2983,7 +2982,7 @@ public class ImageServiceImpl implements ImageService {
                         try {
                             java.net.URI uri = java.net.URI.create(localPath);
                             localPath = uri.getPath();
-                        } catch (java.net.MalformedURLException e) {
+                        } catch (IllegalArgumentException e) {
                             log.warn("URL解析失败，尝试直接作为路径使用：{} - {}", localPath, e.getMessage());
                             // 不是有效URL，直接作为本地路径使用
                         }

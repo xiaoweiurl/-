@@ -30,6 +30,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -728,6 +730,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         } catch (Exception e) {
             log.error("知识库向量搜索失败: {}", e.getMessage());
             // 最终降级：尝试纯关键词搜索
+            List<String> keywords = extractKeywords(query);
             if (!keywords.isEmpty()) {
                 List<MemorySearchResult> kwResults = keywordSearchFallback(keywords, company, limit);
                 if (!kwResults.isEmpty()) return kwResults;

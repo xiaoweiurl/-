@@ -3,7 +3,7 @@
  * 使用 Zod 进行类型安全的请求验证
  */
 
-import { z, ZodError } from 'zod';
+import { z } from 'zod';
 import { NextResponse } from 'next/server';
 
 // ==========================================

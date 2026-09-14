@@ -10,7 +10,7 @@ import { proxyImageUrl } from '@/lib/backend-proxy';
 import { getSessionId } from '@/lib/auth-client';
 import { 
   Heart, Download, MoreVertical, Check, Trash2, Move, Copy, ExternalLink, Share2,
-  Twitter, Facebook, Linkedin, CheckCheck, ArrowLeft, ChevronRight, FolderOpen, Edit3, Star
+  Twitter, Facebook, Linkedin, ArrowLeft, ChevronRight, FolderOpen, Edit3, Star
 } from 'lucide-react';
 import { toast } from 'sonner';
 import HighlightedText, { HighlightedTags } from './HighlightedText';

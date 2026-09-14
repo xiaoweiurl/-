@@ -3,7 +3,6 @@ package com.imagemanager.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.AuditLogDTO;
 import com.imagemanager.entity.AuditLog;
-import com.imagemanager.entity.User;
 import com.imagemanager.repository.AuditLogRepository;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuditService;

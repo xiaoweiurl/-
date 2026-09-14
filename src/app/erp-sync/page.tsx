@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   RefreshCcw, ArrowLeft, LogOut, ShieldAlert, Database, Clock,
-  CheckCircle2, XCircle, Trash2, Server, ChevronRight,
+  CheckCircle2, XCircle, Trash2, Server,
   Layers, Activity, KeyRound, Loader2, History
 } from 'lucide-react';
 

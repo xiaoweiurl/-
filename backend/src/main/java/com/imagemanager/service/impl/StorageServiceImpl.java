@@ -2,7 +2,7 @@ package com.imagemanager.service.impl;
 
 import com.imagemanager.dto.StorageQuotaDTO;
 import com.imagemanager.entity.StorageQuota;
-import com.imagemanager.entity.User;
+import com.imagemanager.entity.SystemSetting;
 import com.imagemanager.repository.*;
 import com.imagemanager.service.StorageService;
 import lombok.RequiredArgsConstructor;

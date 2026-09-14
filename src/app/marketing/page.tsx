@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
-import { Send, Trash2, Bot, User, Sparkles, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
+import { Send, Trash2, Bot, User, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import MarkdownRenderer from '@/components/MarkdownRenderer';

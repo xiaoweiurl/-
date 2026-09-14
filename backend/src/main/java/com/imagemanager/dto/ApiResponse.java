@@ -3,8 +3,6 @@ package com.imagemanager.dto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 /**
  * 统一响应对象
  * 
