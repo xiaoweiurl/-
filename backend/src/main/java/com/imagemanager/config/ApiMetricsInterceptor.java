@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
@@ -55,7 +56,7 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
     public void postHandle(@NonNull HttpServletRequest request,
                            @NonNull HttpServletResponse response,
                            @NonNull Object handler,
-                           ModelAndView modelAndView) {
+                           @Nullable ModelAndView modelAndView) {
         // 不需要处理
     }
 
@@ -63,7 +64,7 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
     public void afterCompletion(@NonNull HttpServletRequest request,
                                 @NonNull HttpServletResponse response,
                                 @NonNull Object handler,
-                                Exception ex) {
+                                @Nullable Exception ex) {
         try {
             Long startTime = (Long) request.getAttribute(ATTR_START_TIME);
             if (startTime == null) {

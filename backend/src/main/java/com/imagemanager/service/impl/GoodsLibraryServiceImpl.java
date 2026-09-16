@@ -41,7 +41,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         this.fileStorageService = fileStorageService;
         // 编程式事务：HikariCP auto-commit=false 且本类方法不声明 @Transactional（避免 OSS 网络调用拖长事务），
         // 因此所有写库操作必须通过 TransactionTemplate 显式提交，否则连接归还时会被回滚
-        this.txTemplate = new TransactionTemplate(transactionManager);
+        this.txTemplate = new TransactionTemplate(java.util.Objects.requireNonNull(transactionManager));
     }
 
     @Override

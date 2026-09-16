@@ -125,7 +125,7 @@ public class AuditServiceImpl implements AuditService {
     public Page<AuditLogDTO> getUserLogs(String userId, int page, int pageSize) {
         Pageable pageable = PageRequest.of(page - 1, pageSize);
         return auditLogRepository.findByUserId(userId, pageable)
-                .map(this::toDTO);
+                .map(log -> toDTO(log));
     }
 
     @Override
@@ -141,7 +141,7 @@ public class AuditServiceImpl implements AuditService {
                 LocalDateTime.now();
 
         return auditLogRepository.searchLogs(userId, action, resourceType, start, end, pageable)
-                .map(this::toDTO);
+                .map(log -> toDTO(log));
     }
 
     @Override

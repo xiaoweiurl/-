@@ -3,7 +3,6 @@ package com.imagemanager.service.impl;
 import com.imagemanager.config.StorageConfig;
 import com.imagemanager.dto.BatchDownloadRequest;
 import com.imagemanager.dto.BatchDownloadResponse;
-import com.imagemanager.dto.CreateNotificationRequest;
 import com.imagemanager.dto.ImageQueryRequest;
 import com.imagemanager.dto.PageResponse;
 import com.imagemanager.entity.Album;
@@ -34,7 +33,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -89,9 +87,6 @@ public class ImageServiceImpl implements ImageService {
 
     @Autowired
     private ProductRepository productRepository;
-
-    @Autowired(required = false)
-    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private ImageEnhancementService imageEnhancementService;
@@ -160,21 +155,6 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /**
-     * 同步图片数据到动态表
-     */
-    private void syncToDynamicTable(Image image) {
-        if (image == null || image.getUserId() == null) return;
-        String tableKey = getUsernameForTable(image);
-        try {
-            imageTableService.ensureUserImageTable(tableKey);
-            imageDynamicRepository.update(image, tableKey);
-            log.debug("同步到动态表成功, tableKey={}, imageId={}", tableKey, image.getId());
-        } catch (Exception e) {
-            log.error("同步到动态表失败: tableKey={}, imageId={}, error={}", tableKey, image.getId(), e.getMessage(), e);
-        }
-    }
-
-    /**
      * 从动态表中软删除图片（标记 deleted=true）
      */
     private void deleteFromDynamicTable(Image image) {
@@ -216,26 +196,6 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    /**
-     * 创建通知（如果有UserService）
-     */
-    private void createNotificationSafe(String title, String content, String type) {
-        try {
-            String currentUserId = SessionUtil.getCurrentUserId();
-            if (userService != null && currentUserId != null) {
-                CreateNotificationRequest request = new CreateNotificationRequest();
-                request.setTitle(title);
-                request.setContent(content);
-                request.setType(type);
-                userService.createNotification(request);
-            }
-        } catch (Exception e) {
-            // 通知创建失败不影响主流程
-            log.warn("创建通知失败: {}", e.getMessage());
-        }
-    }
-    
-    
     @Override
     public PageResponse<Image> queryImages(ImageQueryRequest request) {
         log.info("查询图片列表，参数：{}", request);
@@ -930,7 +890,7 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public void batchDelete(List<String> ids) {
         log.info("批量删除图片，数量：{}", ids.size());
-        ids.forEach(this::deleteImage);
+        ids.forEach(id -> deleteImage(id));
     }
     
     @Override
@@ -1771,19 +1731,6 @@ public class ImageServiceImpl implements ImageService {
 
         log.warn("未找到匹配的相册: {}", albumName);
         return null;
-    }
-
-    /**
-     * 获取下一个相册排序号
-     *
-     * @return 下一个排序号
-     */
-    private int getNextAlbumSortOrder() {
-        Integer maxSortOrder = albumRepository.findAll().stream()
-                .map(Album::getSortOrder)
-                .max(Integer::compareTo)
-                .orElse(0);
-        return maxSortOrder + 1;
     }
 
     /**
@@ -3093,30 +3040,6 @@ public class ImageServiceImpl implements ImageService {
         return conn.getInputStream();
     }
 
-    /**
-     * 从URL下载图片数据（旧版本，仅用于兼容）
-     */
-    private byte[] downloadImageFromUrl(String imageUrl) throws Exception {
-        URI uri = URI.create(imageUrl);
-        URL url = uri.toURL();
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(30000);
-        connection.setReadTimeout(30000);
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-        
-        int responseCode = connection.getResponseCode();
-        if (responseCode != 200) {
-            throw new RuntimeException("HTTP " + responseCode);
-        }
-        
-        try (InputStream inputStream = connection.getInputStream()) {
-            return inputStream.readAllBytes();
-        } finally {
-            connection.disconnect();
-        }
-    }
-    
     /**
      * 从存储中删除图片文件
      */

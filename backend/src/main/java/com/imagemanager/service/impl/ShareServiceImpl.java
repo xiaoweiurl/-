@@ -1,13 +1,11 @@
 package com.imagemanager.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.*;
 import com.imagemanager.entity.*;
 import com.imagemanager.repository.*;
 import com.imagemanager.service.ShareService;
 import com.imagemanager.service.AuditService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,7 +16,6 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShareServiceImpl implements ShareService {
@@ -28,9 +25,7 @@ public class ShareServiceImpl implements ShareService {
     private final AlbumRepository albumRepository;
     private final ImageRepository imageRepository;
     private final UserRepository userRepository;
-    private final SystemSettingRepository systemSettingRepository;
     private final AuditService auditService;
-    private final ObjectMapper objectMapper;
 
     private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -270,23 +265,6 @@ public class ShareServiceImpl implements ShareService {
         return switch (resourceType) {
             case "album" -> albumRepository.findById(resourceId).map(Album::getName).orElse(null);
             case "image" -> imageRepository.findById(resourceId).map(Image::getTitle).orElse(null);
-            default -> null;
-        };
-    }
-
-    private Object getResourceContent(String resourceType, String resourceId) {
-        return switch (resourceType) {
-            case "album" -> {
-                Album album = albumRepository.findById(resourceId).orElse(null);
-                if (album != null) {
-                    Map<String, Object> content = new HashMap<>();
-                    content.put("album", album);
-                    content.put("images", imageRepository.findMainImagesByAlbumIdAndDeletedFalse(resourceId));
-                    yield content;
-                }
-                yield null;
-            }
-            case "image" -> imageRepository.findById(resourceId).orElse(null);
             default -> null;
         };
     }

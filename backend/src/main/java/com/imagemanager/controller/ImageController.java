@@ -10,7 +10,6 @@ import com.imagemanager.entity.BatchDownloadTask;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.BatchDownloadTaskService;
 import com.imagemanager.service.ImageService;
-import com.imagemanager.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -59,9 +58,6 @@ public class ImageController {
     
     @Autowired
     private AuthService authService;
-    
-    @Autowired
-    private UserService userService;
 
     /**
      * 查询图片列表

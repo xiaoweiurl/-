@@ -30,7 +30,6 @@ public class BackupServiceImpl implements BackupService {
     private final AlbumRepository albumRepository;
     private final ImageRepository imageRepository;
     private final UserRepository userRepository;
-    private final SystemSettingRepository systemSettingRepository;
     private final StorageService storageService;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;

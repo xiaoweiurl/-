@@ -10,6 +10,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.annotation.PostConstruct;
 
+import java.util.Objects;
+
 /**
  * 运维监控表自动初始化
  * 在应用启动时检查并创建 api_metrics / system_errors / backup_records 表
@@ -30,7 +32,7 @@ public class OpsTableInitializer {
 
     @PostConstruct
     public void init() {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         tx.executeWithoutResult(status -> {
             try {
                 // api_metrics 表 — 与 V35 迁移脚本一致

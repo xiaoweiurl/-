@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, hasPermission, type User } from './auth';
+import { type User, PERMISSIONS } from './auth';
 import { APIError, handleAPIError, checkRateLimit, validateId } from './api-utils';
 
 // ==========================================
@@ -39,40 +39,29 @@ export interface UserContext {
   sessionId: string | null;
 }
 
-const USER_CONTEXT_KEY = 'x-user-context';
-
 /**
- * 从请求中提取Session（支持 cookie 和 x-session-id header）
+ * 从请求中提取 Session ID（cookie / X-Session-Id）。
+ * 用户身份校验已下沉到 Java 后端，此处不再做本地 Mock 会话查找。
  */
 export function extractSession(request: NextRequest): { sessionId: string | null; user: User | null } {
-  // 优先从 header 获取 x-session-id
   const sessionIdFromHeader = request.headers.get('x-session-id');
   if (sessionIdFromHeader) {
-    const user = validateSession(sessionIdFromHeader);
-    if (user) {
-      return { sessionId: sessionIdFromHeader, user };
-    }
+    return { sessionId: sessionIdFromHeader, user: null };
   }
-  
-  // 从 cookie 中获取 session_id
+
   const cookieHeader = request.headers.get('cookie') || '';
   const sessionMatch = cookieHeader.match(/session_id=([^;]+)/);
   const sessionId = sessionMatch ? sessionMatch[1] : null;
-  
-  if (!sessionId) {
-    return { sessionId: null, user: null };
-  }
-  
-  const user = validateSession(sessionId);
-  return { sessionId, user };
+  return { sessionId, user: null };
 }
 
 /**
- * 验证用户权限
+ * 验证用户权限（基于角色能力表，无本地会话）
  */
 export function verifyPermissions(user: User, required: string[]): boolean {
   if (!user) return false;
-  return required.every(perm => hasPermission(user, perm as keyof typeof import('./auth').PERMISSIONS.admin));
+  const perms = PERMISSIONS[user.role] ?? PERMISSIONS.user;
+  return required.every((perm) => Boolean(perms[perm as keyof typeof perms]));
 }
 
 // ==========================================

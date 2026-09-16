@@ -4,7 +4,6 @@ import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.service.HistoryOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -13,7 +12,6 @@ import java.util.Map;
  * 历史订单控制器
  * 展示已审核投入生产的销售订单（order_xs_list 中 state='1' 的记录），只读。
  */
-@Slf4j
 @RestController
 @RequestMapping("/history-orders")
 @Tag(name = "历史订单", description = "已审核投入生产的销售订单展示（只读）")

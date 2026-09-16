@@ -4,7 +4,6 @@ import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.service.DocumentStatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,7 +13,6 @@ import java.util.Map;
  * 三单据（报价单/销售单/工艺单）统计控制器
  * 数据范围严格限定三类单据，为供应链仪表盘提供指标。
  */
-@Slf4j
 @RestController
 @RequestMapping("/document-stats")
 @Tag(name = "三单据统计", description = "报价单/销售单/工艺单维度统计（仪表盘）")

@@ -5,11 +5,11 @@ import com.imagemanager.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
@@ -19,7 +19,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * @author Image Manager Team
  * @version 1.0.0
  */
-@Slf4j
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
     
@@ -29,7 +28,9 @@ public class AuthInterceptor implements HandlerInterceptor {
     private AuthService authService;
     
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(@NonNull HttpServletRequest request,
+                             @NonNull HttpServletResponse response,
+                             @NonNull Object handler) throws Exception {
         // 公开端点不需要认证
         String path = request.getRequestURI();
         if (isPublicEndpoint(path)) {

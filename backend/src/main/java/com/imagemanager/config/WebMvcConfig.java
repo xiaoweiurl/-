@@ -2,9 +2,12 @@ package com.imagemanager.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.Objects;
 
 /**
  * Web MVC 配置
@@ -23,16 +26,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private ApiMetricsInterceptor apiMetricsInterceptor;
     
     @Override
-    public void addInterceptors(InterceptorRegistry registry) {
+    public void addInterceptors(@NonNull InterceptorRegistry registry) {
         // API 监控拦截器（在 auth 之前，记录所有请求）
-        registry.addInterceptor(apiMetricsInterceptor)
+        registry.addInterceptor(Objects.requireNonNull(apiMetricsInterceptor))
             .addPathPatterns("/**")
             .excludePathPatterns(
                 "/swagger-ui/**", "/v3/api-docs/**", "/actuator/**",
                 "/favicon.ico", "/error", "/static/**", "/webjars/**"
             );
         
-        registry.addInterceptor(authInterceptor)
+        registry.addInterceptor(Objects.requireNonNull(authInterceptor))
             .addPathPatterns("/**")
             .excludePathPatterns(
                 "/auth/login",
@@ -52,7 +55,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
      * 将 /uploads/** 路径映射到本地 ./uploads 目录
      */
     @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+    public void addResourceHandlers(@NonNull ResourceHandlerRegistry registry) {
         // 获取当前工作目录
         String userDir = System.getProperty("user.dir");
         String localPath = userDir + "/uploads";

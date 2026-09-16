@@ -5,7 +5,6 @@ import com.imagemanager.entity.User;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.ImageTableService;
-import com.imagemanager.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,9 +32,6 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
-    @Autowired
-    private UserService userService;
-    
     @Autowired
     private ImageTableService imageTableService;
     

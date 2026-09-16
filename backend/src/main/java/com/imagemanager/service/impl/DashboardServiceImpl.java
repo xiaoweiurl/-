@@ -251,7 +251,7 @@ public class DashboardServiceImpl implements DashboardService {
         for (Image image : allImages) {
             if (image.getAiTags() != null) {
                 for (String tag : image.getAiTags()) {
-                    tagCounts.merge(tag, 1L, Long::sum);
+                    tagCounts.merge(tag, 1L, (a, b) -> a + b);
                 }
             }
         }
