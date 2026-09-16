@@ -7,7 +7,6 @@ import {
   CheckCircle2, XCircle, Trash2, Server,
   Layers, Activity, KeyRound, Loader2, History
 } from 'lucide-react';
-import { getSessionId } from '@/lib/auth-client';
 import { isAdminOrAbove } from '@/lib/auth';
 
 // ==================== 类型定义 ====================
@@ -97,10 +96,9 @@ function buildErpHeaders(initHeaders?: HeadersInit): Headers {
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const sessionId = getSessionId();
-  if (sessionId) {
-    headers.set('X-Session-Id', sessionId);
-  }
+  // 不发送 localStorage 的 X-Session-Id。登录种的是 httpOnly Cookie；
+  // 同源 fetch + credentials:'include' 会带上它。失效的 localStorage 头
+  // 会在 BFF 里覆盖有效 Cookie（header 曾优先于 cookie）。
   return headers;
 }
 
