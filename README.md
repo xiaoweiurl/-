@@ -174,8 +174,11 @@ pnpm run build
 NEXT_HOSTNAME=0.0.0.0 PORT=5000 pnpm start
 # 本地同样：pnpm run dev
 
-# Windows
-set NEXT_HOSTNAME=0.0.0.0&& pnpm start:win
+# Windows (cmd / PowerShell) — pnpm start / pnpm dev 均可，无需 :win
+pnpm start
+# FRP 绑 0.0.0.0：PowerShell 用 $env:NEXT_HOSTNAME="0.0.0.0"; pnpm start
+# cmd 仍可用：set NEXT_HOSTNAME=0.0.0.0&& pnpm start
+# start:win / dev:win 仍可用，等价于 start / dev
 ```
 
 改前端代码后：
