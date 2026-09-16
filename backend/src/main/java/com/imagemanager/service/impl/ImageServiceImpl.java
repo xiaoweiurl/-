@@ -1,6 +1,6 @@
 package com.imagemanager.service.impl;
 
-import com.imagemanager.config.StorageConfig;
+import com.imagemanager.config.StorageProperties;
 import com.imagemanager.dto.BatchDownloadRequest;
 import com.imagemanager.dto.BatchDownloadResponse;
 import com.imagemanager.dto.ImageQueryRequest;
@@ -71,7 +71,7 @@ public class ImageServiceImpl implements ImageService {
     private FileStorageService fileStorageService;
     
     @Autowired(required = false)
-    private StorageConfig storageConfig;
+    private StorageProperties storageProperties;
     
     @Autowired
     private AIRecognitionService aiRecognitionService;
@@ -544,7 +544,7 @@ public class ImageServiceImpl implements ImageService {
         if (url == null || url.isEmpty()) return false;
         if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
         // 排除本存储桶的签名URL
-        String bucketDomain = storageConfig != null ? storageConfig.getS3BucketName() : null;
+        String bucketDomain = storageProperties != null ? storageProperties.getS3BucketName() : null;
         if (bucketDomain != null && url.contains(bucketDomain)) return false;
         return true;
     }

@@ -1,6 +1,6 @@
 package com.imagemanager.controller;
 
-import com.imagemanager.config.StorageConfig;
+import com.imagemanager.config.StorageProperties;
 import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.service.DocumentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,7 +39,7 @@ public class DocumentController {
     private DocumentService documentService;
     
     @Autowired
-    private StorageConfig storageConfig;
+    private StorageProperties storageProperties;
     
     /**
      * 上传文档
@@ -164,7 +164,7 @@ public class DocumentController {
             }
             
             // 构建完整文件路径
-            Path fullPath = Paths.get(storageConfig.getLocalPath(), "documents", filePath);
+            Path fullPath = Paths.get(storageProperties.getLocalPath(), "documents", filePath);
             File file = fullPath.toFile();
             
             if (!file.exists()) {

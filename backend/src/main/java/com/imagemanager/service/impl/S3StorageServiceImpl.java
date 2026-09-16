@@ -1,6 +1,6 @@
 package com.imagemanager.service.impl;
 
-import com.imagemanager.config.StorageConfig;
+import com.imagemanager.config.StorageProperties;
 import com.imagemanager.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,13 +26,13 @@ import java.util.UUID;
 @Slf4j
 public class S3StorageServiceImpl implements FileStorageService {
 
-    private final StorageConfig storageConfig;
+    private final StorageProperties storageProperties;
     private S3Client s3Client;
     private S3Presigner s3Presigner;
     private boolean initialized = false;
 
-    public S3StorageServiceImpl(StorageConfig storageConfig) {
-        this.storageConfig = storageConfig;
+    public S3StorageServiceImpl(StorageProperties storageProperties) {
+        this.storageProperties = storageProperties;
         init();
     }
 
@@ -40,15 +40,15 @@ public class S3StorageServiceImpl implements FileStorageService {
      * 初始化S3客户端
      */
     public void init() {
-        if (!"s3".equalsIgnoreCase(storageConfig.getType())) {
+        if (!"s3".equalsIgnoreCase(storageProperties.getType())) {
             log.info("[Storage] 存储类型为 local，跳过 S3 初始化");
             return;
         }
 
         try {
             AwsBasicCredentials credentials = AwsBasicCredentials.create(
-                    storageConfig.getS3AccessKey(),
-                    storageConfig.getS3SecretKey()
+                    storageProperties.getS3AccessKey(),
+                    storageProperties.getS3SecretKey()
             );
 
             // 阿里云OSS S3兼容配置（官方文档要求）
@@ -73,7 +73,7 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .serviceConfiguration(s3Config);
 
             // 自定义端点（阿里云OSS）
-            String endpoint = storageConfig.getS3Endpoint();
+            String endpoint = storageProperties.getS3Endpoint();
             if (endpoint != null && !endpoint.isEmpty()) {
                 URI endpointUri = URI.create(endpoint);
                 clientBuilder.endpointOverride(endpointUri);
@@ -102,13 +102,13 @@ public class S3StorageServiceImpl implements FileStorageService {
      */
     private Region resolveRegion() {
         // 1. 优先从配置读取
-        String configuredRegion = storageConfig.getS3Region();
+        String configuredRegion = storageProperties.getS3Region();
         if (configuredRegion != null && !configuredRegion.isBlank()) {
             return Region.of(configuredRegion);
         }
 
         // 2. 从 endpoint URL 推导（阿里云OSS: oss-cn-hangzhou.aliyuncs.com → cn-hangzhou）
-        String endpoint = storageConfig.getS3Endpoint();
+        String endpoint = storageProperties.getS3Endpoint();
         if (endpoint != null && !endpoint.isBlank()) {
             // 匹配 oss-{region}. 格式，提取 region（如 cn-hangzhou, us-east-1, ap-southeast-1）
             java.util.regex.Matcher matcher = java.util.regex.Pattern
@@ -134,7 +134,7 @@ public class S3StorageServiceImpl implements FileStorageService {
         }
         // 阿里云OSS的headBucket即使bucket存在也返回403，不能用headBucket测试连接
         // 改用listObjectsV2限制1条来验证连接和bucket可访问性
-        String bucket = storageConfig.getS3BucketName();
+        String bucket = storageProperties.getS3BucketName();
         try {
             ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                     .bucket(bucket)
@@ -154,7 +154,7 @@ public class S3StorageServiceImpl implements FileStorageService {
     }
 
     private void ensureBucketExists() {
-        String bucket = storageConfig.getS3BucketName();
+        String bucket = storageProperties.getS3BucketName();
         try {
             HeadBucketRequest headBucketRequest = HeadBucketRequest.builder()
                     .bucket(bucket)
@@ -201,7 +201,7 @@ public class S3StorageServiceImpl implements FileStorageService {
             String key = (path == null || path.isEmpty()) ? "images/" + fileName
                     : (path.startsWith("/") ? path.substring(1) : path) + "/" + fileName;
 
-            String bucket = storageConfig.getS3BucketName();
+            String bucket = storageProperties.getS3BucketName();
 
             // 使用 byte[] 方式上传，避免 InputStream + contentLength 兼容性问题
             byte[] data = file.getBytes();
@@ -227,7 +227,7 @@ public class S3StorageServiceImpl implements FileStorageService {
         try {
             String dir = (directory == null || directory.isEmpty()) ? "images" : directory;
             String key = dir + "/" + fileName;
-            String bucket = storageConfig.getS3BucketName();
+            String bucket = storageProperties.getS3BucketName();
 
             byte[] data = file.getBytes();
             PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -251,7 +251,7 @@ public class S3StorageServiceImpl implements FileStorageService {
         checkInitialized();
         try {
             String key = "images/" + fileName;
-            String bucket = storageConfig.getS3BucketName();
+            String bucket = storageProperties.getS3BucketName();
             long size = data.length;
 
             PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -295,7 +295,7 @@ public class S3StorageServiceImpl implements FileStorageService {
         }
 
         String key = fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
-        String bucket = storageConfig.getS3BucketName();
+        String bucket = storageProperties.getS3BucketName();
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofSeconds(expireSeconds))
@@ -315,7 +315,7 @@ public class S3StorageServiceImpl implements FileStorageService {
         try {
             // 如果是完整URL，提取key
             String key = extractKeyFromUrl(fileKey);
-            String bucket = storageConfig.getS3BucketName();
+            String bucket = storageProperties.getS3BucketName();
 
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(bucket)
@@ -339,7 +339,7 @@ public class S3StorageServiceImpl implements FileStorageService {
     public InputStream getFileInputStream(String fileKey) throws Exception {
         checkInitialized();
         String key = extractKeyFromUrl(fileKey);
-        String bucket = storageConfig.getS3BucketName();
+        String bucket = storageProperties.getS3BucketName();
 
         GetObjectRequest getRequest = GetObjectRequest.builder()
                 .bucket(bucket)
@@ -354,7 +354,7 @@ public class S3StorageServiceImpl implements FileStorageService {
         checkInitialized();
         try {
             String key = extractKeyFromUrl(fileKey);
-            String bucket = storageConfig.getS3BucketName();
+            String bucket = storageProperties.getS3BucketName();
 
             HeadObjectRequest headRequest = HeadObjectRequest.builder()
                     .bucket(bucket)
@@ -396,7 +396,7 @@ public class S3StorageServiceImpl implements FileStorageService {
                 // 路径只有 /key，不含 bucket名
                 // 路径风格: https://s3.oss-cn-hangzhou.aliyuncs.com/{bucket}/{key}
                 // 路径含 /{bucket}/{key}
-                String bucket = storageConfig.getS3BucketName();
+                String bucket = storageProperties.getS3BucketName();
                 String bucketPrefix = "/" + bucket + "/";
                 if (path.startsWith(bucketPrefix)) {
                     // 路径风格，去掉bucket前缀
@@ -419,8 +419,8 @@ public class S3StorageServiceImpl implements FileStorageService {
      */
     private String getPublicUrl(String key) {
         // 优先使用预签名URL（OSS 默认私有读，预签名可保证公网可访问）
-        int expireSeconds = storageConfig.getPresignedUrlExpire() != null
-                ? storageConfig.getPresignedUrlExpire() : 604800; // 默认7天
+        int expireSeconds = storageProperties.getPresignedUrlExpire() != null
+                ? storageProperties.getPresignedUrlExpire() : 604800; // 默认7天
         return generatePresignedUrl(key, expireSeconds);
     }
 }
