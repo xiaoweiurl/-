@@ -1047,8 +1047,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 7. 流式调用本地模型（Ollama）
                 // 联网策略：仅企划智能体（factory/planning 子模式）允许联网检索（阶段一 MiniMax web_search 已在前面完成）；
-                // 其他模式与子模式一律不联网、也不判断联网意图。
-                boolean enableWebSearch = "planning".equals(resolvedSubMode);
+                // 其他模式与子模式一律不联网、也不判断联网意图。streamChat 本身只走 Ollama NDJSON，不再接收联网开关。
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
                 long chatCallStart = System.currentTimeMillis();
@@ -1056,7 +1055,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         ? AiCallLogService.CAP_FACTORY_CHAT
                         : AiCallLogService.CAP_SMART_CHAT;
                 try {
-                    streamChat(emitter, messages, fullResponse, fullReasoning, enableWebSearch);
+                    streamChat(emitter, messages, fullResponse, fullReasoning);
                     if (aiCallLogService != null) {
                         aiCallLogService.record(chatCapability, null, true,
                                 System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
@@ -3847,27 +3846,11 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 流式调用MiniMax API (Anthropic兼容接口)
-     */
-    /**
-     * 流式调用DeepSeek V4 Pro（思考模式）
-     * 
-     * 两种模式：
-     * 1. 普通模式：使用Chat Completions API（无联网搜索）
-     * 2. 联网搜索模式：使用Anthropic兼容端点 + web_search_20250305工具
-     * 
-     * Chat Completions格式：
-     * - 端点: POST {base_url}/chat/completions
-     * - SSE: data: {"choices":[{"delta":{"reasoning_content":"..."}}]}
-     * 
-     * Anthropic格式（联网搜索）：
-     * - 端点: POST {base_url}/anthropic/v1/messages
-     * - 请求: {"model":"deepseek-v4-pro","messages":[...],"tools":[{"type":"web_search_20250305"}]}
-     * - SSE: event: content_block_delta, data: {"delta":{"type":"thinking_delta","thinking":"..."}}
-     *        event: content_block_delta, data: {"delta":{"type":"text_delta","text":"..."}}
+     * 流式调用本地 Ollama /api/chat（NDJSON）。
+     * 旧 OpenAI/Anthropic SSE 解析（parseOpenAISSEStream 等）已删除：主路径从未调用它们。
      */
     private void streamChat(SseEmitter emitter, List<Map<String, Object>> messages,
-                            StringBuilder fullResponse, StringBuilder reasoningContent, boolean enableWebSearch) {
+                            StringBuilder fullResponse, StringBuilder reasoningContent) {
         try {
             log.info("使用Ollama模型进行对话: {}", ollamaChatModel);
 
@@ -4021,7 +4004,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
 
         int lineCount = 0;
-        long startTime = System.currentTimeMillis();
         String line;
         while ((line = reader.readLine()) != null) {
             lineCount++;
