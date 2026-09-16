@@ -208,6 +208,54 @@ pnpm start
 | admin | Admin@123 | 管理员 |
 | user | User@123 | 普通用户 |
 
+钉钉姓名注册产生的办公账号初始密码固定为 **123456**，`must_change_password=true`，走现有登录后强制改密流程。
+
+## 钉钉组织同步与姓名注册（Phase 1，办公/管理端）
+
+车间考勤/报工不走钉钉。本能力仅用于办公室与管理员：从钉钉企业内部应用同步部门树和通讯录，员工用**姓名**注册本地账号。
+
+### 环境变量
+
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `DINGTALK_APP_KEY` | 同步时必填 | 企业内部应用 AppKey |
+| `DINGTALK_APP_SECRET` | 同步时必填 | 企业内部应用 AppSecret |
+| `DINGTALK_AGENT_ID` | 否 | 应用 AgentId（Phase 2 工作通知预留） |
+| `DINGTALK_CORP_ID` | 否 | 企业 corpId |
+| `DINGTALK_API_BASE_URL` | 否 | 默认 `https://api.dingtalk.com` |
+| `DINGTALK_OAPI_BASE_URL` | 否 | 默认 `https://oapi.dingtalk.com` |
+| `DINGTALK_COMPANY` | 否 | 写入的公司名，默认 `宝娜斯集团` |
+
+未配置 AppKey/Secret 时**应用仍可启动**。调用「同步钉钉组织」会返回明确错误，不做 Mock 兜底。CI 可不配置这些变量。
+
+### 应用权限（钉钉开放平台 → 企业内部应用）
+
+- 通讯录部门信息读权限（`topapi/v2/department/listsub`、`department/get`）
+- 成员信息读权限（`topapi/v2/user/list`）
+- 可选：通讯录手机号信息（有则写入 `org_users.mobile`）
+
+### 选用的 OpenAPI
+
+| 用途 | 方法 | 地址 |
+|------|------|------|
+| accessToken | POST | `https://api.dingtalk.com/v1.0/oauth2/accessToken` |
+| 部门详情 | POST | `https://oapi.dingtalk.com/topapi/v2/department/get` |
+| 子部门（仅下一级，需递归） | POST | `https://oapi.dingtalk.com/topapi/v2/department/listsub` |
+| 部门成员（cursor 分页） | POST | `https://oapi.dingtalk.com/topapi/v2/user/list` |
+
+### 同步与注册流程
+
+1. 管理员登录后打开 **钉钉组织**（`/org`），点击「同步钉钉组织」。
+2. 后端拉取部门树写入 `org_departments`，通讯录写入 `org_users`（不自动创建登录账号）。
+3. 员工打开注册页，只填**姓名**（公司默认宝娜斯集团）。
+4. 系统在已同步通讯录中精确匹配姓名（忽略中间空格）：
+   - 0 人：404，提示联系管理员同步
+   - 1 人：创建本地账号，复制部门/职位，绑定 `dingtalk_userid`
+   - 多人：409 + 候选人，用户点选后再提交 `dingtalkUserid`
+5. 新账号密码固定 `123456`，`must_change_password=true`。登录后沿用现有 `/settings?tab=security&forceChange=1` 改密。邮箱不要求；若钉钉无邮箱则写入 `dt-{userid}@dingtalk.invalid` 占位。
+
+管理员 API（需 admin/superadmin）：`POST /api/org/sync`、`GET /api/org/status`、`GET /api/org/departments`、`GET /api/org/contacts?name=`。
+
 ## 项目结构
 
 ### 前端
@@ -218,6 +266,8 @@ src/
 │   ├── layout.tsx               # 根布局
 │   ├── page.tsx                 # 主页面（含权限检查）
 │   ├── login/page.tsx           # 登录页（分屏布局 + 品牌展示）
+│   ├── register/page.tsx        # 钉钉姓名注册（初始密码 123456，强制改密）
+│   ├── org/page.tsx             # 钉钉组织同步（管理员）
 │   ├── knowledge/page.tsx       # 知识库（文档 + 岗位卡片 Tab）
 │   ├── chat/page.tsx            # AI 对话页
 │   ├── marketing/page.tsx       # 营销 AI 页
@@ -317,7 +367,7 @@ backend/src/main/resources/
     ├── V22__add_company_field.sql      # 公司字段
     ├── V28__create_position_knowledge_cards.sql  # 岗位知识卡片表
     ├── V29__add_position_card_embedding_status.sql  # 向量化状态字段
-    └── V39__search_performance_indexes.sql  # 搜索性能优化索引
+    └── V60__dingtalk_org.sql            # 钉钉组织部门树/通讯录/用户绑定
 ```
 
 ## 数据库设计
@@ -327,6 +377,10 @@ backend/src/main/resources/
 | 表名 | 说明 | 隔离方式 |
 |------|------|----------|
 | `users` | 用户表 | company |
+| `org_departments` | 钉钉部门树 | company |
+| `org_users` | 钉钉通讯录缓存 | company |
+| `org_user_departments` | 人员-部门多对多 | org_user_id |
+| `org_sync_state` | 钉钉组织同步状态 | company |
 | `position_knowledge_cards` | 岗位知识卡片 | company |
 | `knowledge_base_docs` | 知识库文档 | company |
 | `knowledge_base_categories` | 知识库分类 | company |

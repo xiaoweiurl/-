@@ -82,10 +82,17 @@ public class ApiResponse<T> {
      * 失败响应（带错误码）
      */
     public static <T> ApiResponse<T> error(Integer code, String message) {
+        return error(code, message, null);
+    }
+
+    /**
+     * 失败响应（带错误码和数据，如 409 候选人列表）
+     */
+    public static <T> ApiResponse<T> error(Integer code, String message, T data) {
         ApiResponse<T> response = new ApiResponse<>();
         response.setCode(code);
         response.setMessage(message);
-        response.setData(null);
+        response.setData(data);
         response.setTimestamp(System.currentTimeMillis());
         response.setSuccess(false);
         return response;

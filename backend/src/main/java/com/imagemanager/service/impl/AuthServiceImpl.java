@@ -59,6 +59,9 @@ public class AuthServiceImpl implements AuthService {
     @Autowired(required = false)
     private com.imagemanager.cache.LlmCacheService llmCacheService;
 
+    @Autowired
+    private com.imagemanager.org.OrgRegistrationService orgRegistrationService;
+
     // ============ Redis Key 前缀 ============
     private static final String SESSION_KEY_PREFIX = "session:";
     private static final String USER_SESSION_KEY_PREFIX = "user:session:";
@@ -278,54 +281,17 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse register(RegisterRequest request) {
-        log.info("用户注册：username={}, company={}", request.getUsername(), request.getCompany());
+        log.info("用户注册（钉钉姓名）: name={}, company={}",
+                request == null ? null : request.getName(),
+                request == null ? null : request.getCompany());
 
-        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
-            throw new RuntimeException("用户名不能为空");
-        }
-        if (request.getPassword() == null || request.getPassword().length() < 6) {
-            throw new RuntimeException("密码长度不能少于6位");
-        }
-        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            throw new RuntimeException("邮箱不能为空");
-        }
-        if (request.getCompany() == null || request.getCompany().trim().isEmpty()) {
-            throw new RuntimeException("请选择所属公司");
-        }
-        if (!"宝娜斯集团".equals(request.getCompany())) {
-            throw new RuntimeException("公司只能选择宝娜斯集团");
-        }
+        User newUser = orgRegistrationService.register(request);
 
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("用户名已存在");
-        }
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("邮箱已被注册");
-        }
-
-        String userId = UUID.randomUUID().toString();
-        User newUser = User.builder()
-                .id(userId)
-                .username(request.getUsername().trim())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .email(request.getEmail().trim())
-                .nickname(request.getUsername().trim())
-                .role("user")
-                .company(request.getCompany())
-                .membership("free")
-                .storageUsed(0L)
-                .storageLimit(1024L * 1024 * 1024 * 10L)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        userRepository.save(newUser);
-        log.info("用户注册成功：{}, 公司：{}", request.getUsername(), request.getCompany());
-
-        // 自动登录
         LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setUsername(request.getUsername());
-        loginRequest.setPassword(request.getPassword());
+        loginRequest.setUsername(newUser.getUsername());
+        loginRequest.setPassword(com.imagemanager.org.OrgRegistrationService.DEFAULT_PASSWORD);
         loginRequest.setRememberMe(true);
+        loginRequest.setCompany(newUser.getCompany());
         return login(loginRequest);
     }
 

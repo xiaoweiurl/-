@@ -34,6 +34,7 @@ import {
   Database,
   Server,
   Package,
+  Network,
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';
 import {
@@ -812,6 +813,11 @@ export default function Sidebar({
     // 以下菜单仅管理员可见
     ...(isAdmin ? [
       {
+        id: 'org',
+        label: '钉钉组织',
+        icon: Network,
+      },
+      {
         id: 'user-settings',
         label: '用户管理',
         icon: UserCog,
@@ -1238,6 +1244,8 @@ export default function Sidebar({
               onClick={() => {
                 if (item.id === 'api-docs') {
                   router.push('/api-docs');
+                } else if (item.id === 'org') {
+                  router.push('/org');
                 } else {
                   onItemClick(item.id);
                 }

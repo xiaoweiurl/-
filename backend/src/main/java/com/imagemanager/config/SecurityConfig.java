@@ -149,6 +149,8 @@ public class SecurityConfig {
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // 数据修复/运维/审计/备份端点需要 ADMIN 角色（DataFixController 另有功能开关）
                 .requestMatchers("/fix/**", "/ops/**", "/audit/**", "/backup/**").hasRole("ADMIN")
+                // 钉钉组织同步（办公/管理端）
+                .requestMatchers("/org/**").hasRole("ADMIN")
                 // 管理员端点需要 ADMIN 角色
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // 其他请求需要认证

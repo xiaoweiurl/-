@@ -506,7 +506,7 @@ export default function SettingsPage() {
                 {forceChangePassword && (
                   <div className="mb-6 max-w-md rounded-xl border border-[#FF9500]/30 bg-[#FF9500]/10 px-4 py-3">
                     <p className="text-sm font-medium text-[#FF9500]">首次登录需修改初始密码</p>
-                    <p className="text-xs text-[#8e8e93] mt-1">为保障账号安全，请设置新密码后再继续使用系统。修改成功后需要重新登录。</p>
+                    <p className="text-xs text-[#8e8e93] mt-1">为保障账号安全，请设置新密码后再继续使用系统。修改成功后需要重新登录。钉钉姓名注册的初始密码为 123456。</p>
                   </div>
                 )}
 

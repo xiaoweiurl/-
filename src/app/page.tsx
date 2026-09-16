@@ -1510,6 +1510,10 @@ export default function Home() {
       router.push('/user-settings');
       return;
     }
+    if (item === 'org') {
+      router.push('/org');
+      return;
+    }
 
     // 检查是否点击了智能相册
     const smartAlbum = smartAlbums.find(a => a.id === item);

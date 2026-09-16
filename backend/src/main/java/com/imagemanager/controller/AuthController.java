@@ -2,6 +2,7 @@ package com.imagemanager.controller;
 
 import com.imagemanager.dto.*;
 import com.imagemanager.entity.User;
+import com.imagemanager.exception.RegisterMatchException;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.ImageTableService;
@@ -11,9 +12,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -42,31 +45,38 @@ public class AuthController {
     private PasswordEncoder passwordEncoder;
     
     /**
-     * 用户注册
+     * 用户注册（钉钉姓名匹配）。初始密码固定 123456，首次登录强制改密。
      */
     @PostMapping("/register")
-    @Operation(summary = "用户注册", description = "注册新用户，所属公司统一为宝娜斯集团")
-    public ApiResponse<LoginResponse> register(
+    @Operation(summary = "用户注册", description = "按钉钉通讯录姓名注册；同名多人返回 409 候选人；初始密码 123456 且必须改密")
+    public ResponseEntity<ApiResponse<?>> register(
             @RequestBody RegisterRequest request,
             HttpServletResponse response) {
-        
+
         try {
             LoginResponse loginResponse = authService.register(request);
-            
+
             String sessionId = loginResponse.getSessionId();
-            
-            // 注册成功后，确保用户图片表存在
+
             String username = loginResponse.getUser().getUsername();
             if (username != null && !username.isEmpty()) {
-                boolean tableCreated = imageTableService.ensureUserImageTable(username);
+                imageTableService.ensureUserImageTable(username);
             }
-            
+
             response.setHeader("X-Session-Id", sessionId);
 
-            return ApiResponse.success("注册成功", loginResponse);
+            return ResponseEntity.ok(ApiResponse.success("注册成功", loginResponse));
+        } catch (RegisterMatchException e) {
+            log.info("钉钉姓名注册匹配: status={}, message={}", e.getHttpStatus(), e.getMessage());
+            Map<String, Object> data = new HashMap<>();
+            data.put("candidates", e.getCandidates());
+            return ResponseEntity.status(e.getHttpStatus())
+                    .body(ApiResponse.error(e.getHttpStatus(), e.getMessage(), data));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
         } catch (Exception e) {
             log.error("注册失败: ", e);
-            return ApiResponse.error(400, e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
         }
     }
     
