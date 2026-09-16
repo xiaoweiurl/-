@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { backendFetch, handleBackendResponse, isBackendAvailable } from '@/lib/backend-proxy';
 import { loginSchema } from '@/lib/api-schemas';
+import { shouldUseSecureCookies } from '@/lib/next-runtime';
 
 /**
  * @swagger
@@ -181,12 +182,19 @@ export async function POST(request: NextRequest) {
         },
       });
       
-      // 设置 session cookie（使用 ResponseCookies API）
+      // Secure cookie only on HTTPS (or COOKIE_SECURE=true). NODE_ENV=production
+      // alone must not force Secure: company FRP is often HTTP and would drop the session.
+      const cookieSecure = shouldUseSecureCookies({
+        cookieSecureEnv: process.env.COOKIE_SECURE,
+        forwardedProto: request.headers.get('x-forwarded-proto'),
+        requestProtocol: request.nextUrl.protocol,
+      });
+      const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
       response.cookies.set('session_id', finalSessionId, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: cookieSecure,
         sameSite: 'lax',
-        maxAge: rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60,
+        maxAge,
         path: '/',
       });
       
@@ -196,7 +204,7 @@ export async function POST(request: NextRequest) {
 
       // 如果响应头为空，手动添加
       if (!setCookieHeader) {
-        const cookieValue = `session_id=${finalSessionId}; Path=/; HttpOnly; Max-Age=${rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60}; SameSite=Lax`;
+        const cookieValue = `session_id=${finalSessionId}; Path=/; HttpOnly; Max-Age=${maxAge}; SameSite=Lax${cookieSecure ? '; Secure' : ''}`;
         response.headers.append('Set-Cookie', cookieValue);
         console.log('[API] 手动添加 Set-Cookie: session_id=***');
       }

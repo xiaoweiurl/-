@@ -156,6 +156,51 @@ cd backend && ./mvnw spring-boot:run
 NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8080
 ```
 
+本地开发使用 `pnpm run dev`（`tsx watch` + Next development / HMR）。公司内网或 FRP 访问必须用生产模式，见下方。
+
+### 内网 FRP 部署（务必生产模式，否则页面会每隔几秒整页刷新）
+
+**原因**：自定义服务 `src/server.ts` 若以 Next **development** 模式启动，浏览器会连 Fast Refresh / `webpack-hmr` WebSocket。经 FRP 时该连接打到 `localhost` 或未授权的 Origin 会失败，客户端重连循环最终 **整页 reload**。`pnpm dev` 的 `tsx watch` 还会在文件变动时重启进程。
+
+**正确做法（推荐）**：先构建，再用生产 Next 启动（无 HMR）：
+
+```bash
+pnpm install
+pnpm run build
+
+# Linux / macOS（脚本已写入 NODE_ENV=production 与 COZE_PROJECT_ENV=PROD）
+NEXT_HOSTNAME=0.0.0.0 PORT=5000 pnpm start
+
+# Windows
+set NEXT_HOSTNAME=0.0.0.0&& pnpm start:win
+```
+
+FRP 把内网 `0.0.0.0:5000`（或你映射的端口）转到公网即可。启动日志应出现 `as production` 和 `HMR/Fast Refresh disabled`。若出现 `as development`，说明仍走了开发态，页面会周期性刷新。
+
+| 变量 | 生产 / FRP | 说明 |
+|------|------------|------|
+| `COZE_PROJECT_ENV` | `PROD` | `pnpm start` 已设置。显式 `PROD` 关闭 Next `dev` |
+| `NODE_ENV` | `production` | `pnpm start` 已设置。仅 `COZE_PROJECT_ENV` 缺失时不再当成开发态 |
+| `NEXT_HOSTNAME` / `HOST` | `0.0.0.0` | Next 绑定主机；勿把 Linux 机器名 `HOSTNAME` 当公网域名 |
+| `PORT` | `5000` | 与 FRP 本地端口一致 |
+| `COOKIE_SECURE` | HTTP 内网不设或 `false` | 仅 HTTPS 时 cookie 才加 `Secure`，避免 FRP 明文 HTTP 登录丢 cookie |
+| `ALLOWED_DEV_ORIGINS` | （生产无需） | 仅开发态 + FRP 时把公网域名加入 Next `allowedDevOrigins` |
+| `NEXT_DISABLE_HMR` | （生产无需） | 开发态下强制 `dev: false` 的逃生开关 |
+
+**不要**用 `pnpm run dev` / `tsx watch` 给公司同事走 FRP。
+
+**仅当必须「开发态穿透 FRP」时**（不推荐，HMR 仍可能不稳）：
+
+```bash
+NODE_ENV=development COZE_PROJECT_ENV=DEV \
+  ALLOWED_DEV_ORIGINS=your-frp-host.example.com \
+  NEXT_HOSTNAME=your-frp-host.example.com \
+  NEXT_DISABLE_HMR=1 \
+  pnpm exec tsx src/server.ts
+```
+
+`react-dev-inspector` 仅在 `NODE_ENV !== 'production'` **且** `COZE_PROJECT_ENV=DEV` 时启用；`pnpm start` 的生产包不会加载它。
+
 后端不可用时前端自动降级到 Mock 数据，可独立开发前端。
 
 ## 预置账号

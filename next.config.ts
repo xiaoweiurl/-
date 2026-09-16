@@ -1,9 +1,11 @@
 import type { NextConfig } from 'next';
+import { parseAllowedDevOrigins } from './src/lib/next-runtime';
 
 const nextConfig: NextConfig = {
   // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
   /* config options here */
-  allowedDevOrigins: ['*.dev.coze.site'],
+  // Dev-only: extra origins (FRP public host) via ALLOWED_DEV_ORIGINS=host1,host2
+  allowedDevOrigins: parseAllowedDevOrigins(),
   serverExternalPackages: ['pg'],
   // 生产环境性能优化
   compress: true,           // Gzip压缩响应
