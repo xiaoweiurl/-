@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.config.DingTalkProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -53,6 +54,12 @@ public class DingTalkClient {
     private volatile String cachedToken;
     private volatile long tokenExpiresAtMs;
 
+    /**
+     * Spring injection constructor. Required {@code @Autowired}: a package-private
+     * 3-arg test constructor also exists, so Spring will not treat this as the
+     * unique constructor and otherwise falls back to a missing no-arg {@code <init>()}.
+     */
+    @Autowired
     public DingTalkClient(DingTalkProperties properties, ObjectMapper objectMapper) {
         this(properties, objectMapper, new JdkTransport(properties.getTimeout()));
     }
