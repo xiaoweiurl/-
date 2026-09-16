@@ -104,7 +104,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<Image> allImages = imageRepository.findByDeletedFalse();
 
         long totalImages = allImages.size();
-        long totalSize = allImages.stream().mapToLong(img -> img.getSize()).sum();
+        long totalSize = allImages.stream().mapToLong(DashboardServiceImpl::imageByteSize).sum();
         long favoritesCount = allImages.stream()
             .filter(img -> img.getFavorite() != null && img.getFavorite())
             .count();
@@ -134,12 +134,12 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 今日预览次数（今日上传图片的 viewCount 累加）
         long todayViews = todayImages.stream()
-            .mapToLong(img -> img.getViewCount() != null ? img.getViewCount() : 0)
+            .mapToLong(img -> nz(img.getViewCount()))
             .sum();
 
         // 今日下载次数（今日上传图片的 downloadCount 累加）
         long todayDownloads = todayImages.stream()
-            .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
+            .mapToLong(img -> nz(img.getDownloadCount()))
             .sum();
 
         // 相册数量
@@ -187,7 +187,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             List<Image> dayImages = imagesByDate.getOrDefault(date, new ArrayList<>());
             long count = dayImages.size();
-            long size = dayImages.stream().mapToLong(img -> img.getSize()).sum();
+            long size = dayImages.stream().mapToLong(DashboardServiceImpl::imageByteSize).sum();
 
             result.add(new DashboardStatsResponse.TrendData(dateStr, count, size));
         }
@@ -282,7 +282,7 @@ public class DashboardServiceImpl implements DashboardService {
         for (Map.Entry<String, List<Image>> entry : imagesByType.entrySet()) {
             String type = entry.getKey();
             Long count = (long) entry.getValue().size();
-            Long size = entry.getValue().stream().mapToLong(img -> img.getSize()).sum();
+            Long size = entry.getValue().stream().mapToLong(DashboardServiceImpl::imageByteSize).sum();
             result.add(new DashboardStatsResponse.FileTypeStat(type, count, size));
         }
 
@@ -313,8 +313,8 @@ public class DashboardServiceImpl implements DashboardService {
                     resource.setId(img.getId());
                     resource.setTitle(img.getTitle());
                     resource.setThumbnailUrl(img.getThumbnailUrl() != null ? img.getThumbnailUrl() : img.getUrl());
-                    resource.setViewCount(img.getViewCount() != null ? img.getViewCount() : 0L);
-                    resource.setDownloadCount(img.getDownloadCount() != null ? img.getDownloadCount() : 0L);
+                    resource.setViewCount(nz(img.getViewCount()));
+                    resource.setDownloadCount(nz(img.getDownloadCount()));
                     resource.setFavoriteCount(img.getFavorite() != null && img.getFavorite() ? 1L : 0L);
                     // 获取相册名称
                     String albumName = img.getAlbumId() != null && albumMap.containsKey(img.getAlbumId())
@@ -361,7 +361,7 @@ public class DashboardServiceImpl implements DashboardService {
 
                     hotAlbum.setId(albumId);
                     hotAlbum.setImageCount((long) images.size());
-                    hotAlbum.setTotalSize(images.stream().mapToLong(img -> img.getFileSize() != null ? img.getFileSize() : 0).sum());
+                    hotAlbum.setTotalSize(images.stream().mapToLong(DashboardServiceImpl::imageByteSize).sum());
 
                     // 设置相册名称和封面
                     if ("uncategorized".equals(albumId)) {
@@ -408,11 +408,11 @@ public class DashboardServiceImpl implements DashboardService {
         Long todayUploads = (long) todayImages.size();
         // 今日浏览 = 今日上传图片的浏览次数之和
         Long todayViews = allImages.stream()
-                .mapToLong(img -> img.getViewCount() != null ? img.getViewCount() : 0)
+                .mapToLong(img -> nz(img.getViewCount()))
                 .sum();
         // 今日下载 = 今日上传图片的下载次数之和
         Long todayDownloads = allImages.stream()
-                .mapToLong(img -> img.getDownloadCount() != null ? img.getDownloadCount() : 0)
+                .mapToLong(img -> nz(img.getDownloadCount()))
                 .sum();
         // 今日收藏 = 今日上传图片中收藏的数量
         Long todayFavorites = allImages.stream()
@@ -491,5 +491,25 @@ public class DashboardServiceImpl implements DashboardService {
             log.warn("[Dashboard] 获取AI统计失败: {}", e.getMessage());
             return new DashboardStatsResponse.AIStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
         }
+    }
+
+    /** Null-safe unbox; treat null as 0 so mapToLong never NPE. */
+    private static long nz(Long v) {
+        return v == null ? 0L : v;
+    }
+
+    private static long nz(Integer v) {
+        return v == null ? 0L : v.longValue();
+    }
+
+    /**
+     * 图片字节大小：优先 file_size（库列为 NOT NULL），回退到兼容列 size（可为 null）。
+     */
+    private static long imageByteSize(Image img) {
+        Long fileSize = img.getFileSize();
+        if (fileSize != null) {
+            return fileSize;
+        }
+        return nz(img.getSize());
     }
 }
