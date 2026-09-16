@@ -100,12 +100,16 @@ public class AlbumServiceImpl implements AlbumService {
         } else {
             parent = parentOpt.get();
         }
+
+        // 顶级相册 parent 为 null（无父相册名）；查找/创建时按 parentId=null 处理
+        String parentId = parent != null ? parent.getId() : null;
+        String parentLabel = parentName == null ? "" : parentName;
         
         // 2. 查找子相册（通过父相册ID精确匹配）
-        Optional<Album> childOpt = albumRepository.findFirstByUserIdAndNameAndParentId(userId, childName, parent.getId());
+        Optional<Album> childOpt = albumRepository.findFirstByUserIdAndNameAndParentId(userId, childName, parentId);
         if (childOpt.isPresent()) {
             // 子相册已存在，直接返回
-            log.info("找到已有子相册: {}/{}", parentName, childName);
+            log.info("找到已有子相册: {}/{}", parentLabel, childName);
             return childOpt.get();
         }
         
@@ -113,9 +117,9 @@ public class AlbumServiceImpl implements AlbumService {
         Album child = Album.builder()
                 .id("album-" + UUID.randomUUID().toString().substring(0, 8))
                 .name(childName)
-                .fullName(parentName.isEmpty() ? childName : parentName + "/" + childName)
-                .parentId(parent.getId())
-                .path(parentName.isEmpty() ? childName : parentName + "/" + childName)
+                .fullName(parentLabel.isEmpty() ? childName : parentLabel + "/" + childName)
+                .parentId(parentId)
+                .path(parentLabel.isEmpty() ? childName : parentLabel + "/" + childName)
                 .keywords(Arrays.asList(childName))
                 .isSystem(false)
                 .imageCount(0)

@@ -39,7 +39,7 @@ public class DataModelService {
                 + (category != null && !category.isEmpty() ? " AND category = '" + category + "'" : "")
                 + (status != null && !status.isEmpty() ? " AND status = '" + status + "'" : "")
                 + (keyword != null && !keyword.isEmpty() ? " AND (name ILIKE '%" + keyword + "%' OR code ILIKE '%" + keyword + "%')" : "");
-        long total = jdbc.queryForObject(countSql, Long.class);
+        long total = Optional.ofNullable(jdbc.queryForObject(countSql, Long.class)).orElse(0L);
 
         sql.append(" ORDER BY sort_order, created_at DESC LIMIT ? OFFSET ?");
         params.add(size);
@@ -289,7 +289,7 @@ public class DataModelService {
         String countSql = "SELECT COUNT(*) FROM data_model_records WHERE model_id = ?"
                 + (status != null && !status.isEmpty() ? " AND status = '" + status + "'" : "")
                 + (keyword != null && !keyword.isEmpty() ? " AND data::text ILIKE '%" + keyword + "%'" : "");
-        long total = jdbc.queryForObject(countSql, Long.class, modelId);
+        long total = Optional.ofNullable(jdbc.queryForObject(countSql, Long.class, modelId)).orElse(0L);
 
         sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
         params.add(size);

@@ -71,9 +71,9 @@ public class MatchingEngine {
         String mode = config != null && config.getMode() != null ? config.getMode() : MODE_CONTAINS;
         boolean caseSensitive = config != null && config.getCaseSensitive() != null && config.getCaseSensitive();
         
-        // 处理模糊匹配的特殊逻辑
+        // 处理模糊匹配的特殊逻辑（config 可能为 null，此时 mode 已回落到默认 contains）
         if (MODE_FUZZY.equals(mode)) {
-            return fuzzyMatch(fileName, keywords, config.getSynonyms(), caseSensitive);
+            return fuzzyMatch(fileName, keywords, config != null ? config.getSynonyms() : null, caseSensitive);
         }
         
         // 普通匹配模式

@@ -422,10 +422,11 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     private void deleteCardVectors(String cardId) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
-        int deleted = tx.execute(status -> jdbcTemplate.update(
+        Integer deletedObj = tx.execute(status -> jdbcTemplate.update(
             "DELETE FROM knowledge_embeddings WHERE source_type = 'POSITION_CARD' AND source_doc_id = ?",
             cardId
         ));
+        int deleted = deletedObj != null ? deletedObj : 0;
         log.info("删除岗位卡片向量: cardId={}, 删除条数={}", cardId, deleted);
     }
 

@@ -187,6 +187,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 } else {
                     history = getChatHistory(userId, company, convId);
+                    if (history == null) {
+                        history = new ArrayList<>();
+                    }
                     // 回填到内存缓存
                     for (Map<String, Object> msg : history) {
                         String role = (String) msg.get("role");
@@ -1951,13 +1954,17 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 阈值与 RagPipeline 召回粗筛对齐（0.30），过低会召回弱相关切片引发幻觉
             log.info("[知识库] 使用直接向量检索（knowledgeBaseService.search）");
             List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.30, 15, company);
-            log.info("[知识库] 直接检索返回 {} 条结果", allResults != null ? allResults.size() : 0);
+            if (allResults == null) {
+                allResults = Collections.emptyList();
+            }
+            log.info("[知识库] 直接检索返回 {} 条结果", allResults.size());
 
             for (MemorySearchResult r : allResults) {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("content", r.getContent() != null ? r.getContent() : "");
                 item.put("score", r.getScore() != null ? r.getScore() : 0);
-                item.put("cardId", r.getId().toString());
+                UUID resultId = r.getId() != null ? r.getId() : r.getCardId();
+                item.put("cardId", resultId != null ? resultId.toString() : "");
                 item.put("title", r.getTitle() != null ? r.getTitle() : "");
                 item.put("domain", r.getDomainName() != null ? r.getDomainName() : "知识库");
                 item.put("source", "knowledge_base");
