@@ -94,7 +94,8 @@ public class ErpDataPersister {
                         INSERT_GONGJIA, ErpDataPersister::buildGongjiaArgs, batchSize);
                 case "yuanliao-bom" -> persistInsertOnly(list, "raw_material_warehouse",
                         List.of("huohao", "color", "size", "component", "material_name", "specification", "batch_no"),
-                        List.of("hhname", "color", "chima", "buj", "wlname", "guige", "pihao"),
+                        // 物料原料查询接口字段为 bwj（非工艺部件的 buj）；joinKey 对 bwj 回退 buj
+                        List.of("hhname", "color", "chima", "bwj", "wlname", "guige", "pihao"),
                         INSERT_MATERIAL, ErpDataPersister::buildMaterialArgs, batchSize);
                 default -> new PersistResult(0, 0, 0, list.size(),
                         List.of("未知模块: " + moduleKey));
@@ -298,7 +299,7 @@ public class ErpDataPersister {
 
     private static Object[] buildMaterialArgs(JsonNode r) {
         return new Object[]{
-                str(r, "hhname"), str(r, "color"), str(r, "chima"), str(r, "buj"), str(r, "gys"),
+                str(r, "hhname"), str(r, "color"), str(r, "chima"), firstNonBlank(r, "bwj", "buj"), str(r, "gys"),
                 str(r, "wlname"), str(r, "guige"), str(r, "wlcolor"), str(r, "pihao"), str(r, "nianx"),
                 str(r, "dw"), decimal(r, "djyl"), decimal(r, "sh"), str(r, "remark")};
     }
@@ -334,7 +335,7 @@ public class ErpDataPersister {
             }
             // str() 空值返回 null，必须转 "" 与 SQL 侧 COALESCE(TRIM(col::text),'') 严格一致；
             // 直接 append(null) 会拼入 "null" 字符串导致 md5 永不匹配、存量被误判为新增
-            String v = str(row, erpKeyFields.get(i));
+            String v = erpKeyField(row, erpKeyFields.get(i));
             sb.append(v == null ? "" : v);
         }
         return sb.toString();
@@ -354,6 +355,27 @@ public class ErpDataPersister {
         } catch (Exception e) {
             throw new IllegalStateException("MD5 计算失败", e);
         }
+    }
+
+    /**
+     * 业务键字段取值。物料原料查询返回 bwj（非工艺部件的 buj）；
+     * 匹配键与 INSERT 必须读同一值，否则 md5 对不齐会把存量当成新增。
+     */
+    private static String erpKeyField(JsonNode row, String field) {
+        if ("bwj".equals(field)) {
+            return firstNonBlank(row, "bwj", "buj");
+        }
+        return str(row, field);
+    }
+
+    private static String firstNonBlank(JsonNode node, String... fields) {
+        for (String field : fields) {
+            String v = str(node, field);
+            if (v != null) {
+                return v;
+            }
+        }
+        return null;
     }
 
     private static String str(JsonNode node, String field) {

@@ -627,7 +627,7 @@ canResetPasswordOf(operatorRole, operatorId, targetRole, targetId)
 | gongyi-bujian | `Technology/NGyBujQuery` | order_buj_component | 不支持 |
 | gongyi-gongxu | `Technology/NGyWorkTypeQuery` | order_gongxu_process | 不支持 |
 | gongxu-gongjia | `Technology/NGyHuohaoPriceQuery` | order_gongxu_price | 不支持 |
-| yuanliao-bom | `Material/MaterialYLQuery` | raw_material_warehouse | 不支持 |
+| yuanliao-bom | `Technology/MaterialYLQuery` | raw_material_warehouse | 不支持 |
 
 `ErpProperties.resolveApiUrl` 自动补 `.aspx` 后缀；工艺类 ERP 端不支持时间过滤，本地游标记增量（落库幂等）。
 
