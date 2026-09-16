@@ -45,9 +45,9 @@ public class User {
     private String password;
     
     /**
-     * 邮箱
+     * 邮箱（钉钉姓名注册可不填，使用占位符或空值）
      */
-    @Column(length = 100, nullable = false, unique = true)
+    @Column(length = 100, unique = true)
     private String email;
     
     /**
@@ -120,4 +120,34 @@ public class User {
     @Column(name = "must_change_password")
     @Builder.Default
     private Boolean mustChangePassword = false;
+
+    /**
+     * 钉钉 userid（办公/管理端绑定）
+     */
+    @Column(name = "dingtalk_userid", length = 64)
+    private String dingtalkUserid;
+
+    /**
+     * 钉钉 unionid
+     */
+    @Column(name = "dingtalk_unionid", length = 64)
+    private String dingtalkUnionid;
+
+    /**
+     * 钉钉职位头衔
+     */
+    @Column(name = "job_title", length = 200)
+    private String jobTitle;
+
+    /**
+     * 主部门 org_departments.id
+     */
+    @Column(name = "org_dept_id")
+    private String orgDeptId;
+
+    /**
+     * 最近一次从钉钉同步/绑定时刻
+     */
+    @Column(name = "ding_synced_at")
+    private LocalDateTime dingSyncedAt;
 }

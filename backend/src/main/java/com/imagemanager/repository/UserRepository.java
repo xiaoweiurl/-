@@ -34,4 +34,9 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 检查邮箱是否存在
      */
     boolean existsByEmail(String email);
+
+    /**
+     * 按钉钉 userid 查询
+     */
+    Optional<User> findByDingtalkUserid(String dingtalkUserid);
 }

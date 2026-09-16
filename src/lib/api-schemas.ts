@@ -27,17 +27,12 @@ export type LoginInput = z.infer<typeof loginSchema>;
  * 用户注册
  */
 export const registerSchema = z.object({
-  username: z.string()
-    .min(3, '用户名至少3个字符')
-    .max(20, '用户名最多20个字符')
-    .regex(/^[a-zA-Z0-9_]+$/, '用户名只能包含字母、数字和下划线'),
-  password: z.string()
-    .min(8, '密码至少8个字符')
-    .regex(/[A-Z]/, '密码必须包含大写字母')
-    .regex(/[a-z]/, '密码必须包含小写字母')
-    .regex(/[0-9]/, '密码必须包含数字'),
-  email: z.string().email('请输入有效的邮箱地址'),
-  nickname: z.string().max(50, '昵称最多50个字符').optional(),
+  name: z.string().min(1, '请输入姓名').max(50, '姓名过长').optional(),
+  username: z.string().max(50).optional(),
+  dingtalkUserid: z.string().max(64).optional(),
+  company: z.string().optional(),
+  email: z.string().email('请输入有效的邮箱地址').optional(),
+  password: z.string().optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

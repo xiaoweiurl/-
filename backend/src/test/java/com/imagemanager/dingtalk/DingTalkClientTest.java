@@ -1,0 +1,128 @@
+package com.imagemanager.dingtalk;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.imagemanager.config.DingTalkProperties;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class DingTalkClientTest {
+
+    private DingTalkProperties properties;
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        properties = new DingTalkProperties();
+        properties.setAppKey("key");
+        properties.setAppSecret("secret");
+        properties.setApiBaseUrl("https://api.dingtalk.com");
+        properties.setOapiBaseUrl("https://oapi.dingtalk.com");
+        objectMapper = new ObjectMapper();
+    }
+
+    @Test
+    void startWithoutCredentialsThrowsClearErrorOnToken() {
+        properties.setAppKey("");
+        properties.setAppSecret("");
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (m, u, b, h) -> {
+            throw new AssertionError("should not call HTTP when unconfigured");
+        });
+        DingTalkException ex = assertThrows(DingTalkException.class, client::getAccessToken);
+        assertTrue(ex.getMessage().contains("DINGTALK_APP_KEY"));
+    }
+
+    @Test
+    void fetchAccessTokenParsesNewOpenApiResponse() {
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            assertTrue(url.endsWith("/v1.0/oauth2/accessToken"));
+            assertTrue(body.contains("\"appKey\":\"key\""));
+            return "{\"accessToken\":\"tok-1\",\"expireIn\":7200}";
+        });
+        assertEquals("tok-1", client.getAccessToken());
+        assertEquals("tok-1", client.getAccessToken());
+    }
+
+    @Test
+    void fetchAllDepartmentsWalksListsubAndSkipsSchoolDept() {
+        AtomicInteger listsubCalls = new AtomicInteger();
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            if (url.contains("/topapi/v2/department/get")) {
+                return "{\"errcode\":0,\"result\":{\"dept_id\":1,\"name\":\"宝娜斯集团\",\"parent_id\":0}}";
+            }
+            if (url.contains("/topapi/v2/department/listsub")) {
+                int n = listsubCalls.getAndIncrement();
+                if (body.contains("\"dept_id\":1") || n == 0) {
+                    return "{\"errcode\":0,\"result\":["
+                            + "{\"dept_id\":2,\"name\":\"技术部\",\"parent_id\":1},"
+                            + "{\"dept_id\":-7,\"name\":\"家校通讯录\",\"parent_id\":1}"
+                            + "]}";
+                }
+                return "{\"errcode\":0,\"result\":[]}";
+            }
+            throw new IllegalStateException("unexpected " + url);
+        });
+        List<DingDepartment> depts = client.fetchAllDepartments();
+        assertEquals(2, depts.size());
+        assertTrue(depts.stream().anyMatch(d -> Long.valueOf(1L).equals(d.getDeptId())));
+        assertTrue(depts.stream().anyMatch(d -> Long.valueOf(2L).equals(d.getDeptId()) && "技术部".equals(d.getName())));
+        assertTrue(depts.stream().noneMatch(d -> Long.valueOf(-7L).equals(d.getDeptId())));
+    }
+
+    @Test
+    void listUsersPaginates() {
+        AtomicInteger pages = new AtomicInteger();
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            if (url.contains("/topapi/v2/user/list")) {
+                int page = pages.getAndIncrement();
+                if (page == 0) {
+                    return "{\"errcode\":0,\"result\":{\"has_more\":true,\"next_cursor\":100,\"list\":["
+                            + "{\"userid\":\"u1\",\"unionid\":\"un1\",\"name\":\"张三\",\"title\":\"工程师\","
+                            + "\"dept_id_list\":[2],\"email\":\"a@b.com\",\"active\":true}]}}";
+                }
+                return "{\"errcode\":0,\"result\":{\"has_more\":false,\"next_cursor\":0,\"list\":["
+                        + "{\"userid\":\"u2\",\"name\":\"李四\",\"title\":\"经理\",\"dept_id_list\":[2]}]}}";
+            }
+            throw new IllegalStateException(url);
+        });
+        List<DingUser> users = client.fetchUsersInDepartments(List.of(2L));
+        assertEquals(2, users.size());
+        assertEquals("张三", users.get(0).getName());
+        assertEquals("工程师", users.get(0).getTitle());
+        assertEquals("u2", users.get(1).getUserid());
+    }
+
+    @Test
+    void oapiErrorSurfacesErrmsg() {
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            return "{\"errcode\":88,\"errmsg\":\"无权限\"}";
+        });
+        DingTalkException ex = assertThrows(DingTalkException.class, () -> client.getDepartment("tok", 1L));
+        assertTrue(ex.getMessage().contains("无权限"));
+    }
+
+    @Test
+    void parseUserReadsV2Fields() throws Exception {
+        var node = objectMapper.readTree("{\"userid\":\"zhangsan\",\"unionid\":\"un\",\"name\":\"张三\","
+                + "\"title\":\"总监\",\"dept_id_list\":[1,2],\"org_email\":\"z@corp.com\"}");
+        DingUser user = DingTalkClient.parseUser(node);
+        assertEquals("zhangsan", user.getUserid());
+        assertEquals(List.of(1L, 2L), user.getDeptIdList());
+        assertEquals("z@corp.com", user.getEmail());
+    }
+}
