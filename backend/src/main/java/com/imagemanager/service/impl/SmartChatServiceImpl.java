@@ -2,11 +2,19 @@ package com.imagemanager.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.imagemanager.cache.LlmCacheService;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.enhance.ChatMemoryManager;
-import com.imagemanager.service.KnowledgeBaseService;
-import com.imagemanager.service.SmartChatService;
+import com.imagemanager.enhance.RagPipeline;
+import com.imagemanager.service.AiCallLogService;
+import com.imagemanager.service.DecisionDataService;
 import com.imagemanager.service.FileStorageService;
+import com.imagemanager.service.KnowledgeBaseService;
+import com.imagemanager.service.MilvusService;
+import com.imagemanager.service.QuotationCalcService;
+import com.imagemanager.service.SmartChatService;
+import com.imagemanager.tools.SupplyChainAssistant;
+import com.imagemanager.tools.SupplyChainTools;
 import com.imagemanager.util.KeywordExtractor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
@@ -26,8 +34,11 @@ import java.math.BigDecimal;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,31 +69,31 @@ public class SmartChatServiceImpl implements SmartChatService {
     private ObjectMapper objectMapper;
 
     @Autowired(required = false)
-    private com.imagemanager.tools.SupplyChainAssistant supplyChainAssistant;
+    private SupplyChainAssistant supplyChainAssistant;
 
     @Autowired(required = false)
-    private com.imagemanager.tools.SupplyChainTools supplyChainTools;
+    private SupplyChainTools supplyChainTools;
 
     @Autowired(required = false)
-    private com.imagemanager.service.QuotationCalcService quotationCalcService;
+    private QuotationCalcService quotationCalcService;
 
     @Autowired(required = false)
-    private com.imagemanager.service.MilvusService milvusService;
+    private MilvusService milvusService;
 
     @Autowired(required = false)
-    private com.imagemanager.service.DecisionDataService decisionDataService;
+    private DecisionDataService decisionDataService;
 
     @Autowired(required = false)
-    private com.imagemanager.enhance.RagPipeline ragPipeline;
+    private RagPipeline ragPipeline;
 
     @Autowired(required = false)
-    private com.imagemanager.enhance.ChatMemoryManager chatMemoryManager;
+    private ChatMemoryManager chatMemoryManager;
 
     @Autowired(required = false)
-    private com.imagemanager.cache.LlmCacheService llmCacheService;
+    private LlmCacheService llmCacheService;
 
     @Autowired(required = false)
-    private com.imagemanager.service.AiCallLogService aiCallLogService;
+    private AiCallLogService aiCallLogService;
 
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
@@ -111,7 +122,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     private String minimaxWebSearchModel;
 
     /** 业务子模式会话记忆：convId -> "planning"(模式A商品企划) / "decision"(模式B总经理决策辅助) */
-    private final java.util.concurrent.ConcurrentHashMap<String, String> businessSubModeMap = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> businessSubModeMap = new ConcurrentHashMap<>();
 
     @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode) {
@@ -1039,8 +1050,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 StringBuilder fullReasoning = new StringBuilder();
                 long chatCallStart = System.currentTimeMillis();
                 String chatCapability = "factory".equals(mode)
-                        ? com.imagemanager.service.AiCallLogService.CAP_FACTORY_CHAT
-                        : com.imagemanager.service.AiCallLogService.CAP_SMART_CHAT;
+                        ? AiCallLogService.CAP_FACTORY_CHAT
+                        : AiCallLogService.CAP_SMART_CHAT;
                 try {
                     streamChat(emitter, messages, fullResponse, fullReasoning, enableWebSearch);
                     if (aiCallLogService != null) {
@@ -1275,7 +1286,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", convId);
         result.put("title", convTitle);
-        result.put("createdAt", java.time.LocalDateTime.now().toString());
+        result.put("createdAt", LocalDateTime.now().toString());
         return result;
     }
 
@@ -1760,7 +1771,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
-                sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
+                sb.append(new BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
             sb.append("]");
             String queryEmbedding = sb.toString();
@@ -1803,7 +1814,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
-                sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
+                sb.append(new BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
             sb.append("]");
             String queryEmbedding = sb.toString();
@@ -1855,7 +1866,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < embeddingArray.length; i++) {
                 if (i > 0) sb.append(",");
-                sb.append(new java.math.BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
+                sb.append(new BigDecimal(String.valueOf(embeddingArray[i])).toPlainString());
             }
             sb.append("]");
             String embeddingStr = sb.toString();
@@ -1989,13 +2000,13 @@ public class SmartChatServiceImpl implements SmartChatService {
         final int TOTAL_CHAR_BUDGET = 8000;   // 全局拼接字符预算（本地 LLM 上下文保护）
         try {
             float[] queryEmbedding = getEmbedding(query);
-            List<com.imagemanager.service.MilvusService.MilvusSearchResult> hits =
+            List<MilvusService.MilvusSearchResult> hits =
                     milvusService.search(queryEmbedding, TOP_K);
 
             // 1. 过滤弱相关/空内容，按 docId 分组（同文档切片聚合）
-            Map<String, List<com.imagemanager.service.MilvusService.MilvusSearchResult>> byDoc =
+            Map<String, List<MilvusService.MilvusSearchResult>> byDoc =
                     new LinkedHashMap<>();
-            for (com.imagemanager.service.MilvusService.MilvusSearchResult r : hits) {
+            for (MilvusService.MilvusSearchResult r : hits) {
                 if (r.score < MIN_SCORE) continue;
                 if (r.content == null || r.content.isBlank()) continue;
                 String key = r.docId != null ? r.docId : ("__no_doc_" + r.fileName + "_" + r.chunkIndex);
@@ -2004,12 +2015,12 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             // 2. 组内智能挑选：按 score 降序保留最强 N 片，再按 chunkIndex 升序还原原文顺序
             List<Map<String, Object>> groups = new ArrayList<>();
-            for (Map.Entry<String, List<com.imagemanager.service.MilvusService.MilvusSearchResult>> e
+            for (Map.Entry<String, List<MilvusService.MilvusSearchResult>> e
                     : byDoc.entrySet()) {
-                List<com.imagemanager.service.MilvusService.MilvusSearchResult> chunks = e.getValue();
+                List<MilvusService.MilvusSearchResult> chunks = e.getValue();
                 chunks.sort((a, b) -> Float.compare(b.score, a.score));
                 int hitCount = chunks.size();
-                List<com.imagemanager.service.MilvusService.MilvusSearchResult> picked =
+                List<MilvusService.MilvusSearchResult> picked =
                         new ArrayList<>(chunks.subList(0, Math.min(hitCount, MAX_CHUNKS_PER_DOC)));
                 picked.sort(Comparator.comparingInt(c -> c.chunkIndex));
                 Map<String, Object> group = new LinkedHashMap<>();
@@ -2029,14 +2040,14 @@ public class SmartChatServiceImpl implements SmartChatService {
             for (Map<String, Object> g : groups) {
                 if (processedGroups >= MAX_GROUPS || usedChars >= TOTAL_CHAR_BUDGET) break;
                 @SuppressWarnings("unchecked")
-                List<com.imagemanager.service.MilvusService.MilvusSearchResult> picked =
-                        (List<com.imagemanager.service.MilvusService.MilvusSearchResult>) g.get("chunks");
+                List<MilvusService.MilvusSearchResult> picked =
+                        (List<MilvusService.MilvusSearchResult>) g.get("chunks");
                 int hitCount = (Integer) g.get("hitCount");
 
                 StringBuilder merged = new StringBuilder();
                 int mergedChunks = 0;
                 boolean truncated = false;
-                for (com.imagemanager.service.MilvusService.MilvusSearchResult c : picked) {
+                for (MilvusService.MilvusSearchResult c : picked) {
                     String piece = c.content.trim();
                     int sepLen = merged.length() > 0 ? 2 : 0;
                     int budgetLeft = TOTAL_CHAR_BUDGET - usedChars - merged.length() - sepLen;
@@ -2064,7 +2075,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
                 if (merged.length() == 0) continue;
 
-                com.imagemanager.service.MilvusService.MilvusSearchResult first = picked.get(0);
+                MilvusService.MilvusSearchResult first = picked.get(0);
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("content", merged.toString());
                 item.put("fileName", first.fileName != null ? first.fileName : "未知文件");
@@ -2116,7 +2127,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private String extractQuotationNo(String message) {
         if (message == null) return null;
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6,8}-[A-Za-z0-9]+)\\b").matcher(message);
+        Matcher m = Pattern.compile("\\b(\\d{6,8}-[A-Za-z0-9]+)\\b").matcher(message);
         return m.find() ? m.group(1) : null;
     }
 
@@ -2725,7 +2736,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "api", "llm", "gpt", "the", "and", "for", "you", "what", "why", "how",
                 "who", "sop", "crm", "erp", "saas", "top", "new"
         };
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[a-zA-Z]{3,}").matcher(lower);
+        Matcher m = Pattern.compile("[a-zA-Z]{3,}").matcher(lower);
         while (m.find()) {
             String token = m.group().toLowerCase();
             boolean isStop = false;
@@ -2771,7 +2782,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "api", "llm", "gpt", "the", "and", "for", "you", "what", "why", "how",
                 "who", "sop", "crm", "erp", "saas", "top", "new"
         };
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[A-Za-z]{3,}").matcher(message);
+        Matcher m = Pattern.compile("[A-Za-z]{3,}").matcher(message);
         while (m.find()) {
             String token = m.group();
             String tl = token.toLowerCase();
@@ -3070,13 +3081,13 @@ public class SmartChatServiceImpl implements SmartChatService {
             result = searchWebForMarketInfoImpl(message);
         } catch (RuntimeException e) {
             if (willCall && aiCallLogService != null) {
-                aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_WEB_SEARCH, null, false,
+                aiCallLogService.record(AiCallLogService.CAP_WEB_SEARCH, null, false,
                         System.currentTimeMillis() - t0, null, brief(message));
             }
             throw e;
         }
         if (willCall && aiCallLogService != null) {
-            aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_WEB_SEARCH, null,
+            aiCallLogService.record(AiCallLogService.CAP_WEB_SEARCH, null,
                     result != null && !result.isBlank(),
                     System.currentTimeMillis() - t0, null, brief(message));
         }
@@ -3167,7 +3178,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             StringBuilder queries = new StringBuilder();
             StringBuilder sources = new StringBuilder();          // 控制台清单: 标题+URL+网页摘要(数据准确性核对)
             StringBuilder sourcesForInject = new StringBuilder(); // 注入清单: 标题+URL+网页摘要(供本地模型交叉验证, 防幻觉引用)
-            java.util.Set<String> seenUrls = new java.util.LinkedHashSet<>(); // URL去重(MiniMax多次检索常重复命中同页)
+            Set<String> seenUrls = new LinkedHashSet<>(); // URL去重(MiniMax多次检索常重复命中同页)
             int sourceCount = 0;
             if (contentArr.isArray()) {
                 for (JsonNode block : contentArr) {
@@ -3264,13 +3275,13 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /** 完整读取输入流为字符串（UTF-8） */
-    private String readStreamFully(java.io.InputStream in) throws java.io.IOException {
+    private String readStreamFully(InputStream in) throws IOException {
         if (in == null) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                new java.io.InputStreamReader(in, StandardCharsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line).append("\n");
@@ -4208,7 +4219,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         long t0 = System.currentTimeMillis();
         float[] result = getEmbeddingImpl(text);
         if (aiCallLogService != null) {
-            aiCallLogService.record(com.imagemanager.service.AiCallLogService.CAP_EMBEDDING, null,
+            aiCallLogService.record(AiCallLogService.CAP_EMBEDDING, null,
                     result != null, System.currentTimeMillis() - t0, null, brief(text));
         }
         return result;
@@ -4218,9 +4229,9 @@ public class SmartChatServiceImpl implements SmartChatService {
         try {
             String url = ollamaBaseUrl + "/api/embed";
 
-            java.net.URI uri = java.net.URI.create(url);
-            java.net.URL apiUrl = uri.toURL();
-            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) apiUrl.openConnection();
+            URI uri = URI.create(url);
+            URL apiUrl = uri.toURL();
+            HttpURLConnection conn = (HttpURLConnection) apiUrl.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setDoOutput(true);
@@ -4232,7 +4243,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "input", text
             ));
 
-            try (java.io.OutputStream os = conn.getOutputStream()) {
+            try (OutputStream os = conn.getOutputStream()) {
                 os.write(requestBody.getBytes("UTF-8"));
             }
 

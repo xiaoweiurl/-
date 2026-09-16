@@ -3,6 +3,7 @@ package com.imagemanager.service.impl;
 import com.imagemanager.config.StorageConfig;
 import com.imagemanager.dto.BatchDownloadRequest;
 import com.imagemanager.dto.BatchDownloadResponse;
+import com.imagemanager.dto.CreateNotificationRequest;
 import com.imagemanager.dto.ImageQueryRequest;
 import com.imagemanager.dto.PageResponse;
 import com.imagemanager.entity.Album;
@@ -20,33 +21,36 @@ import com.imagemanager.service.ImageTableService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.ImageService;
 import com.imagemanager.service.UserService;
+import com.imagemanager.util.ByteArrayMultipartFile;
 import com.imagemanager.util.CharsetUtil;
 import com.imagemanager.util.SessionUtil;
+import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-
-import java.util.Optional;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.io.InputStream;
-import java.awt.image.BufferedImage;
 
 /**
  * 图片服务实现类
@@ -219,7 +223,7 @@ public class ImageServiceImpl implements ImageService {
         try {
             String currentUserId = SessionUtil.getCurrentUserId();
             if (userService != null && currentUserId != null) {
-                com.imagemanager.dto.CreateNotificationRequest request = new com.imagemanager.dto.CreateNotificationRequest();
+                CreateNotificationRequest request = new CreateNotificationRequest();
                 request.setTitle(title);
                 request.setContent(content);
                 request.setType(type);
@@ -227,7 +231,7 @@ public class ImageServiceImpl implements ImageService {
             }
         } catch (Exception e) {
             // 通知创建失败不影响主流程
-            org.slf4j.LoggerFactory.getLogger(ImageServiceImpl.class).warn("创建通知失败: {}", e.getMessage());
+            log.warn("创建通知失败: {}", e.getMessage());
         }
     }
     
@@ -395,7 +399,7 @@ public class ImageServiceImpl implements ImageService {
             // 处理文件类型（支持多个）
             List<String> fileTypes = null;
             if (request.getFileType() != null && !request.getFileType().isEmpty()) {
-                fileTypes = java.util.Arrays.asList(request.getFileType().split(","));
+                fileTypes = Arrays.asList(request.getFileType().split(","));
                 log.info("文件类型筛选: {}", fileTypes);
             }
             
@@ -403,10 +407,10 @@ public class ImageServiceImpl implements ImageService {
             // 支持层级相册：点击父相册时显示所有子相册的图片
             List<String> albumIds = null;
             if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
-                albumIds = new java.util.ArrayList<>();
+                albumIds = new ArrayList<>();
                 
                 // 解析传入的相册ID（可能是逗号分隔的多个ID）
-                List<String> targetAlbumIds = new java.util.ArrayList<>();
+                List<String> targetAlbumIds = new ArrayList<>();
                 if (request.getAlbumId().contains(",")) {
                     for (String albumId : request.getAlbumId().split(",")) {
                         targetAlbumIds.add(albumId.trim());
@@ -435,8 +439,8 @@ public class ImageServiceImpl implements ImageService {
             final Boolean finalOnlyMine = request.getOnlyMine();
             log.info("数据隔离检查：currentUserId={}, onlyMine={}", currentUserId, finalOnlyMine);
             
-            org.springframework.data.jpa.domain.Specification<Image> spec = (root, query, cb) -> {
-                List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            Specification<Image> spec = (root, query, cb) -> {
+                List<Predicate> predicates = new ArrayList<>();
                 
                 // 基础条件：未删除的主图
                 predicates.add(cb.equal(root.get("deleted"), false));
@@ -454,7 +458,7 @@ public class ImageServiceImpl implements ImageService {
                 
                 // 二创中心数据隔离：管理员看同公司所有用户，普通用户只看自己
                 if ("creative".equals(request.getSource())) {
-                    String currentUserRole = com.imagemanager.util.SessionUtil.getCurrentUserRole();
+                    String currentUserRole = SessionUtil.getCurrentUserRole();
                     boolean isAdmin = "admin".equalsIgnoreCase(currentUserRole);
                     if (!isAdmin) {
                         // 普通用户：只能看到自己的二创图片（使用外部已声明的 currentUserId）
@@ -479,9 +483,9 @@ public class ImageServiceImpl implements ImageService {
                 
                 // 关键词筛选
                 if (finalKeyword != null && !finalKeyword.isEmpty()) {
-                    jakarta.persistence.criteria.Predicate titleLike = cb.like(
+                    Predicate titleLike = cb.like(
                         cb.lower(root.get("title")), "%" + finalKeyword.toLowerCase() + "%");
-                    jakarta.persistence.criteria.Predicate descLike = cb.like(
+                    Predicate descLike = cb.like(
                         cb.lower(root.get("description")), "%" + finalKeyword.toLowerCase() + "%");
                     predicates.add(cb.or(titleLike, descLike));
                 }
@@ -509,7 +513,7 @@ public class ImageServiceImpl implements ImageService {
                     predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), finalEndDate));
                 }
                 
-                return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+                return cb.and(predicates.toArray(new Predicate[0]));
             };
             
             // 执行分页查询
@@ -1688,7 +1692,7 @@ public class ImageServiceImpl implements ImageService {
                     .fileType(getFileType(file.getContentType()))
                     .albumId(albumId)
                     .albumName(albumName)
-                    .aiTags(tags != null ? new java.util.ArrayList<>(tags) : new java.util.ArrayList<>())
+                    .aiTags(tags != null ? new ArrayList<>(tags) : new ArrayList<>())
                     .aiConfidence(result.getConfidence())
                     .classifyMethod(classifyMethod)
                     .favorite(false)
@@ -1927,22 +1931,22 @@ public class ImageServiceImpl implements ImageService {
     }
     
     @Override
-    public List<com.imagemanager.dto.BatchDownloadResponse> batchDownloadImages(
-            com.imagemanager.dto.BatchDownloadRequest request) {
+    public List<BatchDownloadResponse> batchDownloadImages(
+            BatchDownloadRequest request) {
         log.info("批量下载网络图片，数量：{}", request.getImages().size());
         
         // 相册缓存：避免同一批次中重复查询/创建相册
         // key = "path:{path}" 或 "parentId_name:{parentId}_{name}"
-        java.util.Map<String, Album> albumCache = new java.util.HashMap<>();
+        Map<String, Album> albumCache = new HashMap<>();
         
-        List<com.imagemanager.dto.BatchDownloadResponse> results = new ArrayList<>();
+        List<BatchDownloadResponse> results = new ArrayList<>();
         List<Album> albums = albumService.getAllAlbums();
         
-        for (com.imagemanager.dto.BatchDownloadRequest.ImageToDownload item : request.getImages()) {
+        for (BatchDownloadRequest.ImageToDownload item : request.getImages()) {
             // 验证商品名称
             if (item.getProductName() == null || item.getProductName().trim().isEmpty()) {
                 log.warn("商品名称为空，跳过");
-                com.imagemanager.dto.BatchDownloadResponse emptyResponse = new com.imagemanager.dto.BatchDownloadResponse();
+                BatchDownloadResponse emptyResponse = new BatchDownloadResponse();
                 emptyResponse.setSuccess(false);
                 emptyResponse.setSkipped(false);
                 emptyResponse.setError("商品名称不能为空");
@@ -1958,7 +1962,7 @@ public class ImageServiceImpl implements ImageService {
                 if (!existingImages.isEmpty()) {
                     // 商品存在且有有效图片，跳过导入
                     log.info("商品 [{}] 已存在且有有效图片，跳过导入", item.getProductName());
-                    com.imagemanager.dto.BatchDownloadResponse skipResponse = new com.imagemanager.dto.BatchDownloadResponse();
+                    BatchDownloadResponse skipResponse = new BatchDownloadResponse();
                     skipResponse.setSuccess(false);
                     skipResponse.setSkipped(true);
                     skipResponse.setError("商品已存在，跳过导入");
@@ -1971,7 +1975,7 @@ public class ImageServiceImpl implements ImageService {
                     if (item.getDetailImageUrls() != null) {
                         for (String detailUrl : item.getDetailImageUrls()) {
                             if (detailUrl != null && !detailUrl.trim().isEmpty()) {
-                                com.imagemanager.dto.BatchDownloadResponse detailSkip = new com.imagemanager.dto.BatchDownloadResponse();
+                                BatchDownloadResponse detailSkip = new BatchDownloadResponse();
                                 detailSkip.setSuccess(false);
                                 detailSkip.setSkipped(true);
                                 detailSkip.setError("商品已存在，跳过导入");
@@ -2176,10 +2180,10 @@ public class ImageServiceImpl implements ImageService {
 
             // 合并所有需要下载的URL（主图 + 详情图），并去重
             List<String> allUrls = new ArrayList<>();
-            Set<String> urlSet = new java.util.LinkedHashSet<>(); // 使用 LinkedHashSet 保持顺序并去重
+            Set<String> urlSet = new LinkedHashSet<>(); // 使用 LinkedHashSet 保持顺序并去重
             
             // 辅助方法：规范化URL，添加协议头并优化获取高质量图片
-            java.util.function.Function<String, String> normalizeUrl = url -> {
+            Function<String, String> normalizeUrl = url -> {
                 String normalized = url.trim();
                 // 如果URL以 // 开头，添加 https:
                 if (normalized.startsWith("//")) {
@@ -2229,7 +2233,7 @@ public class ImageServiceImpl implements ImageService {
             // 检查是否有有效的URL
             if (allUrls.isEmpty()) {
                 log.warn("商品 {} 没有有效的图片URL，跳过", item.getProductName());
-                com.imagemanager.dto.BatchDownloadResponse emptyResponse = new com.imagemanager.dto.BatchDownloadResponse();
+                BatchDownloadResponse emptyResponse = new BatchDownloadResponse();
                 emptyResponse.setSuccess(false);
                 emptyResponse.setSkipped(false);
                 emptyResponse.setError("没有有效的图片URL");
@@ -2246,7 +2250,7 @@ public class ImageServiceImpl implements ImageService {
             for (int i = 0; i < allUrls.size(); i++) {
                 String imageUrl = allUrls.get(i);
                 log.info("开始下载图片 {}/{}: {}", i + 1, totalImages, imageUrl);
-                com.imagemanager.dto.BatchDownloadResponse response = new com.imagemanager.dto.BatchDownloadResponse();
+                BatchDownloadResponse response = new BatchDownloadResponse();
                 response.setOriginalUrl(imageUrl);
                 
                 boolean isMainImage = (i == 0); // 第一张是主图
@@ -2254,7 +2258,7 @@ public class ImageServiceImpl implements ImageService {
                 // 从URL提取文件名（用于检查重复）
                 String urlFileName = null;
                 try {
-                    String path = java.net.URI.create(imageUrl).getPath();
+                    String path = URI.create(imageUrl).getPath();
                     if (path != null && path.contains("/")) {
                         urlFileName = path.substring(path.lastIndexOf("/") + 1);
                     }
@@ -2294,9 +2298,9 @@ public class ImageServiceImpl implements ImageService {
                     }
                     
                     // 从URL下载图片
-                    java.net.URI uri = java.net.URI.create(imageUrl);
-                    java.net.URL url = uri.toURL();
-                    java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                    URI uri = URI.create(imageUrl);
+                    URL url = uri.toURL();
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                     connection.setRequestMethod("GET");
                     connection.setConnectTimeout(10000);
                     connection.setReadTimeout(30000);
@@ -2328,7 +2332,7 @@ public class ImageServiceImpl implements ImageService {
                     }
 
                     // 读取图片数据
-                    try (java.io.InputStream inputStream = connection.getInputStream()) {
+                    try (InputStream inputStream = connection.getInputStream()) {
                         byte[] imageData = inputStream.readAllBytes();
 
                         log.info("下载图片成功: {}, 大小: {} bytes, Content-Type: {}",
@@ -2366,7 +2370,7 @@ public class ImageServiceImpl implements ImageService {
                         // 图片增强处理（如果启用）
                         if (enableImageEnhance && imageData.length > 0) {
                             try {
-                                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageData);
+                                ByteArrayInputStream bais = new ByteArrayInputStream(imageData);
                                 BufferedImage originalImage = javax.imageio.ImageIO.read(bais);
                                 if (originalImage != null) {
                                     BufferedImage enhancedImage = imageEnhancementService.enhance(originalImage, enableSuperResolution);
@@ -2384,8 +2388,8 @@ public class ImageServiceImpl implements ImageService {
                         }
 
                         // 创建MultipartFile
-                        com.imagemanager.util.ByteArrayMultipartFile file =
-                            new com.imagemanager.util.ByteArrayMultipartFile(
+                        ByteArrayMultipartFile file =
+                            new ByteArrayMultipartFile(
                                 imageData,      // 第1个参数：byte[] content - 文件字节内容
                                 "file",         // 第2个参数：String name - 表单字段名
                                 fileName,       // 第3个参数：String originalFilename - 文件原始名称
@@ -2453,7 +2457,7 @@ public class ImageServiceImpl implements ImageService {
         
         // 更新受影响的相册图片数量
         Set<String> affectedAlbumIds = new HashSet<>();
-        for (com.imagemanager.dto.BatchDownloadResponse resp : results) {
+        for (BatchDownloadResponse resp : results) {
             if (resp.isSuccess() && resp.getImageId() != null) {
                 imageRepository.findById(resp.getImageId()).ifPresent(img -> {
                     if (img.getAlbumId() != null) {
@@ -2492,8 +2496,8 @@ public class ImageServiceImpl implements ImageService {
      * 批量下载网络图片（同步版本，用于异步任务调用）
      */
     @Override
-    public List<com.imagemanager.dto.BatchDownloadResponse> batchDownloadImagesSync(
-            com.imagemanager.dto.BatchDownloadRequest request) {
+    public List<BatchDownloadResponse> batchDownloadImagesSync(
+            BatchDownloadRequest request) {
         // 直接调用原有逻辑
         return batchDownloadImages(request);
     }
@@ -2636,8 +2640,8 @@ public class ImageServiceImpl implements ImageService {
     private String getFileExtensionFromUrl(String url) {
         if (url == null) return ".jpg";
         try {
-            java.net.URI uriObj = java.net.URI.create(url);
-            java.net.URL urlObj = uriObj.toURL();
+            URI uriObj = URI.create(url);
+            URL urlObj = uriObj.toURL();
 
             // 先从URL路径中提取扩展名
             String path = urlObj.getPath();
@@ -2656,7 +2660,7 @@ public class ImageServiceImpl implements ImageService {
                 String[] params = query.split("&");
                 for (String param : params) {
                     if (param.startsWith("file_path=")) {
-                        String filePath = java.net.URLDecoder.decode(param.substring("file_path=".length()), "UTF-8");
+                        String filePath = URLDecoder.decode(param.substring("file_path=".length()), "UTF-8");
                         if (filePath.contains(".")) {
                             String ext = filePath.substring(filePath.lastIndexOf("."));
                             // 验证是否为有效的图片扩展名（不区分大小写）
@@ -2958,7 +2962,7 @@ public class ImageServiceImpl implements ImageService {
      * @return 是否成功添加
      */
     private boolean addImageToZip(org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos, Image image, String folderName, String prefix, Integer detailIndex) {
-        java.io.InputStream imageStream = null;
+        InputStream imageStream = null;
         
         // 优先使用流式写入，避免大图片占内存
         try {
@@ -2980,7 +2984,7 @@ public class ImageServiceImpl implements ImageService {
                     
                     if (imageStream == null) {
                         try {
-                            java.net.URI uri = java.net.URI.create(localPath);
+                            URI uri = URI.create(localPath);
                             localPath = uri.getPath();
                         } catch (IllegalArgumentException e) {
                             log.warn("URL解析失败，尝试直接作为路径使用：{} - {}", localPath, e.getMessage());
@@ -3074,10 +3078,10 @@ public class ImageServiceImpl implements ImageService {
     /**
      * 从URL获取InputStream（流式下载）
      */
-    private java.io.InputStream downloadStreamFromUrl(String urlString) throws Exception {
-        java.net.URI uri = java.net.URI.create(urlString);
-        java.net.URL url = uri.toURL();
-        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+    private InputStream downloadStreamFromUrl(String urlString) throws Exception {
+        URI uri = URI.create(urlString);
+        URL url = uri.toURL();
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setConnectTimeout(10000);
         conn.setReadTimeout(30000);
         conn.setRequestProperty("User-Agent", "ImageManager/1.0");
@@ -3093,9 +3097,9 @@ public class ImageServiceImpl implements ImageService {
      * 从URL下载图片数据（旧版本，仅用于兼容）
      */
     private byte[] downloadImageFromUrl(String imageUrl) throws Exception {
-        java.net.URI uri = java.net.URI.create(imageUrl);
-        java.net.URL url = uri.toURL();
-        java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+        URI uri = URI.create(imageUrl);
+        URL url = uri.toURL();
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(30000);
         connection.setReadTimeout(30000);
@@ -3106,7 +3110,7 @@ public class ImageServiceImpl implements ImageService {
             throw new RuntimeException("HTTP " + responseCode);
         }
         
-        try (java.io.InputStream inputStream = connection.getInputStream()) {
+        try (InputStream inputStream = connection.getInputStream()) {
             return inputStream.readAllBytes();
         } finally {
             connection.disconnect();

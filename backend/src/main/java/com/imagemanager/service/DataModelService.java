@@ -243,8 +243,8 @@ public class DataModelService {
         if (dataObj instanceof Map) return (Map<String, Object>) dataObj;
         try {
             String jsonStr;
-            if (dataObj instanceof org.postgresql.util.PGobject) {
-                jsonStr = ((org.postgresql.util.PGobject) dataObj).getValue();
+            if (dataObj instanceof PGobject) {
+                jsonStr = ((PGobject) dataObj).getValue();
             } else {
                 jsonStr = dataObj.toString();
             }
@@ -260,8 +260,8 @@ public class DataModelService {
         Set<String> keys = jsonbKeys.length > 0 ? new HashSet<>(Arrays.asList(jsonbKeys)) : null;
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             Object val = entry.getValue();
-            if (val instanceof org.postgresql.util.PGobject) {
-                String jsonStr = ((org.postgresql.util.PGobject) val).getValue();
+            if (val instanceof PGobject) {
+                String jsonStr = ((PGobject) val).getValue();
                 if (jsonStr == null || jsonStr.trim().isEmpty()) {
                     entry.setValue(null);
                     continue;
