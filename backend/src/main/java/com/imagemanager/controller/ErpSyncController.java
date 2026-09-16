@@ -8,8 +8,12 @@ import com.imagemanager.service.ErpClient;
 import com.imagemanager.service.ErpSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 import java.util.Map;
@@ -39,17 +43,46 @@ public class ErpSyncController {
         this.authService = authService;
     }
 
+    /** 从当前请求 Cookie 读取 session_id（BFF 通常已注入 X-Session-Id，此处为 cookie-only 兜底） */
+    private String cookieSessionId() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return null;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            Cookie[] cookies = request.getCookies();
+            if (cookies == null) {
+                return null;
+            }
+            for (Cookie cookie : cookies) {
+                if ("session_id".equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                    return cookie.getValue();
+                }
+            }
+        } catch (@SuppressWarnings("unused") Exception ignored) {
+        }
+        return null;
+    }
+
     /** 权限校验：仅管理员及以上（admin / superadmin） */
-    private ApiResponse<Void> checkAdminOrAbove(String sessionId) {
+    private ApiResponse<Void> checkAdminOrAbove(String headerSessionId) {
+        String sessionId = (headerSessionId != null && !headerSessionId.isBlank())
+                ? headerSessionId
+                : cookieSessionId();
         if (sessionId == null || sessionId.isBlank()) {
+            log.warn("[ERP同步] 权限校验失败: 401 未登录（缺少会话）");
             return ApiResponse.error(401, "未登录");
         }
         LoginResponse.UserInfo user = authService.validateSession(sessionId);
         if (user == null) {
+            String prefix = sessionId.length() > 8 ? sessionId.substring(0, 8) : sessionId;
+            log.warn("[ERP同步] 权限校验失败: 401 会话无效, sessionId={}***", prefix);
             return ApiResponse.error(401, "会话已过期，请重新登录");
         }
         String role = user.getRole();
         if (!"admin".equalsIgnoreCase(role) && !"superadmin".equalsIgnoreCase(role)) {
+            log.warn("[ERP同步] 权限校验失败: 403 角色不足, user={}, role={}", user.getUsername(), role);
             return ApiResponse.error(403, "仅管理员及以上角色可访问 ERP 数据同步功能");
         }
         return null;
@@ -63,7 +96,10 @@ public class ErpSyncController {
             @RequestBody(required = false) Map<String, String> request,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
         ApiResponse<Void> denied = checkAdminOrAbove(sessionId);
-        if (denied != null) return ApiResponse.error(denied.getCode(), denied.getMessage());
+        if (denied != null) {
+            log.warn("[ERP登录] 拒绝: {} {}", denied.getCode(), denied.getMessage());
+            return ApiResponse.error(denied.getCode(), denied.getMessage());
+        }
         try {
             Map<String, Object> result = erpAuthService.login(
                     request != null ? request.get("uid") : null,
@@ -85,7 +121,10 @@ public class ErpSyncController {
     public ApiResponse<Map<String, Object>> authState(
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
         ApiResponse<Void> denied = checkAdminOrAbove(sessionId);
-        if (denied != null) return ApiResponse.error(denied.getCode(), denied.getMessage());
+        if (denied != null) {
+            log.warn("[ERP登录态] 拒绝: {} {}", denied.getCode(), denied.getMessage());
+            return ApiResponse.error(denied.getCode(), denied.getMessage());
+        }
         return ApiResponse.success("获取成功", erpAuthService.getAuthState());
     }
 
