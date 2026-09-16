@@ -64,7 +64,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         card.setEmbeddingStatus("PENDING");
 
         PositionKnowledgeCard saved = cardRepository.save(card);
-        log.info("创建岗位知识卡片成功: id={}, code={}, position={}", saved.getId(), saved.getCardCode(), saved.getPositionName());
 
         // 事务提交后再向量化，避免向量化失败导致整个事务回滚
         final String savedId = saved.getId();
@@ -90,7 +89,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                             jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'COMPLETED', updated_at = NOW() WHERE id = ?", savedId);
                             return null;
                         });
-                        log.info("岗位卡片向量化完成: id={}, 成功切片数={}", savedId, successCount);
                     }
                 } catch (Exception e) {
                     log.warn("岗位卡片向量化失败: {}", e.getMessage(), e);
@@ -147,7 +145,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         existing.setEmbeddingStatus("PENDING");
 
         PositionKnowledgeCard saved = cardRepository.save(existing);
-        log.info("更新岗位知识卡片成功: id={}, position={}", saved.getId(), saved.getPositionName());
 
         // 事务提交后再重新向量化，避免向量化失败导致整个事务回滚
         final String savedId = saved.getId();
@@ -177,7 +174,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                             jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'COMPLETED', updated_at = NOW() WHERE id = ?", savedId);
                             return null;
                         });
-                        log.info("岗位卡片重新向量化完成: id={}, 成功切片数={}", savedId, successCount);
                     }
                 } catch (Exception e) {
                     log.warn("岗位卡片重新向量化失败: {}", e.getMessage(), e);
@@ -258,7 +254,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             log.warn("删除岗位卡片向量失败: {}", e.getMessage());
         }
 
-        log.info("删除岗位知识卡片: id={}, position={}", id, card.getPositionName());
     }
 
     @Override
@@ -314,13 +309,11 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     private int vectorizeCard(PositionKnowledgeCard card) {
         String fullText = buildCardText(card);
         if (fullText.isBlank()) {
-            log.info("岗位卡片内容为空，跳过向量化: id={}", card.getId());
             return 0;
         }
 
         // 切片：800字符/片，100字符重叠
         List<String> chunks = splitText(fullText, 800, 100);
-        log.info("岗位卡片向量化开始: id={}, 切片数={}, embedding模型={}", card.getId(), chunks.size(), ollamaEmbeddingModel);
 
         int successCount = 0;
         int failCount = 0;
@@ -358,7 +351,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             }
         }
 
-        log.info("岗位卡片向量化结束: id={}, 切片数={}, 成功={}, 失败={}", card.getId(), chunks.size(), successCount, failCount);
 
         if (successCount == 0) {
             throw new RuntimeException("所有切片向量化均失败: 切片数=" + chunks.size() + ", 首个错误=" + firstError
@@ -427,7 +419,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             cardId
         ));
         int deleted = deletedObj != null ? deletedObj : 0;
-        log.info("删除岗位卡片向量: cardId={}, 删除条数={}", cardId, deleted);
     }
 
     // ========== 文本切片 ==========
@@ -471,7 +462,6 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                 for (int i = 0; i < embeddingNode.size(); i++) {
                     embedding[i] = (float) embeddingNode.get(i).asDouble();
                 }
-                log.info("Ollama embedding成功: model={}, 维度={}", ollamaEmbeddingModel, embedding.length);
                 return embedding;
             }
 

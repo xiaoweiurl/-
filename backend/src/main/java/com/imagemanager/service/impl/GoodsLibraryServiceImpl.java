@@ -85,7 +85,6 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
             throw new IllegalStateException("创建失败：未获取到商品ID");
         }
         long id = ((Number) idObj).longValue();
-        log.info("[GoodsLibrary] 创建商品文件夹: id={}, folder={}", id, folderName);
 
         // 一次性上传创建时携带的四类图片（均允许为空）；图片失败不影响已创建的文件夹
         if (images != null) {
@@ -99,7 +98,6 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
                     String col = slot + "_image_key";
                     txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                             "UPDATE goods_library SET " + col + " = ?, updated_at = now() WHERE id = ?", storedKey, id));
-                    log.info("[GoodsLibrary] 创建时上传图片: id={}, slot={}, key={}", id, slot, storedKey);
                 } catch (Exception e) {
                     log.error("[GoodsLibrary] 创建时上传图片失败: id={}, slot={}, err={}", id, slot, e.getMessage());
                 }
@@ -139,7 +137,6 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
                 merged.get("goods_no"), merged.get("customer"), merged.get("order_no"),
                 merged.get("remark"),
                 id));
-        log.info("[GoodsLibrary] 更新商品: id={}, folder={}", id, folderName);
         return getGoods(id);
     }
 
@@ -157,7 +154,6 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
                 }
             }
         }
-        log.info("[GoodsLibrary] 删除商品: id={}", id);
     }
 
     @Override
@@ -195,7 +191,6 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         result.put("label", SLOT_LABELS.get(slot));
         result.put("key", storedKey);
         result.put("url", fileStorageService.generatePresignedUrl(storedKey, PRESIGN_EXPIRE_SECONDS));
-        log.info("[GoodsLibrary] 上传图片: id={}, slot={}, key={}", id, slot, storedKey);
         return result;
     }
 
@@ -214,7 +209,6 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         }
         txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                 "UPDATE goods_library SET " + keyColumn + " = NULL, updated_at = now() WHERE id = ?", id));
-        log.info("[GoodsLibrary] 删除图片: id={}, slot={}", id, slot);
     }
 
     // ==================== 内部辅助 ====================

@@ -156,14 +156,12 @@ export default function LoginPage() {
       // SSO: HTTP 409 = 用户已在其他地方登录，需要确认
       // 用 HTTP 状态码判断，不依赖 JSON 字段解析，最可靠
       if (response.status === 409 && !forceLogin) {
-        console.log('[Login] SSO: HTTP 409，用户已登录，弹出确认框');
         setShowDuplicateLoginDialog(true);
         setIsLoading(false);
         return;
       }
 
       const result: LoginResponse = await response.json();
-      console.log('[Login] API response:', JSON.stringify(result, null, 2));
 
       if (result.success && result.data) {
         // 安全检查：正常登录必须有 user 数据，否则是异常响应
@@ -203,13 +201,6 @@ export default function LoginPage() {
           return;
         }
         const userCompany = result.data.user?.company;
-        console.log('[Login] doLogin result:', {
-          hasUser: !!result.data.user,
-          userId: result.data.user?.id,
-          username: result.data.user?.username,
-          company: result.data.user?.company,
-          fullUser: result.data.user,
-        });
         if (userCompany && userCompany.trim() !== '') {
           const brandKey = userCompany.includes('宝娜斯') ? 'bonasi' : 'yingyun';
           setSelectedBrand(brandKey);

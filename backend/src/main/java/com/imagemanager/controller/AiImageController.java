@@ -110,7 +110,6 @@ public class AiImageController {
 
             String apiRequestBodyStr = objectMapper.writeValueAsString(apiRequestBody);
             int imagesCount = requestJson.has("images") && requestJson.get("images").isArray() ? requestJson.get("images").size() : 0;
-            log.info("AI生图请求: model={}, prompt长度={}, 参考图片数={}, 生成数量={}", model, prompt.length(), imagesCount, count);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -145,7 +144,6 @@ public class AiImageController {
 
                         // 第三步：从最终结果提取图片 URL
                         List<String> imageUrls = extractAllImageUrls(resultJson);
-                        log.info("AI生图第{}张: 提取到{}个图片URL, 响应前200字符={}", index + 1, imageUrls.size(), resultJson.toString().substring(0, Math.min(200, resultJson.toString().length())));
                         
                         if (!imageUrls.isEmpty()) {
                             // 每个URL生成一条记录
@@ -213,7 +211,6 @@ public class AiImageController {
             responseMap.put("images", images);
             responseMap.put("model", model);
 
-            log.info("AI生图完成: model={}, 成功={}, 失败={}", model, successCount, failCount);
 
             return ResponseEntity.ok()
                     .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
@@ -244,7 +241,6 @@ public class AiImageController {
         }
 
         String taskId = initialResponse.get("id").asText();
-        log.info("AI生图异步任务已提交: taskId={}, status={}", taskId, status);
 
         // 轮询查询结果，最多 120 秒
         // 查询接口: GET https://grsai.dakka.com.cn/v1/api/result?id={taskId}
@@ -276,7 +272,6 @@ public class AiImageController {
                 JsonNode queryResult = objectMapper.readTree(queryResp.getBody());
                 String currentStatus = queryResult.has("status") ? queryResult.get("status").asText() : "";
 
-                log.info("AI生图轮询第{}次: taskId={}, status={}", i + 1, taskId, currentStatus);
 
                 if ("succeeded".equals(currentStatus)) {
                     return queryResult;
@@ -469,7 +464,6 @@ public class AiImageController {
             String localUrl = imageUrl;
             String storedName = "ai-generated-" + System.currentTimeMillis() + ".png";
             try {
-                log.info("开始下载AI生成图片: {}", imageUrl);
                 RestTemplate downloadRestTemplate = new RestTemplate();
                 downloadRestTemplate.setRequestFactory(new SimpleClientHttpRequestFactory() {{
                     setConnectTimeout(15000);
@@ -487,7 +481,6 @@ public class AiImageController {
                     String uploadResult = fileStorageService.uploadFile(imageBytes, storedName, "ai-generated");
                     if (uploadResult != null && !uploadResult.isEmpty()) {
                         localUrl = uploadResult;
-                        log.info("AI图片已下载并上传到本地存储: localUrl={}", localUrl);
                     } else {
                         log.warn("上传到本地存储失败，使用原始URL");
                     }
@@ -532,13 +525,11 @@ public class AiImageController {
                 if (username != null) {
                     imageTableService.ensureUserImageTable(username);
                     imageDynamicRepository.save(image, username);
-                    log.info("AI生成图片已同步到用户动态表: username={}", username);
                 }
             } catch (Exception e) {
                 log.warn("同步到用户动态表失败（不影响主表保存）: {}", e.getMessage());
             }
 
-            log.info("AI生成图片已保存到二创中心: imageId={}, userId={}, company={}", image.getId(), userId, company);
 
             ObjectNode result = objectMapper.createObjectNode();
             result.put("success", true);

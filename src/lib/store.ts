@@ -270,7 +270,6 @@ export function getImagesStore(): ImageData[] {
   if (!globalThis.__imagesStore || globalThis.__imagesStoreVersion !== DATA_VERSION) {
     globalThis.__imagesStore = [...initialImages];
     globalThis.__imagesStoreVersion = DATA_VERSION;
-    console.log('图片数据已重新初始化，版本:', DATA_VERSION);
   }
   return globalThis.__imagesStore;
 }
@@ -319,7 +318,6 @@ export function addImageToStore(image: Omit<ImageData, 'albumId' | 'albumName' |
   } as ImageData;
   
   store.push(newImage);
-  console.log('新增图片:', newImage.title, '=> 分类:', newImage.albumName || '未分类', '标签:', newImage.tags?.join(', '));
   
   return newImage;
 }
@@ -363,7 +361,6 @@ export function refreshImageClassification(imageId: string): ImageData | null {
   image.albumName = classification?.albumName;
   image.tags = tags;
   
-  console.log('刷新图片分类:', image.title, '=> 分类:', image.albumName || '未分类', '标签:', image.tags?.join(', '));
   
   return image;
 }
@@ -389,10 +386,6 @@ export function refreshAllImagesClassification(): number {
       image.tags = tags;
       count++;
     }
-  }
-  
-  if (count > 0) {
-    console.log('批量刷新分类完成，更新了', count, '张图片');
   }
   
   return count;

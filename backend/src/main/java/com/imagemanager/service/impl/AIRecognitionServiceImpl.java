@@ -83,20 +83,15 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
     
     @Override
     public AIRecognitionResult analyzeImage(String imageUrl, String fileName, List<Album> albums) {
-        log.info("分析图片: {}, 文件名: {}", imageUrl, fileName);
 
         // 1. 首先尝试根据文件名自动分类
         AIRecognitionResult result = classifyByFileName(fileName, albums);
         if (result != null && result.getAlbumId() != null) {
-            log.info("通过文件名匹配分类成功: {}", result.getAlbumName());
             return result;
         }
 
         // 2. 如果没有匹配到相册，从文件名中提取建议的分类名称
         String suggestedAlbumName = extractCategoryFromFileName(fileName);
-        if (suggestedAlbumName != null) {
-            log.info("未匹配到现有相册，建议创建新相册: {}", suggestedAlbumName);
-        }
 
         // 3. 生成功能特性标签
         List<String> tags = generateTagsFromFileName(fileName);
@@ -111,12 +106,10 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
     
     @Override
     public AIRecognitionResult analyzeImageWithAI(String imageBase64, String fileName, List<Album> albums) {
-        log.info("使用AI分析图片: {}", fileName);
 
         // 1. 首先尝试根据文件名自动分类
         AIRecognitionResult result = classifyByFileName(fileName, albums);
         if (result != null && result.getAlbumId() != null) {
-            log.info("通过文件名匹配分类成功: {}", result.getAlbumName());
             return result;
         }
 
@@ -125,21 +118,15 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
             try {
                 result = analyzeWithDoubaoVision(imageBase64, fileName, albums);
                 if (result != null && result.getAlbumId() != null) {
-                    log.info("通过AI分析分类成功: {}, 置信度: {}", result.getAlbumName(), result.getConfidence());
                     return result;
                 }
             } catch (Exception e) {
                 log.error("AI分析失败: {}", e.getMessage(), e);
             }
-        } else {
-            log.info("AI未启用或API Key未配置，跳过AI分析");
         }
 
         // 3. 如果AI也未识别出分类，从文件名中提取建议的分类名称
         String suggestedAlbumName = extractCategoryFromFileName(fileName);
-        if (suggestedAlbumName != null) {
-            log.info("AI未识别出分类，从文件名提取建议的相册: {}", suggestedAlbumName);
-        }
 
         // 4. 生成功能特性标签
         List<String> tags = generateTagsFromFileName(fileName);
@@ -176,8 +163,6 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
             );
             
             if (matchResult.isMatched()) {
-                log.info("文件 {} 通过 {} 模式匹配到相册 {} (关键词: {})", 
-                         fileName, config.getMode(), album.getName(), matchResult.getMatchedKeyword());
                 
                 // 生成标签时，过滤掉相册名称
                 List<String> tags = generateTagsFromFileName(fileName);
@@ -474,7 +459,6 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
             
             imageUrl.put("url", "data:" + mimeType + ";base64," + base64Data);
             
-            log.debug("调用豆包Vision API, 模型: {}", model);
             
             // 发送请求
             HttpHeaders headers = new HttpHeaders();
@@ -512,7 +496,6 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
             if (choices.isArray() && choices.size() > 0) {
                 String content = choices.get(0).path("message").path("content").asText();
 
-                log.debug("AI响应内容: {}", content);
 
                 // 尝试解析JSON响应
                 content = content.trim();

@@ -155,7 +155,6 @@ public class LlmCacheService {
      */
     public void clearUserCache(String userId) {
         if (userId == null || userId.isEmpty()) return;
-        log.info("[LlmCache] 清理用户 {} 的所有缓存", userId);
 
         if (isRedisAvailable()) {
             try {
@@ -167,7 +166,6 @@ public class LlmCacheService {
                     }
                 }
                 redisTemplate.delete(indexKey);
-                log.info("[LlmCache] Redis 清理用户 {} 共 {} 个缓存Key", userId, keys != null ? keys.size() : 0);
             } catch (Exception e) {
                 log.warn("[LlmCache] Redis 批量清理失败，降级到本地: {}", e.getMessage());
             }
@@ -179,7 +177,6 @@ public class LlmCacheService {
             int count = userCache.size();
             userCache.clear();
             localCache.remove(userId);
-            log.info("[LlmCache] 本地缓存清理用户 {} 共 {} 个条目", userId, count);
         }
     }
 
@@ -223,7 +220,6 @@ public class LlmCacheService {
             try {
                 Object val = redisTemplate.opsForValue().get(Objects.requireNonNull(key));
                 if (val != null) {
-                    log.debug("[LlmCache] Redis命中: key={}", key);
                     return (T) val;
                 }
             } catch (Exception e) {
@@ -234,7 +230,6 @@ public class LlmCacheService {
         for (ConcurrentHashMap<String, CacheEntry> userCache : localCache.values()) {
             CacheEntry entry = userCache.get(key);
             if (entry != null && !entry.isExpired()) {
-                log.debug("[LlmCache] 本地缓存命中: key={}", key);
                 return (T) entry.value;
             } else if (entry != null) {
                 userCache.remove(key);

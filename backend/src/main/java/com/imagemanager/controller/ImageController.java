@@ -66,7 +66,6 @@ public class ImageController {
     @GetMapping
     @Operation(summary = "查询图片列表", description = "支持搜索、筛选、排序、分页")
     public ApiResponse<PageResponse<Image>> queryImages(ImageQueryRequest request) {
-        log.info("查询图片列表：{}", request);
         PageResponse<Image> result = imageService.queryImages(request);
         return ApiResponse.success(result);
     }
@@ -137,7 +136,6 @@ public class ImageController {
             @Parameter(description = "标题") @RequestParam(required = false) String title,
             @Parameter(description = "相册ID") @RequestParam(required = false) String albumId,
             @Parameter(description = "标签") @RequestParam(required = false) List<String> tags) {
-        log.info("上传图片：{}", file.getOriginalFilename());
         Image image = imageService.uploadImage(file, title, albumId, tags);
         // 通知由前端统一管理，不再在 Controller 创建
         return ApiResponse.success("上传成功", image);
@@ -150,7 +148,6 @@ public class ImageController {
     @Operation(summary = "批量上传图片", description = "批量上传多张图片，自动使用AI识别分类")
     public ApiResponse<List<Image>> batchUploadImages(
             @Parameter(description = "图片文件列表") @RequestParam("files") List<MultipartFile> files) {
-        log.info("批量上传图片，数量：{}", files.size());
         List<Image> images = imageService.batchUploadImages(files);
         // 通知由前端统一管理
         return ApiResponse.success("批量上传成功，共上传 " + images.size() + " 张图片", images);
@@ -164,7 +161,6 @@ public class ImageController {
     public ApiResponse<Image> updateImage(
             @Parameter(description = "图片ID") @PathVariable String id,
             @RequestBody Image image) {
-        log.info("更新图片信息：{}", id);
         Image updated = imageService.updateImage(id, image.getTitle(), 
                 image.getAlbumId(), null, image.getDescription());
         // 通知由前端统一管理
@@ -178,7 +174,6 @@ public class ImageController {
     @Operation(summary = "删除图片", description = "将图片移至回收站")
     public ApiResponse<Void> deleteImage(
             @Parameter(description = "图片ID") @PathVariable String id) {
-        log.info("删除图片：{}", id);
         imageService.deleteImage(id);
         // 通知由前端统一管理
         return ApiResponse.success("删除成功", null);
@@ -191,7 +186,6 @@ public class ImageController {
     @Operation(summary = "永久删除图片", description = "永久删除图片，无法恢复")
     public ApiResponse<Integer> permanentDelete(
             @Parameter(description = "图片ID") @PathVariable String id) {
-        log.info("永久删除图片：{}", id);
         int deletedCount = imageService.permanentDelete(id);
         // 通知由前端统一管理
         return ApiResponse.success("永久删除成功，已删除 " + deletedCount + " 张图片（主图+详情图）", deletedCount);
@@ -204,7 +198,6 @@ public class ImageController {
     @Operation(summary = "恢复图片", description = "从回收站恢复图片")
     public ApiResponse<Integer> restoreImage(
             @Parameter(description = "图片ID") @PathVariable String id) {
-        log.info("恢复图片：{}", id);
         int restoredCount = imageService.restoreImage(id);
         // 通知由前端统一管理
         return ApiResponse.success("恢复成功，已恢复 " + restoredCount + " 张图片（主图+详情图）", restoredCount);
@@ -217,7 +210,6 @@ public class ImageController {
     @Operation(summary = "切换收藏状态", description = "收藏或取消收藏图片")
     public ApiResponse<Image> toggleFavorite(
             @Parameter(description = "图片ID") @PathVariable String id) {
-        log.info("切换收藏状态：{}", id);
         Image image = imageService.toggleFavorite(id);
         // 通知由前端统一管理
         return ApiResponse.success(image.getFavorite() ? "已收藏" : "已取消收藏", image);
@@ -230,7 +222,6 @@ public class ImageController {
     @Operation(summary = "设为主图", description = "将当前图片设为商品主图，原主图自动变为详情图")
     public ApiResponse<Image> setMainImage(
             @Parameter(description = "图片ID") @PathVariable String id) {
-        log.info("设为主图：{}", id);
         Image image = imageService.setMainImage(id);
         // 通知由前端统一管理
         return ApiResponse.success("已设为主图", image);
@@ -257,7 +248,6 @@ public class ImageController {
     @PostMapping("/batch")
     @Operation(summary = "批量操作", description = "批量移动、收藏、删除等")
     public ApiResponse<Void> batchOperation(@RequestBody BatchOperationRequest request) {
-        log.info("批量操作：{}", request.getOperation());
         
         switch (request.getOperation()) {
             case "delete":
@@ -282,7 +272,6 @@ public class ImageController {
     @PostMapping("/move")
     @Operation(summary = "批量移动图片", description = "将图片移动到指定相册")
     public ApiResponse<Void> moveImages(@RequestBody MoveImagesRequest request) {
-        log.info("批量移动图片到相册：{}", request.getTargetAlbumId());
         imageService.moveToAlbum(request.getImageIds(), request.getTargetAlbumId());
         // 通知由前端统一管理
         return ApiResponse.success("移动成功", null);
@@ -294,7 +283,6 @@ public class ImageController {
     @PostMapping("/delete")
     @Operation(summary = "批量删除图片", description = "批量删除图片（移至回收站）")
     public ApiResponse<Integer> deleteImages(@RequestBody DeleteImagesRequest request) {
-        log.info("批量删除图片，数量：{}", request.getImageIds().size());
         
         int totalDeleted = 0;
         if (Boolean.TRUE.equals(request.getPermanent())) {
@@ -318,7 +306,6 @@ public class ImageController {
     public ApiResponse<PageResponse<Image>> getFavorites(
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "20") Integer pageSize) {
-        log.info("获取收藏图片列表");
         PageResponse<Image> result = imageService.getFavorites(page, pageSize);
         return ApiResponse.success(result);
     }
@@ -332,7 +319,6 @@ public class ImageController {
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "20") Integer pageSize,
             @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword) {
-        log.info("获取最近上传图片列表, keyword={}", keyword);
         PageResponse<Image> result = imageService.getRecent(page, pageSize, keyword);
         return ApiResponse.success(result);
     }
@@ -346,7 +332,6 @@ public class ImageController {
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "20") Integer pageSize,
             @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword) {
-        log.info("获取回收站图片列表, keyword={}", keyword);
         PageResponse<Image> result = imageService.getTrash(page, pageSize, keyword);
         return ApiResponse.success(result);
     }
@@ -357,7 +342,6 @@ public class ImageController {
     @GetMapping("/trash/count")
     @Operation(summary = "获取回收站主图数量", description = "获取回收站中主图的数量")
     public ApiResponse<Long> getTrashCount() {
-        log.info("获取回收站主图数量");
         long count = imageService.getTrashCount();
         return ApiResponse.success(count);
     }
@@ -368,7 +352,6 @@ public class ImageController {
     @DeleteMapping("/trash")
     @Operation(summary = "清空回收站", description = "永久删除回收站中的所有图片")
     public ApiResponse<Integer> clearTrash() {
-        log.info("清空回收站");
         int deletedCount = imageService.clearTrash();
         // 通知由前端统一管理
         return ApiResponse.success("回收站已清空，已删除 " + deletedCount + " 张图片（主图+详情图）", deletedCount);
@@ -380,7 +363,6 @@ public class ImageController {
     @PostMapping("/trash/restore")
     @Operation(summary = "批量恢复回收站图片", description = "从回收站批量恢复指定的图片")
     public ApiResponse<Integer> restoreFromTrash(@RequestBody RestoreImagesRequest request) {
-        log.info("恢复回收站图片，数量：{}", request.getImageIds().size());
 
         if (request.getImageIds() == null || request.getImageIds().isEmpty()) {
             return ApiResponse.error("请选择要恢复的图片");
@@ -397,7 +379,6 @@ public class ImageController {
     @GetMapping("/tags")
     @Operation(summary = "获取所有标签", description = "获取所有图片AI标签及使用次数")
     public ApiResponse<List<TagResponse>> getAllTags() {
-        log.info("获取所有标签");
         return ApiResponse.success(new ArrayList<>());
     }
     
@@ -415,7 +396,6 @@ public class ImageController {
             @Parameter(description = "排序方向") @RequestParam(defaultValue = "desc") String sortOrder,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "40") Integer pageSize) {
-        log.info("筛选图片：tag={}, albumId={}, favorites={}", tag, albumId, favorites);
         
         Sort sort = Sort.by("desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC, sortBy);
         PageRequest pageRequest = PageRequest.of(page - 1, pageSize, sort);
@@ -453,7 +433,6 @@ public class ImageController {
     @PostMapping("/classify")
     @Operation(summary = "分类图片", description = "批量对图片进行分类")
     public ApiResponse<Void> classifyImages(@RequestBody ClassifyImagesRequest request) {
-        log.info("分类图片到：{}", request.getTargetCategory());
         
         if (request.getImageIds() != null && !request.getImageIds().isEmpty()) {
             imageService.moveToAlbum(request.getImageIds(), request.getTargetCategory());
@@ -468,7 +447,6 @@ public class ImageController {
     @GetMapping("/stats")
     @Operation(summary = "获取图片统计", description = "获取图片数量统计信息")
     public ApiResponse<Map<String, Object>> getImageStats() {
-        log.info("获取图片统计");
         
         Map<String, Object> stats = new HashMap<>();
         stats.put("total", imageRepository.count());
@@ -484,7 +462,6 @@ public class ImageController {
     @Operation(summary = "批量下载网络图片", description = "根据Excel数据批量下载网络图片并保存到系统")
     public ApiResponse<List<BatchDownloadResponse>> batchDownloadImages(
             @Valid @RequestBody BatchDownloadRequest request) {
-        log.info("批量下载网络图片，数量：{}", request.getImages().size());
 
         if (request.getImages() == null || request.getImages().isEmpty()) {
             return ApiResponse.error("请提供要下载的图片列表");
@@ -512,55 +489,36 @@ public class ImageController {
     public ApiResponse<BatchDownloadTask> submitAsyncBatchDownloadTask(
             @Valid @RequestBody BatchDownloadRequest request,
             HttpServletRequest httpRequest) {
-        System.out.println("\n========== 异步批量下载任务开始 ==========");
-        String sessionId = httpRequest.getHeader("X-Session-Id");
-        System.out.println("X-Session-Id: " + sessionId);
-        
         try {
             String userId = getCurrentUserId(httpRequest);
-            System.out.println("用户ID: " + userId);
-            System.out.println("图片数量: " + request.getImages().size());
-            
-            System.out.println("开始创建任务...");
             String taskId = batchDownloadTaskService.createTask(userId, "批量下载", request.getImages().size());
-            System.out.println("任务ID: " + taskId);
-            System.out.println("任务创建成功！");
-            
-            // 异步执行
+            log.info("异步批量下载任务已提交: taskId={}, count={}", taskId, request.getImages().size());
+
             final String finalTaskId = taskId;
             final BatchDownloadRequest finalRequest = request;
-            
-            System.out.println("启动异步线程...");
+
             CompletableFuture.runAsync(() -> {
                 try {
-                    System.out.println("[Task " + finalTaskId + "] 开始异步执行...");
                     List<BatchDownloadResponse> results = imageService.batchDownloadImages(finalRequest);
-                    
-                    // 统计结果
                     long successCount = results.stream().filter(r -> r.isSuccess()).count();
                     long failCount = results.stream().filter(r -> !r.isSuccess() && !r.isSkipped()).count();
                     long skipCount = results.stream().filter(r -> r.isSkipped()).count();
-                    
                     batchDownloadTaskService.updateTaskCompleted(finalTaskId, (int) successCount, (int) failCount, (int) skipCount);
-                    System.out.println("[Task " + finalTaskId + "] 异步执行完成！成功:" + successCount + " 失败:" + failCount + " 跳过:" + skipCount);
+                    log.info("异步批量下载完成: taskId={}, 成功={}, 失败={}, 跳过={}",
+                            finalTaskId, successCount, failCount, skipCount);
                 } catch (Exception e) {
-                    System.out.println("!!! [Task " + finalTaskId + "] 异步执行失败: " + e.getMessage());
-                    e.printStackTrace();
+                    log.error("异步批量下载失败: taskId={}", finalTaskId, e);
                     batchDownloadTaskService.updateTaskFailed(finalTaskId, e.getMessage());
                 }
             });
-            
-            // 立即返回任务信息
+
             BatchDownloadTask task = new BatchDownloadTask();
             task.setTaskId(taskId);
             task.setStatus("pending");
             task.setTotalCount(request.getImages().size());
-            System.out.println("立即返回任务ID: " + taskId);
-            System.out.println("========== 异步批量下载任务结束 ==========\n");
             return ApiResponse.success(task);
         } catch (Exception e) {
-            System.out.println("!!! 异步批量下载任务失败: " + e.getMessage());
-            e.printStackTrace();
+            log.error("提交异步批量下载任务失败", e);
             return ApiResponse.error("系统异常，请稍后重试: " + e.getMessage());
         }
     }
@@ -572,23 +530,15 @@ public class ImageController {
     @Operation(summary = "异步批量下载任务进度", description = "查询异步批量下载任务的进度")
     public ApiResponse<BatchDownloadTask> getAsyncBatchDownloadTask(
             @Parameter(description = "任务ID") @PathVariable String taskId) {
-        System.out.println("\n========== 查询异步任务进度 ==========");
-        System.out.println("任务ID: " + taskId);
-        
         try {
             BatchDownloadTask task = batchDownloadTaskService.getTask(taskId);
             if (task != null) {
-                System.out.println("任务状态: " + task.getStatus());
-                System.out.println("进度: " + task.getProcessedCount() + "/" + task.getTotalCount());
-                System.out.println("========== 查询完成 ==========\n");
                 return ApiResponse.success(task);
             } else {
-                System.out.println("!!! 任务不存在: " + taskId);
                 return ApiResponse.error("任务不存在");
             }
         } catch (Exception e) {
-            System.out.println("!!! 查询任务失败: " + e.getMessage());
-            e.printStackTrace();
+            log.error("查询异步批量下载任务失败: taskId={}", taskId, e);
             return ApiResponse.error("查询任务失败");
         }
     }
@@ -617,26 +567,20 @@ public class ImageController {
     public ApiResponse<Map<String, Object>> batchReplaceMainImage(
             @RequestBody BatchReplaceMainImageRequest request,
             HttpServletRequest httpRequest) {
-        log.info("========== 批量替换主图开始 ==========");
         
         String userId = getCurrentUserId(httpRequest);
         if (userId == null) {
-            log.info("!!! 用户未登录");
             return ApiResponse.error("未登录或用户未授权");
         }
         
         List<String> imageIds = request.getImageIds();
         if (imageIds == null || imageIds.isEmpty()) {
-            log.info("!!! 未选择图片");
             return ApiResponse.error("请选择要操作的图片");
         }
         
-        log.info("选中的图片数量: {}", imageIds.size());
         
         try {
             Map<String, Object> result = imageService.batchReplaceMainImageByImageIds(imageIds);
-            log.info("========== 批量替换主图完成 ==========");
-            log.info("结果: {}", result.get("message"));
             return ApiResponse.success(result);
         } catch (Exception e) {
             log.error("!!! 批量替换主图失败: {}", e.getMessage(), e);
@@ -710,7 +654,6 @@ public class ImageController {
     public void exportAlbumImages(
             @PathVariable String albumId,
             HttpServletResponse response) throws Exception {
-        log.info("导出单个相册：{}", albumId);
         
         // 获取相册名称作为文件名
         String albumName = albumId;
@@ -740,7 +683,6 @@ public class ImageController {
             
             zos.finish();
             zos.flush();
-            log.info("导出成功：{}", albumId);
         } catch (Exception e) {
             log.error("导出失败", e);
             throw e;
@@ -762,7 +704,6 @@ public class ImageController {
     public void exportMultipleAlbums(
             @RequestBody java.util.List<String> albumIds,
             HttpServletResponse response) throws Exception {
-        log.info("批量导出多个相册，数量：{}", albumIds.size());
         
         // 获取第一个相册（父相册）名称作为文件名
         String albumName = "albums_export";
@@ -794,7 +735,6 @@ public class ImageController {
             
             zos.finish();
             zos.flush();
-            log.info("批量导出成功，数量：{}", albumIds.size());
         } catch (Exception e) {
             log.error("批量导出失败", e);
             throw e;

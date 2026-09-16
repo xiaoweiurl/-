@@ -147,10 +147,6 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs, String subMode) {
-        log.info("智能对话: message='{}', userId='{}', company='{}', conversationId='{}', mode='{}', subMode='{}', hasImages={}, hasPdfs={}",
-                message, userId, company, conversationId, mode, subMode,
-                userImages != null && !userImages.isEmpty(),
-                userPdfs != null && !userPdfs.isEmpty());
         SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
 
         new Thread(() -> {
@@ -172,7 +168,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     } else {
                         businessSubModeMap.put(finalConvId, subMode);
                     }
-                    log.info("业务子模式显式指定: convId={}, subMode={}", finalConvId, subMode);
                 }
 
                 // 2. 加载历史对话（按conversationId），优先用ChatMemory缓存，无缓存时查DB
@@ -221,14 +216,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 工厂模式下用户问"帮我计算成本"、"机型产量是多少"等都应触发知识库检索
                 if (generalChatIntent && "factory".equals(mode)) {
                     generalChatIntent = false;
-                    log.info("闲聊意图被工厂模式覆盖: mode={}", mode);
                 }
                 
                 // 关键覆盖逻辑2：当已识别到供应链意图或岗位意图时，即使关键词也命中闲聊模式，
                 // 也应优先按业务意图处理（如"帮我计算成本"包含"成本"→供应链意图优先）
                 if (generalChatIntent && (supplyChainIntent || positionIntent)) {
                     generalChatIntent = false;
-                    log.info("闲聊意图被业务意图覆盖: supplyChainIntent={}, positionIntent={}", supplyChainIntent, positionIntent);
                 }
 
                 // 工厂模式判断（用于后续多处逻辑分支）
@@ -238,9 +231,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 与业务数据无关，跳过所有检索（供应链/知识库/Milvus/岗位卡片），
                 // 避免低分不相关切片注入上下文引发幻觉并拖慢响应
                 boolean modeSwitchCmd = detectSubModeSwitch(message) != null;
-                if (modeSwitchCmd) {
-                    log.info("识别为模式切换指令，跳过所有数据检索: message='{}'", message);
-                }
 
                 // 提前解析业务子模式（检索阶段即需：决定是否注入排产/客户订单等结构化决策数据；
                 // 后续构建 systemPrompt 时复用本变量，避免重复解析）
@@ -257,8 +247,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 外部知识意图识别：当问题需要外部/通用知识时，跳过知识库检索直接联网搜索
                 boolean externalKnowledgeIntent = !isFactory && isExternalKnowledgeIntent(message);
 
-                log.info("意图识别: mode={}, isFactory={}, generalChatIntent={}, webSearchIntent={}, planningResearchIntent={}, externalKnowledgeIntent={}, supplyChainIntent={}, positionIntent={}",
-                        mode, isFactory, generalChatIntent, webSearchIntent, planningResearchIntent, externalKnowledgeIntent, supplyChainIntent, positionIntent);
 
                 // ===== 企划主题切换守卫：防止同一会话多个品牌/品类企划的上下文相互污染 =====
                 // 场景: 用户先问"阿迪达斯 内衣"并深入几轮(企划进行中未终稿), 又提出"宝娜斯 保暖袜"——
@@ -297,14 +285,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                             emitter.send(SseEmitter.event().name("message").data(
                                     Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "done")))));
                             emitter.complete();
-                            log.info("[planning-guard] 拦截企划主题切换: 进行中主题={} → 新主题={}, 已提示先跑完当前企划或回复'开始新企划'确认切换",
-                                    lastTopic, curTopic);
                             return;
                         }
                         // ③不拦截(已终稿或消息自带确认词): 注入隔离声明后继续
                         planningIsolationNotice = buildPlanningIsolationNotice(lastTopic, curTopic);
-                        log.info("[planning-guard] 企划主题切换(不拦截): {} → {}, inProgress={}, confirmNew={}, 已注入上下文隔离声明",
-                                lastTopic, curTopic, inProgress, confirmNew);
                     } else if (curTopic == null && confirmNew && lastTopic != null) {
                         // ②裸指令"开始新企划": 接管被拦截的新主题——改写消息供联网检索与LLM使用
                         planningOverrideMessage = "开始全新企划：" + lastTopic.replace("×", " ")
@@ -313,8 +297,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         // 改写后的消息含品牌+品类, 重新判定联网意图, 确保触发新主题官网参数采集
                         planningResearchIntent = isPlanningResearchIntent(planningOverrideMessage);
                         webSearchIntent = isWebSearchIntent(planningOverrideMessage);
-                        log.info("[planning-guard] '开始新企划'裸指令接管被拦截主题: {}, 已生成改写消息并注入隔离声明, planningResearchIntent={}",
-                                lastTopic, planningResearchIntent);
                     }
                 }
 
@@ -331,7 +313,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         boolean otherIntent = isSchedulingIntent(message) || isPartsIntent(message) || isMaterialIntent(message);
                         if (!precise.isEmpty()) {
                             supplyChainResults = new ArrayList<>(precise);
-                            log.info("报价维度实体命中(实体驱动), 条数={}", precise.size());
                             // 问题同时涉及其他维度时再并入宽泛检索
                             if (otherIntent || supplyChainIntent) {
                                 supplyChainResults.addAll(searchSupplyChain(message, company, userId));
@@ -353,13 +334,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     entry.put("data", data);
                                     supplyChainResults = new ArrayList<>();
                                     supplyChainResults.add(entry);
-                                    log.info("function-calling 兜底分析完成, 长度={}", analysis.length());
                                 }
                             } catch (Exception ex) {
                                 log.warn("function-calling 兜底分析异常: {}", ex.getMessage());
                             }
                         }
-                        log.info("供应链数据检索到 {} 条结果", supplyChainResults.size());
                     } catch (Exception e) {
                         log.warn("供应链数据检索异常: {}", e.getMessage());
                     }
@@ -372,9 +351,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (isFactory && !generalChatIntent && !modeSwitchCmd && decisionDataService != null) {
                     try {
                         structuredResults = decisionDataService.searchStructuredForMessage(message, resolvedSubMode);
-                        if (!structuredResults.isEmpty()) {
-                            log.info("结构化决策数据注入 {} 条 (subMode={})", structuredResults.size(), resolvedSubMode);
-                        }
                     } catch (Exception e) {
                         log.warn("结构化决策数据检索异常: {}", e.getMessage());
                     }
@@ -390,12 +366,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (!skipVectorSearch) {
                     try {
                         positionCardResults = searchPositionCards(message, company);
-                        log.info("岗位卡片检索到 {} 条结果", positionCardResults.size());
                     } catch (Exception e) {
                         log.warn("岗位卡片检索异常: {}", e.getMessage());
                     }
-                } else {
-                    log.info("跳过岗位卡片检索: isFactory={}, generalChatIntent={}, strongSupplyChain={}", isFactory, generalChatIntent, strongSupplyChainIntent && !supplyChainResults.isEmpty());
                 }
 
                 // 当岗位意图且岗位卡片有结果时，或通用闲聊意图时，跳过知识库PDF检索
@@ -406,7 +379,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (!skipVectorSearch && !generalChatIntent) {
                     try {
                         chatHistoryQAResults = searchChatHistoryQA(message, company);
-                        log.info("历史对话QA检索到 {} 条结果", chatHistoryQAResults.size());
                     } catch (Exception e) {
                         log.warn("历史对话QA检索异常: {}", e.getMessage());
                     }
@@ -417,13 +389,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (!skipKnowledgeSearch) {
                     try {
                         knowledgeResults = searchKnowledgeBase(message, company);
-                        log.info("知识库检索到 {} 条结果", knowledgeResults.size());
                     } catch (Exception e) {
                         log.warn("知识库检索异常: {}", e.getMessage());
                     }
                 } else {
                     String reason = generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片");
-                    log.info("跳过知识库检索（原因: {}）", reason);
                 }
 
                 // 4c. 业务员资料库 Milvus 向量检索（工厂模式核心上下文，与供应链精确数据互补）
@@ -452,7 +422,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (!modeSwitchCmd && isImageSearchIntent(message)) {
                     try {
                         imageResults = searchImages(message, userId);
-                        log.info("图片搜索匹配到 {} 条结果", imageResults.size());
                     } catch (Exception e) {
                         log.warn("图片搜索异常: {}", e.getMessage());
                     }
@@ -859,10 +828,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     .append("冲突处理：若网络数据与上方内部数据（L1-L3）冲突，一律以内部数据为准，")
                                     .append("并按通用业务逻辑规则标注「数据差异说明」，不得静默采用网络数据覆盖内部结论。\n")
                                     .append(webSummary.trim()).append("\n");
-                            log.info("[web-search] 联网摘要已注入上下文, 长度={}字符, 触发方式={}",
-                                    webSummary.length(), planningResearchIntent ? "企划意图自动触发" : "用户明确要求联网");
-                        } else {
-                            log.info("[web-search] 未获取到联网摘要, 继续以内部数据生成回答");
                         }
                     } catch (Exception webEx) {
                         log.warn("[web-search] 阶段一联网搜索异常(不影响主流程): {}", webEx.getMessage());
@@ -875,14 +840,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     boolean hasSupplyChain = !supplyChainResults.isEmpty();
                     boolean hasPositionCards = !positionCardResults.isEmpty();
                     boolean hasKnowledge = !knowledgeResults.isEmpty();
-                    // 打印发送给LLM的上下文摘要（便于调试数据传递链路）
-                    log.info("[LLM上下文] knowledgeContext总长度={}字符, hasSupplyChain={}, hasKnowledge={}, hasPositionCards={}",
-                        knowledgeContext.length(), hasSupplyChain, hasKnowledge, hasPositionCards);
-                    if (hasSupplyChain) {
-                        log.info("[LLM上下文] 供应链数据条数={}, 上下文前200字: {}",
-                            supplyChainResults.size(),
-                            knowledgeContext.length() > 200 ? knowledgeContext.substring(0, 200) : knowledgeContext.toString());
-                    }
                     userContent = knowledgeContext.toString() + "\n---\n用户问题: " + message;
                     if (isFactory && hasSupplyChain) {
                         userContent += "\n\n请优先基于上方【供应链/工厂业务数据】中的精确数字回答";
@@ -919,7 +876,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                                 String base64 = downloadImageAsBase64(imageUrl);
                                 if (base64 != null) {
                                     imageBase64List.add(base64);
-                                    log.info("知识库图片传入多模态: source={}, url={}", source, imageUrl);
                                 }
                             } catch (Exception ex) {
                                 log.warn("下载知识库图片失败: url={}, error={}", imageUrl, ex.getMessage());
@@ -949,15 +905,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                             String base64 = downloadImageAsBase64(imageUrl);
                             if (base64 != null) {
                                 imageBase64List.add(base64);
-                                log.info("商品库图片传入多模态: folder={}, slot={}", goodsData.get("文件夹名称"), slotKey);
                             }
                         } catch (Exception ex) {
                             log.warn("下载商品库图片失败: url={}, error={}", imageUrl, ex.getMessage());
                         }
                     }
-                }
-                if (!goodsLibraryImageUrls.isEmpty()) {
-                    log.info("商品库图片待自动追加展示: {} 张", goodsLibraryImageUrls.size());
                 }
                 // 也检查图片库搜索结果
                 if (!imageResults.isEmpty()) {
@@ -971,8 +923,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     String base64 = downloadImageAsBase64(imageUrl);
                                     if (base64 != null) {
                                         imageBase64List.add(base64);
-                                        log.info("产品图片传入多模态: product={}, url={}", 
-                                                product.getOrDefault("productName", ""), imageUrl);
                                     }
                                 } catch (Exception ex) {
                                     log.warn("下载产品图片失败: url={}, error={}", imageUrl, ex.getMessage());
@@ -986,7 +936,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 用户上传的图片优先加入
                 if (userImages != null && !userImages.isEmpty()) {
                     imageBase64List.addAll(0, userImages); // 用户上传的图片放在最前面
-                    log.info("用户上传{}张图片传入多模态模型", userImages.size());
                 }
 
                 // 用户上传的PDF文档：提取文本作为上下文
@@ -1007,7 +956,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     } else {
                                         pdfContext.append(extractedText);
                                     }
-                                    log.info("PDF文档提取文本成功: name={}, textLen={}", pdfName, extractedText.length());
                                 } else {
                                     pdfContext.append("\n\n--- 文档: ").append(pdfName).append(" ---\n[无法提取文本内容，可能是扫描件或图片PDF]");
                                     log.warn("PDF文档提取文本为空: name={}", pdfName);
@@ -1020,7 +968,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                     if (pdfContext.length() > 0) {
                         userContent += "\n\n用户上传了以下文档，请基于文档内容回答问题：" + pdfContext;
-                        log.info("用户上传{}个PDF文档，提取文本作为上下文", userPdfs.size());
                     }
                 }
                 Map<String, Object> userMessage = new HashMap<>();
@@ -1032,10 +979,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     userMessage.put("images", limitedImages);
                     userContent += String.format("\n\n[已传入%d张图片，请结合图片内容回答]", limitedImages.size());
                     userMessage.put("content", userContent);
-                    log.info("传入多模态模型: 共{}张图片(用户上传{}, 知识库/产品{})", 
-                            limitedImages.size(), 
-                            userImages != null ? Math.min(userImages.size(), 5) : 0,
-                            Math.max(0, limitedImages.size() - (userImages != null ? Math.min(userImages.size(), 5) : 0)));
                 }
                 messages.add(userMessage);
 
@@ -1079,7 +1022,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     )))
                             ));
                             fullResponse.append(imgChunk);
-                            log.info("商品库图片已自动追加展示: {} 张", goodsLibraryImageUrls.size());
                         } catch (Exception sendEx) {
                             log.warn("追加商品库图片展示失败: {}", sendEx.getMessage());
                         }
@@ -1441,10 +1383,8 @@ public class SmartChatServiceImpl implements SmartChatService {
         try {
             // 智能提取中文关键词
             List<String> keywords = extractChineseKeywords(query);
-            log.info("图片搜索关键词提取: query={}, keywords={}", query, keywords);
 
             if (keywords.isEmpty()) {
-                log.info("未提取到有效关键词，跳过图片搜索");
                 return Collections.emptyList();
             }
 
@@ -1472,8 +1412,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 params.add(pattern);
             }
 
-            log.info("图片搜索SQL: {}", sql.toString());
-            log.info("图片搜索参数: userId={}, keywords={}", userId, keywords);
 
             List<Map<String, Object>> rawImages = jdbcTemplate.query(Objects.requireNonNull(sql.toString()),
                     (rs, rowNum) -> {
@@ -1495,7 +1433,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     params.toArray()
             );
 
-            log.info("图片搜索关键词匹配到 {} 条原始记录", rawImages.size());
 
             // 如果关键词搜索不到，尝试用更短的关键词（取每个关键词的前2字）再搜一次
             if (rawImages.isEmpty() && keywords.stream().anyMatch(kw -> kw.length() > 2)) {
@@ -1507,7 +1444,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         shortKeywords.add(kw);
                     }
                 }
-                log.info("尝试短关键词搜索: {}", shortKeywords);
 
                 StringBuilder fallbackSql = new StringBuilder();
                 fallbackSql.append("SELECT id, title, url, thumbnail_url, is_main_image, file_type, ");
@@ -1550,12 +1486,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         },
                         fallbackParams.toArray()
                 );
-                log.info("短关键词搜索返回 {} 条记录", rawImages.size());
             }
 
             // 如果仍然搜索不到，返回空列表让AI告知用户（不再兜底返回无关图片）
             if (rawImages.isEmpty()) {
-                log.info("关键词未匹配到图片，返回空结果");
                 return Collections.emptyList();
             }
 
@@ -1601,7 +1535,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 productCount++;
             }
 
-            log.info("图片搜索最终返回 {} 个产品", products.size());
             return products;
         } catch (Exception e) {
             log.error("图片搜索失败", e);
@@ -1794,7 +1727,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("source", "position_card");
                 results.add(item);
             }
-            log.info("岗位卡片检索完成, 查询: '{}', 命中: {}条", query, results.size());
         } catch (Exception e) {
             log.warn("岗位卡片检索失败: {}", e.getMessage());
         }
@@ -1837,7 +1769,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("source", "chat_history");
                 results.add(item);
             }
-            log.info("历史对话QA检索完成, 查询: '{}', 命中: {}条", query, results.size());
         } catch (Exception e) {
             log.warn("历史对话QA检索失败: {}", e.getMessage());
         }
@@ -1880,7 +1811,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         conversationId, qaTextFinal, embeddingStr, company
                 );
             });
-            log.info("Q&A向量化成功: conversationId={}, 维度={}, textLength={}", conversationId, embeddingArray.length, qaText.length());
         } catch (Exception e) {
             log.error("Q&A向量化失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
         }
@@ -1891,8 +1821,6 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private List<Map<String, Object>> searchKnowledgeBase(String query, String company) {
         long startTime = System.currentTimeMillis();
-        log.info("===== 知识库检索开始 =====");
-        log.info("[知识库] 查询: \"{}\" | company: {}", query, company);
 
         try {
             List<Map<String, Object>> results = new ArrayList<>();
@@ -1901,12 +1829,8 @@ public class SmartChatServiceImpl implements SmartChatService {
             String productCode = extractProductCode(query);
             if (productCode != null && !productCode.isEmpty()) {
                 try {
-                    log.info("[知识库] 检测到产品编码 '{}'，优先直接搜索knowledge_embeddings表", productCode);
                     List<Map<String, Object>> directResults = searchKnowledgeEmbeddingsDirect(productCode, company);
                     if (directResults != null && !directResults.isEmpty()) {
-                        log.info("[知识库] 直接搜索成功！返回 {} 条结果", directResults.size());
-                        long elapsed = System.currentTimeMillis() - startTime;
-                        log.info("===== 知识库检索完成（直接搜索）: {} 条结果, 耗时 {}ms =====", directResults.size(), elapsed);
                         return directResults;
                     }
                     log.warn("[知识库] 直接搜索无结果，降级到RagPipeline");
@@ -1918,11 +1842,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 1. 次选：RagPipeline（包含查询增强 + 多路召回 + Reranker 重排序）
             if (ragPipeline != null) {
                 try {
-                    log.info("[知识库] 使用 RagPipeline 增强检索（查询增强 + 多路召回 + Reranker 重排序）");
                     List<Map<String, Object>> ragResults = ragPipeline.enhancedSearchAsMap(query, company);
 
                     if (ragResults != null && !ragResults.isEmpty()) {
-                        log.info("[知识库] RagPipeline 返回 {} 条结果", ragResults.size());
                         for (int i = 0; i < ragResults.size(); i++) {
                             Map<String, Object> item = ragResults.get(i);
                             // 补充 source 字段
@@ -1931,12 +1853,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             item.putIfAbsent("title", "");
                             item.putIfAbsent("domain", "知识库");
                             results.add(item);
-                            log.info("[知识库] RAG结果 #{}: score={}, content={}...", i + 1,
-                                item.get("score"),
-                                item.get("content") != null ? item.get("content").toString().substring(0, Math.min(80, item.get("content").toString().length())) : "");
                         }
-                        long elapsed = System.currentTimeMillis() - startTime;
-                        log.info("===== 知识库检索完成（RagPipeline）: {} 条结果, 耗时 {}ms =====", results.size(), elapsed);
                         return results;
                     } else {
                         log.warn("[知识库] RagPipeline 返回空结果，降级为直接向量检索");
@@ -1950,12 +1867,10 @@ public class SmartChatServiceImpl implements SmartChatService {
 
             // 2. 降级：直接向量检索（不经过 RagPipeline）
             // 阈值与 RagPipeline 召回粗筛对齐（0.30），过低会召回弱相关切片引发幻觉
-            log.info("[知识库] 使用直接向量检索（knowledgeBaseService.search）");
             List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.30, 15, company);
             if (allResults == null) {
                 allResults = Collections.emptyList();
             }
-            log.info("[知识库] 直接检索返回 {} 条结果", allResults.size());
 
             for (MemorySearchResult r : allResults) {
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -1969,8 +1884,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 results.add(item);
             }
 
-            long elapsed = System.currentTimeMillis() - startTime;
-            log.info("===== 知识库检索完成（直接检索）: {} 条结果, 耗时 {}ms =====", results.size(), elapsed);
             return results;
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
@@ -2091,11 +2004,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("hitChunks", hitCount);
                 out.add(item);
                 processedGroups++;
-                log.info("[业务员资料] 文档聚合: file={}, 命中切片={}, 拼接切片={}, 最高分={}, 拼接字符={}",
-                        first.fileName, hitCount, mergedChunks, g.get("topScore"), merged.length());
             }
-            log.info("[业务员资料] 检索聚合完成: 命中文档组={}, 输出组={}, 总字符={}/{}",
-                    groups.size(), out.size(), usedChars, TOTAL_CHAR_BUDGET);
             return out;
         } catch (Exception e) {
             log.warn("业务员资料 Milvus 检索失败: {}", e.getMessage());
@@ -2197,7 +2106,6 @@ public class SmartChatServiceImpl implements SmartChatService {
         String manual = detectSubModeSwitch(message);
         if (manual != null) {
             if (convId != null) businessSubModeMap.put(convId, manual);
-            log.info("业务子模式手动切换: convId={}, subMode={}", convId, manual);
             return manual;
         }
         String remembered = convId != null ? businessSubModeMap.get(convId) : null;
@@ -2205,7 +2113,6 @@ public class SmartChatServiceImpl implements SmartChatService {
         String auto = detectSubModeAuto(message);
         if (auto != null && convId != null) {
             businessSubModeMap.put(convId, auto);
-            log.info("业务子模式自动识别: convId={}, subMode={}", convId, auto);
         }
         return auto;
     }
@@ -2497,17 +2404,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                             baos.write(buffer, 0, len);
                             totalRead += len;
                             if (totalRead > 5 * 1024 * 1024) {
-                                log.debug("OSS图片超过5MB限制: key={}", storageKey);
                                 return null;
                             }
                         }
                         String base64 = Base64.getEncoder().encodeToString(baos.toByteArray());
-                        log.debug("从OSS直接读取图片成功: key={}, size={}", storageKey, totalRead);
                         return base64;
                     }
                 }
-            } catch (Exception e) {
-                log.debug("从OSS直接读取失败，尝试HTTP下载: key={}, error={}", imageUrl, e.getMessage());
+            } catch (@SuppressWarnings("unused") Exception e) {
             }
 
             // 方式2：回退到HTTP下载签名URL
@@ -2534,7 +2438,6 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             return Base64.getEncoder().encodeToString(baos.toByteArray());
         } catch (Exception e) {
-            log.debug("下载图片失败: url={}, error={}", imageUrl, e.getMessage());
             return null;
         }
     }
@@ -2999,8 +2902,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     && !rest.matches("\\d+") && !rest.matches(".*20\\d{2}.*")) {
                 targetProduct = rest;
             }
-            log.info("[web-search] 提取企划要素：品牌={}，品类={}，指定产品={}",
-                    brand, categories, targetProduct.isEmpty() ? "(全品类)" : targetProduct);
             return buildOfficialProductParamQuery(brand, categories, targetProduct);
         }
 
@@ -3107,7 +3008,6 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     private String searchWebForMarketInfoImpl(String message) {
         if (minimaxApiKey == null || minimaxApiKey.isBlank()) {
-            log.info("[web-search] 未配置 app.minimax.api-key，跳过联网搜索（企划方案仅基于内部数据生成）");
             return "";
         }
         String model = (minimaxWebSearchModel != null && !minimaxWebSearchModel.isBlank())
@@ -3146,8 +3046,6 @@ public class SmartChatServiceImpl implements SmartChatService {
             userMsg.put("content", searchQuery);
             body.put("messages", List.of(userMsg));
 
-            log.info("[web-search] 开始联网检索(阶段一, 数据隔离): 原始问题长度={}, 模板query={}, model={}",
-                    message == null ? 0 : message.length(), searchQuery, model);
 
             conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
             conn.setRequestMethod("POST");
@@ -3249,24 +3147,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         + sourcesForInject.toString().trim();
             }
 
-            // ===== 控制台打印联网检索全链路 =====
-            // 数据流说明: ①MiniMax执行检索词→②各来源网页(下方清单, 含抓到的正文摘要)→③MiniMax消化后生成的采集报告(下方"注入内容")→④注入本地LLM
-            String toolState = queries.length() > 0
-                    ? "已调用(web_search_20250305, " + queries.toString().split(" \\| ").length + "次)"
-                    : "未调用(模型未触发web_search工具)";
-            log.info("[web-search] web_search工具调用状态: {}", toolState);
-            if (queries.length() > 0) {
-                log.info("[web-search] MiniMax实际执行的检索词: {}", queries);
-            }
-            if (!answerText.isBlank()) {
-                log.info("[web-search] ③联网采集报告(④已注入本地模型, 长度={}字符):\n{}", answerText.length(), answerText);
-            } else {
+            if (answerText.isBlank()) {
                 log.warn("[web-search] 联网检索未返回文本内容, 原始响应: {}", abbreviate(resp, 500));
-            }
-            if (sourceCount > 0) {
-                log.info("[web-search] ②检索来源明细(去重后{}条, 标题+URL+网页摘要, 供准确性核对):\n{}", sourceCount, sources.toString().trim());
-            } else {
-                log.info("[web-search] 本次未返回编号来源清单(web_search_tool_result为空)");
             }
             return answerText;
         } catch (Exception e) {
@@ -3317,7 +3199,6 @@ public class SmartChatServiceImpl implements SmartChatService {
             if (llmCacheService != null && userId != null && !userId.isEmpty()) {
                 List<Map<String, Object>> cached = llmCacheService.getCachedRagResult(userId, query);
                 if (cached != null) {
-                    log.info("[L1缓存] RAG检索结果命中, userId={}", userId);
                     return cached;
                 }
             }
@@ -3327,11 +3208,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             String productCode = extractProductCode(query);
             if (productCode != null && !productCode.isEmpty()) {
                 try {
-                    log.info("[直接搜索] 检测到产品编码 '{}'，尝试直接搜索knowledge_embeddings表", productCode);
                     List<Map<String, Object>> directResults = searchKnowledgeEmbeddingsDirect(productCode, company);
                     if (directResults != null && !directResults.isEmpty()) {
                         results.addAll(directResults);
-                        log.info("[直接搜索] 成功！返回 {} 条结果", directResults.size());
                         if (llmCacheService != null && userId != null) {
                             llmCacheService.putCachedRagResult(userId, query, results);
                         }
@@ -3346,11 +3225,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 次选：RAG Pipeline（查询增强→多路向量召回→去重→Rerank）
             if (ragPipeline != null) {
                 try {
-                    log.info("[RAG Pipeline] 启动增强检索: query='{}', company='{}'", query, company);
                     List<Map<String, Object>> ragResults = ragPipeline.enhancedSearchAsMap(query, company);
                     if (ragResults != null && !ragResults.isEmpty()) {
                         results.addAll(ragResults);
-                        log.info("[RAG Pipeline] 增强检索成功，返回 {} 条结果", ragResults.size());
                         // 写入 L1 缓存
                         if (llmCacheService != null && userId != null) {
                             llmCacheService.putCachedRagResult(userId, query, results);
@@ -3369,7 +3246,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     // 设置当前公司和userId到 ThreadLocal
                     supplyChainTools.setCurrentCompany(company != null ? company : "");
                     supplyChainTools.setCurrentUserId(userId != null ? userId : "");
-                    log.info("[LangChain4j] 尝试Text-to-SQL查询: query='{}', company='{}', userId='{}'", query, company, userId);
                     String sqlResult = supplyChainAssistant.chat(query, company != null ? company : "");
                     supplyChainTools.clearCurrentCompany();
                     if (sqlResult != null && !sqlResult.isEmpty() && !sqlResult.contains("查询结果为空") && !sqlResult.contains("SQL执行失败") && !sqlResult.contains("错误：")) {
@@ -3378,7 +3254,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         langChainResult.put("summary", "大模型生成的SQL查询结果");
                         langChainResult.put("data", Map.of("查询结果", sqlResult));
                         results.add(langChainResult);
-                        log.info("[LangChain4j] Text-to-SQL成功，返回 {} 字符结果", sqlResult.length());
                         return results;
                     }
                     log.warn("[LangChain4j] Text-to-SQL无有效结果，降级到关键词搜索");
@@ -3411,7 +3286,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "AND (search_vector @@ plainto_tsquery('simple', ?) OR chunk_text ILIKE ?) " +
                     "ORDER BY created_at DESC LIMIT 10";
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, productCode, "%" + productCode + "%");
-            log.info("[直接搜索] SQL执行完成，返回 {} 条记录 (productCode={}, company={})", rows.size(), productCode, company);
             for (Map<String, Object> row : rows) {
                 String chunkText = row.get("chunk_text") != null ? row.get("chunk_text").toString() : "";
                 String sourceDocId = row.get("source_doc_id") != null ? row.get("source_doc_id").toString() : "未知文档";
@@ -3433,8 +3307,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("sourceDocId", sourceDocId);
                 item.put("chunkIndex", row.get("chunk_index"));
                 results.add(item);
-                log.info("[直接搜索] 结果: chunkText前80字={}, sourceDocId={}",
-                    chunkText.length() > 80 ? chunkText.substring(0, 80) + "..." : chunkText, sourceDocId);
             }
         } catch (Exception e) {
             log.error("[直接搜索] SQL执行失败: {}", e.getMessage(), e);
@@ -3828,8 +3700,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 return;
             }
             String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
-            log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, conversationId={}, hasReasoning={}, mode={}", 
-                    userId, role, content.length(), company, conversationId, reasoningContent != null && !reasoningContent.isEmpty(), modeValue);
             TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             txTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
@@ -3838,7 +3708,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue
                 );
             });
-            log.info("保存对话消息成功: userId={}, role={}, mode={}", userId, role, modeValue);
         } catch (Exception e) {
             log.error("保存对话消息失败: userId={}, role={}, error={}", userId, role, e.getMessage(), e);
         }
@@ -3851,7 +3720,6 @@ public class SmartChatServiceImpl implements SmartChatService {
     private void streamChat(SseEmitter emitter, List<Map<String, Object>> messages,
                             StringBuilder fullResponse, StringBuilder reasoningContent) {
         try {
-            log.info("使用Ollama模型进行对话: {}", ollamaChatModel);
 
             // 计算发送给模型的上下文大小
             int totalChars = 0;
@@ -3860,7 +3728,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (content instanceof String) totalChars += ((String) content).length();
                 else if (content != null) totalChars += content.toString().length();
             }
-            log.info("Ollama请求上下文: messages={}, totalChars={} (~{}KB)", messages.size(), totalChars, totalChars / 1024);
 
             Map<String, Object> body = new HashMap<>();
             body.put("model", ollamaChatModel);
@@ -3980,7 +3847,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 for (int i = 0; i < embeddingNode.size(); i++) {
                     embedding[i] = (float) embeddingNode.get(i).asDouble();
                 }
-                log.info("Ollama embedding成功: model={}, 维度={}", ollamaEmbeddingModel, embedding.length);
                 return embedding;
             }
             log.error("Ollama Embedding返回数据格式异常, 完整响应: {}", responseBody);
@@ -4002,14 +3868,8 @@ public class SmartChatServiceImpl implements SmartChatService {
         BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
 
-        int lineCount = 0;
         String line;
         while ((line = reader.readLine()) != null) {
-            lineCount++;
-            if (lineCount <= 3 || lineCount % 50 == 0) {
-                log.info("Ollama流式数据: line#{}, length={}, first50={}", lineCount, line.length(), 
-                    line.length() > 50 ? line.substring(0, 50) : line);
-            }
             if (line.isEmpty()) {
                 continue;
             }
@@ -4040,10 +3900,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                         String content = messageNode.get("content").asText();
                         if (!content.isEmpty()) {
                             fullResponse.append(content);
-                            if (lineCount <= 3) {
-                                log.info("Ollama首段内容输出: length={}, content={}", content.length(), 
-                                    content.length() > 100 ? content.substring(0, 100) : content);
-                            }
                             emitter.send(SseEmitter.event().name("message").data(
                                     Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
                                             "type", "content",
@@ -4058,7 +3914,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                     break;
                 }
             } catch (@SuppressWarnings("unused") Exception e) {
-                log.debug("解析Ollama流式数据行失败: {}", line);
             }
         }
         reader.close();

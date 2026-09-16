@@ -133,7 +133,6 @@ export default function ImageCard({
     try {
       const fullUrl = getFullImageUrl(image.url);
       const sessionId = getSessionId();
-      console.log('[ImageCard] 下载图片，完整URL:', fullUrl, 'sessionId:', sessionId ? sessionId.substring(0, 8) + '...' : 'null');
       
       // 如果是旧格式的沙箱 URL，提示用户重新上传
       if (fullUrl.includes('sandbox/coze_coding/file/proxy')) {
@@ -703,13 +702,7 @@ export default function ImageCard({
                   <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
                 </button>
                 {/* 设为主图按钮 - 只在有productId且非主图时显示 */}
-                {(() => {
-                  // 调试日志
-                  if (image.productId) {
-                    console.log('[ImageCard] 图片:', image.title, 'productId:', image.productId, 'isMainImage:', image.isMainImage);
-                  }
-                  return image.productId && !image.isMainImage;
-                })() && (
+                {image.productId && !image.isMainImage && (
                   <button
                     onClick={handleSetMain}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[rgba(255,149,0,0.1)] transition-colors text-left group"

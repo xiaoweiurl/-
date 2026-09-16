@@ -226,7 +226,6 @@ public class KnowledgeImportService {
                     "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?", String.class, table)) {
                 cols.add(c.toLowerCase());
             }
-            log.info("[导入] 表 public.{} 实际列: {}", table, cols);
             return cols;
         } catch (Exception e) {
             log.error("[导入] 读取表 public.{} 列信息失败: {}", table, e.getMessage(), e);
@@ -627,7 +626,6 @@ public class KnowledgeImportService {
             zf.getEntries(); // 强制解析中央目录（文件名解码失败会在此抛出，触发回退）
             return zf;
         } catch (Exception e) {
-            log.debug("zip 以 UTF-8 打开失败，回退 GBK: {}", e.getMessage());
             if (zf != null) {
                 try { zf.close(); } catch (@SuppressWarnings("unused") IOException ignored) {}
             }
@@ -680,7 +678,6 @@ public class KnowledgeImportService {
             // 跳过也要保证 knowledge_base_docs 有行：否则前端知识库永远看不到该文档
             persistDocMetaSkipped(ctx, virtualName, docId, ext);
             maybePersistProgress(ctx);
-            log.debug("文件未变更，跳过: {}", virtualName);
             return;
         }
 
@@ -776,8 +773,6 @@ public class KnowledgeImportService {
     private void upsertDocMeta(ImportContext ctx, String virtualName, String docId,
                                String docType, int chunkCount, String fullText, String status,
                                boolean preserveChunkCount) {
-        log.info("[导入] upsertDocMeta 开始: file={}, docId={}, docType={}, chunkCount={}, status={}, docsTableCols.size={}",
-                virtualName, docId, docType, chunkCount, status, docsTableCols.size());
         try {
             if (docsTableCols.isEmpty()) {
                 log.error("[导入] knowledge_base_docs 列信息不可用，跳过文档元数据写入: {}", virtualName);
@@ -833,9 +828,7 @@ public class KnowledgeImportService {
                 if (!sets.isEmpty()) {
                     String sql = "UPDATE knowledge_base_docs SET " + String.join(", ", sets) + " WHERE id = ?";
                     args.add(existingId);
-                    log.info("[导入] upsertDocMeta UPDATE SQL: {}", sql);
                     txTemplate.executeWithoutResult(s -> jdbcTemplate.update(sql, args.toArray()));
-                    log.info("[导入] upsertDocMeta UPDATE 成功: file={}, docId={}, existingId={}", virtualName, docId, existingId);
                 }
                 return;
             }
@@ -872,9 +865,7 @@ public class KnowledgeImportService {
 
             String sql = "INSERT INTO knowledge_base_docs (" + String.join(", ", cols) + ") VALUES ("
                     + String.join(", ", valExprs) + ")";
-            log.info("[导入] upsertDocMeta INSERT SQL: {}", sql);
             txTemplate.executeWithoutResult(s -> jdbcTemplate.update(sql, args.toArray()));
-            log.info("[导入] upsertDocMeta INSERT 成功: file={}, docId={}", virtualName, docId);
         } catch (Exception ex) {
             log.error("[导入] 文档元数据写入失败: {} -> {}", virtualName, ex.getMessage(), ex);
         }
@@ -1013,7 +1004,6 @@ public class KnowledgeImportService {
                     workbook.close();
                 } catch (Exception e) {
                     // 忽略关闭时的保存错误（内嵌媒体文件压缩比问题）
-                    log.debug("Excel 关闭时保存失败（可忽略）: {}", e.getMessage());
                 }
             }
             if (stripMedia && effective != file) {
@@ -1443,7 +1433,6 @@ public class KnowledgeImportService {
     }
 
     private void recordError(ImportContext ctx, String fileName, String error) {
-        log.info("[导入] recordError 开始: taskId={}, fileName={}, errorTableCols.size={}", ctx.taskId, fileName, errorTableCols.size());
         // 确保错误信息不为空
         String msg = error;
         if (msg == null || msg.isBlank()) {
@@ -1494,7 +1483,6 @@ public class KnowledgeImportService {
     }
 
     private void persistTask(ImportTaskProgress p, String status, String errorMsg) {
-        log.info("[导入] persistTask 开始: taskId={}, status={}, taskTableCols.size={}", p.taskId, status, taskTableCols.size());
         if (taskTableCols.isEmpty()) {
             log.error("[导入] knowledge_import_task 列信息不可用，跳过进度持久化 taskId={}", p.taskId);
             return;

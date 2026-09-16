@@ -103,9 +103,6 @@ public class DocumentParserServiceImpl implements DocumentParserService {
                     }
                 }
 
-                log.info("Excel解析[v2]: sheet={}, headerCount={}, headers={}, format={}", 
-                    sheet.getSheetName(), headers.size(), headers, 
-                    (headers.isEmpty() || headers.stream().allMatch(h -> h.isEmpty())) ? "原始|分隔" : "自然语言描述句");
 
                 if (headers.isEmpty() || headers.stream().allMatch(h -> h.isEmpty())) {
                     // 无表头，退化为原始 | 分隔格式
@@ -120,7 +117,6 @@ public class DocumentParserServiceImpl implements DocumentParserService {
                 } else {
                     // 有表头：将每行数据转为自然语言描述句
                     // 格式：列名1值1，列名2值2，列名3值3
-                    log.info("Excel解析[v2]: 使用自然语言描述句格式, sheet={}", sheet.getSheetName());
                     for (int r = 1; r <= sheet.getLastRowNum(); r++) {
                         Row row = sheet.getRow(r);
                         if (row == null) continue;
@@ -139,9 +135,6 @@ public class DocumentParserServiceImpl implements DocumentParserService {
                         if (hasData) {
                             String line = String.join("，", parts);
                             sb.append(line).append("\n");
-                            if (r <= 2) {
-                                log.info("Excel解析[v2]: 第{}行输出: {}", r, line);
-                            }
                         }
                     }
                 }
@@ -224,13 +217,6 @@ public class DocumentParserServiceImpl implements DocumentParserService {
             if (!lastChunk.isEmpty()) {
                 chunks.add(lastChunk);
             }
-        }
-
-        log.info("文档切片完成: 总长度={}, 切片数={}, chunkSize={}, overlap={}", 
-            text.length(), chunks.size(), chunkSize, overlap);
-        for (int i = 0; i < Math.min(chunks.size(), 3); i++) {
-            log.info("  切片[{}] 长度={} 预览: {}", i, chunks.get(i).length(), 
-                chunks.get(i).substring(0, Math.min(chunks.get(i).length(), 100)).replace("\n", "\\n"));
         }
 
         return chunks;

@@ -7,7 +7,6 @@ import com.imagemanager.service.WatermarkRemoveService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
  * @author Image Manager Team
  * @version 1.0.0
  */
-@Slf4j
 @RestController
 @RequestMapping("/images")
 @Tag(name = "图片去水印", description = "图片去水印功能")
@@ -34,8 +32,6 @@ public class WatermarkRemoveController {
     public ApiResponse<WatermarkRemoveResponse> removeWatermark(
             @Valid @RequestBody WatermarkRemoveRequest request) {
         
-        log.info("收到去水印请求, imageId: {}, imageUrl: {}", 
-                request.getImageId(), request.getImageUrl() != null ? "provided" : "none");
         
         WatermarkRemoveResponse response = watermarkRemoveService.removeWatermark(request);
         

@@ -49,7 +49,6 @@ public class ImageDynamicRepository {
             log.warn("getUserTableName: 用户名清理后为空，使用 hashCode 兜底: username={}, sanitizedUsername={}", username, sanitizedUsername);
         }
         String tableName = "images_" + sanitizedUsername;
-        log.debug("ImageDynamicRepository.getUserTableName: username={}, tableName={}", username, tableName);
         return tableName;
     }
 
@@ -128,7 +127,6 @@ public class ImageDynamicRepository {
                 }
             });
 
-            log.info("图片保存成功, 表: {}, id: {}", tableName, image.getId());
             return image;
         } catch (Exception e) {
             log.error("保存图片失败, 表: {}", tableName, e);

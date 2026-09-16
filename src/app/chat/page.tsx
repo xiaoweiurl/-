@@ -169,12 +169,10 @@ export default function ChatPage() {
           try {
             const probeRes = await backendFetch('/albums?pageSize=1');
             if (probeRes.status === 502) {
-              console.log('[Chat] 后端不可用，进入降级模式');
               setAuthChecked(true);
               return;
             }
           } catch {
-            console.log('[Chat] 后端不可用，进入降级模式');
             setAuthChecked(true);
             return;
           }
@@ -186,7 +184,6 @@ export default function ChatPage() {
           try {
             const probeRes = await backendFetch('/albums?pageSize=1');
             if (probeRes.status === 502) {
-              console.log('[Chat] 后端不可用，过期session忽略');
               setAuthChecked(true);
               return;
             }

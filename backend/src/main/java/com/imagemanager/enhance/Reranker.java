@@ -55,7 +55,6 @@ public class Reranker {
 
         // 如果禁用 reranker，直接返回原始结果
         if (!enabled) {
-            log.debug("[Reranker] 已禁用，返回原始排序");
             return results.stream().limit(topN).collect(Collectors.toList());
         }
 
@@ -138,9 +137,6 @@ public class Reranker {
                 }
             }
 
-            log.info("[Reranker] 重排序完成: {} 条 -> {} 条, 最高分: {}", 
-                    results.size(), reranked.size(),
-                    reranked.isEmpty() ? "N/A" : String.format("%.4f", reranked.get(0).getScore()));
 
             return reranked;
 
@@ -169,8 +165,7 @@ public class Reranker {
                 JsonNode root = mapper.readTree(response.body());
                 return root.path("loaded").asBoolean(false);
             }
-        } catch (Exception e) {
-            log.debug("[Reranker] 服务不可用: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
         }
         return false;
     }

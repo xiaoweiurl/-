@@ -300,7 +300,6 @@ export default function DocumentUploadDialog({
 
     // 关闭对话框并刷新列表
     if (successCount > 0) {
-      console.log('[DocumentUpload] 上传成功，准备关闭对话框并刷新');
       
       // 创建上传成功通知
       addNotification({
@@ -332,7 +331,6 @@ export default function DocumentUploadDialog({
     try {
       const fullUrl = getFullFileUrl(uploadingFile.url);
       const sessionId = getSessionId();
-      console.log('[DocumentUploadDialog] 下载文件，完整URL:', fullUrl, 'sessionId:', sessionId ? sessionId.substring(0, 8) + '...' : 'null');
       
       const response = await fetch(fullUrl, {
         headers: {

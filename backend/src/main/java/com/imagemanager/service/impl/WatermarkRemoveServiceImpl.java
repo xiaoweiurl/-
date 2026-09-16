@@ -47,7 +47,6 @@ public class WatermarkRemoveServiceImpl implements WatermarkRemoveService {
         long startTime = System.currentTimeMillis();
         
         try {
-            log.info("开始处理去水印请求, imageId: {}, imageUrl: {}", request.getImageId(), request.getImageUrl());
             
             // 1. 获取图片
             byte[] imageData = getImageData(request);
@@ -62,7 +61,6 @@ public class WatermarkRemoveServiceImpl implements WatermarkRemoveService {
             String processedImageUrl = saveProcessedImage(processedImage, request);
             
             long processingTime = System.currentTimeMillis() - startTime;
-            log.info("去水印处理完成, 耗时: {}ms", processingTime);
             
             return WatermarkRemoveResponse.success(processedImageUrl, processingTime);
             
@@ -127,7 +125,6 @@ public class WatermarkRemoveServiceImpl implements WatermarkRemoveService {
         // 示例：可以集成豆包 Vision API 或其他去水印服务
         // 目前先返回原图作为占位
         
-        log.info("去水印功能未实现完整逻辑，返回原图");
         return imageData;
         
         /*

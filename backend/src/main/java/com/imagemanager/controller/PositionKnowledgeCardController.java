@@ -74,7 +74,6 @@ public class PositionKnowledgeCardController {
         String userId = resolveUserId(user);
         String company = resolveCompany(user);
         try {
-            log.info("创建知识卡片: userId={}, company={}, positionName={}", userId, company, card.getPositionName());
             PositionKnowledgeCard created = cardService.createCard(card, userId, company);
             return ResponseEntity.ok(Map.of("success", true, "card", created));
         } catch (IllegalArgumentException e) {
@@ -160,7 +159,6 @@ public class PositionKnowledgeCardController {
         String userId = resolveUserId(user);
         String company = resolveCompany(user);
         try {
-            log.info("删除知识卡片: id={}, userId={}, company={}", id, userId, company);
             cardService.deleteCard(id, company, userId);
             return ResponseEntity.ok(Map.of("success", true, "message", "删除成功"));
         } catch (IllegalArgumentException e) {

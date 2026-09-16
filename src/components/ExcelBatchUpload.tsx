@@ -198,7 +198,6 @@ export default function ExcelBatchUpload({
       // 保存Excel文件名（用于创建层级相册）
       setExcelFileName(file.name);
       excelFileNameRef.current = file.name; // 同步更新 ref
-      console.log('[ExcelUpload] 选择的文件:', file.name);
 
       // 读取Excel文件
       const data = await file.arrayBuffer();
@@ -209,7 +208,6 @@ export default function ExcelBatchUpload({
       // 使用 raw: false 保留格式，使用 header: 1 获取二维数组（保持列顺序）
       const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
       
-      console.log('[ExcelUpload] 解析Excel原始数据（前3行）:', rawData.slice(0, 3));
 
       // 提取列名
       const headers = rawData[0] as string[];
@@ -275,20 +273,9 @@ export default function ExcelBatchUpload({
         const extractedUrls = extractImageUrls(allText);
         detailImageUrls.push(...extractedUrls);
         
-        console.log(`[ExcelUpload] 从E列提取到 ${detailImageUrls.length} 个有效URL`);
         
         // category 已从 row[0] 正确获取，不再重复获取
         const description: string = ''; // 描述在Excel中没有对应列
-        
-        // 打印解析结果（只打印前3行）
-        if (rowIndex <= 3) {
-          console.log(`[ExcelUpload] 第${rowIndex}行解析结果:`, {
-            productName,
-            mainImageUrl: mainImageUrl ? mainImageUrl.substring(0, 50) + '...' : '无',
-            detailImageCount: detailImageUrls.length,
-            firstDetailUrl: detailImageUrls[0] ? detailImageUrls[0].substring(0, 50) + '...' : '无'
-          });
-        }
         
         // 过滤无效行
         if (productName && productName.trim() && (mainImageUrl || detailImageUrls.length > 0)) {
@@ -305,7 +292,6 @@ export default function ExcelBatchUpload({
         }
       }
 
-      console.log('[ExcelUpload] 有效数据行数:', rows.length);
 
       if (rows.length === 0) {
         addNotification({
@@ -368,10 +354,8 @@ export default function ExcelBatchUpload({
 
   // 轮询任务进度的函数
   const pollTaskProgress = async (taskId: string) => {
-    console.log('[ExcelUpload] 开始轮询任务进度, taskId:', taskId);
     
     const poll = async () => {
-      console.log('[ExcelUpload] 轮询任务进度...');
       try {
         const response = await fetch(`/api/images/batch-download/tasks/${taskId}`, {
           credentials: 'include',
@@ -565,16 +549,6 @@ export default function ExcelBatchUpload({
         return hasMainImage || hasDetailImages;
       });
 
-    console.log('[ExcelUpload] 准备下载的商品数量:', imagesToDownload.length);
-    const totalUrls = imagesToDownload.reduce((acc, item) => 
-      acc + 1 + (item.detailImageUrls?.length || 0), 0);
-    console.log('[ExcelUpload] 准备下载的图片总数:', totalUrls);
-    console.log('[ExcelUpload] 每行商品数据:', imagesToDownload.map(item => ({
-      productName: item.productName,
-      mainImage: item.mainImageUrl ? '有' : '无',
-      detailCount: item.detailImageUrls?.length || 0
-    })));
-
     if (imagesToDownload.length === 0) {
       addNotification({
         type: 'warning',
@@ -595,7 +569,6 @@ export default function ExcelBatchUpload({
     }
 
     try {
-      console.log('[ExcelUpload] 提交批量下载任务，数量:', imagesToDownload.length);
 
       // 分批处理配置：每批处理的商品数量
       const BATCH_SIZE = 100; // 每批100个商品
@@ -606,7 +579,6 @@ export default function ExcelBatchUpload({
         batches.push(imagesToDownload.slice(i, i + BATCH_SIZE));
       }
       
-      console.log(`[ExcelUpload] 数据已分为 ${batches.length} 批次处理`);
       
       // 显示后台下载提示
       const totalImages = imagesToDownload.reduce((acc, item) => 
@@ -622,7 +594,6 @@ export default function ExcelBatchUpload({
       let submittedCount = 0;
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        console.log(`[ExcelUpload] 提交第 ${i + 1}/${batches.length} 批次，商品数: ${batch.length}`);
         
         // 异步提交，不等待结果
         fetch('/api/images/batch-download/tasks', {
@@ -638,7 +609,6 @@ export default function ExcelBatchUpload({
         }).then(response => {
           if (response.ok) {
             submittedCount++;
-            console.log(`[ExcelUpload] 第 ${i + 1} 批次提交成功`);
           } else {
             console.error(`[ExcelUpload] 第 ${i + 1} 批次提交失败`);
           }

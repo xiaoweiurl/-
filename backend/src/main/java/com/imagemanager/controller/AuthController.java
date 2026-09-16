@@ -49,7 +49,6 @@ public class AuthController {
     public ApiResponse<LoginResponse> register(
             @RequestBody RegisterRequest request,
             HttpServletResponse response) {
-        log.info("收到注册请求: username={}, company={}", request.getUsername(), request.getCompany());
         
         try {
             LoginResponse loginResponse = authService.register(request);
@@ -60,7 +59,6 @@ public class AuthController {
             String username = loginResponse.getUser().getUsername();
             if (username != null && !username.isEmpty()) {
                 boolean tableCreated = imageTableService.ensureUserImageTable(username);
-                log.info("注册后用户图片表检查完成: username={}, tableCreated={}", username, tableCreated);
             }
             
             response.setHeader("X-Session-Id", sessionId);
@@ -80,7 +78,6 @@ public class AuthController {
     public ApiResponse<LoginResponse> login(
             @RequestBody LoginRequest request,
             HttpServletResponse response) {
-        log.info("收到登录请求: username={}, rememberMe={}", request.getUsername(), request.getRememberMe());
         
         try {
             LoginResponse loginResponse = authService.login(request);
@@ -99,7 +96,6 @@ public class AuthController {
             String username = loginResponse.getUser().getUsername();
             if (username != null && !username.isEmpty()) {
                 boolean tableCreated = imageTableService.ensureUserImageTable(username);
-                log.info("用户图片表检查完成: username={}, tableCreated={}", username, tableCreated);
             }
 
             // CORS 头由 SecurityConfig 的 CorsConfigurationSource 按白名单统一输出，此处不再硬编码
@@ -190,14 +186,12 @@ public class AuthController {
             return ApiResponse.error(401, "未登录");
         }
         
-        log.info("验证会话，sessionId: {}", sessionId.substring(0, Math.min(8, sessionId.length())));
         LoginResponse.UserInfo user = authService.validateSession(sessionId);
         if (user == null) {
             log.warn("验证会话失败：session 无效");
             return ApiResponse.error(401, "会话已过期");
         }
         
-        log.info("验证会话成功：{}", user.getUsername());
         return ApiResponse.success(user);
     }
     

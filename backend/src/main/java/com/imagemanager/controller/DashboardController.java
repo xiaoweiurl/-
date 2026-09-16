@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,7 +17,6 @@ import java.util.List;
  * @author Image Manager Team
  * @version 1.0.0
  */
-@Slf4j
 @RestController
 @RequestMapping("/dashboard")
 @RequiredArgsConstructor
@@ -35,7 +33,6 @@ public class DashboardController {
     public ApiResponse<DashboardStatsResponse> getDashboardStats(
             @Parameter(description = "统计周期：week(近7天)、month(近30天)、year(近一年)")
             @RequestParam(name = "period", defaultValue = "month") String period) {
-        log.info("[Dashboard] 获取仪表盘统计数据，周期: {}", period);
 
         // 验证周期参数
         if (!period.matches("^(week|month|year)$")) {
@@ -54,7 +51,6 @@ public class DashboardController {
     public ApiResponse<List<DashboardStatsResponse.HotResource>> getHotResources(
             @Parameter(description = "返回数量")
             @RequestParam(name = "limit", defaultValue = "10") int limit) {
-        log.info("[Dashboard] 获取热门资源，数量: {}", limit);
 
         if (limit <= 0 || limit > 50) {
             limit = 10;
@@ -72,7 +68,6 @@ public class DashboardController {
     public ApiResponse<List<DashboardStatsResponse.HotAlbum>> getHotAlbums(
             @Parameter(description = "返回数量")
             @RequestParam(name = "limit", defaultValue = "5") int limit) {
-        log.info("[Dashboard] 获取热门相册，数量: {}", limit);
 
         if (limit <= 0 || limit > 20) {
             limit = 5;
@@ -88,7 +83,6 @@ public class DashboardController {
     @GetMapping("/activity")
     @Operation(summary = "获取活跃度统计", description = "获取今日的活跃度统计数据")
     public ApiResponse<DashboardStatsResponse.ActivityStats> getActivityStats() {
-        log.info("[Dashboard] 获取活跃度统计");
 
         DashboardStatsResponse.ActivityStats activityStats = dashboardService.getActivityStats();
         return ApiResponse.success(activityStats);

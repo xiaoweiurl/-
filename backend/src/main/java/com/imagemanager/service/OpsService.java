@@ -92,8 +92,7 @@ public class OpsService {
                 h.put("avgResponseTime", Math.round(toDouble(row.get("avg_response_time"))));
                 hourlyRequests.add(h);
             }
-        } catch (Exception e) {
-            log.debug("[Ops] 趋势数据查询失败: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
         }
         result.put("hourlyRequests", hourlyRequests);
 
@@ -124,8 +123,7 @@ public class OpsService {
                 mapped.add(m);
             }
             endpoints = mapped;
-        } catch (Exception e) {
-            log.debug("[Ops] 端点排行查询失败: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
         }
         result.put("endpoints", endpoints);
 
@@ -194,8 +192,7 @@ public class OpsService {
             sysRes.put("memory", memory);
             sysRes.put("disk", disk);
             sysRes.put("network", network);
-        } catch (Exception e) {
-            log.debug("[Ops] 系统资源采集失败: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
             sysRes.put("cpu", Map.of("current", 0, "peak", 0, "cores", 0));
             sysRes.put("memory", Map.of("usedMb", 0, "totalMb", 0, "peakMb", 0, "percentage", 0));
             sysRes.put("disk", Map.of("usedGb", 0.0, "totalGb", 0.0, "percentage", 0));
@@ -313,8 +310,7 @@ public class OpsService {
                 svc.put("maxConnections", 100);
                 services.add(svc);
             }
-        } catch (Exception e) {
-            log.debug("[Ops] 服务性能查询失败: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
         }
         result.put("services", services);
 
@@ -326,8 +322,7 @@ public class OpsService {
                     (company != null ? " AND company = ?" : "") +
                     " ORDER BY response_time_ms DESC LIMIT 10";
             slowQueries = new ArrayList<>(jdbcTemplate.queryForList(slowSql, params));
-        } catch (Exception e) {
-            log.debug("[Ops] 慢查询查询失败: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
         }
         result.put("slowQueries", slowQueries);
 
@@ -392,8 +387,7 @@ public class OpsService {
 
             // Node.js 指标（本项目是 Java 后端，没有 Node.js 运行时，填 0）
             runtime.put("node", Map.of("rssMb", 0, "heapUsedMb", 0, "heapTotalMb", 0, "externalMb", 0, "arrayBuffersMb", 0));
-        } catch (Exception e) {
-            log.debug("[Ops] 运行时指标采集失败: {}", e.getMessage());
+        } catch (@SuppressWarnings("unused") Exception e) {
             runtime.put("jvm", Map.of("heapUsedMb", 0, "heapMaxMb", 0, "gcPauseMs", 0, "threadCount", 0, "peakThreadCount", 0));
             runtime.put("node", Map.of("rssMb", 0, "heapUsedMb", 0, "heapTotalMb", 0, "externalMb", 0, "arrayBuffersMb", 0));
             runtime.put("database", Map.of("activeConnections", 0, "maxConnections", 100, "waitingConnections", 0, "avgQueryMs", 0, "slowQueryCount", 0));

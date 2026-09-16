@@ -50,7 +50,6 @@ public class QueryEnhancer {
             log.warn("[QueryEnhancer] 生成变体查询失败，仅使用原始查询: {}", e.getMessage());
         }
 
-        log.info("[QueryEnhancer] 增强查询数量: {}, 原始: {}", queries.size(), originalQuery);
         return queries;
     }
 
@@ -101,7 +100,6 @@ public class QueryEnhancer {
 
         // 提取JSON数组
         List<String> variants = parseJsonArray(responseText);
-        log.info("[QueryEnhancer] 生成变体: {}", variants);
         return variants;
     }
 

@@ -60,13 +60,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isDev = process.env.COZE_PROJECT_ENV === 'DEV';
+  // Inspector / react-dev-inspector must never run when serving the built app
+  // (local and FRP both use next({ dev: false }) / NODE_ENV=production).
+  // NODE_ENV is inlined at `next build`, so the production graph cannot enable this.
+  const enableInspector =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.COZE_PROJECT_ENV === 'DEV';
 
   return (
     <html lang="zh-CN" style={{ colorScheme: 'dark' }}>
       <body className={`antialiased`}>
         <ClientProviders>
-          {isDev && <Inspector />}
+          {enableInspector && <Inspector />}
           {children}
           <FloatingAI />
         </ClientProviders>

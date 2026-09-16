@@ -194,7 +194,6 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                             return;
                         }
                     } catch (@SuppressWarnings("unused") Exception parseEx) {
-                        log.debug("解析Ollama流式数据行失败: {}", line.substring(0, Math.min(line.length(), 200)));
                     }
                 }
             }

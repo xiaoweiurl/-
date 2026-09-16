@@ -396,7 +396,6 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
     try {
       const sessionId = getSessionId();
       const fullUrl = getFullDocUrl(doc.url);
-      console.log('[DocumentManager] 下载文档，完整URL:', fullUrl);
       
       const response = await fetch(fullUrl, {
         headers: {
@@ -415,7 +414,6 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
       
       // 获取 Content-Type
       const contentType = response.headers.get('content-type') || '';
-      console.log('[DocumentManager] 响应Content-Type:', contentType);
       
       // 如果响应是 JSON（错误信息），直接抛出错误
       if (contentType.includes('application/json') || contentType.includes('text/plain')) {

@@ -132,17 +132,14 @@ public class ImageServiceImpl implements ImageService {
         // 1. 优先从 Session 获取用户名
         String username = SessionUtil.getCurrentUsername();
         if (username != null && !username.isEmpty()) {
-            log.debug("getCurrentUsernameForTable: 从 Session 获取用户名={}", username);
             return username;
         }
         // 2. fallback: 通过 userId 查数据库获取用户名
         String userId = SessionUtil.getCurrentUserId();
-        log.info("getCurrentUsernameForTable: Session 无用户名, 尝试通过 userId={} 查数据库", userId);
         if (userId != null && userService != null) {
             try {
                 User user = userService.getUserById(userId);
                 if (user != null && user.getUsername() != null) {
-                    log.info("getCurrentUsernameForTable: 从数据库获取用户名={}", user.getUsername());
                     return user.getUsername();
                 }
             } catch (@SuppressWarnings("unused") Exception e) {
@@ -162,7 +159,6 @@ public class ImageServiceImpl implements ImageService {
         String tableKey = getUsernameForTable(image);
         try {
             imageDynamicRepository.softDelete(image.getId(), tableKey);
-            log.debug("动态表软删除成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
             log.error("动态表软删除失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
         }
@@ -176,7 +172,6 @@ public class ImageServiceImpl implements ImageService {
         String tableKey = getUsernameForTable(image);
         try {
             imageDynamicRepository.hardDelete(image.getId(), tableKey);
-            log.debug("动态表硬删除成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
             log.error("动态表硬删除失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
         }
@@ -190,7 +185,6 @@ public class ImageServiceImpl implements ImageService {
         String tableKey = getUsernameForTable(image);
         try {
             imageDynamicRepository.restore(image.getId(), tableKey);
-            log.debug("动态表恢复成功, tableKey={}, imageId={}", tableKey, image.getId());
         } catch (Exception e) {
             log.error("动态表恢复失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
         }
@@ -198,7 +192,6 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     public PageResponse<Image> queryImages(ImageQueryRequest request) {
-        log.info("查询图片列表，参数：{}", request);
 
         // 获取当前用户ID（final，lambda 需要捕获）
         final String currentUserId = SessionUtil.getCurrentUserId();
@@ -215,7 +208,6 @@ public class ImageServiceImpl implements ImageService {
         if (request.getSource() == null || request.getSource().isEmpty()) {
             request.setSource("knowledge");
         }
-        log.info("数据隔离检查：currentUserId={}, currentUsername={}, company={}, source={}, onlyMine={}", currentUserId, currentUsername, request.getCompany(), request.getSource(), request.getOnlyMine());
 
         // 动态表查询模式
         if (currentUserId != null) {
@@ -228,10 +220,8 @@ public class ImageServiceImpl implements ImageService {
 
             // 我的知识库 - 查当前用户动态表
             if (request.getOnlyMine() != null && request.getOnlyMine()) {
-                log.info("查询【我的知识库】(动态表), userId={}, username={}", currentUserId, currentUsername);
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryMyImages(request, currentUsername);
-                    log.info("我的知识库查询结果: {} 张", result.getTotal());
                     refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
@@ -242,10 +232,8 @@ public class ImageServiceImpl implements ImageService {
 
             // 二创中心 - 查其他用户动态表 UNION ALL（不降级主表）
             if (request.getOtherUsers() != null && request.getOtherUsers()) {
-                log.info("查询【二创中心】(其他用户动态表), currentUserId={}, currentUsername={}", currentUserId, currentUsername);
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryOtherUsersImages(request, currentUsername);
-                    log.info("二创中心查询结果: {} 张", result.getTotal());
                     refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
@@ -256,10 +244,8 @@ public class ImageServiceImpl implements ImageService {
 
             // 收藏夹 - 查当前用户动态表（不降级主表）
             if (request.getFavorite() != null && request.getFavorite()) {
-                log.info("查询【收藏夹】(动态表), userId={}, username={}", currentUserId, currentUsername);
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryFavorites(request, currentUsername);
-                    log.info("收藏夹查询结果: {} 张", result.getTotal());
                     refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
@@ -270,10 +256,8 @@ public class ImageServiceImpl implements ImageService {
 
             // 回收站 - 查当前用户动态表（不降级主表）
             if (request.getDeleted() != null && request.getDeleted()) {
-                log.info("查询【回收站】(动态表), userId={}, username={}", currentUserId, currentUsername);
                 try {
                     PageResponse<Image> result = imageDynamicRepository.queryTrash(request, currentUsername);
-                    log.info("回收站查询结果: {} 张", result.getTotal());
                     refreshPageResponseUrls(result);
                     return result;
                 } catch (Exception e) {
@@ -284,17 +268,14 @@ public class ImageServiceImpl implements ImageService {
 
             // 相册查询 - 数据是共享的，走主表 JPA 查询
             if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
-                log.info("查询【相册图片】(主表共享数据), albumId={}", request.getAlbumId());
                 // fall through 到 JPA 主表查询
             }
 
             // 全部知识 - 查询主表（共享数据）
-            log.info("查询【全部知识】(主表), userId={}", currentUserId);
             // fall through 到 JPA 主表查询
         }
 
         // JPA 主表查询（全部知识 / 无用户ID降级）
-        log.info("使用 JPA 查询主表数据");
 
         // 构建排序
         String sortBy = request.getSortBy() != null ? request.getSortBy() : "createdAt";
@@ -313,8 +294,6 @@ public class ImageServiceImpl implements ImageService {
         long totalImages = imageRepository.count();
         long totalImagesWithProduct = imageRepository.countByProductIdIsNotNull();
         long totalMainImages = imageRepository.countByIsMainImageAndDeleted(true, false);
-        log.info("数据库状态：Product总数={}, Image总数={}, Image有Product关联={}, 主图数量={}",
-            totalProducts, totalImages, totalImagesWithProduct, totalMainImages);
 
         // 查询图片
         Page<Image> imagePage;
@@ -334,7 +313,6 @@ public class ImageServiceImpl implements ImageService {
 
         if (hasAdvancedFilters) {
             // 使用数据库分页查询（真正的数据库层面分页）
-            log.info("使用数据库分页查询，参数: {}", request);
             
             // 处理日期范围
             LocalDateTime startDate = null;
@@ -360,7 +338,6 @@ public class ImageServiceImpl implements ImageService {
             List<String> fileTypes = null;
             if (request.getFileType() != null && !request.getFileType().isEmpty()) {
                 fileTypes = Arrays.asList(request.getFileType().split(","));
-                log.info("文件类型筛选: {}", fileTypes);
             }
             
             // 处理相册ID（支持多个，兼容单个的情况）
@@ -384,7 +361,6 @@ public class ImageServiceImpl implements ImageService {
                     collectAllAlbumIds(albumId, albumIds);
                 }
                 
-                log.info("相册ID筛选（含所有子相册）: {}", albumIds);
             }
             
             // 使用 JPA Specification 进行动态条件查询
@@ -397,7 +373,6 @@ public class ImageServiceImpl implements ImageService {
             
             // 数据隔离：使用方法开头已声明的 currentUserId
             final Boolean finalOnlyMine = request.getOnlyMine();
-            log.info("数据隔离检查：currentUserId={}, onlyMine={}", currentUserId, finalOnlyMine);
             
             Specification<Image> spec = (root, query, cb) -> {
                 List<Predicate> predicates = new ArrayList<>();
@@ -479,8 +454,6 @@ public class ImageServiceImpl implements ImageService {
             // 执行分页查询
             imagePage = imageRepository.findAll(spec, pageable);
             
-            log.info("数据库分页查询完成: 第{}页, 每页{}条, 当前页{}条, 总计{}条", 
-                request.getPage(), request.getPageSize(), imagePage.getContent().size(), imagePage.getTotalElements());
         } else if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
             // 简单关键词搜索
             if (request.getAlbumId() != null) {
@@ -492,33 +465,18 @@ public class ImageServiceImpl implements ImageService {
         } else if (request.getAlbumId() != null) {
             // 相册查询：支持层级查询（递归获取所有子相册）
             String albumId = request.getAlbumId();
-            log.info("查询相册，albumId={}", albumId);
             
             // 递归获取所有子相册ID
             List<String> allAlbumIds = new ArrayList<>();
             allAlbumIds.add(albumId);  // 先添加当前相册
             collectAllAlbumIds(albumId, allAlbumIds);  // 递归收集子相册
-            log.info("层级查询：找到 {} 个相册（包含子相册）", allAlbumIds.size());
 
             // 如果 onlyMainImage 为 true，只查询主图
             if (request.getOnlyMainImage() != null && request.getOnlyMainImage()) {
-                log.info("只查询主图，albumIds={}", allAlbumIds);
                 imagePage = imageRepository.findByAlbumIdInAndIsMainImageAndDeleted(allAlbumIds, true, false, pageable);
-                log.info("查询到的主图数量：{}", imagePage.getContent().size());
             } else {
                 // 查询该相册的所有图片
-                log.info("查询所有图片（包括主图和详情图），albumIds={}", allAlbumIds);
                 imagePage = imageRepository.findByAlbumIdInAndDeleted(allAlbumIds, false, pageable);
-                log.info("查询到的图片数量：{}", imagePage.getContent().size());
-            }
-
-            // 打印Image的详细信息
-            if (!imagePage.getContent().isEmpty()) {
-                imagePage.getContent().subList(0, Math.min(3, imagePage.getContent().size())).forEach(img -> {
-                    log.info("Image详情: id={}, productId={}, isMainImage={}, deleted={}, albumId={}, albumName={}, url={}",
-                        img.getId(), img.getProductId(), img.getIsMainImage(), img.getDeleted(),
-                        img.getAlbumId(), img.getAlbumName(), img.getUrl());
-                });
             }
         } else if (request.getFavorite() != null && request.getFavorite()) {
             imagePage = imageRepository.findByFavoriteTrueAndDeletedFalseAndIsMainImageTrue(pageable);
@@ -528,8 +486,6 @@ public class ImageServiceImpl implements ImageService {
             imagePage = imageRepository.findByDeletedFalseAndIsMainImageTrue(pageable);
         }
         
-        log.info("查询完成，返回 {} 条记录，总计 {} 条", 
-            imagePage.getContent().size(), imagePage.getTotalElements());
         
         // 刷新签名URL（防止过期导致403）
         refreshImagePresignedUrls(imagePage.getContent());
@@ -559,7 +515,6 @@ public class ImageServiceImpl implements ImageService {
                 } else if (isExpiredPresignedUrl(image.getUrl()) && isValidExternalUrl(image.getOriginalUrl())) {
                     // 签名URL过期且无法重新生成时，降级使用originalUrl（外部CDN链接）
                     image.setUrl(image.getOriginalUrl());
-                    log.debug("图片URL降级使用originalUrl: id={}, originalUrl={}", image.getId(), image.getOriginalUrl());
                 }
                 // 刷新缩略图URL
                 String refreshedThumb = refreshSingleUrl(image.getThumbnailUrl(), image.getFileKey(), image.getFilePath());
@@ -569,7 +524,6 @@ public class ImageServiceImpl implements ImageService {
                     image.setThumbnailUrl(image.getOriginalUrl());
                 }
             }
-            log.debug("已刷新 {} 张图片的签名URL", images.size());
         } catch (Exception e) {
             log.warn("刷新签名URL失败，使用原始URL: {}", e.getMessage());
         }
@@ -636,8 +590,7 @@ public class ImageServiceImpl implements ImageService {
                 if (newUrl != null && !newUrl.isEmpty()) {
                     return newUrl;
                 }
-            } catch (Exception e) {
-                log.debug("重新生成签名URL失败，key={}: {}", key, e.getMessage());
+            } catch (@SuppressWarnings("unused") Exception e) {
             }
         }
         
@@ -646,7 +599,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public Image getImageById(String id) {
-        log.info("获取图片详情，ID：{}", id);
         Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         // 刷新签名URL
@@ -656,7 +608,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public Image uploadImage(MultipartFile file, String title, String albumId, List<String> tags) {
-        log.info("上传图片：{}", file.getOriginalFilename());
         
         try {
             String originalFilename = file.getOriginalFilename();
@@ -681,14 +632,12 @@ public class ImageServiceImpl implements ImageService {
             if (finalAlbumId == null && originalFilename != null) {
                 String pathFromFilename = parseHierarchyFromFilename(originalFilename);
                 if (pathFromFilename != null) {
-                    log.info("从文件名中解析出层级路径: {}", pathFromFilename);
                     try {
                         Album hierarchyAlbum = albumService.getOrCreateAlbumByPath(pathFromFilename);
                         if (hierarchyAlbum != null) {
                             finalAlbumId = hierarchyAlbum.getId();
                             finalAlbumName = hierarchyAlbum.getFullName();
                             classifyMethod = "filename-hierarchy";
-                            log.info("根据文件名自动创建/获取层级相册: ID={}, 名称={}", finalAlbumId, finalAlbumName);
                         }
                     } catch (Exception e) {
                         log.warn("根据文件名创建层级相册失败: {}", e.getMessage());
@@ -709,13 +658,11 @@ public class ImageServiceImpl implements ImageService {
                         finalAlbumName = result.getAlbumName();
                     } else if (albumId == null && result.shouldCreateNewAlbum()) {
                         // 如果没有匹配到相册，尝试根据名称匹配已有相册
-                        log.info("尝试根据名称匹配已有相册: {}", result.getSuggestedAlbumName());
                         Album matchedAlbum = findOrMatchAlbum(result.getSuggestedAlbumName());
                         if (matchedAlbum != null) {
                             finalAlbumId = matchedAlbum.getId();
                             finalAlbumName = matchedAlbum.getName();
                             classifyMethod = "auto-matched";
-                            log.info("成功匹配到已有相册: ID={}, 名称={}", finalAlbumId, finalAlbumName);
                         } else {
                             log.warn("未找到匹配的相册，跳过相册分配: {}", result.getSuggestedAlbumName());
                             // 不创建新相册，也不分配相册
@@ -745,7 +692,6 @@ public class ImageServiceImpl implements ImageService {
             if (currentUsername == null) {
                 currentUsername = currentUserId;
             }
-            log.info("上传图片，用户ID：{}, 用户名：{}", currentUserId, currentUsername);
             
             // 创建图片记录
             Image image = Image.builder()
@@ -787,7 +733,6 @@ public class ImageServiceImpl implements ImageService {
             try {
                 imageTableService.ensureUserImageTable(currentUsername);
                 imageDynamicRepository.save(image, currentUsername);
-                log.info("图片已保存到用户动态表: username={}", currentUsername);
             } catch (Exception e) {
                 log.error("保存到用户动态表失败: userId={}, username={}, error={}", 
                     currentUserId, currentUsername, e.getMessage(), e);
@@ -798,7 +743,6 @@ public class ImageServiceImpl implements ImageService {
                 updateAlbumImageCount(finalAlbumId);
             }
             
-            log.info("图片上传成功，自动分类: {}", albumName);
             
             return image;
         } catch (Exception e) {
@@ -809,7 +753,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public Image updateImage(String id, String title, String albumId, List<String> tags, String description) {
-        log.info("更新图片信息，ID：{}", id);
         
         Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
@@ -845,7 +788,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public void deleteImage(String id) {
-        log.info("删除图片，ID：{}", id);
         
         Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
@@ -860,7 +802,6 @@ public class ImageServiceImpl implements ImageService {
                 // 软删除动态表中的关联详情图
                 deleteFromDynamicTable(relatedImage);
             }
-            log.info("同时删除了 {} 张关联的详情图", relatedImages.size());
         }
         
         image.setDeleted(true);
@@ -883,19 +824,16 @@ public class ImageServiceImpl implements ImageService {
             int currentViews = image.getViewCount() != null ? image.getViewCount() : 0;
             image.setViewCount(currentViews + 1);
             imageRepository.save(image);
-            log.info("图片 {} 预览次数 +1，当前: {}", id, image.getViewCount());
         }
     }
     
     @Override
     public void batchDelete(List<String> ids) {
-        log.info("批量删除图片，数量：{}", ids.size());
         ids.forEach(id -> deleteImage(id));
     }
     
     @Override
     public int permanentDelete(String id) {
-        log.info("永久删除图片，ID：{}", id);
         
         int deletedCount = 0;
         
@@ -911,9 +849,7 @@ public class ImageServiceImpl implements ImageService {
                     hardDeleteFromDynamicTable(relatedImage);
                     imageRepository.delete(Objects.requireNonNull(relatedImage));
                     deletedCount++;
-                    log.debug("永久删除详情图：{}", relatedImage.getId());
                 }
-                log.info("同时永久删除了 {} 张关联的详情图", relatedImages.size());
             }
             
             // 从存储中删除文件
@@ -931,13 +867,11 @@ public class ImageServiceImpl implements ImageService {
             deletedCount++; // 加上主图本身
         }
         
-        log.info("永久删除完成，共删除 {} 张图片", deletedCount);
         return deletedCount;
     }
     
     @Override
     public int restoreImage(String id) {
-        log.info("恢复图片，ID：{}", id);
         
         int restoredCount = 0;
         
@@ -954,9 +888,7 @@ public class ImageServiceImpl implements ImageService {
                 // 恢复动态表中的数据
                 restoreInDynamicTable(relatedImage);
                 restoredCount++;
-                log.debug("恢复详情图：{}", relatedImage.getId());
             }
-            log.info("同时恢复了 {} 张关联的详情图", relatedImages.size());
         }
         
         // 恢复主图本身
@@ -972,13 +904,11 @@ public class ImageServiceImpl implements ImageService {
             updateAlbumImageCount(image.getAlbumId());
         }
         
-        log.info("恢复完成，共恢复 {} 张图片", restoredCount);
         return restoredCount;
     }
     
     @Override
     public int batchRestore(List<String> ids) {
-        log.info("批量恢复图片，数量：{}", ids.size());
         
         int totalRestored = 0;
         Set<String> affectedAlbumIds = new HashSet<>();
@@ -998,13 +928,11 @@ public class ImageServiceImpl implements ImageService {
             updateAlbumImageCount(albumId);
         }
         
-        log.info("批量恢复完成，共恢复 {} 张图片", totalRestored);
         return totalRestored;
     }
     
     @Override
     public Image toggleFavorite(String id) {
-        log.info("切换收藏状态，ID：{}", id);
         
         Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
@@ -1019,7 +947,6 @@ public class ImageServiceImpl implements ImageService {
             try {
                 String tableKey = getUsernameForTable(image);
                 imageDynamicRepository.toggleFavorite(image.getId(), tableKey);
-                log.debug("动态表收藏状态同步成功, imageId={}, tableKey={}", image.getId(), tableKey);
             } catch (Exception e) {
                 log.error("动态表收藏状态同步失败: imageId={}, error={}", image.getId(), e.getMessage(), e);
             }
@@ -1030,7 +957,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public Image setMainImage(String id) {
-        log.info("设为主图，ID：{}", id);
         
         // 获取当前图片
         Image newMainImage = imageRepository.findById(Objects.requireNonNull(id))
@@ -1038,7 +964,6 @@ public class ImageServiceImpl implements ImageService {
         
         // 如果已经是主图，直接返回
         if (Boolean.TRUE.equals(newMainImage.getIsMainImage())) {
-            log.info("图片 {} 已经是主图", id);
             return newMainImage;
         }
         
@@ -1055,7 +980,6 @@ public class ImageServiceImpl implements ImageService {
                     img.setDisplayOrder(1); // 设为第一张详情图
                     img.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                     imageRepository.save(img);
-                    log.info("原主图 {} 已变为详情图", img.getId());
                 }
             }
         } else if (albumId != null) {
@@ -1067,7 +991,6 @@ public class ImageServiceImpl implements ImageService {
                     img.setDisplayOrder(1);
                     img.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                     imageRepository.save(img);
-                    log.info("原主图 {} 已变为详情图", img.getId());
                 }
             }
         }
@@ -1082,11 +1005,9 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public int batchSetFirstDetailAsMainImage() {
-        log.info("========== 批量设置第一张详情图为主图 ==========");
         
         // 查找所有 displayOrder=1 且 isMainImage=false 的详情图
         List<Image> firstDetailImages = imageRepository.findByDisplayOrderAndIsMainImageAndDeleted(1, false, false);
-        log.info("找到 {} 张顺序为1的详情图", firstDetailImages.size());
         
         int successCount = 0;
         int skipCount = 0;
@@ -1114,7 +1035,6 @@ public class ImageServiceImpl implements ImageService {
                 oldMainImage.setDisplayOrder(findNextDisplayOrder(productImages, detailImage.getId()));
                 oldMainImage.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(oldMainImage);
-                log.info("原主图 {} 已变为详情图", oldMainImage.getId());
             }
             
             // 将当前详情图设为主图
@@ -1124,21 +1044,16 @@ public class ImageServiceImpl implements ImageService {
             imageRepository.save(detailImage);
             
             successCount++;
-            log.info("详情图 {} 已设为商品 {} 的主图", detailImage.getId(), productId);
         }
         
-        log.info("========== 批量设置完成：成功 {}，跳过 {} ==========", successCount, skipCount);
         return successCount;
     }
     
     @Override
     public Map<String, Object> batchReplaceMainImage(Integer displayOrder) {
-        log.info("========== 批量替换主图 ==========");
-        log.info("查找 displayOrder={} 的详情图", displayOrder);
         
         // 查找所有指定 displayOrder 且 isMainImage=false 的详情图
         List<Image> detailImages = imageRepository.findByDisplayOrderAndIsMainImageAndDeleted(displayOrder, false, false);
-        log.info("找到 {} 张顺序为{}的详情图", detailImages.size(), displayOrder);
         
         int successCount = 0;
         int skipCount = 0;
@@ -1148,7 +1063,6 @@ public class ImageServiceImpl implements ImageService {
             String productId = detailImage.getProductId();
             if (productId == null) {
                 skipCount++;
-                log.info("跳过：图片 {} 没有 productId", detailImage.getId());
                 continue;
             }
             
@@ -1169,7 +1083,6 @@ public class ImageServiceImpl implements ImageService {
                     oldMainImage.setDisplayOrder(findNextDisplayOrder(productImages, detailImage.getId()));
                     oldMainImage.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                     imageRepository.save(oldMainImage);
-                    log.info("原主图 {} 已变为详情图", oldMainImage.getId());
                 }
                 
                 // 将当前详情图设为主图
@@ -1179,14 +1092,12 @@ public class ImageServiceImpl implements ImageService {
                 imageRepository.save(detailImage);
                 
                 successCount++;
-                log.info("详情图 {} 已设为商品 {} 的主图", detailImage.getId(), productId);
             } catch (Exception e) {
                 errorCount++;
                 log.error("处理图片 {} 时出错：{}", detailImage.getId(), e.getMessage());
             }
         }
         
-        log.info("========== 批量替换完成：成功 {}，跳过 {}，失败 {} ==========", successCount, skipCount, errorCount);
         
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
@@ -1199,7 +1110,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public Map<String, Object> batchReplaceMainImageByImageIds(List<String> imageIds) {
-        log.info("========== 根据图片ID批量替换主图 ==========");
 
         if (imageIds == null || imageIds.isEmpty()) {
             Map<String, Object> result = new HashMap<>();
@@ -1211,7 +1121,6 @@ public class ImageServiceImpl implements ImageService {
             return result;
         }
 
-        log.info("选中的图片数量: {}", imageIds.size());
         
         int successCount = 0;
         int skipCount = 0;
@@ -1224,7 +1133,6 @@ public class ImageServiceImpl implements ImageService {
                 Optional<Image> newMainImageOpt = imageRepository.findById(Objects.requireNonNull(newMainImageId));
                 if (!newMainImageOpt.isPresent()) {
                     skipCount++;
-                    log.info("图片 {} 不存在，跳过", newMainImageId);
                     continue;
                 }
                 
@@ -1233,14 +1141,12 @@ public class ImageServiceImpl implements ImageService {
                 // 如果已经是主图，跳过
                 if (Boolean.TRUE.equals(newMainImage.getIsMainImage())) {
                     skipCount++;
-                    log.info("图片 {} 已经是主图，跳过", newMainImageId);
                     continue;
                 }
                 
                 String productId = newMainImage.getProductId();
                 if (productId == null || productId.isEmpty()) {
                     skipCount++;
-                    log.info("图片 {} 没有关联商品，跳过", newMainImageId);
                     continue;
                 }
                 
@@ -1265,7 +1171,6 @@ public class ImageServiceImpl implements ImageService {
                     oldMainImage.setDisplayOrder(originalDisplayOrder);  // 继承新主图原本的顺序
                     oldMainImage.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                     imageRepository.save(oldMainImage);
-                    log.info("原主图 {} 已变为详情图，顺序={}", oldMainImage.getId(), originalDisplayOrder);
                 }
                 
                 // 将选中的详情图设为主图
@@ -1275,7 +1180,6 @@ public class ImageServiceImpl implements ImageService {
                 imageRepository.save(newMainImage);
                 
                 successCount++;
-                log.info("商品 {} 的详情图 {} 已设为主图", productId, newMainImageId);
                 
             } catch (Exception e) {
                 errorCount++;
@@ -1283,7 +1187,6 @@ public class ImageServiceImpl implements ImageService {
             }
         }
         
-        log.info("========== 批量替换完成：成功 {}，跳过 {}，失败 {} ==========", successCount, skipCount, errorCount);
         
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
@@ -1332,7 +1235,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public void batchFavorite(List<String> ids) {
-        log.info("批量收藏图片，数量：{}", ids.size());
         ids.forEach(id -> {
             imageRepository.findById(Objects.requireNonNull(id)).ifPresent(image -> {
                 image.setFavorite(true);
@@ -1344,7 +1246,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public void moveToAlbum(List<String> ids, String albumId) {
-        log.info("移动图片到相册，数量：{}，相册ID：{}", ids.size(), albumId);
         
         // 获取相册名称
         String albumName = albumRepository.findById(Objects.requireNonNull(albumId))
@@ -1368,7 +1269,6 @@ public class ImageServiceImpl implements ImageService {
                         relatedImage.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                         imageRepository.save(relatedImage);
                     }
-                    log.info("同时移动了 {} 张关联的详情图", relatedImages.size());
                 }
                 
                 // 更新旧相册图片数量
@@ -1384,7 +1284,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public PageResponse<Image> getFavorites(Integer page, Integer pageSize) {
-        log.info("获取收藏图片列表（只返回主图）");
         
         // 尝试使用动态表查询
         String currentUserId = SessionUtil.getCurrentUserId();
@@ -1423,7 +1322,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public PageResponse<Image> getTrash(Integer page, Integer pageSize, String keyword) {
-        log.info("获取回收站图片列表, keyword={}", keyword);
         
         // 尝试使用动态表查询
         String currentUserId = SessionUtil.getCurrentUserId();
@@ -1467,7 +1365,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public PageResponse<Image> getRecent(Integer page, Integer pageSize, String keyword) {
-        log.info("获取最近上传图片列表, keyword={}", keyword);
         
         // 尝试使用动态表查询
         String currentUserId = SessionUtil.getCurrentUserId();
@@ -1514,7 +1411,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public long getTrashCount() {
-        log.info("获取回收站图片数量");
         // 优先从动态表查询
         String currentUserId = SessionUtil.getCurrentUserId();
         if (currentUserId != null) {
@@ -1531,7 +1427,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public int clearTrash() {
-        log.info("清空回收站");
         int totalDeleted = 0;
         
         // 获取所有回收站中的主图
@@ -1548,7 +1443,6 @@ public class ImageServiceImpl implements ImageService {
                     hardDeleteFromDynamicTable(relatedImage);
                     imageRepository.delete(Objects.requireNonNull(relatedImage));
                     totalDeleted++;
-                    log.debug("清空回收站 - 永久删除详情图：{}", relatedImage.getId());
                 }
             }
             
@@ -1566,7 +1460,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public List<Image> batchUploadImages(List<MultipartFile> files) {
-        log.info("批量上传图片，数量：{}", files.size());
         
         List<Image> uploadedImages = new ArrayList<>();
         List<Album> albums = albumService.getAllAlbums();
@@ -1670,8 +1563,6 @@ public class ImageServiceImpl implements ImageService {
             
             image = imageRepository.save(image);
             
-            log.info("图片上传成功: {}, 分类: {}, 方法: {}", 
-                    originalFilename, albumName, classifyMethod);
             
             return image;
             
@@ -1691,7 +1582,6 @@ public class ImageServiceImpl implements ImageService {
             album.setImageCount((int) count);
             album.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
             albumRepository.save(album);
-            log.debug("更新相册图片数量: albumId={}, count={} (主图数量)", albumId, count);
         });
     }
 
@@ -1707,12 +1597,10 @@ public class ImageServiceImpl implements ImageService {
             return null;
         }
 
-        log.info("尝试匹配已有相册: {}", albumName);
 
         // 1. 精确匹配相册名称
         Album exactMatch = albumRepository.findByName(albumName).orElse(null);
         if (exactMatch != null) {
-            log.info("精确匹配到相册: ID={}, 名称={}", exactMatch.getId(), exactMatch.getName());
             return exactMatch;
         }
 
@@ -1720,12 +1608,10 @@ public class ImageServiceImpl implements ImageService {
         List<Album> allAlbums = albumRepository.findAll();
         for (Album album : allAlbums) {
             if (album.getName() != null && album.getName().contains(albumName)) {
-                log.info("模糊匹配到相册: ID={}, 原名称={}, 匹配名称={}", album.getId(), album.getName(), albumName);
                 return album;
             }
             // 检查相册名称是否被关键词包含
             if (albumName.contains(album.getName())) {
-                log.info("反向模糊匹配到相册: ID={}, 原名称={}, 匹配名称={}", album.getId(), album.getName(), albumName);
                 return album;
             }
         }
@@ -1769,7 +1655,6 @@ public class ImageServiceImpl implements ImageService {
         // 尝试检测并转换 GB2312/GBK/GB18030 编码的中文字符
         String convertedFilename = CharsetUtil.convertToUtf8(filename);
         if (!convertedFilename.equals(filename)) {
-            log.info("文件名编码转换: {} -> {}", filename, convertedFilename);
             filename = convertedFilename;
         }
         
@@ -1798,7 +1683,6 @@ public class ImageServiceImpl implements ImageService {
                 
                 // 构建两级路径
                 String path = brand + "/" + category;
-                log.info("从文件名中解析出层级路径（两级）: {}", path);
                 return path;
             }
         }
@@ -1881,7 +1765,6 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public List<BatchDownloadResponse> batchDownloadImages(
             BatchDownloadRequest request) {
-        log.info("批量下载网络图片，数量：{}", request.getImages().size());
         
         // 相册缓存：避免同一批次中重复查询/创建相册
         // key = "path:{path}" 或 "parentId_name:{parentId}_{name}"
@@ -1909,7 +1792,6 @@ public class ImageServiceImpl implements ImageService {
                 List<Image> existingImages = imageRepository.findByProductIdAndDeleted(existingProduct.get().getId(), false);
                 if (!existingImages.isEmpty()) {
                     // 商品存在且有有效图片，跳过导入
-                    log.info("商品 [{}] 已存在且有有效图片，跳过导入", item.getProductName());
                     BatchDownloadResponse skipResponse = new BatchDownloadResponse();
                     skipResponse.setSuccess(false);
                     skipResponse.setSkipped(true);
@@ -1935,7 +1817,6 @@ public class ImageServiceImpl implements ImageService {
                     continue;
                 }
                 // 商品存在但所有图片都已删除（包括永久删除的），复用该商品记录重新导入图片
-                log.info("商品 [{}] 已存在但图片已全部删除，将重新导入图片", item.getProductName());
             }
 
             // 生成商品ID（用于关联主图和详情图）
@@ -1964,7 +1845,6 @@ public class ImageServiceImpl implements ImageService {
                 // 处理 URL 编码
                 tempName = CharsetUtil.convertToUtf8(tempName);
                 cleanParentName = tempName;
-                log.info("Excel导入 - 父相册名称处理: 原始='{}', 清理后='{}'", parentAlbumName, cleanParentName);
             }
 
             // 构建层级相册：父相册=品牌名，子相册=类别层级
@@ -1980,8 +1860,6 @@ public class ImageServiceImpl implements ImageService {
                 // 尝试解析 URL 编码的中文字符
                 String decodedCategory = category != null ? CharsetUtil.convertToUtf8(category.trim()) : null;
                 String decodedSubCategory = subCategory != null ? CharsetUtil.convertToUtf8(subCategory.trim()) : null;
-                log.info("Excel导入 - 原始分类: '{}', 解码后: '{}'", category, decodedCategory);
-                log.info("Excel导入 - 原始子分类: '{}', 解码后: '{}'", subCategory, decodedSubCategory);
 
                 try {
                     String brandName = cleanParentName != null ? cleanParentName : "";
@@ -1997,7 +1875,6 @@ public class ImageServiceImpl implements ImageService {
                         if (brandAlbum == null) {
                             brandAlbum = albumService.getOrCreateAlbumByPath(brandName);
                             albumCache.put(brandCacheKey, brandAlbum);
-                            log.info("Excel导入 - 获取/创建品牌相册: {}", brandName);
                         }
                         String currentParentId = brandAlbum.getId();
 
@@ -2021,10 +1898,8 @@ public class ImageServiceImpl implements ImageService {
                                             currentParentId, decodedCategory, SessionUtil.requireCurrentUserId());
                                     albumCache.put(catCacheKey, targetAlbum);
                                 }
-                                log.info("Excel导入 - 三级相册: {} > {} > {}", brandName, decodedSubCategory, decodedCategory);
                             } else {
                                 targetAlbum = subCatAlbum;
-                                log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedSubCategory);
                             }
                         } else if (decodedCategory != null && !decodedCategory.isEmpty()) {
                             // 第2层：只有分类，挂在品牌下 - 带缓存
@@ -2035,11 +1910,9 @@ public class ImageServiceImpl implements ImageService {
                                         currentParentId, decodedCategory, SessionUtil.requireCurrentUserId());
                                 albumCache.put(catCacheKey, targetAlbum);
                             }
-                            log.info("Excel导入 - 两级相册: {} > {}", brandName, decodedCategory);
                         } else {
                             // 只有品牌名，无分类
                             targetAlbum = brandAlbum;
-                            log.info("Excel导入 - 品牌根相册: {}", brandName);
                         }
                     } else {
                         // 无品牌名，只有分类
@@ -2078,7 +1951,6 @@ public class ImageServiceImpl implements ImageService {
                         albumId = targetAlbum.getId();
                         albumName = targetAlbum.getFullName() != null ? targetAlbum.getFullName() : targetAlbum.getName();
                         // 不要每次都刷新整个相册列表，只在最后刷新一次
-                        log.info("Excel导入 - 获取/创建相册成功: ID={}, 名称={}", albumId, albumName);
                     }
                 } catch (Exception e) {
                     log.error("Excel导入 - 获取/创建相册失败: {}", e.getMessage(), e);
@@ -2093,7 +1965,6 @@ public class ImageServiceImpl implements ImageService {
                         albumId = parentAlbum.getId();
                         albumName = parentAlbum.getFullName() != null ? parentAlbum.getFullName() : parentAlbum.getName();
                         albums = albumService.getAllAlbums();
-                        log.info("Excel导入 - 创建/获取品牌根相册: ID={}, 名称={}", albumId, albumName);
                     }
                 } catch (Exception e) {
                     log.warn("Excel导入 - 创建品牌根相册失败: {}", e.getMessage());
@@ -2115,7 +1986,6 @@ public class ImageServiceImpl implements ImageService {
                 product.setUserId(SessionUtil.requireCurrentUserId());
                 product.setImageCount(0);
                 product = productRepository.save(product);
-                log.info("创建商品记录: ID={}, 名称={}, 分类={}", productId, productName, item.getCategory());
             } else {
                 // 商品存在但图片已删除，更新分类等信息
                 product.setDescription(item.getDescription() != null ? CharsetUtil.convertToUtf8(item.getDescription()) : null);
@@ -2123,7 +1993,6 @@ public class ImageServiceImpl implements ImageService {
                 product.setAlbumId(albumId);
                 product.setImageCount(0);
                 product = productRepository.save(product);
-                log.info("复用商品记录重新导入图片: ID={}, 名称={}", product.getId(), productName);
             }
 
             // 合并所有需要下载的URL（主图 + 详情图），并去重
@@ -2197,7 +2066,6 @@ public class ImageServiceImpl implements ImageService {
             // 下载所有图片
             for (int i = 0; i < allUrls.size(); i++) {
                 String imageUrl = allUrls.get(i);
-                log.info("开始下载图片 {}/{}: {}", i + 1, totalImages, imageUrl);
                 BatchDownloadResponse response = new BatchDownloadResponse();
                 response.setOriginalUrl(imageUrl);
                 
@@ -2221,7 +2089,6 @@ public class ImageServiceImpl implements ImageService {
                     if (urlFileName != null && !urlFileName.isEmpty()) {
                         isDuplicate = imageRepository.existsByOriginalUrlAndTitleAndDeletedFalse(imageUrl, urlFileName);
                         if (isDuplicate) {
-                            log.info("图片已存在于数据库（URL+文件名匹配），跳过: {}, 文件名: {}", imageUrl, urlFileName);
                             response.setSuccess(true);
                             response.setSkipped(true);
                             response.setError("图片已存在（URL+文件名匹配），跳过");
@@ -2231,7 +2098,6 @@ public class ImageServiceImpl implements ImageService {
                     if (!isDuplicate && (urlFileName == null || urlFileName.isEmpty())) {
                         isDuplicate = imageRepository.existsByOriginalUrlAndDeletedFalse(imageUrl);
                         if (isDuplicate) {
-                            log.info("图片URL已存在于数据库，跳过: {}", imageUrl);
                             response.setSuccess(true);
                             response.setSkipped(true);
                             response.setError("图片已存在于数据库，跳过");
@@ -2265,13 +2131,11 @@ public class ImageServiceImpl implements ImageService {
 
                     // 从响应头获取Content-Type
                     String contentType = connection.getContentType();
-                    log.debug("从响应头获取的Content-Type: {}", contentType);
 
                     if (contentType == null || contentType.isEmpty()) {
                         // 如果响应头中没有Content-Type，从URL推断
                         String extension = getFileExtensionFromUrl(imageUrl);
                         contentType = getContentType(extension);
-                        log.debug("从URL推断的Content-Type: {}", contentType);
                     } else {
                         // 清理Content-Type（移除可能的参数，如charset）
                         if (contentType.contains(";")) {
@@ -2283,8 +2147,6 @@ public class ImageServiceImpl implements ImageService {
                     try (InputStream inputStream = connection.getInputStream()) {
                         byte[] imageData = inputStream.readAllBytes();
 
-                        log.info("下载图片成功: {}, 大小: {} bytes, Content-Type: {}",
-                            imageUrl, imageData.length, contentType);
 
                         // 验证下载的数据是否为有效的图片
                         if (imageData.length == 0) {
@@ -2324,10 +2186,6 @@ public class ImageServiceImpl implements ImageService {
                                     BufferedImage enhancedImage = imageEnhancementService.enhance(originalImage, enableSuperResolution);
                                     if (enhancedImage != null) {
                                         imageData = imageEnhancementService.toByteArray(enhancedImage, "jpg");
-                                        log.info("图片增强完成, 原尺寸: {}x{}, 新尺寸: {}x{}, 大小: {} bytes",
-                                                originalImage.getWidth(), originalImage.getHeight(),
-                                                enhancedImage.getWidth(), enhancedImage.getHeight(),
-                                                imageData.length);
                                     }
                                 }
                             } catch (Exception e) {
@@ -2358,8 +2216,6 @@ public class ImageServiceImpl implements ImageService {
                             }
                             image = imageRepository.save(image);
                             
-                            log.info("保存图片成功: id={}, title={}, productId={}, isMainImage={}", 
-                                image.getId(), image.getTitle(), image.getProductId(), image.getIsMainImage());
 
                             successCount++;
                             response.setSuccess(true);
@@ -2391,16 +2247,12 @@ public class ImageServiceImpl implements ImageService {
                 product.setCoverImageId(mainImageId); // 直接使用记录的主图ID
 
                 product = productRepository.save(product);
-                log.info("更新商品记录: ID={}, 图片数量={}, 封面图ID={}",
-                    productId, product.getImageCount(), product.getCoverImageId());
             } else {
                 // 如果没有下载成功任何图片，删除商品记录
                 productRepository.delete(product);
                 log.warn("删除无效商品记录: ID={}, 原因: 没有下载成功任何图片", productId);
             }
 
-            log.info("商品 {} 下载完成：成功 {}/{}，跳过 {}", 
-                item.getProductName(), successCount, totalImages, skippedCount);
         }
         
         // 更新受影响的相册图片数量
@@ -2477,14 +2329,12 @@ public class ImageServiceImpl implements ImageService {
             if (finalAlbumId == null && originalFilename != null) {
                 String pathFromFilename = parseHierarchyFromFilename(originalFilename);
                 if (pathFromFilename != null) {
-                    log.info("批量上传 - 从文件名中解析出层级路径: {}", pathFromFilename);
                     try {
                         Album hierarchyAlbum = albumService.getOrCreateAlbumByPath(pathFromFilename);
                         if (hierarchyAlbum != null) {
                             finalAlbumId = hierarchyAlbum.getId();
                             finalAlbumName = hierarchyAlbum.getFullName();
                             classifyMethod = "filename-hierarchy";
-                            log.info("批量上传 - 根据文件名自动创建/获取层级相册: ID={}, 名称={}", finalAlbumId, finalAlbumName);
                         }
                     } catch (Exception e) {
                         log.warn("批量上传 - 根据文件名创建层级相册失败: {}", e.getMessage());
@@ -2504,13 +2354,11 @@ public class ImageServiceImpl implements ImageService {
                         finalAlbumName = result.getAlbumName();
                     } else if (albumId == null && result.shouldCreateNewAlbum()) {
                         // 如果没有匹配到相册，尝试根据名称匹配已有相册
-                        log.info("批量上传 - 尝试根据名称匹配已有相册: {}", result.getSuggestedAlbumName());
                         Album matchedAlbum = findOrMatchAlbum(result.getSuggestedAlbumName());
                         if (matchedAlbum != null) {
                             finalAlbumId = matchedAlbum.getId();
                             finalAlbumName = matchedAlbum.getName();
                             classifyMethod = "auto-matched";
-                            log.info("批量上传 - 成功匹配到已有相册: ID={}, 名称={}", finalAlbumId, finalAlbumName);
                         } else {
                             log.warn("批量上传 - 未找到匹配的相册，跳过相册分配: {}", result.getSuggestedAlbumName());
                             // 不创建新相册，也不分配相册
@@ -2573,7 +2421,6 @@ public class ImageServiceImpl implements ImageService {
                 updateAlbumImageCount(finalAlbumId);
             }
             
-            log.info("图片上传成功，自动分类: {}", albumName);
             
             return image;
         } catch (Exception e) {
@@ -2696,7 +2543,6 @@ public class ImageServiceImpl implements ImageService {
         // 如果文件大小足够大（>10KB），也认为是有效的图片
         // 某些图片可能文件头被压缩或特殊处理
         if (imageData.length > 10000) {
-            log.debug("图片数据大小超过10KB，放行: {} bytes", imageData.length);
             return true;
         }
 
@@ -2716,7 +2562,6 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     public void exportAlbumImages(String albumId, org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos) throws Exception {
-        log.info("导出相册图片：{}", albumId);
 
         // 递归获取所有子相册ID（包含当前相册）
         List<String> allAlbumIds = new ArrayList<>();
@@ -2767,7 +2612,6 @@ public class ImageServiceImpl implements ImageService {
     
     @Override
     public void exportMultipleAlbums(List<String> albumIds, org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos) throws Exception {
-        log.info("批量导出多个相册，数量：{}", albumIds.size());
         
         int totalImages = 0;
         int errorCount = 0;
@@ -2920,7 +2764,6 @@ public class ImageServiceImpl implements ImageService {
                     if (localPath.contains("s3.") || localPath.contains("amazonaws") || localPath.contains("oss-") || localPath.contains("coze-")) {
                         try {
                             imageStream = downloadStreamFromUrl(localPath);
-                            log.debug("从S3 URL获取图片流：{}", localPath);
                         } catch (Exception e) {
                             log.warn("从S3 URL获取流失败：{} - {}", localPath, e.getMessage());
                         }
@@ -2947,7 +2790,6 @@ public class ImageServiceImpl implements ImageService {
                     
                     try {
                         imageStream = fileStorageService.getFileInputStream(localPath);
-                        log.debug("从存储服务获取图片流：thumbnailUrl={}, 提取路径={}", image.getThumbnailUrl(), localPath);
                     } catch (Exception e) {
                         log.warn("从存储服务读取失败：{} - {}", image.getThumbnailUrl(), e.getMessage());
                     }
@@ -2958,7 +2800,6 @@ public class ImageServiceImpl implements ImageService {
             if (imageStream == null && image.getUrl() != null && !image.getUrl().isEmpty()) {
                 try {
                     imageStream = downloadStreamFromUrl(image.getUrl());
-                    log.debug("从URL获取图片流：{}", image.getUrl());
                 } catch (Exception e) {
                     log.error("从URL获取图片流失败：{} - {}", image.getUrl(), e.getMessage());
                 }
@@ -3005,7 +2846,6 @@ public class ImageServiceImpl implements ImageService {
                     totalWritten += bytesRead;
                 }
                 zos.closeArchiveEntry();
-                log.debug("流式添加图片到ZIP：{} ({})", fileName, totalWritten > 1024*1024 ? String.format("%.1fMB", totalWritten/(1024.0*1024)) : String.format("%.0fKB", totalWritten/1024.0));
                 return true;
             } catch (Exception e) {
                 log.error("流式写入ZIP失败：{}", image.getId(), e);
@@ -3045,7 +2885,6 @@ public class ImageServiceImpl implements ImageService {
             try {
                 if (fileStorageService != null) {
                     fileStorageService.deleteFile(image.getFileKey());
-                    log.info("从存储删除图片文件: {}", image.getFileKey());
                 }
             } catch (Exception e) {
                 log.error("从存储删除图片文件失败: {}", image.getFileKey(), e);

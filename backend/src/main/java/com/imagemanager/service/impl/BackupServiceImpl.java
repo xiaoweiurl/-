@@ -61,7 +61,6 @@ public class BackupServiceImpl implements BackupService {
             result.put("size", jsonData.getBytes(StandardCharsets.UTF_8).length);
             result.put("createdAt", LocalDateTime.now().toString());
             
-            log.info("Backup created for user {}: {}", userId, filename);
             return result;
         } catch (Exception e) {
             log.error("Failed to create backup for user {}", userId, e);
@@ -114,7 +113,6 @@ public class BackupServiceImpl implements BackupService {
     @Override
     public void deleteBackup(String userId, String backupId) {
         // 即时备份不需要删除
-        log.info("Delete backup requested for user {}: {}", userId, backupId);
     }
 
     @Override
@@ -207,8 +205,6 @@ public class BackupServiceImpl implements BackupService {
             result.put("imagesImported", imagesImported);
             result.put("message", "数据导入成功");
             
-            log.info("Data imported for user {}: {} albums, {} images", 
-                    userId, albumsImported, imagesImported);
             return result;
         } catch (Exception e) {
             log.error("Failed to import user data for user {}", userId, e);

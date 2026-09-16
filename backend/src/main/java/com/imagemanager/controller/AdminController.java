@@ -39,7 +39,6 @@ public class AdminController {
     @GetMapping("/users")
     @Operation(summary = "获取用户列表", description = "获取所有用户列表（仅管理员）")
     public ApiResponse<List<UserInfo>> getAllUsers() {
-        log.info("管理员获取用户列表");
         
         try {
             List<User> users = userService.getAllUsers();
@@ -47,7 +46,6 @@ public class AdminController {
                     .map(user -> convertToUserInfo(user))
                     .collect(Collectors.toList());
             
-            log.info("获取用户列表成功，共 {} 个用户", userInfos.size());
             return ApiResponse.success(userInfos);
         } catch (Exception e) {
             log.error("获取用户列表失败", e);
@@ -61,7 +59,6 @@ public class AdminController {
     @GetMapping("/users/{id}")
     @Operation(summary = "获取用户详情", description = "获取指定用户的详细信息（仅管理员）")
     public ApiResponse<UserInfo> getUserById(@PathVariable String id) {
-        log.info("管理员获取用户详情：{}", id);
         
         User user = userService.getUserById(id);
         return ApiResponse.success(convertToUserInfo(user));
@@ -74,7 +71,6 @@ public class AdminController {
     @Operation(summary = "创建用户", description = "创建新用户（仅管理员）")
     public ApiResponse<UserInfo> createUser(@RequestBody CreateUserRequest request) {
         log.info("管理员创建用户：{}", request.getUsername());
-        
         try {
             User user = userService.createUser(request);
             return ApiResponse.success("用户创建成功", convertToUserInfo(user));
@@ -91,7 +87,6 @@ public class AdminController {
     public ApiResponse<UserInfo> updateUser(
             @PathVariable String id,
             @RequestBody UpdateUserRequest request) {
-        log.info("管理员更新用户：{}", id);
         
         try {
             User user = userService.updateUser(id, request);
@@ -108,7 +103,6 @@ public class AdminController {
     @Operation(summary = "删除用户", description = "删除指定用户（仅管理员）")
     public ApiResponse<Void> deleteUser(@PathVariable String id) {
         log.info("管理员删除用户：{}", id);
-        
         try {
             userService.deleteUser(id);
             return ApiResponse.success("用户删除成功", null);
@@ -168,7 +162,6 @@ public class AdminController {
     @GetMapping("/stats")
     @Operation(summary = "获取系统统计", description = "获取系统整体统计数据（仅管理员）")
     public ApiResponse<SystemStats> getSystemStats() {
-        log.info("管理员获取系统统计");
         
         SystemStats stats = new SystemStats();
         stats.setUserCount(userService.getAllUsers().size());

@@ -48,7 +48,6 @@ public class UserController {
     @GetMapping
     @Operation(summary = "获取用户信息", description = "获取当前登录用户的详细信息")
     public ApiResponse<User> getCurrentUser() {
-        log.info("获取当前用户信息");
         User user = userService.getCurrentUser();
         return ApiResponse.success(user);
     }
@@ -59,7 +58,6 @@ public class UserController {
     @GetMapping("/stats")
     @Operation(summary = "获取统计信息", description = "获取用户的存储空间使用情况等统计")
     public ApiResponse<Map<String, Object>> getUserStats() {
-        log.info("获取用户统计信息");
         
         User user = userService.getCurrentUser();
         
@@ -82,7 +80,6 @@ public class UserController {
     public ApiResponse<User> updateProfile(
             @RequestBody UpdateProfileRequest request,
             HttpServletRequest httpRequest) {
-        log.info("更新用户资料: nickname={}, email={}", request.getNickname(), request.getEmail());
 
         String userId = getCurrentUserId(httpRequest);
         authService.updateProfile(userId, request);
@@ -101,7 +98,6 @@ public class UserController {
     public ApiResponse<User> patchProfile(
             @RequestBody UpdateProfileRequest request,
             HttpServletRequest httpRequest) {
-        log.info("部分更新用户资料");
         return updateProfile(request, httpRequest);
     }
     
@@ -113,7 +109,6 @@ public class UserController {
     public ApiResponse<Map<String, String>> uploadAvatar(
             @Parameter(description = "头像文件") @RequestParam("file") MultipartFile file,
             HttpServletRequest httpRequest) {
-        log.info("上传头像: {}", file.getOriginalFilename());
         
         // 验证文件类型
         String contentType = file.getContentType();
@@ -131,7 +126,6 @@ public class UserController {
 
             // 上传文件到 avatars 目录
             String avatarUrl = fileStorageService.uploadFile(file, "avatars");
-            log.info("头像上传成功: {}", avatarUrl);
 
             // 更新用户头像URL
             UpdateProfileRequest profileRequest = new UpdateProfileRequest();
@@ -158,7 +152,6 @@ public class UserController {
     public ApiResponse<Void> changePassword(
             @RequestBody ChangePasswordRequest request,
             HttpServletRequest httpRequest) {
-        log.info("修改密码");
         
         // 验证新密码确认
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
@@ -188,7 +181,6 @@ public class UserController {
     @GetMapping("/settings")
     @Operation(summary = "获取用户设置", description = "获取用户的偏好设置")
     public ApiResponse<UserSettings> getUserSettings(HttpServletRequest httpRequest) {
-        log.info("获取用户设置");
         
         String userId = getCurrentUserId(httpRequest);
         UserSettings settings = userService.getSettings(userId);
@@ -203,7 +195,6 @@ public class UserController {
     public ApiResponse<UserSettings> updateUserSettings(
             @RequestBody UserSettings settings,
             HttpServletRequest httpRequest) {
-        log.info("更新用户设置");
         
         String userId = getCurrentUserId(httpRequest);
         UserSettings updated = userService.updateSettings(userId, settings);
@@ -218,7 +209,6 @@ public class UserController {
     public ApiResponse<UserSettings> patchUserSettings(
             @RequestBody UserSettings settings,
             HttpServletRequest httpRequest) {
-        log.info("部分更新用户设置");
         
         String userId = getCurrentUserId(httpRequest);
         UserSettings updated = userService.updateSettings(userId, settings);
@@ -231,7 +221,6 @@ public class UserController {
     @GetMapping("/notifications")
     @Operation(summary = "获取通知列表", description = "获取用户的所有通知")
     public ApiResponse<List<Notification>> getNotifications() {
-        log.info("获取通知列表");
         List<Notification> notifications = userService.getNotifications();
         return ApiResponse.success(notifications);
     }
@@ -243,7 +232,6 @@ public class UserController {
     @Operation(summary = "创建通知", description = "创建一条新通知")
     public ApiResponse<Notification> createNotification(
             @RequestBody CreateNotificationRequest request) {
-        log.info("创建通知：type={}, title={}", request.getType(), request.getTitle());
         Notification notification = userService.createNotification(request);
         return ApiResponse.success("通知创建成功", notification);
     }
@@ -255,7 +243,6 @@ public class UserController {
     @Operation(summary = "删除通知", description = "删除指定通知")
     public ApiResponse<Void> deleteNotification(
             @Parameter(description = "通知ID") @PathVariable String id) {
-        log.info("删除通知：{}", id);
         userService.deleteNotification(id);
         return ApiResponse.success("通知已删除", null);
     }
@@ -266,7 +253,6 @@ public class UserController {
     @GetMapping("/notifications/unread-count")
     @Operation(summary = "获取未读数量", description = "获取未读通知的数量")
     public ApiResponse<Integer> getUnreadCount() {
-        log.info("获取未读通知数量");
         Integer count = userService.getUnreadCount();
         return ApiResponse.success(count);
     }
@@ -278,7 +264,6 @@ public class UserController {
     @Operation(summary = "标记已读", description = "将指定通知标记为已读")
     public ApiResponse<Void> markNotificationRead(
             @Parameter(description = "通知ID") @PathVariable String id) {
-        log.info("标记通知为已读：{}", id);
         userService.markNotificationRead(id);
         return ApiResponse.success("已标记为已读", null);
     }
@@ -289,7 +274,6 @@ public class UserController {
     @PostMapping("/notifications/read-all")
     @Operation(summary = "全部标记已读", description = "将所有通知标记为已读")
     public ApiResponse<Void> markAllNotificationsRead() {
-        log.info("标记所有通知为已读");
         userService.markAllNotificationsRead();
         return ApiResponse.success("已全部标记为已读", null);
     }

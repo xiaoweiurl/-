@@ -66,10 +66,8 @@ async function backendFetch(endpoint: string, options: RequestInit = {}): Promis
   // 添加 sessionId 到请求头
   if (sessionId) {
     headers['X-Session-Id'] = sessionId;
-    console.log('[Backend] X-Session-Id:', sessionId.substring(0, 8) + '...');
   }
   
-  console.log(`[Backend] ${options.method || 'GET'} ${url}`);
   
   return fetch(url, {
     ...options,
@@ -460,7 +458,6 @@ export default function Home() {
 
       if (result.success || result.code === 200) {
         const albumList = Array.isArray(result.data) ? result.data : [];
-        console.log('[Home] 获取相册列表成功:', albumList.length, '个相册');
         setAlbums(albumList);
       } else {
         console.warn('[Home] 获取相册列表失败，使用静态数据');
@@ -507,7 +504,6 @@ export default function Home() {
   
   // 处理搜索提交（按回车键）
   const handleSearchSubmit = () => {
-    console.log('[Home] 执行搜索:', searchQuery);
     setFilterState(prev => ({ ...prev, keyword: searchQuery }));
     setCurrentPage(1);
     fetchImages(1, false, searchQuery);
@@ -549,7 +545,6 @@ export default function Home() {
 
       if (result.success || result.code === 200) {
         const imageList = result.data?.list || result.data || [];
-        console.log('[fetchAllImages] 获取图片数据:', imageList.length, '张');
         setAllImages(imageList);
         
         // 同时从后端 API 获取回收站主图数量（更高效）
@@ -573,7 +568,6 @@ export default function Home() {
       
       if (result.success || result.code === 200) {
         const count = result.data || 0;
-        console.log('[fetchTrashCount] 回收站主图数量:', count);
         setTrashCount(count);
       }
     } catch (error) {
@@ -586,7 +580,6 @@ export default function Home() {
 
   // 从API获取图片数据（支持分页，用于当前视图显示）
   const fetchImages = React.useCallback(async (page: number = 1, append: boolean = false, keywordOverride?: string) => {
-    console.log('[Home] fetchImages 调用:', { page, append, activeMenuItem, filterState });
     if (append) {
       setLoadingMore(true);
     }
@@ -652,14 +645,12 @@ export default function Home() {
           if (startDate) {
             params.append('startDate', startDate.toISOString().split('T')[0]);
             params.append('endDate', now.toISOString().split('T')[0]);
-            console.log('[Home] 添加日期筛选:', startDate.toISOString().split('T')[0], '至', now.toISOString().split('T')[0]);
           }
         }
         
         // 添加文件类型筛选
         if (filterState.typeFilter && filterState.typeFilter !== 'all') {
           params.append('fileType', filterState.typeFilter);
-          console.log('[Home] 添加文件类型筛选:', filterState.typeFilter);
         }
         
         // 添加相册筛选 - 支持从侧边栏点击或从筛选面板选择
@@ -695,25 +686,20 @@ export default function Home() {
         if (albumId) {
           params.append('albumId', albumId);
           params.append('onlyMainImage', 'true');
-          console.log('[Home] 添加相册筛选:', albumId);
         }
         
         // 添加标签筛选（多标签支持）
         if (filterState.tagFilter && filterState.tagFilter.length > 0) {
           filterState.tagFilter.forEach(tag => params.append('tags', tag));
-          console.log('[Home] 添加标签筛选:', filterState.tagFilter);
         }
         
         // 如果有相册筛选，使用 images API；否则也使用 images API（统一筛选逻辑）
         apiUrl = `/images?${params}`;
       }
 
-      console.log('[Home] 请求URL:', apiUrl);
       
       // 直接调用后端 API（绕过 Next.js API Route）
       const response = await backendFetch(apiUrl);
-      const setCookieHeader = response.headers.get('set-cookie');
-      console.log('[Home] 响应 Set-Cookie:', setCookieHeader);
       
       // 安全解析 JSON，避免空响应导致错误
       let result;
@@ -724,7 +710,6 @@ export default function Home() {
         result = { success: false, message: 'JSON 解析失败' };
       }
 
-      console.log('[Home] API 响应:', result);
 
       // 兼容两种响应格式: { success: true } 或 { code: 200 }
       const isSuccess = result.success === true || result.code === 200;
@@ -811,7 +796,6 @@ export default function Home() {
   // 监听筛选条件变化，自动重新加载数据
   React.useEffect(() => {
     if (activeMenuItem !== 'trash' && activeMenuItem !== 'recent' && activeMenuItem !== 'favorites') {
-      console.log('[Home] 筛选条件变化，重新加载数据:', filterState);
       fetchImages(1, false);
     }
   }, [filterState.dateFilter, filterState.typeFilter, filterState.albumFilter, filterState.tagFilter, filterState.keyword]);
@@ -842,7 +826,6 @@ export default function Home() {
         }
 
         if (!backendUp) {
-          console.log('[Home] 后端不可用，进入降级模式');
           if (!cancelled) {
             const localUser = localStorage.getItem('user_id');
             const localUsername = localStorage.getItem('user_name');
@@ -865,13 +848,11 @@ export default function Home() {
         const expires = localStorage.getItem('session_expires');
 
         if (!sessionId) {
-          console.log('[Home] 无session_id，跳转登录');
           if (!cancelled) window.location.href = '/login';
           return;
         }
 
         if (!expires || Date.now() > parseInt(expires, 10)) {
-          console.log('[Home] Session 已过期，跳转登录');
           if (!cancelled) {
             localStorage.removeItem('session_id');
             localStorage.removeItem('session_expires');
@@ -888,7 +869,6 @@ export default function Home() {
           });
 
           if (!response.ok) {
-            console.log('[Home] 后端session验证失败, status:', response.status);
             if (!cancelled) {
               localStorage.removeItem('session_id');
               localStorage.removeItem('session_expires');
@@ -899,7 +879,6 @@ export default function Home() {
           }
 
           const result = await response.json();
-          console.log('[Home] 会话验证结果:', result);
 
           if (result.code === 200 && result.data) {
             if (!cancelled) {
@@ -916,7 +895,6 @@ export default function Home() {
               fetchDynamicTableCount();
             }
           } else {
-            console.log('[Home] 会话验证失败, result:', result);
             if (!cancelled) {
               localStorage.removeItem('session_id');
               localStorage.removeItem('session_expires');
@@ -957,7 +935,6 @@ export default function Home() {
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
         // 从 bfcache 恢复时不自动跳转，让正常流程处理
-        console.log('[Home] 从 bfcache 恢复');
       }
     };
     window.addEventListener('pageshow', handlePageShow);
@@ -994,7 +971,6 @@ export default function Home() {
   React.useEffect(() => {
     // 排除初始化时（auth check 会自动获取）
     if (currentUser && authCheckedRef.current) {
-      console.log('[Home] 菜单项变化:', activeMenuItem, '重新获取数据...');
       fetchImages(1, false);
     }
   }, [activeMenuItem]); // 只依赖 activeMenuItem，不依赖 currentUser
@@ -1474,7 +1450,6 @@ export default function Home() {
 
   // 处理侧边栏菜单点击
   const handleMenuItemClick = async (item: string) => {
-    console.log('[Home] 菜单项点击:', item);
 
     // 如果点击知识库，跳转到知识库页面
     if (item === 'knowledge') {
@@ -1599,7 +1574,6 @@ export default function Home() {
 
   // 上传成功后刷新图片列表
   const handleUploadSuccess = async () => {
-    console.log('[Home] 上传成功，开始刷新图片列表...');
 
     try {
       // 重置分页状态
@@ -1612,17 +1586,14 @@ export default function Home() {
         includeDeleted: 'true',
       });
 
-      console.log('[Home] 请求图片列表...');
 
       // 获取图片列表（用于当前视图显示）
       const response = await backendFetch(`/images?${params}`);
       const result = await response.json();
 
-      console.log('[Home] 图片列表响应:', result);
 
       if (isApiSuccess(result)) {
         const imageList = result.data?.list || result.data || [];
-        console.log('[Home] 获取到图片列表，数量:', imageList.length);
         setImages(imageList.map((img: Record<string, unknown>) => {
           const c = { ...img };
           if (typeof c.url === 'string') c.url = getFullImageUrl(c.url);
@@ -1660,7 +1631,6 @@ export default function Home() {
 
   // Excel批量上传成功后刷新图片列表
   const handleExcelUploadSuccess = async () => {
-    console.log('[Home] Excel批量上传成功，开始刷新图片列表...');
     
     try {
       // 重置分页状态
@@ -1673,17 +1643,14 @@ export default function Home() {
         includeDeleted: 'true',
       });
       
-      console.log('[Home] 请求图片列表...');
       
       // 获取图片列表
       const response = await backendFetch(`/images?${params}`);
       const result = await response.json();
       
-      console.log('[Home] 图片列表响应:', result);
       
       if (isApiSuccess(result)) {
         const imageList = result.data?.list || result.data || [];
-        console.log('[Home] 获取到图片列表，数量:', imageList.length);
         setImages(imageList.map((img: Record<string, unknown>) => {
           const c = { ...img };
           if (typeof c.url === 'string') c.url = getFullImageUrl(c.url);
@@ -1726,8 +1693,6 @@ export default function Home() {
       return [];
     }
     
-    console.log('[Home] 直接使用后端返回的数据，不进行前端二次筛选');
-    console.log('[Home] images 数量:', images.length);
     
     // 直接使用后端返回的数据，只做排序
     const result = [...images];
@@ -1818,20 +1783,6 @@ export default function Home() {
         count,
       };
     });
-
-    // 调试日志
-    console.log('[Statistics] 统计数据:', {
-      allImagesTotal: allImages.length,
-      mainImagesCount: mainImages.length,
-      allCount,
-      myImagesCount,
-      favoritesCount,
-      recentCount,
-      trashCount,
-      albumStats,
-      currentUserId: currentUser?.id,
-    });
-
     return {
       allCount,
       myImagesCount,
@@ -2407,7 +2358,6 @@ export default function Home() {
         open={documentUploadDialogOpen}
         onOpenChange={setDocumentUploadDialogOpen}
         onUploadSuccess={() => {
-          console.log('[Home] 文档上传成功，刷新页面');
           fetchImages();
         }}
       />

@@ -108,7 +108,6 @@ public class SupplyChainTools {
     @Tool("向量语义搜索：根据用户问题的语义相似度检索知识库文档。适合查询具体业务数据，如产品报价、原料采购、生产计划等。传入用户的问题或关键词。")
     public String searchByVector(String query) {
         String company = currentCompany.get();
-        log.info("[向量检索] query='{}', company='{}'", query, company);
         try {
             var results = knowledgeBaseService.search(query, 0.25f, 10, company);
             if (results == null || results.isEmpty()) {
@@ -136,7 +135,6 @@ public class SupplyChainTools {
                 }
                 sb.append("\n\n");
             }
-            log.info("[向量检索] 返回 {} 条结果", results.size());
             return sb.toString();
         } catch (Exception e) {
             log.error("[向量检索] 失败: {}", e.getMessage(), e);
@@ -152,7 +150,6 @@ public class SupplyChainTools {
      */
     @Tool("执行SQL查询数据库获取知识库文档的元数据和文本内容。传入完整的SELECT语句。只能查询，禁止修改数据。SQL中用 'COMPANY_PLACEHOLDER' 代替公司名，系统会自动替换。")
     public String queryDatabase(String sql) {
-        log.info("[Text-to-SQL] 接收到SQL: {}", sql);
 
         // 安全校验
         String trimmedSql = sql.trim().replaceAll(";\\s*$", "");
@@ -207,7 +204,6 @@ public class SupplyChainTools {
             if (llmCacheService != null && userId != null) {
                 List<Map<String, Object>> cached = llmCacheService.getCachedDbResult(userId, trimmedSql);
                 if (cached != null) {
-                    log.info("[Text-to-SQL] L2缓存命中, userId={}, 返回 {} 行", userId, cached.size());
                     if (cached.isEmpty()) {
                         return "查询结果为空，数据库中没有匹配的数据。";
                     }
@@ -222,8 +218,6 @@ public class SupplyChainTools {
             // 慢 SQL 监控（超过 500ms 告警）
             if (sqlElapsed > 500) {
                 log.warn("[慢SQL告警] 耗时 {}ms, SQL: {}", sqlElapsed, trimmedSql);
-            } else {
-                log.info("[Text-to-SQL] SQL执行耗时 {}ms, 返回 {} 行", sqlElapsed, rows.size());
             }
 
             if (rows.isEmpty()) {

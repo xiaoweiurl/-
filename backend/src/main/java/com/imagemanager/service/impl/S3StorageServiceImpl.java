@@ -59,7 +59,6 @@ public class S3StorageServiceImpl implements FileStorageService {
 
             // 解析 Region：优先从配置读取，其次从 endpoint 推导，最后降级到 AWS_GLOBAL
             Region region = resolveRegion();
-            log.info("[Storage] 使用 Region: {}", region.id());
 
             // S3 Client
             var clientBuilder = S3Client.builder()
@@ -88,8 +87,6 @@ public class S3StorageServiceImpl implements FileStorageService {
             ensureBucketExists();
             this.initialized = true;
 
-            log.info("[Storage] S3 存储初始化成功 - endpoint: {}, bucket: {}, region: {}",
-                    storageConfig.getS3Endpoint(), storageConfig.getS3BucketName(), region.id());
         } catch (Exception e) {
             log.error("[Storage] S3 存储初始化失败", e);
             this.initialized = false;
@@ -107,7 +104,6 @@ public class S3StorageServiceImpl implements FileStorageService {
         // 1. 优先从配置读取
         String configuredRegion = storageConfig.getS3Region();
         if (configuredRegion != null && !configuredRegion.isBlank()) {
-            log.info("[Storage] Region 来自配置: {}", configuredRegion);
             return Region.of(configuredRegion);
         }
 
@@ -120,7 +116,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .matcher(endpoint);
             if (matcher.find()) {
                 String derivedRegion = matcher.group(1);
-                log.info("[Storage] Region 从endpoint推导: {} → {}", endpoint, derivedRegion);
                 return Region.of(derivedRegion);
             }
         }
@@ -146,7 +141,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .maxKeys(1)
                     .build();
             s3Client.listObjectsV2(listRequest);
-            log.info("[Storage] S3 连接测试成功 - bucket: {}", bucket);
         } catch (S3Exception e) {
             // 403可能是bucket存在但AccessKey权限不足（无oss:ListObjects权限）
             // 但headBucket已确认bucket存在（ensureBucketExists通过），仍然可以写入
@@ -166,7 +160,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .bucket(bucket)
                     .build();
             s3Client.headBucket(headBucketRequest);
-            log.info("[Storage] 存储桶已存在: {}", bucket);
         } catch (S3Exception e) {
             if (e.statusCode() == 403 || e.statusCode() == 404) {
                 // 阿里云OSS: headBucket对已有bucket也可能返回403（S3兼容接口特性）
@@ -177,12 +170,10 @@ public class S3StorageServiceImpl implements FileStorageService {
                             .bucket(bucket)
                             .build();
                     s3Client.createBucket(createBucketRequest);
-                    log.info("[Storage] 创建存储桶成功: {}", bucket);
                 } catch (S3Exception ce) {
                     if (ce.statusCode() == 409) {
                         // 409 = BucketAlreadyExistsException: bucket名全局已存在（可能是自己刚创建的）
                         // 这说明bucket已可用，不需要再创建，直接继续
-                        log.info("[Storage] bucket '{}' 已存在(409 BucketAlreadyExists)，无需创建，继续使用", bucket);
                     } else {
                         log.error("[Storage] 创建存储桶失败({}): AccessKey可能无创建权限。请到阿里云控制台手动创建bucket '{}'",
                                 ce.statusCode(), bucket);
@@ -222,7 +213,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .build();
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(data));
-            log.info("[Storage] 文件已上传到 S3: bucket={}, key={}, size={}", bucket, key, data.length);
 
             return getPublicUrl(key);
         } catch (Exception e) {
@@ -248,7 +238,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .build();
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(data));
-            log.info("[Storage] 文件已上传到 S3(指定key): bucket={}, key={}, size={}", bucket, key, data.length);
 
             return key;
         } catch (Exception e) {
@@ -273,7 +262,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .build();
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(data));
-            log.info("[Storage] 文件已上传到 S3: bucket={}, key={}, size={}", bucket, key, size);
 
             return getPublicUrl(key);
         } catch (Exception e) {
@@ -318,7 +306,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                 .build();
 
         String url = s3Presigner.presignGetObject(presignRequest).url().toString();
-        log.debug("[Storage] 生成预签名URL: key={}, expire={}s", key, expireSeconds);
         return url;
     }
 
@@ -336,7 +323,6 @@ public class S3StorageServiceImpl implements FileStorageService {
                     .build();
 
             s3Client.deleteObject(deleteRequest);
-            log.info("[Storage] 文件已从 S3 删除: bucket={}, key={}", bucket, key);
             return true;
         } catch (Exception e) {
             log.error("[Storage] 删除文件失败: {}", fileKey, e);

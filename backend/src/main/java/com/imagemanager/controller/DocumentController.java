@@ -50,7 +50,6 @@ public class DocumentController {
             @Parameter(description = "文档文件") @RequestParam("file") MultipartFile file,
             @Parameter(description = "文件名") @RequestParam(required = false) String fileName,
             @Parameter(description = "文档分类") @RequestParam(required = false) String category) {
-        log.info("上传文档：{}, category: {}", file.getOriginalFilename(), category);
         
         String name = fileName != null && !fileName.isEmpty() ? fileName : file.getOriginalFilename();
         Map<String, Object> result = documentService.uploadDocument(file, name, category);
@@ -65,7 +64,6 @@ public class DocumentController {
     @Operation(summary = "批量上传文档", description = "批量上传多个文档文件")
     public ApiResponse<List<Map<String, Object>>> batchUploadDocuments(
             @Parameter(description = "文档文件列表") @RequestParam("files") List<MultipartFile> files) {
-        log.info("批量上传文档，数量：{}", files.size());
         List<Map<String, Object>> results = documentService.batchUploadDocuments(files);
         return ApiResponse.success("批量上传成功，共上传 " + results.size() + " 个文档", results);
     }
@@ -77,7 +75,6 @@ public class DocumentController {
     @Operation(summary = "删除文档", description = "根据ID删除文档")
     public ApiResponse<Void> deleteDocument(
             @Parameter(description = "文档ID") @PathVariable String id) {
-        log.info("删除文档：{}", id);
         documentService.deleteDocument(id);
         return ApiResponse.success("文档已移入回收站", null);
     }
@@ -89,7 +86,6 @@ public class DocumentController {
     @Operation(summary = "批量删除文档", description = "将多个文档移入回收站")
     public ApiResponse<Map<String, Object>> batchDeleteDocuments(
             @Parameter(description = "文档ID列表") @RequestBody List<String> ids) {
-        log.info("批量删除文档，数量：{}", ids.size());
         Map<String, Object> result = documentService.batchDeleteDocuments(ids);
         return ApiResponse.success("批量删除完成", result);
     }
@@ -101,7 +97,6 @@ public class DocumentController {
     @Operation(summary = "恢复文档", description = "从回收站恢复文档")
     public ApiResponse<Void> restoreDocument(
             @Parameter(description = "文档ID") @PathVariable String id) {
-        log.info("恢复文档：{}", id);
         documentService.restoreDocument(id);
         return ApiResponse.success("文档已恢复", null);
     }
@@ -113,7 +108,6 @@ public class DocumentController {
     @Operation(summary = "批量恢复文档", description = "从回收站批量恢复文档")
     public ApiResponse<Map<String, Object>> batchRestoreDocuments(
             @Parameter(description = "文档ID列表") @RequestBody List<String> ids) {
-        log.info("批量恢复文档，数量：{}", ids.size());
         Map<String, Object> result = documentService.batchRestoreDocuments(ids);
         return ApiResponse.success("批量恢复完成", result);
     }
@@ -125,7 +119,6 @@ public class DocumentController {
     @Operation(summary = "永久删除文档", description = "直接从数据库和存储中永久删除文档，无法恢复")
     public ApiResponse<Void> permanentDeleteDocument(
             @Parameter(description = "文档ID") @PathVariable String id) {
-        log.info("永久删除文档：{}", id);
         documentService.permanentDeleteDocument(id);
         return ApiResponse.success("文档已永久删除", null);
     }
@@ -137,7 +130,6 @@ public class DocumentController {
     @Operation(summary = "获取文档信息", description = "根据ID获取文档详细信息")
     public ApiResponse<Map<String, Object>> getDocumentById(
             @Parameter(description = "文档ID") @PathVariable String id) {
-        log.info("获取文档信息：{}", id);
         Map<String, Object> document = documentService.getDocumentById(id);
         return ApiResponse.success(document);
     }
@@ -149,7 +141,6 @@ public class DocumentController {
     @Operation(summary = "下载文档", description = "获取文档的下载链接")
     public ApiResponse<Map<String, Object>> getDownloadUrl(
             @Parameter(description = "文档ID") @PathVariable String id) {
-        log.info("获取文档下载链接：{}", id);
         String downloadUrl = documentService.getDownloadUrl(id);
         Map<String, Object> result = new HashMap<>();
         result.put("url", downloadUrl);
@@ -163,7 +154,6 @@ public class DocumentController {
     @Operation(summary = "获取文档文件", description = "获取文档文件内容，用于预览和下载")
     public ResponseEntity<Resource> getDocumentFile(
             @Parameter(description = "文档ID") @PathVariable String id) {
-        log.info("获取文档文件：{}", id);
         
         try {
             Map<String, Object> doc = documentService.getDocumentById(id);
@@ -209,7 +199,6 @@ public class DocumentController {
             @Parameter(description = "页码") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize,
             @Parameter(description = "文档分类") @RequestParam(required = false) String category) {
-        log.info("获取文档列表，page={}, pageSize={}, category={}", page, pageSize, category);
         Map<String, Object> result = documentService.getDocumentsByCategory(page, pageSize, category);
         return ApiResponse.success(result);
     }
@@ -220,7 +209,6 @@ public class DocumentController {
     @GetMapping("/stats")
     @Operation(summary = "获取文档统计", description = "获取各分类的文档数量统计")
     public ApiResponse<Map<String, Integer>> getDocumentStats() {
-        log.info("获取文档统计信息");
         Map<String, Integer> stats = documentService.getDocumentStats();
         return ApiResponse.success(stats);
     }
