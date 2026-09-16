@@ -6,6 +6,7 @@
  * 过期/失效的 localStorage 会覆盖仍有效的 Cookie，Java 直接 401。
  *
  * 规则：Cookie 与 header 都有且不一致 → 用 Cookie；仅 header（curl / 非浏览器）→ 用 header。
+ * Java 侧 SessionIdExtractor / SessionIdAuthFilter / AuthController / ErpSyncController 使用同一顺序。
  */
 export function resolveBffSessionId(
   headerSession: string | null | undefined,
