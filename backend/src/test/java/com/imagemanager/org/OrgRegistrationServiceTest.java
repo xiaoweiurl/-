@@ -7,6 +7,7 @@ import com.imagemanager.exception.RegisterMatchException;
 import com.imagemanager.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -21,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +57,7 @@ class OrgRegistrationServiceTest {
             }
         };
         when(passwordEncoder.encode(anyString())).thenAnswer(inv -> "ENC:" + inv.getArgument(0));
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
         when(userRepository.findByDingtalkUserid(anyString())).thenReturn(Optional.empty());
@@ -103,6 +106,68 @@ class OrgRegistrationServiceTest {
         verify(passwordEncoder).encode(OrgRegistrationService.DEFAULT_PASSWORD);
         verify(directory).bindLocalUser("org-1", user.getId());
         assertEquals("user", user.getRole());
+        InOrder inOrder = inOrder(userRepository, directory);
+        inOrder.verify(userRepository).saveAndFlush(any(User.class));
+        inOrder.verify(directory).bindLocalUser("org-1", user.getId());
+    }
+
+    @Test
+    void saveAndFlushRunsBeforeBindSoJdbcSeesUserRow() {
+        OrgContact contact = sample("u-libin", "李彬", null);
+        when(directory.findActiveByName("宝娜斯集团", "李彬")).thenReturn(List.of(contact));
+        RegisterRequest req = new RegisterRequest();
+        req.setName("李彬");
+        User user = service.register(req);
+
+        assertEquals("李彬", user.getUsername());
+        assertEquals(Boolean.TRUE, user.getMustChangePassword());
+        assertEquals("ENC:123456", user.getPassword());
+        InOrder inOrder = inOrder(userRepository, directory);
+        inOrder.verify(userRepository).saveAndFlush(any(User.class));
+        inOrder.verify(directory).bindLocalUser("org-1", user.getId());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void unboundOrphanUserIsReusedAndBoundOnRetry() {
+        OrgContact contact = sample("u-libin", "李彬", null);
+        User orphan = User.builder()
+                .id("b7fa3d3d-orphan-user")
+                .username("李彬")
+                .password("ENC:123456")
+                .email("dt-u-libin@dingtalk.invalid")
+                .nickname("李彬")
+                .role("user")
+                .mustChangePassword(true)
+                .dingtalkUserid("u-libin")
+                .build();
+        when(directory.findActiveByName("宝娜斯集团", "李彬")).thenReturn(List.of(contact));
+        when(userRepository.findByDingtalkUserid("u-libin")).thenReturn(Optional.of(orphan));
+
+        RegisterRequest req = new RegisterRequest();
+        req.setName("李彬");
+        User user = service.register(req);
+
+        assertEquals("b7fa3d3d-orphan-user", user.getId());
+        assertEquals("李彬", user.getUsername());
+        assertEquals(Boolean.TRUE, user.getMustChangePassword());
+        verify(directory).bindLocalUser("org-1", "b7fa3d3d-orphan-user");
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void searchLeavesUnboundOrphanSelectableForRetry() {
+        OrgContact contact = sample("u-libin", "李彬", null);
+        when(directory.searchContacts("宝娜斯集团", "李彬", 50)).thenReturn(List.of(contact));
+        when(userRepository.findByDingtalkUserid("u-libin")).thenReturn(Optional.of(
+                User.builder().id("orphan").username("李彬").dingtalkUserid("u-libin").build()));
+
+        var candidates = service.searchContacts("宝娜斯集团", "李彬");
+
+        assertEquals(1, candidates.size());
+        assertEquals("李彬", candidates.get(0).getName());
+        assertEquals(false, candidates.get(0).isAlreadyRegistered());
     }
 
     @Test
