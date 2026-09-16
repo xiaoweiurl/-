@@ -117,9 +117,9 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                 log.error("市场营销对话失败: {}", e.getMessage(), e);
                 try {
                     emitter.send(SseEmitter.event().name("message").data(
-                        objectMapper.writeValueAsString(Map.of("type", "error", "content", "对话失败: " + e.getMessage()))
+                        Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "error", "content", "对话失败: " + e.getMessage())))
                     ));
-                } catch (Exception ignored) {}
+                } catch (@SuppressWarnings("unused") Exception ignored) {}
                 emitter.completeWithError(e);
             }
         }).start();
@@ -181,7 +181,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                                 if (!content.isEmpty()) {
                                     fullResponse.append(content);
                                     emitter.send(SseEmitter.event().name("message").data(
-                                        objectMapper.writeValueAsString(Map.of("type", "content", "content", content))
+                                        Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "content", "content", content)))
                                     ));
                                 }
                             }
@@ -189,11 +189,11 @@ public class MarketingChatServiceImpl implements MarketingChatService {
 
                         if (done) {
                             emitter.send(SseEmitter.event().name("message").data(
-                                objectMapper.writeValueAsString(Map.of("type", "done"))
+                                Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "done")))
                             ));
                             return;
                         }
-                    } catch (Exception parseEx) {
+                    } catch (@SuppressWarnings("unused") Exception parseEx) {
                         log.debug("解析Ollama流式数据行失败: {}", line.substring(0, Math.min(line.length(), 200)));
                     }
                 }

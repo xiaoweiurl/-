@@ -272,7 +272,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public void deleteDocument(String id) {
-        Document document = documentRepository.findById(id)
+        Document document = documentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
         
         // 软删除
@@ -300,7 +300,7 @@ public class DocumentServiceImpl implements DocumentService {
         
         for (String id : ids) {
             try {
-                Document document = documentRepository.findById(id)
+                Document document = documentRepository.findById(Objects.requireNonNull(id))
                         .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
                 
                 // 软删除
@@ -334,7 +334,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public void restoreDocument(String id) {
-        Document document = documentRepository.findById(id)
+        Document document = documentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
         
         // 恢复
@@ -362,7 +362,7 @@ public class DocumentServiceImpl implements DocumentService {
         
         for (String id : ids) {
             try {
-                Document document = documentRepository.findById(id)
+                Document document = documentRepository.findById(Objects.requireNonNull(id))
                         .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
                 
                 // 恢复
@@ -396,7 +396,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public void permanentDeleteDocument(String id) {
-        Document document = documentRepository.findById(id)
+        Document document = documentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
         
         // 获取文件路径并删除物理文件
@@ -429,7 +429,7 @@ public class DocumentServiceImpl implements DocumentService {
     
     @Override
     public Map<String, Object> getDocumentById(String id) {
-        Document document = documentRepository.findById(id)
+        Document document = documentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
         
         Map<String, Object> result = new HashMap<>();
@@ -451,7 +451,7 @@ public class DocumentServiceImpl implements DocumentService {
     
     @Override
     public String getDownloadUrl(String id) {
-        Document document = documentRepository.findById(id)
+        documentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + id));
         
         // 使用配置的 baseUrl

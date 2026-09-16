@@ -7,6 +7,7 @@ package com.imagemanager.service.impl;
  * @version 1.0.0
  */
 public class WeakPasswordException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
     
     public WeakPasswordException(String message) {
         super(message);

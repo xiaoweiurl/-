@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import com.imagemanager.util.SessionUtil;
 
+import java.util.Objects;
+
 /**
  * 商品管理控制器
  *
@@ -154,7 +156,7 @@ public class ProductController {
             @Parameter(description = "商品ID") @PathVariable String productId) {
         log.info("获取商品详情，商品ID: {}", productId);
 
-        Product product = productRepository.findById(productId).orElse(null);
+        Product product = productRepository.findById(Objects.requireNonNull(productId)).orElse(null);
         if (product == null) {
             return ApiResponse.error("商品不存在");
         }

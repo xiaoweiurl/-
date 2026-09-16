@@ -115,7 +115,7 @@ public class AiImageController {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", apiKey);
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
 
             // 并发生成，每张独立提交+轮询
             List<CompletableFuture<List<Map<String, Object>>>> futures = new ArrayList<>();
@@ -126,7 +126,7 @@ public class AiImageController {
                     try {
                         // 第一步：提交生图任务
                         HttpEntity<String> entity = new HttpEntity<>(apiRequestBodyStr, headers);
-                        ResponseEntity<String> resp = createSlowRestTemplate().exchange(apiUrl, HttpMethod.POST, entity, String.class);
+                        ResponseEntity<String> resp = createSlowRestTemplate().exchange(Objects.requireNonNull(apiUrl), Objects.requireNonNull(HttpMethod.POST), entity, String.class);
 
                         if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
                             log.warn("AI生图第{}张提交失败: status={}", index + 1, resp.getStatusCode());
@@ -216,7 +216,7 @@ public class AiImageController {
             log.info("AI生图完成: model={}, 成功={}, 失败={}", model, successCount, failCount);
 
             return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                     .body(objectMapper.writeValueAsString(responseMap));
 
         } catch (Exception e) {
@@ -258,15 +258,15 @@ public class AiImageController {
         for (int i = 0; i < maxRetries; i++) {
             try {
                 Thread.sleep(interval);
-            } catch (InterruptedException e) {
+            } catch (@SuppressWarnings("unused") InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return null;
             }
 
             try {
-                HttpEntity<String> entity = new HttpEntity<>(headers);
+                HttpEntity<String> entity = new HttpEntity<>(Objects.requireNonNull(headers));
                 RestTemplate queryRestTemplate = new RestTemplate();
-                ResponseEntity<String> queryResp = queryRestTemplate.exchange(queryUrl, HttpMethod.GET, entity, String.class);
+                ResponseEntity<String> queryResp = queryRestTemplate.exchange(queryUrl, Objects.requireNonNull(HttpMethod.GET), entity, String.class);
 
                 if (!queryResp.getStatusCode().is2xxSuccessful() || queryResp.getBody() == null) {
                     log.warn("AI生图轮询第{}次失败: status={}", i + 1, queryResp.getStatusCode());
@@ -420,7 +420,7 @@ public class AiImageController {
             gptImage.put("vipSupportsPixel", true);
 
             return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                     .body(objectMapper.writeValueAsString(response));
         } catch (Exception e) {
             log.error("获取模型列表异常", e);
@@ -460,8 +460,6 @@ public class AiImageController {
             String imageUrl = requestJson.has("imageUrl") ? requestJson.get("imageUrl").asText() : "";
             String prompt = requestJson.has("prompt") ? requestJson.get("prompt").asText() : "";
             String model = requestJson.has("model") ? requestJson.get("model").asText() : "unknown";
-            String aspectRatio = requestJson.has("aspectRatio") ? requestJson.get("aspectRatio").asText() : "";
-            String imageSize = requestJson.has("imageSize") ? requestJson.get("imageSize").asText() : "";
 
             if (imageUrl.isEmpty()) {
                 return ResponseEntity.badRequest().body("{\"error\":\"图片地址不能为空\"}");

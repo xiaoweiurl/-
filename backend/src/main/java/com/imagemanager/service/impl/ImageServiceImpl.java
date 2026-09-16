@@ -118,7 +118,7 @@ public class ImageServiceImpl implements ImageService {
                     return user.getUsername();
                 }
             }
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             log.warn("获取用户名失败，fallback 使用 userId: {}", image.getUserId());
         }
         return image.getUserId();
@@ -145,7 +145,7 @@ public class ImageServiceImpl implements ImageService {
                     log.info("getCurrentUsernameForTable: 从数据库获取用户名={}", user.getUsername());
                     return user.getUsername();
                 }
-            } catch (Exception e) {
+            } catch (@SuppressWarnings("unused") Exception e) {
                 log.warn("通过 userId 查询用户名失败: {}", userId);
             }
         }
@@ -343,7 +343,7 @@ public class ImageServiceImpl implements ImageService {
             if (request.getStartDate() != null && !request.getStartDate().isEmpty()) {
                 try {
                     startDate = LocalDateTime.parse(request.getStartDate() + "T00:00:00");
-                } catch (Exception e) {
+                } catch (@SuppressWarnings("unused") Exception e) {
                     log.warn("解析开始日期失败: {}", request.getStartDate());
                 }
             }
@@ -351,7 +351,7 @@ public class ImageServiceImpl implements ImageService {
             if (request.getEndDate() != null && !request.getEndDate().isEmpty()) {
                 try {
                     endDate = LocalDateTime.parse(request.getEndDate() + "T23:59:59");
-                } catch (Exception e) {
+                } catch (@SuppressWarnings("unused") Exception e) {
                     log.warn("解析结束日期失败: {}", request.getEndDate());
                 }
             }
@@ -622,7 +622,7 @@ public class ImageServiceImpl implements ImageService {
             // 尝试从URL中提取key
             try {
                 key = fileStorageService.getStorageKey(url);
-            } catch (Exception e) {
+            } catch (@SuppressWarnings("unused") Exception e) {
                 return null;
             }
         }
@@ -647,7 +647,7 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public Image getImageById(String id) {
         log.info("获取图片详情，ID：{}", id);
-        Image image = imageRepository.findById(id)
+        Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         // 刷新签名URL
         refreshImagePresignedUrls(Collections.singletonList(image));
@@ -811,7 +811,7 @@ public class ImageServiceImpl implements ImageService {
     public Image updateImage(String id, String title, String albumId, List<String> tags, String description) {
         log.info("更新图片信息，ID：{}", id);
         
-        Image image = imageRepository.findById(id)
+        Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         String oldAlbumId = image.getAlbumId();
@@ -847,7 +847,7 @@ public class ImageServiceImpl implements ImageService {
     public void deleteImage(String id) {
         log.info("删除图片，ID：{}", id);
         
-        Image image = imageRepository.findById(id)
+        Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         // 如果是主图，同时删除所有关联的详情图
@@ -878,7 +878,7 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     public void recordView(String id) {
-        Image image = imageRepository.findById(id).orElse(null);
+        Image image = imageRepository.findById(Objects.requireNonNull(id)).orElse(null);
         if (image != null) {
             int currentViews = image.getViewCount() != null ? image.getViewCount() : 0;
             image.setViewCount(currentViews + 1);
@@ -899,7 +899,7 @@ public class ImageServiceImpl implements ImageService {
         
         int deletedCount = 0;
         
-        Image image = imageRepository.findById(id).orElse(null);
+        Image image = imageRepository.findById(Objects.requireNonNull(id)).orElse(null);
         if (image != null) {
             // 如果是主图，同时永久删除所有关联的详情图
             if (Boolean.TRUE.equals(image.getIsMainImage()) && image.getProductId() != null) {
@@ -909,7 +909,7 @@ public class ImageServiceImpl implements ImageService {
                     deleteImageFile(relatedImage);
                     // 从动态表中硬删除
                     hardDeleteFromDynamicTable(relatedImage);
-                    imageRepository.delete(relatedImage);
+                    imageRepository.delete(Objects.requireNonNull(relatedImage));
                     deletedCount++;
                     log.debug("永久删除详情图：{}", relatedImage.getId());
                 }
@@ -941,7 +941,7 @@ public class ImageServiceImpl implements ImageService {
         
         int restoredCount = 0;
         
-        Image image = imageRepository.findById(id)
+        Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         // 如果是主图，同时恢复所有关联的详情图
@@ -986,7 +986,7 @@ public class ImageServiceImpl implements ImageService {
         for (String id : ids) {
             totalRestored += restoreImage(id);
             // 从已恢复的图片中收集受影响的相册ID
-            imageRepository.findById(id).ifPresent(image -> {
+            imageRepository.findById(Objects.requireNonNull(id)).ifPresent(image -> {
                 if (image.getAlbumId() != null) {
                     affectedAlbumIds.add(image.getAlbumId());
                 }
@@ -1006,7 +1006,7 @@ public class ImageServiceImpl implements ImageService {
     public Image toggleFavorite(String id) {
         log.info("切换收藏状态，ID：{}", id);
         
-        Image image = imageRepository.findById(id)
+        Image image = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         image.setFavorite(!image.getFavorite());
@@ -1033,7 +1033,7 @@ public class ImageServiceImpl implements ImageService {
         log.info("设为主图，ID：{}", id);
         
         // 获取当前图片
-        Image newMainImage = imageRepository.findById(id)
+        Image newMainImage = imageRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         // 如果已经是主图，直接返回
@@ -1200,8 +1200,7 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public Map<String, Object> batchReplaceMainImageByImageIds(List<String> imageIds) {
         log.info("========== 根据图片ID批量替换主图 ==========");
-        log.info("选中的图片数量: {}", imageIds.size());
-        
+
         if (imageIds == null || imageIds.isEmpty()) {
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
@@ -1211,6 +1210,8 @@ public class ImageServiceImpl implements ImageService {
             result.put("errorCount", 0);
             return result;
         }
+
+        log.info("选中的图片数量: {}", imageIds.size());
         
         int successCount = 0;
         int skipCount = 0;
@@ -1220,7 +1221,7 @@ public class ImageServiceImpl implements ImageService {
         for (String newMainImageId : imageIds) {
             try {
                 // 查找选中的图片
-                Optional<Image> newMainImageOpt = imageRepository.findById(newMainImageId);
+                Optional<Image> newMainImageOpt = imageRepository.findById(Objects.requireNonNull(newMainImageId));
                 if (!newMainImageOpt.isPresent()) {
                     skipCount++;
                     log.info("图片 {} 不存在，跳过", newMainImageId);
@@ -1313,7 +1314,7 @@ public class ImageServiceImpl implements ImageService {
         }
         List<Image> images = new ArrayList<>();
         for (String id : ids) {
-            imageRepository.findById(id).ifPresent(images::add);
+            imageRepository.findById(Objects.requireNonNull(id)).ifPresent(images::add);
         }
         refreshImagePresignedUrls(images);
         return images;
@@ -1333,7 +1334,7 @@ public class ImageServiceImpl implements ImageService {
     public void batchFavorite(List<String> ids) {
         log.info("批量收藏图片，数量：{}", ids.size());
         ids.forEach(id -> {
-            imageRepository.findById(id).ifPresent(image -> {
+            imageRepository.findById(Objects.requireNonNull(id)).ifPresent(image -> {
                 image.setFavorite(true);
                 image.setUpdatedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(image);
@@ -1346,12 +1347,12 @@ public class ImageServiceImpl implements ImageService {
         log.info("移动图片到相册，数量：{}，相册ID：{}", ids.size(), albumId);
         
         // 获取相册名称
-        String albumName = albumRepository.findById(albumId)
+        String albumName = albumRepository.findById(Objects.requireNonNull(albumId))
                 .map(album -> album.getName())
                 .orElse(null);
         
         for (String id : ids) {
-            imageRepository.findById(id).ifPresent(image -> {
+            imageRepository.findById(Objects.requireNonNull(id)).ifPresent(image -> {
                 String oldAlbumId = image.getAlbumId();
                 image.setAlbumId(albumId);
                 image.setAlbumName(albumName);
@@ -1545,7 +1546,7 @@ public class ImageServiceImpl implements ImageService {
                     deleteImageFile(relatedImage);
                     // 从动态表中硬删除
                     hardDeleteFromDynamicTable(relatedImage);
-                    imageRepository.delete(relatedImage);
+                    imageRepository.delete(Objects.requireNonNull(relatedImage));
                     totalDeleted++;
                     log.debug("清空回收站 - 永久删除详情图：{}", relatedImage.getId());
                 }
@@ -1684,7 +1685,7 @@ public class ImageServiceImpl implements ImageService {
      * 更新相册图片数量（只统计主图，即商品数量）
      */
     private void updateAlbumImageCount(String albumId) {
-        albumRepository.findById(albumId).ifPresent(album -> {
+        albumRepository.findById(Objects.requireNonNull(albumId)).ifPresent(album -> {
             // 只统计主图数量（商品数量）
             long count = imageRepository.countMainImagesByAlbumId(albumId);
             album.setImageCount((int) count);
@@ -2209,7 +2210,7 @@ public class ImageServiceImpl implements ImageService {
                     if (path != null && path.contains("/")) {
                         urlFileName = path.substring(path.lastIndexOf("/") + 1);
                     }
-                } catch (Exception e) {
+                } catch (@SuppressWarnings("unused") Exception e) {
                     log.warn("无法从URL提取文件名: {}", imageUrl);
                 }
                 
@@ -2406,7 +2407,7 @@ public class ImageServiceImpl implements ImageService {
         Set<String> affectedAlbumIds = new HashSet<>();
         for (BatchDownloadResponse resp : results) {
             if (resp.isSuccess() && resp.getImageId() != null) {
-                imageRepository.findById(resp.getImageId()).ifPresent(img -> {
+                imageRepository.findById(Objects.requireNonNull(resp.getImageId())).ifPresent(img -> {
                     if (img.getAlbumId() != null) {
                         affectedAlbumIds.add(img.getAlbumId());
                     }
@@ -2716,11 +2717,7 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public void exportAlbumImages(String albumId, org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream zos) throws Exception {
         log.info("导出相册图片：{}", albumId);
-        
-        // 获取相册信息
-        Album album = albumService.getAlbumById(albumId);
-        String albumName = album != null ? album.getName() : "unknown";
-        
+
         // 递归获取所有子相册ID（包含当前相册）
         List<String> allAlbumIds = new ArrayList<>();
         collectAllAlbumIds(albumId, allAlbumIds);
@@ -3012,12 +3009,12 @@ public class ImageServiceImpl implements ImageService {
                 return true;
             } catch (Exception e) {
                 log.error("流式写入ZIP失败：{}", image.getId(), e);
-                try { zos.closeArchiveEntry(); } catch (Exception ignored) {}
+                try { zos.closeArchiveEntry(); } catch (@SuppressWarnings("unused") Exception ignored) {}
                 return false;
             }
         } finally {
             if (imageStream != null) {
-                try { imageStream.close(); } catch (Exception ignored) {}
+                try { imageStream.close(); } catch (@SuppressWarnings("unused") Exception ignored) {}
             }
         }
     }

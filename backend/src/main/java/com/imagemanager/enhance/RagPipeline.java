@@ -101,7 +101,7 @@ public class RagPipeline {
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                     .get(1500, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
+        } catch (@SuppressWarnings("unused") TimeoutException e) {
             log.warn("[RagPipeline] 整体召回超时(1.5s)，使用已返回的结果");
         } catch (Exception e) {
             log.warn("[RagPipeline] 并行召回异常: {}", e.getMessage());
@@ -112,7 +112,7 @@ public class RagPipeline {
                 try {
                     List<MemorySearchResult> r = f.getNow(Collections.emptyList());
                     allResults.addAll(r);
-                } catch (Exception ignored) {}
+                } catch (@SuppressWarnings("unused") Exception ignored) {}
             }
         }
         log.info("[RagPipeline] 多路召回总计 {} 条", allResults.size());

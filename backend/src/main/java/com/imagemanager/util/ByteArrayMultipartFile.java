@@ -8,6 +8,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import java.util.Objects;
+
 /**
  * 字节数组实现的 MultipartFile
  * 用于将下载的字节数组转换为 MultipartFile 对象
@@ -29,7 +31,7 @@ public class ByteArrayMultipartFile implements MultipartFile {
     @Override
     @NonNull
     public String getName() {
-        return this.name;
+        return Objects.requireNonNull(this.name);
     }
 
     @Override
@@ -57,7 +59,7 @@ public class ByteArrayMultipartFile implements MultipartFile {
     @Override
     @NonNull
     public byte[] getBytes() throws IOException {
-        return this.content;
+        return Objects.requireNonNull(this.content);
     }
 
     @Override

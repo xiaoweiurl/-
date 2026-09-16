@@ -10,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.util.Objects;
+
 /**
  * 三单据（报价单/销售单/工艺单）统计实现（JdbcTemplate 只读查询）
  *
@@ -111,7 +113,7 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
             long prev = ((Number) r.get("prev")).longValue();
             if (prev == 0) return cur > 0 ? 100.0 : null;
             return Math.round((cur - prev) * 1000.0 / prev) / 10.0;
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return null;
         }
     }
@@ -207,7 +209,7 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
 
     private List<Map<String, Object>> safeQuery(String sql) {
         try {
-            return jdbcTemplate.queryForList(sql);
+            return jdbcTemplate.queryForList(Objects.requireNonNull(sql));
         } catch (Exception e) {
             log.warn("[三单据统计] 查询失败: {}", e.getMessage());
             return new ArrayList<>();
@@ -219,7 +221,7 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
         try {
             double d = Double.parseDouble(String.valueOf(v));
             return Math.round(d * 100.0) / 100.0;
-        } catch (NumberFormatException e) {
+        } catch (@SuppressWarnings("unused") NumberFormatException e) {
             return v;
         }
     }

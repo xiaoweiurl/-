@@ -18,6 +18,8 @@ import java.net.URL;
 import java.util.Optional;
 import java.util.UUID;
 
+import java.util.Objects;
+
 /**
  * 去水印服务实现
  * 
@@ -76,7 +78,7 @@ public class WatermarkRemoveServiceImpl implements WatermarkRemoveService {
     private byte[] getImageData(WatermarkRemoveRequest request) throws IOException {
         // 优先从 imageId 获取
         if (request.getImageId() != null) {
-            Optional<Image> imageOpt = imageRepository.findById(request.getImageId());
+            Optional<Image> imageOpt = imageRepository.findById(Objects.requireNonNull(request.getImageId()));
             if (imageOpt.isPresent()) {
                 Image image = imageOpt.get();
                 if (image.getUrl() != null) {

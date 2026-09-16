@@ -510,7 +510,7 @@ public class QuotationCalcService {
         if (v instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
         try {
             return new BigDecimal(v.toString().trim());
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return BigDecimal.ZERO;
         }
     }

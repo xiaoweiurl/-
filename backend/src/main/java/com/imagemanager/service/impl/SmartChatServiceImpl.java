@@ -31,6 +31,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -162,7 +163,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 1. 发送conversationId给前端
                 final String finalConvId = convId;
-                emitter.send(SseEmitter.event().name("conversation").data(finalConvId));
+                emitter.send(SseEmitter.event().name("conversation").data(Objects.requireNonNull(finalConvId)));
 
                 // 1a. 显式 subMode（前端智能体按钮）优先级最高，直接写入会话记忆
                 if (subMode != null && ("planning".equals(subMode) || "decision".equals(subMode) || "general".equals(subMode))) {
@@ -175,10 +176,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 2. 加载历史对话（按conversationId），优先用ChatMemory缓存，无缓存时查DB
-                List<Map<String, Object>> history;
+                List<Map<String, Object>> history = new ArrayList<>();
                 List<ChatMemoryManager.ChatMessage> memoryMsgs = chatMemoryManager.getMessages(convId);
                 if (!memoryMsgs.isEmpty()) {
-                    history = new ArrayList<>();
                     for (ChatMemoryManager.ChatMessage msg : memoryMsgs) {
                         Map<String, Object> m = new LinkedHashMap<>();
                         m.put("role", msg.role);
@@ -186,9 +186,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                         history.add(m);
                     }
                 } else {
-                    history = getChatHistory(userId, company, convId);
-                    if (history == null) {
-                        history = new ArrayList<>();
+                    List<Map<String, Object>> fromDb = getChatHistory(userId, company, convId);
+                    if (fromDb != null) {
+                        history = fromDb;
                     }
                     // 回填到内存缓存
                     for (Map<String, Object> msg : history) {
@@ -271,7 +271,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 //   ③已终稿后提新主题 / 消息自带确认词(如"新企划 宝娜斯 保暖袜") → 不拦截, 仅注入隔离声明
                 String planningIsolationNotice = "";
                 String planningOverrideMessage = null;
-                if ("planning".equals(resolvedSubMode) && history != null && !history.isEmpty()) {
+                if ("planning".equals(resolvedSubMode) && !history.isEmpty()) {
                     String curBrand = extractBrandName(message);
                     String curCats = extractCategoryWords(message);
                     String curTopic = (!curBrand.isEmpty() && !curCats.isEmpty()) ? curBrand + "×" + curCats : null;
@@ -293,9 +293,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                             saveChatMessage(userId, finalConvId, "assistant", guardPrompt, company, null, mode);
                             chatMemoryManager.addAssistantMessage(finalConvId, guardPrompt);
                             emitter.send(SseEmitter.event().name("message").data(
-                                    objectMapper.writeValueAsString(Map.of("type", "content", "content", guardPrompt))));
+                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "content", "content", guardPrompt)))));
                             emitter.send(SseEmitter.event().name("message").data(
-                                    objectMapper.writeValueAsString(Map.of("type", "done"))));
+                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "done")))));
                             emitter.complete();
                             log.info("[planning-guard] 拦截企划主题切换: 进行中主题={} → 新主题={}, 已提示先跑完当前企划或回复'开始新企划'确认切换",
                                     lastTopic, curTopic);
@@ -512,13 +512,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 emitter.send(SseEmitter.event().name("message").data(
-                        objectMapper.writeValueAsString(Map.of("type", "sources", "sources", sources))
+                        Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "sources", "sources", sources)))
                 ));
 
                 // 3b. 发送图片结果(如果有)
                 if (!imageResults.isEmpty()) {
                     emitter.send(SseEmitter.event().name("message").data(
-                            objectMapper.writeValueAsString(Map.of("type", "images", "images", imageResults))
+                            Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "images", "images", imageResults)))
                     ));
                 }
 
@@ -563,17 +563,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     o.put("shuijin", calc.get("shuijin_理论税金"));
                                     o.put("shuijinSg", calc.get("shuijin_sg_实际税金"));
                                     o.put("xscb", calc.get("xscb_销售成本"));
-                                } catch (Exception ignore) {
+                                } catch (@SuppressWarnings("unused") Exception ignore) {
                                 }
                                 orders.add(o);
                             }
                             emitter.send(SseEmitter.event().name("message").data(
-                                    objectMapper.writeValueAsString(Map.of(
+                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
                                             "type", "quotation_list",
                                             "customer", customer,
                                             "total", statData.getOrDefault("单号总数", 0),
                                             "orders", orders
-                                    ))
+                                    )))
                             ));
                         }
                         break;
@@ -744,7 +744,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 企划/决策模式第3段：用户历史多轮对话提问记录
                 // 生成终稿时必须整合历史所有轮次用户提出的需求/条件/问题/修改意见，不得遗漏
-                if (structuredMode && history != null && !history.isEmpty()) {
+                if (structuredMode && !history.isEmpty()) {
                     StringBuilder userQs = new StringBuilder();
                     int qn = 0;
                     for (Map<String, Object> h : history) {
@@ -911,7 +911,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 List<String> imageBase64List = new ArrayList<>();
                 for (Map<String, Object> r : knowledgeResults) {
                     String source = r.getOrDefault("source", "").toString();
-                    String content = r.getOrDefault("content", "").toString();
                     // 检查来源文件名是否是图片格式
                     if (source.matches("(?i).*\\.(jpg|jpeg|png|gif|webp|bmp)$")) {
                         String imageUrl = r.getOrDefault("url", "").toString();
@@ -1074,10 +1073,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         String imgChunk = imgBlock.toString();
                         try {
                             emitter.send(SseEmitter.event().name("message").data(
-                                    objectMapper.writeValueAsString(Map.of(
+                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
                                             "type", "content",
                                             "content", imgChunk
-                                    ))
+                                    )))
                             ));
                             fullResponse.append(imgChunk);
                             log.info("商品库图片已自动追加展示: {} 张", goodsLibraryImageUrls.size());
@@ -1125,9 +1124,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                 log.error("智能对话失败: {}", e.getMessage());
                 try {
                     emitter.send(SseEmitter.event().name("message").data(
-                            objectMapper.writeValueAsString(Map.of("type", "error", "content", "AI对话失败: " + e.getMessage()))
+                            Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "error", "content", "AI对话失败: " + e.getMessage())))
                     ));
-                } catch (Exception ignored) {}
+                } catch (@SuppressWarnings("unused") Exception ignored) {}
                 emitter.completeWithError(e);
             }
         }).start();
@@ -1277,7 +1276,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         String convId = UUID.randomUUID().toString();
         String convTitle = (title != null && !title.isEmpty()) ? title : "新对话";
         String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
-        TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+        TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         txTemplate.executeWithoutResult(status -> {
             jdbcTemplate.update(
                     "INSERT INTO smart_chat_conversations (id, user_id, company, title, model, created_at, updated_at) " +
@@ -1382,7 +1381,7 @@ public class SmartChatServiceImpl implements SmartChatService {
      */
     private void updateConversationTitleFromMessage(String conversationId, String message) {
         try {
-            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+            TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             // 检查该对话是否只有0-1条消息（刚创建的对话）
             Integer count = txTemplate.execute(status -> {
                 String countSql = "SELECT COUNT(*) FROM smart_chat_history WHERE conversation_id = ?::uuid";
@@ -1476,7 +1475,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             log.info("图片搜索SQL: {}", sql.toString());
             log.info("图片搜索参数: userId={}, keywords={}", userId, keywords);
 
-            List<Map<String, Object>> rawImages = jdbcTemplate.query(sql.toString(),
+            List<Map<String, Object>> rawImages = jdbcTemplate.query(Objects.requireNonNull(sql.toString()),
                     (rs, rowNum) -> {
                         Map<String, Object> img = new LinkedHashMap<>();
                         img.put("id", rs.getString("id"));
@@ -1532,7 +1531,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     fallbackParams.add(pattern);
                 }
 
-                rawImages = jdbcTemplate.query(fallbackSql.toString(),
+                rawImages = jdbcTemplate.query(Objects.requireNonNull(fallbackSql.toString()),
                         (rs, rowNum) -> {
                             Map<String, Object> img = new LinkedHashMap<>();
                             img.put("id", rs.getString("id"));
@@ -1873,7 +1872,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             sb.append("]");
             String embeddingStr = sb.toString();
 
-            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+            TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             txTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
                         "INSERT INTO knowledge_embeddings (id, source_type, source_doc_id, chunk_text, chunk_index, embedding, company, created_at) " +
@@ -3578,7 +3577,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             sql.append(" LIMIT 10");
 
-            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+            List<Map<String, Object>> rows = jdbcTemplate.query(Objects.requireNonNull(sql.toString()),
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("productCode", rs.getString("product_code"));
@@ -3632,7 +3631,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             sql.append(" ORDER BY huohao NULLS LAST, product_code LIMIT 20");
 
-            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+            List<Map<String, Object>> rows = jdbcTemplate.query(Objects.requireNonNull(sql.toString()),
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("huohao", rs.getString("huohao"));
@@ -3727,7 +3726,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
             sql.append(" LIMIT 20");
 
-            List<Map<String, Object>> rows = jdbcTemplate.query(sql.toString(),
+            List<Map<String, Object>> rows = jdbcTemplate.query(Objects.requireNonNull(sql.toString()),
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("accessoryName", rs.getString("accessory_name"));
@@ -3786,7 +3785,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     BigDecimal minP = rs.getBigDecimal("min_price");
                     if (maxP != null && minP != null && maxP.compareTo(BigDecimal.ZERO) > 0) {
                         BigDecimal saving = maxP.subtract(minP)
-                            .divide(maxP, 4, BigDecimal.ROUND_HALF_UP)
+                            .divide(maxP, 4, RoundingMode.HALF_UP)
                             .multiply(new BigDecimal("100"));
                         row.put("savingPercent", saving + "%");
                     }
@@ -3831,7 +3830,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
             log.info("保存对话消息: userId={}, role={}, contentLength={}, company={}, conversationId={}, hasReasoning={}, mode={}", 
                     userId, role, content.length(), company, conversationId, reasoningContent != null && !reasoningContent.isEmpty(), modeValue);
-            TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+            TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             txTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
                         "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, model, created_at) " +
@@ -4029,10 +4028,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         if (!thinking.isEmpty()) {
                             reasoningContent.append(thinking);
                             emitter.send(SseEmitter.event().name("message").data(
-                                    objectMapper.writeValueAsString(Map.of(
+                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
                                             "type", "reasoning",
                                             "content", thinking
-                                    ))
+                                    )))
                             ));
                         }
                     }
@@ -4046,10 +4045,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     content.length() > 100 ? content.substring(0, 100) : content);
                             }
                             emitter.send(SseEmitter.event().name("message").data(
-                                    objectMapper.writeValueAsString(Map.of(
+                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
                                             "type", "content",
                                             "content", content
-                                    ))
+                                    )))
                             ));
                         }
                     }
@@ -4058,7 +4057,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (done) {
                     break;
                 }
-            } catch (Exception e) {
+            } catch (@SuppressWarnings("unused") Exception e) {
                 log.debug("解析Ollama流式数据行失败: {}", line);
             }
         }
@@ -4067,14 +4066,14 @@ public class SmartChatServiceImpl implements SmartChatService {
         // 发送完整的reasoning和done事件
         if (reasoningContent.length() > 0) {
             emitter.send(SseEmitter.event().name("message").data(
-                    objectMapper.writeValueAsString(Map.of(
+                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
                             "type", "reasoning",
                             "content", reasoningContent.toString()
-                    ))
+                    )))
             ));
         }
         emitter.send(SseEmitter.event().name("message").data(
-                objectMapper.writeValueAsString(Map.of("type", "done"))
+                Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "done")))
         ));
     }
 }

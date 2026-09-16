@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import java.util.Objects;
+
 /**
  * 系统定时任务
  */
@@ -50,7 +52,7 @@ public class SystemScheduler {
         for (Image image : expiredImages) {
             try {
                 // 永久删除图片
-                imageRepository.delete(image);
+                imageRepository.delete(Objects.requireNonNull(image));
                 
                 // 更新存储使用量
                 if (image.getFileSize() != null && image.getUserId() != null) {

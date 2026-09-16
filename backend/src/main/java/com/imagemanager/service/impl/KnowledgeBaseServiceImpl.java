@@ -175,10 +175,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             // 更新状态为处理中
-            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
             tx.execute(status -> {
-                KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
+                KnowledgeBaseDoc doc = docRepository.findById(Objects.requireNonNull(docId)).orElse(null);
                 if (doc != null) {
                     doc.setEmbeddingStatus("PROCESSING");
                     docRepository.save(doc);
@@ -242,7 +242,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     private void updateDocEmbeddingStatus(UUID docId, int chunkCount, String status) {
         try {
-            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
             tx.execute(status2 -> {
                 jdbcTemplate.update("UPDATE knowledge_base_docs SET embedding_status = ?, chunk_count = ?, updated_at = NOW() WHERE id = ?::uuid",
@@ -273,7 +273,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             // 保存提取的文本
             // Update file content and status via direct SQL for reliability
-            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
             tx.execute(status -> {
                 jdbcTemplate.update("UPDATE knowledge_base_docs SET file_content = ?, embedding_status = 'PROCESSING', updated_at = NOW() WHERE id = ?::uuid",
@@ -340,7 +340,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      */
     private void processEmbeddingRetry(UUID docId) {
         try {
-            KnowledgeBaseDoc doc = docRepository.findById(docId).orElse(null);
+            KnowledgeBaseDoc doc = docRepository.findById(Objects.requireNonNull(docId)).orElse(null);
             if (doc == null) {
                 log.warn("重试向量化: 文档 {} 不存在", docId);
                 return;
@@ -353,7 +353,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 return;
             }
 
-            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
             tx.execute(status -> {
                 doc.setEmbeddingStatus("PROCESSING");
@@ -458,7 +458,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.warn("删除知识库向量记录失败: {}", e.getMessage());
         }
 
-        docRepository.delete(doc);
+        docRepository.delete(Objects.requireNonNull(doc));
     }
 
     @Override
@@ -495,7 +495,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
         KnowledgeBaseCategory category = categoryRepository.findByIdAndCompany(id, company)
                 .orElseThrow(() -> new RuntimeException("分类不存在或无权限"));
-        categoryRepository.delete(category);
+        categoryRepository.delete(Objects.requireNonNull(category));
     }
 
     @Override
@@ -505,7 +505,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public KnowledgeBaseDoc getDocumentById(UUID id, String company) {
-        var doc = docRepository.findById(id)
+        var doc = docRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("文档不存在"));
         if (!company.equals(doc.getCompany())) {
             throw new RuntimeException("无权访问此文档");
@@ -756,7 +756,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         String t = s.trim();
         try {
             return UUID.fromString(t);
-        } catch (IllegalArgumentException ignore) {
+        } catch (@SuppressWarnings("unused") IllegalArgumentException ignore) {
             if (t.matches("[0-9a-fA-F]{32}")) {
                 return UUID.fromString(
                         t.substring(0, 8) + "-" + t.substring(8, 12) + "-" + t.substring(12, 16)
@@ -783,7 +783,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         try {
             // CTE SQL 参数顺序：
             // CTE内: vectorStr(distance), company, keywords×2(tsquery+ILIKE), vectorStr(WHERE score), minScore, candidateLimit
-            return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
+            return jdbcTemplate.query(Objects.requireNonNull(sql), (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, vectorStr);   // 1: CTE SELECT distance
                 ps.setString(idx++, company);     // 2: CTE e.company
@@ -822,7 +822,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             String company, double minScore, int candidateLimit) {
         try {
             // CTE SQL 参数顺序：vectorStr(distance), company, vectorStr(WHERE score), minScore, candidateLimit
-            return jdbcTemplate.query(sql, (PreparedStatement ps) -> {
+            return jdbcTemplate.query(Objects.requireNonNull(sql), (PreparedStatement ps) -> {
                 int idx = 1;
                 ps.setString(idx++, vectorStr);   // CTE: distance calculation
                 ps.setString(idx++, company);      // CTE: company filter
@@ -887,7 +887,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             
             log.info("直接SQL搜索: SQL={}, params={}", sql.toString(), params);
             
-            results = jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
+            results = jdbcTemplate.query(Objects.requireNonNull(sql.toString()), (rs, rowNum) -> {
                 MemorySearchResult r = new MemorySearchResult();
                 r.setId(tryParseUuid(rs.getString("id")));
                 r.setContent(rs.getString("chunk_text"));
@@ -1030,7 +1030,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public void retryEmbedding(String docId, String company) {
-        var docOpt = docRepository.findById(UUID.fromString(docId));
+        var docOpt = docRepository.findById(Objects.requireNonNull(UUID.fromString(docId)));
         if (docOpt.isEmpty()) {
             throw new RuntimeException("文档不存在");
         }

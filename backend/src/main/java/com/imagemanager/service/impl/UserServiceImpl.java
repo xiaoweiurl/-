@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import java.util.Objects;
+
 /**
  * 用户服务实现类
  * 
@@ -61,7 +63,7 @@ public class UserServiceImpl implements UserService {
     public User getCurrentUser() {
         String currentUserId = SessionUtil.requireCurrentUserId();
         log.info("获取当前用户信息: {}", currentUserId);
-        return userRepository.findById(currentUserId)
+        return userRepository.findById(Objects.requireNonNull(currentUserId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
     
@@ -114,17 +116,17 @@ public class UserServiceImpl implements UserService {
     public void deleteNotification(String notificationId) {
         log.info("删除通知：{}", notificationId);
         
-        Notification notification = notificationRepository.findById(notificationId)
+        Notification notification = notificationRepository.findById(Objects.requireNonNull(notificationId))
                 .orElseThrow(() -> new RuntimeException("通知不存在"));
         
-        notificationRepository.delete(notification);
+        notificationRepository.delete(Objects.requireNonNull(notification));
         log.info("通知删除成功");
     }
     
     @Override
     public void markNotificationRead(String notificationId) {
         log.info("标记通知为已读：{}", notificationId);
-        Notification notification = notificationRepository.findById(notificationId)
+        Notification notification = notificationRepository.findById(Objects.requireNonNull(notificationId))
                 .orElseThrow(() -> new RuntimeException("通知不存在"));
         notification.setRead(true);
         notificationRepository.save(notification);
@@ -170,7 +172,7 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public User getUserById(String userId) {
-        return userRepository.findById(userId)
+        return userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
     
@@ -232,7 +234,7 @@ public class UserServiceImpl implements UserService {
             entity.setDefaultView(settings.getDefaultView());
         }
         
-        userSettingsRepository.save(entity);
+        userSettingsRepository.save(Objects.requireNonNull(entity));
         
         return convertToDto(entity);
     }
@@ -363,7 +365,7 @@ public class UserServiceImpl implements UserService {
             user.setAvatarUrl(request.getAvatarUrl());
         }
         
-        return userRepository.save(user);
+        return userRepository.save(Objects.requireNonNull(user));
     }
     
     @Override
@@ -378,10 +380,10 @@ public class UserServiceImpl implements UserService {
         
         // 删除用户通知
         List<Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        notificationRepository.deleteAll(notifications);
+        notificationRepository.deleteAll(Objects.requireNonNull(notifications));
         
         // 删除用户
-        userRepository.delete(user);
+        userRepository.delete(Objects.requireNonNull(user));
         
         log.info("用户删除成功");
     }

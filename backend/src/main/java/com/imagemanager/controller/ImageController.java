@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -242,7 +243,7 @@ public class ImageController {
     @Operation(summary = "记录浏览", description = "图片预览时累加浏览次数")
     public ApiResponse<Void> incrementViewCount(
             @Parameter(description = "图片ID") @PathVariable String id) {
-        return imageRepository.findById(id).map(image -> {
+        return imageRepository.findById(Objects.requireNonNull(id)).map(image -> {
             image.setViewCount((image.getViewCount() == null ? 0 : image.getViewCount()) + 1);
             imageRepository.save(image);
             return ApiResponse.<Void>success("浏览次数已更新", null);
@@ -713,7 +714,7 @@ public class ImageController {
         
         // 获取相册名称作为文件名
         String albumName = albumId;
-        Album album = albumRepository.findById(albumId).orElse(null);
+        Album album = albumRepository.findById(Objects.requireNonNull(albumId)).orElse(null);
         if (album != null && album.getName() != null) {
             albumName = album.getName();
         }
@@ -747,7 +748,7 @@ public class ImageController {
             if (zos != null) {
                 try {
                     zos.close();
-                } catch (Exception ignored) {}
+                } catch (@SuppressWarnings("unused") Exception ignored) {}
             }
         }
     }
@@ -766,7 +767,7 @@ public class ImageController {
         // 获取第一个相册（父相册）名称作为文件名
         String albumName = "albums_export";
         if (!albumIds.isEmpty()) {
-            Album firstAlbum = albumRepository.findById(albumIds.get(0)).orElse(null);
+            Album firstAlbum = albumRepository.findById(Objects.requireNonNull(albumIds.get(0))).orElse(null);
             if (firstAlbum != null && firstAlbum.getName() != null) {
                 albumName = firstAlbum.getName();
             }
@@ -801,7 +802,7 @@ public class ImageController {
             if (zos != null) {
                 try {
                     zos.close();
-                } catch (Exception ignored) {}
+                } catch (@SuppressWarnings("unused") Exception ignored) {}
             }
         }
     }

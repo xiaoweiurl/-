@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.util.Objects;
+
 /**
  * AI 识别控制器
  * 
@@ -89,7 +91,7 @@ public class AIController {
             @PathVariable String imageId) {
         log.info("AI识别单张图片：{}", imageId);
         
-        Image image = imageRepository.findById(imageId)
+        Image image = imageRepository.findById(Objects.requireNonNull(imageId))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));
         
         List<Album> albums = albumService.getAllAlbums();

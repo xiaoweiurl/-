@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -82,10 +84,10 @@ public class AuditServiceImpl implements AuditService {
         }
         // 否则包装成 JSON 对象
         try {
-            return objectMapper.writeValueAsString(new java.util.HashMap<String, String>() {{
-                put("message", details);
-            }});
-        } catch (Exception e) {
+            Map<String, String> payload = new HashMap<>();
+            payload.put("message", details);
+            return objectMapper.writeValueAsString(payload);
+        } catch (@SuppressWarnings("unused") Exception e) {
             return "{\"message\":\"" + details.replace("\"", "\\\"") + "\"}";
         }
     }

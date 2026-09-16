@@ -155,7 +155,7 @@ public class Album {
             // 使用简单的JSON解析或直接返回默认配置
             // 实际项目中可以使用 Jackson 或 Gson
             return MatchingEngine.createDefaultConfig();
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return MatchingEngine.createDefaultConfig();
         }
     }

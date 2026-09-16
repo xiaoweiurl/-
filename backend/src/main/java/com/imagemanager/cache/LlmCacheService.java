@@ -92,7 +92,7 @@ public class LlmCacheService {
         if (json == null) return null;
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             log.warn("[LlmCache] RAG结果反序列化失败, key={}", key);
             return null;
         }
@@ -129,7 +129,7 @@ public class LlmCacheService {
         if (json == null) return null;
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             log.warn("[LlmCache] DB结果反序列化失败, key={}", key);
             return null;
         }
@@ -163,7 +163,7 @@ public class LlmCacheService {
                 Set<Object> keys = redisTemplate.opsForSet().members(indexKey);
                 if (keys != null) {
                     for (Object k : keys) {
-                        redisTemplate.delete((String) k);
+                        redisTemplate.delete(Objects.requireNonNull((String) k));
                     }
                 }
                 redisTemplate.delete(indexKey);
@@ -211,7 +211,7 @@ public class LlmCacheService {
                 sb.append(String.format("%02x", b));
             }
             return sb.toString();
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return String.valueOf(input.hashCode());
         }
     }
@@ -221,7 +221,7 @@ public class LlmCacheService {
         // 优先 Redis
         if (isRedisAvailable()) {
             try {
-                Object val = redisTemplate.opsForValue().get(key);
+                Object val = redisTemplate.opsForValue().get(Objects.requireNonNull(key));
                 if (val != null) {
                     log.debug("[LlmCache] Redis命中: key={}", key);
                     return (T) val;
@@ -247,11 +247,11 @@ public class LlmCacheService {
         // Redis
         if (isRedisAvailable()) {
             try {
-                redisTemplate.opsForValue().set(key, value, ttl);
+                redisTemplate.opsForValue().set(Objects.requireNonNull(key), Objects.requireNonNull(value), Objects.requireNonNull(ttl));
                 // 记录到用户索引 Set，便于批量清理
                 String indexKey = USER_INDEX_PREFIX + safeUserId(userId);
                 redisTemplate.opsForSet().add(indexKey, key);
-                redisTemplate.expire(indexKey, ttl);
+                redisTemplate.expire(indexKey, Objects.requireNonNull(ttl));
                 return;
             } catch (Exception e) {
                 log.warn("[LlmCache] Redis写入异常，降级到本地: {}", e.getMessage());

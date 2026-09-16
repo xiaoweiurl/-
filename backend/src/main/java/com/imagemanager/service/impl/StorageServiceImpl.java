@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.Map;
 
+import java.util.Objects;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -163,7 +165,7 @@ public class StorageServiceImpl implements StorageService {
         dto.setRemainingFormatted(StorageQuota.formatSize(quota.getRemainingBytes()));
 
         // 获取用户名
-        userRepository.findById(quota.getUserId())
+        userRepository.findById(Objects.requireNonNull(quota.getUserId()))
                 .ifPresent(user -> dto.setUsername(user.getUsername()));
 
         // 获取图片和相册数量

@@ -25,7 +25,7 @@ public class SessionUtil {
             if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
                 return auth.getName();
             }
-        } catch (Exception ignored) {
+        } catch (@SuppressWarnings("unused") Exception ignored) {
         }
 
         // 2. 从当前Request的Attribute获取（由拦截器设置）
@@ -42,12 +42,12 @@ public class SessionUtil {
                         try {
                             Object id = userInfo.getClass().getMethod("getId").invoke(userInfo);
                             if (id != null) return id.toString();
-                        } catch (Exception ignored) {
+                        } catch (@SuppressWarnings("unused") Exception ignored) {
                         }
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (@SuppressWarnings("unused") Exception ignored) {
         }
 
         return null;
@@ -83,12 +83,12 @@ public class SessionUtil {
                         try {
                             Object company = userInfo.getClass().getMethod("getCompany").invoke(userInfo);
                             if (company != null && !company.toString().isEmpty()) return company.toString();
-                        } catch (Exception ignored) {
+                        } catch (@SuppressWarnings("unused") Exception ignored) {
                         }
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (@SuppressWarnings("unused") Exception ignored) {
         }
         return "宝娜斯集团"; // 默认值
     }
@@ -110,12 +110,12 @@ public class SessionUtil {
                         try {
                             Object role = userInfo.getClass().getMethod("getRole").invoke(userInfo);
                             if (role != null) return role.toString();
-                        } catch (Exception ignored) {
+                        } catch (@SuppressWarnings("unused") Exception ignored) {
                         }
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (@SuppressWarnings("unused") Exception ignored) {
         }
         return "user"; // 默认普通用户
     }
@@ -137,12 +137,12 @@ public class SessionUtil {
                         try {
                             Object username = userInfo.getClass().getMethod("getUsername").invoke(userInfo);
                             if (username != null) return username.toString();
-                        } catch (Exception ignored) {
+                        } catch (@SuppressWarnings("unused") Exception ignored) {
                         }
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (@SuppressWarnings("unused") Exception ignored) {
         }
         return null;
     }

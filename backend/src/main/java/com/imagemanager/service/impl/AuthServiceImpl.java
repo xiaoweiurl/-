@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import java.util.Objects;
+
 /**
  * 认证服务实现类 — Redis Session 存储
  *
@@ -264,7 +266,7 @@ public class AuthServiceImpl implements AuthService {
         saveSessionToRedis(sessionId, userInfo, rememberMe, expiresAt, timeoutHours);
 
         // SSO: 记录用户当前 sessionId
-        redisTemplate.opsForValue().set(userSessionKey, sessionId, timeoutHours, TimeUnit.HOURS);
+        redisTemplate.opsForValue().set(userSessionKey, Objects.requireNonNull(sessionId), timeoutHours, TimeUnit.HOURS);
         log.info("SSO: 存储用户会话映射: key={}, sessionId={}, ttl={}h", userSessionKey, sessionId, timeoutHours);
 
         // 验证存储是否成功
@@ -437,7 +439,7 @@ public class AuthServiceImpl implements AuthService {
             long newExpiresAt = System.currentTimeMillis() + timeoutHours * 60 * 60 * 1000;
 
             // 更新 expiresAt
-            redisTemplate.opsForHash().put(sessionKey, "expiresAt", String.valueOf(newExpiresAt));
+            redisTemplate.opsForHash().put(sessionKey, "expiresAt", Objects.requireNonNull(String.valueOf(newExpiresAt)));
 
             // 重设 TTL
             redisTemplate.expire(sessionKey, timeoutHours, TimeUnit.HOURS);
@@ -452,7 +454,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 更新最后访问时间
-        redisTemplate.opsForHash().put(sessionKey, "lastAccessAt", String.valueOf(System.currentTimeMillis()));
+        redisTemplate.opsForHash().put(sessionKey, "lastAccessAt", Objects.requireNonNull(String.valueOf(System.currentTimeMillis())));
 
         return userInfo;
     }
@@ -461,7 +463,7 @@ public class AuthServiceImpl implements AuthService {
     public void updateProfile(String userId, UpdateProfileRequest request) {
         log.info("更新用户资料：{}", userId);
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
         if (request.getUsername() != null) user.setUsername(request.getUsername());
@@ -471,7 +473,7 @@ public class AuthServiceImpl implements AuthService {
         if (request.getBio() != null) user.setBio(request.getBio());
         if (request.getPhone() != null) user.setPhone(request.getPhone());
 
-        userRepository.save(user);
+        userRepository.save(Objects.requireNonNull(user));
 
         // 同步更新 Redis 中所有该用户的 session 信息
         syncUserInfoToRedis(userId, user);
@@ -486,7 +488,7 @@ public class AuthServiceImpl implements AuthService {
             throw new RateLimitException("密码修改尝试次数过多，请在 " + resetTime + " 秒后重试");
         }
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
@@ -554,7 +556,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             currentCompany = jdbcTemplate.queryForObject(
                 "SELECT company FROM users WHERE id = ?::uuid", String.class, userId);
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             try {
                 currentCompany = jdbcTemplate.queryForObject(
                     "SELECT company FROM users WHERE id = ?", String.class, userId);
@@ -574,7 +576,7 @@ public class AuthServiceImpl implements AuthService {
             updated = jdbcTemplate.update(
                 "UPDATE users SET company = ? WHERE id = ?::uuid AND (company IS NULL OR company = '')",
                 company, userId);
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             try {
                 updated = jdbcTemplate.update(
                     "UPDATE users SET company = ? WHERE id = ? AND (company IS NULL OR company = '')",
@@ -657,9 +659,9 @@ public class AuthServiceImpl implements AuthService {
         if (sessionData.isEmpty()) return;
 
         // 更新变更的字段
-        redisTemplate.opsForHash().put(sessionKey, "username", user.getUsername() != null ? user.getUsername() : "");
-        redisTemplate.opsForHash().put(sessionKey, "email", user.getEmail() != null ? user.getEmail() : "");
-        redisTemplate.opsForHash().put(sessionKey, "avatar", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
+        redisTemplate.opsForHash().put(sessionKey, "username", Objects.requireNonNull(user.getUsername() != null ? user.getUsername() : ""));
+        redisTemplate.opsForHash().put(sessionKey, "email", Objects.requireNonNull(user.getEmail() != null ? user.getEmail() : ""));
+        redisTemplate.opsForHash().put(sessionKey, "avatar", Objects.requireNonNull(user.getAvatarUrl() != null ? user.getAvatarUrl() : ""));
 
         log.info("已同步用户信息到 Redis session: userId={}", userId);
     }

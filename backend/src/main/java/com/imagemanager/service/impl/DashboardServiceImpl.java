@@ -480,16 +480,7 @@ public class DashboardServiceImpl implements DashboardService {
             long memoryDocs = knowledgeDocumentRepository.count();
             long totalEmbeddings = knowledgeEmbeddingRepository.count();
 
-            // 统计向量化状态（COMPLETED/PROCESSING）
-            long embeddingCompleted = 0L;
             long embeddingProcessing = 0L;
-            try {
-                // 从knowledge_embeddings表按source_type统计
-                embeddingCompleted = totalEmbeddings;
-                embeddingProcessing = 0L;
-            } catch (Exception e) {
-                log.debug("[Dashboard] 向量化状态统计降级: {}", e.getMessage());
-            }
 
             return new DashboardStatsResponse.AIStats(
                     0L,    // totalChatCalls - 从chat_history表统计，暂不实现

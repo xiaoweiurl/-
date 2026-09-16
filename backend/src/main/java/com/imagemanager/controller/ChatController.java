@@ -82,7 +82,7 @@ public class ChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
             return emitter;
         }
     }
@@ -109,7 +109,7 @@ public class ChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
             return emitter;
         }
         try {
@@ -122,7 +122,7 @@ public class ChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
             return emitter;
         }
     }
@@ -176,7 +176,7 @@ public class ChatController {
             @RequestBody Map<String, String> body,
             HttpServletRequest request) {
         try {
-            LoginResponse.UserInfo user = getCurrentUser(request);
+            getCurrentUser(request);
             String title = body.get("title");
             smartChatService.updateConversationTitle(id, title);
             return ResponseEntity.ok(Map.of("success", true));

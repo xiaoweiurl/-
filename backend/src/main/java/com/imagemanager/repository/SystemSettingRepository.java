@@ -20,7 +20,7 @@ public interface SystemSettingRepository extends JpaRepository<SystemSetting, St
             return findBySettingKey(key)
                     .map(s -> Integer.parseInt(s.getSettingValue()))
                     .orElse(defaultValue);
-        } catch (NumberFormatException e) {
+        } catch (@SuppressWarnings("unused") NumberFormatException e) {
             return defaultValue;
         }
     }
@@ -30,7 +30,7 @@ public interface SystemSettingRepository extends JpaRepository<SystemSetting, St
             return findBySettingKey(key)
                     .map(s -> Long.parseLong(s.getSettingValue()))
                     .orElse(defaultValue);
-        } catch (NumberFormatException e) {
+        } catch (@SuppressWarnings("unused") NumberFormatException e) {
             return defaultValue;
         }
     }

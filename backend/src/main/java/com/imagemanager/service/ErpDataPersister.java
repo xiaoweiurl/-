@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import java.util.Objects;
+
 /**
  * ERP 业务数据落库器 —— 「仅新增同步」
  * <p>
@@ -118,7 +120,7 @@ public class ErpDataPersister {
                 argsList.add(argsBuilder.apply(row));
             }
             try {
-                int[] results = transactionTemplate.execute(status -> jdbcTemplate.batchUpdate(insertSql, argsList));
+                int[] results = transactionTemplate.execute(status -> jdbcTemplate.batchUpdate(Objects.requireNonNull(insertSql), argsList));
                 if (results != null) {
                     for (int r : results) {
                         if (r > 0) {
@@ -179,7 +181,7 @@ public class ErpDataPersister {
                         }
                     }
                     if (!toInsert.isEmpty()) {
-                        jdbcTemplate.batchUpdate(insertSql, toInsert);
+                        jdbcTemplate.batchUpdate(Objects.requireNonNull(insertSql), toInsert);
                     }
                     return new int[]{toInsert.size(), keys.size() - toInsert.size()};
                 });
@@ -374,7 +376,7 @@ public class ErpDataPersister {
         }
         try {
             return new BigDecimal(s.replace(",", ""));
-        } catch (NumberFormatException e) {
+        } catch (@SuppressWarnings("unused") NumberFormatException e) {
             return null;
         }
     }
@@ -386,7 +388,7 @@ public class ErpDataPersister {
         }
         try {
             return new BigDecimal(s.replace(",", "")).intValue();
-        } catch (NumberFormatException e) {
+        } catch (@SuppressWarnings("unused") NumberFormatException e) {
             return null;
         }
     }
@@ -413,7 +415,7 @@ public class ErpDataPersister {
             }
             return Timestamp.valueOf(LocalDateTime.parse(normalized,
                     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return null;
         }
     }

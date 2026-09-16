@@ -479,13 +479,13 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
             // 发送请求
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(apiKey);
+            headers.setBearerAuth(Objects.requireNonNull(apiKey));
             
             HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
             
             ResponseEntity<String> response = restTemplate.exchange(
                 baseUrl + "/v1/chat/completions",
-                HttpMethod.POST,
+                Objects.requireNonNull(HttpMethod.POST),
                 entity,
                 String.class
             );
