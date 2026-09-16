@@ -145,9 +145,11 @@ LEFT JOIN knowledge_base_categories c2 ON ...
 ## 快速启动
 
 ```bash
-# 前端
+# 前端（无 HMR / 无 tsx watch：改代码后需重新构建并手动重启进程）
 pnpm install
-pnpm run dev  # http://localhost:5000
+pnpm run build
+pnpm run dev  # 或 pnpm start；http://localhost:5000
+# 改代码后：Ctrl+C 停掉进程 → pnpm run build → pnpm run dev
 
 # 后端（独立仓库）
 cd backend && ./mvnw spring-boot:run
@@ -156,50 +158,43 @@ cd backend && ./mvnw spring-boot:run
 NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8080
 ```
 
-本地开发使用 `pnpm run dev`（`tsx watch` + Next development / HMR）。公司内网或 FRP 访问必须用生产模式，见下方。
+本地与公司 FRP **都不启用** Next Fast Refresh / webpack-hmr / `tsx watch`。保存文件不会自动刷新页面或重启服务。
 
-### 内网 FRP 部署（务必生产模式，否则页面会每隔几秒整页刷新）
+### 内网 FRP 与本地启动（无热更新）
 
-**原因**：自定义服务 `src/server.ts` 若以 Next **development** 模式启动，浏览器会连 Fast Refresh / `webpack-hmr` WebSocket。经 FRP 时该连接打到 `localhost` 或未授权的 Origin 会失败，客户端重连循环最终 **整页 reload**。`pnpm dev` 的 `tsx watch` 还会在文件变动时重启进程。
+**原因**：自定义服务若以 Next **development** 模式启动，浏览器会连 Fast Refresh / `webpack-hmr` WebSocket。经 FRP 时该连接失败，客户端重连循环会每隔几秒 **整页 reload**。`tsx watch` 还会在保存文件时重启 Node 进程。
 
-**正确做法（推荐）**：先构建，再用生产 Next 启动（无 HMR）：
+**做法**：先 `next build`，再用自定义服务以 **production Next**（`dev: false`）启动。`pnpm dev` 与 `pnpm start` 均如此（无 watch、无 HMR）。
 
 ```bash
 pnpm install
 pnpm run build
 
-# Linux / macOS（脚本已写入 NODE_ENV=production 与 COZE_PROJECT_ENV=PROD）
+# Linux / macOS
 NEXT_HOSTNAME=0.0.0.0 PORT=5000 pnpm start
+# 本地同样：pnpm run dev
 
 # Windows
 set NEXT_HOSTNAME=0.0.0.0&& pnpm start:win
 ```
 
-FRP 把内网 `0.0.0.0:5000`（或你映射的端口）转到公网即可。启动日志应出现 `as production` 和 `HMR/Fast Refresh disabled`。若出现 `as development`，说明仍走了开发态，页面会周期性刷新。
+改前端代码后：
 
-| 变量 | 生产 / FRP | 说明 |
-|------|------------|------|
-| `COZE_PROJECT_ENV` | `PROD` | `pnpm start` 已设置。显式 `PROD` 关闭 Next `dev` |
-| `NODE_ENV` | `production` | `pnpm start` 已设置。仅 `COZE_PROJECT_ENV` 缺失时不再当成开发态 |
-| `NEXT_HOSTNAME` / `HOST` | `0.0.0.0` | Next 绑定主机；勿把 Linux 机器名 `HOSTNAME` 当公网域名 |
+1. 停止当前 Node 进程（Ctrl+C）
+2. `pnpm run build`
+3. 再执行 `pnpm start` 或 `pnpm run dev`
+
+启动日志应出现 `as production` 和 `HMR / Fast Refresh / tsx watch: OFF`。
+
+| 变量 | 推荐 | 说明 |
+|------|------|------|
+| `COZE_PROJECT_ENV` | `PROD` | `pnpm start` / `pnpm dev` 已设置 |
+| `NODE_ENV` | `production` | 同上。自定义服务始终 `next({ dev: false })` |
+| `NEXT_HOSTNAME` / `HOST` | `0.0.0.0` | 监听主机；勿把 Linux 机器名 `HOSTNAME` 当公网域名 |
 | `PORT` | `5000` | 与 FRP 本地端口一致 |
-| `COOKIE_SECURE` | HTTP 内网不设或 `false` | 仅 HTTPS 时 cookie 才加 `Secure`，避免 FRP 明文 HTTP 登录丢 cookie |
-| `ALLOWED_DEV_ORIGINS` | （生产无需） | 仅开发态 + FRP 时把公网域名加入 Next `allowedDevOrigins` |
-| `NEXT_DISABLE_HMR` | （生产无需） | 开发态下强制 `dev: false` 的逃生开关 |
+| `COOKIE_SECURE` | HTTP 内网不设或 `false` | 仅 HTTPS 时 cookie 才加 `Secure` |
 
-**不要**用 `pnpm run dev` / `tsx watch` 给公司同事走 FRP。
-
-**仅当必须「开发态穿透 FRP」时**（不推荐，HMR 仍可能不稳）：
-
-```bash
-NODE_ENV=development COZE_PROJECT_ENV=DEV \
-  ALLOWED_DEV_ORIGINS=your-frp-host.example.com \
-  NEXT_HOSTNAME=your-frp-host.example.com \
-  NEXT_DISABLE_HMR=1 \
-  pnpm exec tsx src/server.ts
-```
-
-`react-dev-inspector` 仅在 `NODE_ENV !== 'production'` **且** `COZE_PROJECT_ENV=DEV` 时启用；`pnpm start` 的生产包不会加载它。
+`react-dev-inspector` 仅在非 production 构建且 `COZE_PROJECT_ENV=DEV` 时启用；当前启动脚本不会加载它。
 
 后端不可用时前端自动降级到 Mock 数据，可独立开发前端。
 

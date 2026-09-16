@@ -60,11 +60,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Inspector / react-dev-inspector must never run in a production (FRP) serve.
-  // NODE_ENV is inlined at `next build`, so a PROD bundle cannot enable this even if
-  // COZE_PROJECT_ENV is later set to DEV. Local `pnpm dev` sets both NODE_ENV=development
-  // and COZE_PROJECT_ENV=DEV.
-  // Inline NODE_ENV so `next build` dead-code-eliminates Inspector from the prod graph.
+  // Inspector / react-dev-inspector must never run when serving the built app
+  // (local and FRP both use next({ dev: false }) / NODE_ENV=production).
+  // NODE_ENV is inlined at `next build`, so the production graph cannot enable this.
   const enableInspector =
     process.env.NODE_ENV !== 'production' &&
     process.env.COZE_PROJECT_ENV === 'DEV';

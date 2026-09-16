@@ -4,8 +4,11 @@ import { parseAllowedDevOrigins } from './src/lib/next-runtime';
 const nextConfig: NextConfig = {
   // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
   /* config options here */
-  // Dev-only: extra origins (FRP public host) via ALLOWED_DEV_ORIGINS=host1,host2
+  // HMR is permanently off (custom server uses next({ dev: false })). This list
+  // only matters if Next is ever started in development by mistake.
   allowedDevOrigins: parseAllowedDevOrigins(),
+  // Never show the Next.js dev overlay (reconnect/reload UI).
+  devIndicators: false,
   serverExternalPackages: ['pg'],
   // 生产环境性能优化
   compress: true,           // Gzip压缩响应

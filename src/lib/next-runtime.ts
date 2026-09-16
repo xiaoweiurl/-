@@ -1,10 +1,14 @@
 /**
  * Next.js custom-server runtime helpers.
  *
- * Company FRP access must run production Next (no Fast Refresh / HMR).
+ * Client HMR / Fast Refresh is permanently off: the custom server always
+ * starts Next with `dev: false`. File-watch process restarts (`tsx watch`)
+ * are also not used. Code changes require `pnpm run build` and a manual
+ * frontend restart. This stops webpack-hmr reconnect loops (full page
+ * reload every few seconds) on FRP and locally.
+ *
  * Historically `COZE_PROJECT_ENV !== 'PROD'` treated a missing env as
- * development, which made webpack-hmr reconnect and full-page reload
- * every few seconds behind the tunnel.
+ * development and enabled HMR.
  */
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
@@ -18,43 +22,23 @@ function envFlag(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
-function cozeEnv(env: NodeJS.ProcessEnv): string {
-  return (env.COZE_PROJECT_ENV || '').trim().toUpperCase();
-}
-
 /**
- * Whether the custom Next server should enable development mode (HMR / Fast Refresh).
- *
- * Production (`false`) when any of:
- * - `NODE_ENV === 'production'`
- * - `COZE_PROJECT_ENV=PROD`
- * - `NEXT_DISABLE_HMR` is truthy
- *
- * Missing `COZE_PROJECT_ENV` is NOT treated as development when `NODE_ENV=production`.
- * `pnpm start` / `start:win` set both production flags. Unspecified env defaults to
- * development so `tsx watch` / `pnpm dev` keep HMR.
+ * Always `false`: Next must never enable Fast Refresh / webpack-hmr.
+ * Env flags cannot turn HMR back on (including NODE_ENV=development).
  */
-export function isNextDevMode(env: NodeJS.ProcessEnv = process.env): boolean {
-  const coze = cozeEnv(env);
-  const nodeEnv = env.NODE_ENV;
-  const disableHmr = envFlag(env.NEXT_DISABLE_HMR) === true;
-
-  if (disableHmr) return false;
-  if (nodeEnv === 'production' || coze === 'PROD') return false;
-  if (nodeEnv === 'development' || coze === 'DEV') return true;
-  return true;
+export function isNextDevMode(_env: NodeJS.ProcessEnv = process.env): boolean {
+  return false;
 }
 
 /**
  * Hostname passed to `next({ hostname })`.
  *
- * Linux often sets `HOSTNAME` to the machine name; using that for Next HMR
- * makes the client connect to an unresolvable host through FRP.
- * Honor `NEXT_HOSTNAME` / `HOST`, then `HOSTNAME` only when it looks like an
- * explicit bind/public host (IP, localhost, 0.0.0.0, or a dotted name).
+ * Linux often sets `HOSTNAME` to the machine name. Honor `NEXT_HOSTNAME` /
+ * `HOST`, then `HOSTNAME` only when it looks like an explicit bind/public
+ * host (IP, localhost, 0.0.0.0, or a dotted name).
  */
 export function resolveNextHostname(
-  dev: boolean,
+  _dev: boolean,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const explicit = env.NEXT_HOSTNAME || env.HOST;
@@ -65,7 +49,7 @@ export function resolveNextHostname(
     return hostname;
   }
 
-  return dev ? 'localhost' : '0.0.0.0';
+  return '0.0.0.0';
 }
 
 function isExplicitHostname(value: string): boolean {
@@ -76,7 +60,7 @@ function isExplicitHostname(value: string): boolean {
   return value.includes('.');
 }
 
-/** Default Coze sandbox origin plus comma-separated `ALLOWED_DEV_ORIGINS`. */
+/** Coze sandbox origin plus comma-separated `ALLOWED_DEV_ORIGINS` (unused while HMR is off). */
 export function parseAllowedDevOrigins(
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
