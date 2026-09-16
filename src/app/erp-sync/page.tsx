@@ -115,8 +115,20 @@ function parseResponseJson(text: string): ErpApiJson {
   return {};
 }
 
+function isSessionAuthFailure(res: Response, json: ErpApiJson): boolean {
+  if (res.status === 401 || json.code === 401) return true;
+  const text = `${json.message || ''}${json.error || ''}`;
+  return /请先登录|未登录|会话已过期|会话失效/.test(text);
+}
+
 function erpFailMessage(res: Response, json: ErpApiJson, fallback: string): string {
-  return json.message || json.error || (res.status ? `请求失败 (${res.status})` : fallback);
+  const fromBody = (json.message || json.error || '').trim();
+  if (fromBody) return fromBody;
+  // Spring Security 401 体为 {error:"请先登录"}；无 body 时也不能说成「同步失败」
+  if (res.status === 401 || json.code === 401) return '请先登录';
+  if (res.status === 403 || json.code === 403) return '权限不足';
+  if (res.status) return `请求失败 (${res.status})`;
+  return fallback;
 }
 
 async function erpFetch(path: string, init: RequestInit = {}): Promise<{ res: Response; json: ErpApiJson; text: string }> {
@@ -167,8 +179,14 @@ export default function ErpSyncPage() {
 
   const loadAuthState = useCallback(async () => {
     try {
-      const { json } = await erpFetch('/api/erp-sync/auth-state');
-      if (json.success) setAuthState(json.data as ErpAuthState);
+      const { res, json } = await erpFetch('/api/erp-sync/auth-state');
+      if (json.success) {
+        setAuthState(json.data as ErpAuthState);
+        return;
+      }
+      if (isSessionAuthFailure(res, json)) {
+        setAuthState(s => (s ? { ...s, loggedIn: false } : s));
+      }
     } catch (e) {
       console.error('[ERP] 加载登录态失败', e);
     }
@@ -252,11 +270,16 @@ export default function ErpSyncPage() {
 
   const handleDisconnect = async () => {
     try {
-      await erpFetch('/api/erp-sync/logout', { method: 'POST' });
+      const { res, json } = await erpFetch('/api/erp-sync/logout', { method: 'POST' });
+      if (!json.success) {
+        showToast('error', erpFailMessage(res, json, '断开连接失败'));
+        return;
+      }
       setAuthState(s => ({ ...s, loggedIn: false, uid: null, loginTime: null }));
       showToast('success', '已断开 ERP 连接');
     } catch (e) {
       console.error('[ERP] 断开连接失败', e);
+      showToast('error', '网络异常，请稍后重试');
     }
   };
 
@@ -266,20 +289,18 @@ export default function ErpSyncPage() {
     setSyncingModule(moduleKey);
     try {
       const { res, json } = await erpFetch(`/api/erp-sync/sync/${moduleKey}`, { method: 'POST' });
-      if (res.status === 401 || json.code === 401) {
-        setAuthState(s => ({ ...s, loggedIn: false }));
-        showToast('error', erpFailMessage(res, json, 'ERP 自动登录失败，请检查后端凭证配置或 ERP 可达性'));
-        return;
-      }
       if (json.success) {
         const d = json.data as { moduleName?: string; added?: number };
         showToast('success', `${d.moduleName} 同步完成，新增 ${d.added} 条`);
-      } else {
-        showToast('error', erpFailMessage(res, json, '同步失败'));
+        return;
       }
+      if (isSessionAuthFailure(res, json)) {
+        setAuthState(s => ({ ...s, loggedIn: false }));
+      }
+      showToast('error', erpFailMessage(res, json, '同步失败'));
     } catch (e) {
       console.error('[ERP] 模块同步异常', moduleKey, e);
-      showToast('error', '同步请求失败');
+      showToast('error', '网络异常，请稍后重试');
     } finally {
       setSyncingModule(null);
       await Promise.all([loadStatus(), loadLogs()]);
@@ -291,23 +312,21 @@ export default function ErpSyncPage() {
     setSyncAllProgress({ done: 0, total: modules.length || 7 });
     try {
       const { res, json } = await erpFetch('/api/erp-sync/sync-all', { method: 'POST' });
-      if (res.status === 401 || json.code === 401) {
-        setAuthState(s => ({ ...s, loggedIn: false }));
-        showToast('error', erpFailMessage(res, json, 'ERP 自动登录失败，请检查后端凭证配置或 ERP 可达性'));
-        return;
-      }
       if (json.success) {
         const results: Array<{ moduleName: string; added: number; status: string }> = (json.data as Array<{ moduleName: string; added: number; status: string }>) || [];
         const totalAdded = results.reduce((s, r) => s + (r.added || 0), 0);
         const failed = results.filter(r => r.status === 'failed').length;
         showToast(failed > 0 ? 'error' : 'success',
           failed > 0 ? `同步完成，共 ${totalAdded} 条，${failed} 个模块失败` : `全部同步完成，共新增 ${totalAdded} 条`);
-      } else {
-        showToast('error', erpFailMessage(res, json, '同步失败'));
+        return;
       }
+      if (isSessionAuthFailure(res, json)) {
+        setAuthState(s => ({ ...s, loggedIn: false }));
+      }
+      showToast('error', erpFailMessage(res, json, '同步失败'));
     } catch (e) {
       console.error('[ERP] 全部同步异常', e);
-      showToast('error', '同步请求失败');
+      showToast('error', '网络异常，请稍后重试');
     } finally {
       setSyncingAll(false);
       setSyncAllProgress(null);
@@ -327,6 +346,7 @@ export default function ErpSyncPage() {
       }
     } catch (e) {
       console.error('[ERP] 清空日志失败', e);
+      showToast('error', '网络异常，请稍后重试');
     }
   };
 
