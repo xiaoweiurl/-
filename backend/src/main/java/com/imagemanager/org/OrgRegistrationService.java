@@ -83,9 +83,6 @@ public class OrgRegistrationService {
         if (contact.getLocalUserId() != null && !contact.getLocalUserId().isBlank()) {
             throw RegisterMatchException.alreadyRegistered();
         }
-        if (userRepository.findByDingtalkUserid(contact.getDingUserId()).isPresent()) {
-            throw RegisterMatchException.alreadyRegistered();
-        }
 
         User created = txTemplate.execute(status -> createUser(company, name, contact));
         if (created == null) {
@@ -100,6 +97,15 @@ public class OrgRegistrationService {
     }
 
     private User createUser(String company, String displayName, OrgContact contact) {
+        // Prior attempt may have inserted users but failed before org_users.local_user_id
+        // was bound (JPA persist vs JDBC FK). Reuse that row so name registration is retryable.
+        Optional<User> existing = userRepository.findByDingtalkUserid(contact.getDingUserId());
+        if (existing.isPresent()) {
+            User user = existing.get();
+            orgDirectory.bindLocalUser(contact.getId(), user.getId());
+            return user;
+        }
+
         String username = allocateUsername(displayName, contact.getDingUserId());
         String email = allocateEmail(contact);
         String orgDeptId = contact.getPrimaryDingDeptId() == null
@@ -127,7 +133,9 @@ public class OrgRegistrationService {
                 .orgDeptId(orgDeptId)
                 .dingSyncedAt(LocalDateTime.now())
                 .build();
-        userRepository.save(user);
+        // JdbcTemplate bind runs in the same TX but does not trigger Hibernate auto-flush.
+        // Without flush, Postgres rejects org_users.local_user_id FK (user row not visible yet).
+        userRepository.saveAndFlush(user);
         orgDirectory.bindLocalUser(contact.getId(), user.getId());
         return user;
     }
@@ -179,8 +187,9 @@ public class OrgRegistrationService {
     private List<DingTalkContactCandidate> toCandidates(List<OrgContact> contacts) {
         List<DingTalkContactCandidate> list = new ArrayList<>();
         for (OrgContact contact : contacts) {
-            boolean registered = (contact.getLocalUserId() != null && !contact.getLocalUserId().isBlank())
-                    || userRepository.findByDingtalkUserid(contact.getDingUserId()).isPresent();
+            // Unbound leftover users.dingtalk_userid must not look "already registered",
+            // otherwise the UI disables retry for names such as 李彬.
+            boolean registered = contact.getLocalUserId() != null && !contact.getLocalUserId().isBlank();
             String path = OrgAffiliation.canonicalPath(contact.getDeptPath());
             String deptName = contact.getDeptName();
             if (OrgAffiliation.isShortCompanyLabel(deptName)) {
