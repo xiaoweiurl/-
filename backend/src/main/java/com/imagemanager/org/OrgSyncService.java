@@ -5,6 +5,7 @@ import com.imagemanager.dingtalk.DingDepartment;
 import com.imagemanager.dingtalk.DingTalkClient;
 import com.imagemanager.dingtalk.DingTalkException;
 import com.imagemanager.dingtalk.DingUser;
+import com.imagemanager.dto.OrgDepartmentMember;
 import com.imagemanager.dto.OrgDepartmentNode;
 import com.imagemanager.dto.OrgSyncResult;
 import lombok.extern.slf4j.Slf4j;
@@ -84,19 +85,36 @@ public class OrgSyncService {
     }
 
     public List<OrgDepartmentNode> departmentTree(String company) {
-        List<OrgDirectory.OrgDepartmentView> flat = orgDirectory.listActiveDepartments(resolveCompany(company));
+        String c = resolveCompany(company);
+        return buildDepartmentTree(
+                orgDirectory.listActiveDepartments(c),
+                orgDirectory.listActiveMemberships(c));
+    }
+
+    /**
+     * 组装部门树并挂上成员。同一人若同时属于上级与下级，只出现在最具体部门下。
+     */
+    static List<OrgDepartmentNode> buildDepartmentTree(List<OrgDirectory.OrgDepartmentView> flat,
+                                                       List<OrgDirectory.OrgDeptMemberRow> memberships) {
         Map<Long, OrgDepartmentNode> nodes = new LinkedHashMap<>();
-        for (OrgDirectory.OrgDepartmentView view : flat) {
-            nodes.put(view.getDingDeptId(), OrgDepartmentNode.builder()
-                    .id(view.getId())
-                    .dingDeptId(view.getDingDeptId())
-                    .parentDingDeptId(view.getParentDingDeptId())
-                    .name(view.getName())
-                    .path(view.getPath())
-                    .userCount(view.getUserCount())
-                    .children(new ArrayList<>())
-                    .build());
+        if (flat != null) {
+            for (OrgDirectory.OrgDepartmentView view : flat) {
+                if (view.getDingDeptId() == null) {
+                    continue;
+                }
+                nodes.put(view.getDingDeptId(), OrgDepartmentNode.builder()
+                        .id(view.getId())
+                        .dingDeptId(view.getDingDeptId())
+                        .parentDingDeptId(view.getParentDingDeptId())
+                        .name(view.getName())
+                        .path(view.getPath())
+                        .userCount(0)
+                        .members(new ArrayList<>())
+                        .children(new ArrayList<>())
+                        .build());
+            }
         }
+        normalizeTreeNodes(nodes);
         List<OrgDepartmentNode> roots = new ArrayList<>();
         for (OrgDepartmentNode node : nodes.values()) {
             OrgDepartmentNode parent = node.getParentDingDeptId() == null
@@ -104,10 +122,134 @@ public class OrgSyncService {
             if (parent == null || parent.getDingDeptId().equals(node.getDingDeptId())) {
                 roots.add(node);
             } else {
+                if (parent.getChildren() == null) {
+                    parent.setChildren(new ArrayList<>());
+                }
                 parent.getChildren().add(node);
             }
         }
+        attachMembers(nodes, memberships);
         return roots;
+    }
+
+    /**
+     * 根节点统一为「宝娜斯集团有限公司」；parent_id=0 的一级部门挂到该根下。
+     */
+    static void normalizeTreeNodes(Map<Long, OrgDepartmentNode> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        OrgDepartmentNode dingRoot = nodes.get(OrgAffiliation.ROOT_DEPT_ID);
+        if (dingRoot == null) {
+            for (OrgDepartmentNode node : nodes.values()) {
+                Long parentId = node.getParentDingDeptId();
+                if (parentId == null || parentId <= 0) {
+                    dingRoot = node;
+                    break;
+                }
+            }
+        }
+        if (dingRoot == null) {
+            for (OrgDepartmentNode node : nodes.values()) {
+                node.setPath(OrgAffiliation.canonicalPath(node.getPath()));
+            }
+            return;
+        }
+        dingRoot.setName(OrgAffiliation.canonicalRootName(dingRoot.getName()));
+        dingRoot.setParentDingDeptId(null);
+        dingRoot.setPath("/" + dingRoot.getName());
+        Long rootId = dingRoot.getDingDeptId();
+        for (OrgDepartmentNode node : nodes.values()) {
+            if (rootId.equals(node.getDingDeptId())) {
+                continue;
+            }
+            Long parentId = node.getParentDingDeptId();
+            if (parentId == null || parentId <= 0 || !nodes.containsKey(parentId)
+                    || parentId.equals(node.getDingDeptId())) {
+                node.setParentDingDeptId(rootId);
+            }
+            String path = OrgAffiliation.canonicalPath(node.getPath());
+            if (OrgAffiliation.pathDepth(path) <= 1) {
+                String leaf = node.getName() == null || node.getName().isBlank() ? "未命名部门" : node.getName();
+                path = "/" + dingRoot.getName() + "/" + leaf;
+            }
+            node.setPath(path);
+        }
+    }
+
+    private static void attachMembers(Map<Long, OrgDepartmentNode> nodes,
+                                      List<OrgDirectory.OrgDeptMemberRow> memberships) {
+        if (memberships == null || memberships.isEmpty() || nodes.isEmpty()) {
+            return;
+        }
+        Map<Long, Set<Long>> descendants = descendantsByDept(nodes);
+        Map<String, List<OrgDirectory.OrgDeptMemberRow>> byUser = new LinkedHashMap<>();
+        for (OrgDirectory.OrgDeptMemberRow row : memberships) {
+            if (row.getDingUserId() == null || row.getDingUserId().isBlank()) {
+                continue;
+            }
+            byUser.computeIfAbsent(row.getDingUserId(), k -> new ArrayList<>()).add(row);
+        }
+        for (List<OrgDirectory.OrgDeptMemberRow> rows : byUser.values()) {
+            Set<Long> owned = new HashSet<>();
+            for (OrgDirectory.OrgDeptMemberRow row : rows) {
+                if (row.getDingDeptId() != null) {
+                    owned.add(row.getDingDeptId());
+                }
+            }
+            Set<Long> visible = OrgAffiliation.mostSpecificDeptIds(owned, descendants);
+            OrgDirectory.OrgDeptMemberRow sample = rows.get(0);
+            OrgDepartmentMember member = OrgDepartmentMember.builder()
+                    .dingtalkUserid(sample.getDingUserId())
+                    .name(sample.getName())
+                    .jobTitle(sample.getJobTitle())
+                    .alreadyRegistered(sample.getLocalUserId() != null && !sample.getLocalUserId().isBlank())
+                    .build();
+            for (Long deptId : visible) {
+                OrgDepartmentNode node = nodes.get(deptId);
+                if (node == null) {
+                    continue;
+                }
+                if (node.getMembers() == null) {
+                    node.setMembers(new ArrayList<>());
+                }
+                node.getMembers().add(member);
+            }
+        }
+        for (OrgDepartmentNode node : nodes.values()) {
+            if (node.getMembers() == null) {
+                node.setMembers(new ArrayList<>());
+            }
+            node.getMembers().sort((a, b) -> {
+                String na = a.getName() == null ? "" : a.getName();
+                String nb = b.getName() == null ? "" : b.getName();
+                int cmp = na.compareToIgnoreCase(nb);
+                if (cmp != 0) {
+                    return cmp;
+                }
+                String ia = a.getDingtalkUserid() == null ? "" : a.getDingtalkUserid();
+                String ib = b.getDingtalkUserid() == null ? "" : b.getDingtalkUserid();
+                return ia.compareTo(ib);
+            });
+            node.setUserCount(node.getMembers().size());
+        }
+    }
+
+    private static Map<Long, Set<Long>> descendantsByDept(Map<Long, OrgDepartmentNode> nodes) {
+        Map<Long, Set<Long>> descendants = new HashMap<>();
+        for (Long id : nodes.keySet()) {
+            descendants.put(id, new HashSet<>());
+        }
+        for (OrgDepartmentNode node : nodes.values()) {
+            Long id = node.getDingDeptId();
+            Long parentId = node.getParentDingDeptId();
+            Set<Long> seen = new HashSet<>();
+            while (parentId != null && nodes.containsKey(parentId) && seen.add(parentId)) {
+                descendants.get(parentId).add(id);
+                parentId = nodes.get(parentId).getParentDingDeptId();
+            }
+        }
+        return descendants;
     }
 
     public OrgSyncResult sync() {
@@ -201,6 +343,10 @@ public class OrgSyncService {
                 continue;
             }
             seenDeptIds.add(dept.getDeptId());
+            Long parentId = OrgAffiliation.effectiveParentId(dept.getDeptId(), dept.getParentId());
+            String name = OrgAffiliation.displayName(dept.getDeptId(), dept.getName());
+            String path = OrgAffiliation.canonicalPath(
+                    paths.getOrDefault(dept.getDeptId(), "/" + name));
             jdbcTemplate.update(
                     "INSERT INTO org_departments (id, ding_dept_id, parent_ding_dept_id, name, path, company, order_num, active, synced_at, created_at, updated_at) "
                             + "VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?, NOW(), NOW()) "
@@ -208,9 +354,8 @@ public class OrgSyncService {
                             + " parent_ding_dept_id = EXCLUDED.parent_ding_dept_id, "
                             + " name = EXCLUDED.name, path = EXCLUDED.path, order_num = EXCLUDED.order_num, "
                             + " active = TRUE, synced_at = EXCLUDED.synced_at, updated_at = NOW()",
-                    UUID.randomUUID().toString(), dept.getDeptId(), dept.getParentId(),
-                    nvl(dept.getName(), "未命名部门"),
-                    paths.getOrDefault(dept.getDeptId(), "/" + nvl(dept.getName(), "未命名部门")),
+                    UUID.randomUUID().toString(), dept.getDeptId(), parentId,
+                    name, path,
                     company, dept.getOrder() == null ? 0 : dept.getOrder(), ts);
         }
         if (!seenDeptIds.isEmpty()) {
@@ -231,7 +376,7 @@ public class OrgSyncService {
         Set<String> seenUserIds = new HashSet<>();
         for (DingUser user : users.values()) {
             seenUserIds.add(user.getUserid());
-            Long primaryDept = primaryDeptId(user);
+            Long primaryDept = OrgAffiliation.pickPrimaryDeptId(user.getDeptIdList(), paths);
             String orgUserId = existingIds.get(user.getUserid());
             if (orgUserId == null) {
                 orgUserId = UUID.randomUUID().toString();
@@ -311,19 +456,13 @@ public class OrgSyncService {
             return "";
         }
         if (!stack.add(deptId)) {
-            return "/" + nvl(dept.getName(), "未命名部门");
+            return "/" + OrgAffiliation.displayName(dept.getDeptId(), dept.getName());
         }
-        if (dept.getParentId() == null || dept.getParentId().equals(deptId) || !byId.containsKey(dept.getParentId())) {
-            return "/" + nvl(dept.getName(), "未命名部门");
+        Long parentId = OrgAffiliation.effectiveParentId(dept.getDeptId(), dept.getParentId());
+        if (parentId == null || parentId.equals(deptId) || !byId.containsKey(parentId)) {
+            return "/" + OrgAffiliation.displayName(dept.getDeptId(), dept.getName());
         }
-        return pathOf(dept.getParentId(), byId, stack) + "/" + nvl(dept.getName(), "未命名部门");
-    }
-
-    private static Long primaryDeptId(DingUser user) {
-        if (user.getDeptIdList() == null || user.getDeptIdList().isEmpty()) {
-            return 1L;
-        }
-        return user.getDeptIdList().get(0);
+        return pathOf(parentId, byId, stack) + "/" + OrgAffiliation.displayName(dept.getDeptId(), dept.getName());
     }
 
     private void writeState(String company, OrgSyncResult result) {

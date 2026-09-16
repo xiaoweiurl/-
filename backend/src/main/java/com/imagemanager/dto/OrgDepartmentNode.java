@@ -23,5 +23,7 @@ public class OrgDepartmentNode {
     private String path;
     private Integer userCount;
     @Builder.Default
+    private List<OrgDepartmentMember> members = new ArrayList<>();
+    @Builder.Default
     private List<OrgDepartmentNode> children = new ArrayList<>();
 }

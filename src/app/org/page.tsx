@@ -10,7 +10,9 @@ import {
   RefreshCcw,
   Search,
   ShieldAlert,
+  User,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SyncState {
   company?: string;
@@ -22,6 +24,13 @@ interface SyncState {
   lastSyncAt?: string | null;
 }
 
+interface DeptMember {
+  dingtalkUserid: string;
+  name: string;
+  jobTitle?: string;
+  alreadyRegistered?: boolean;
+}
+
 interface DeptNode {
   id: string;
   dingDeptId: number;
@@ -29,6 +38,7 @@ interface DeptNode {
   name: string;
   path?: string;
   userCount?: number;
+  members?: DeptMember[];
   children?: DeptNode[];
 }
 
@@ -52,23 +62,80 @@ function statusText(status?: string) {
   }
 }
 
+function formatDeptPath(path?: string) {
+  if (!path) return '';
+  return path
+    .split('/')
+    .filter(Boolean)
+    .map((part) => (part === '宝娜斯集团' || part === '根部门' ? '宝娜斯集团有限公司' : part))
+    .join(' / ');
+}
+
 function DeptTree({ nodes, depth = 0 }: { nodes: DeptNode[]; depth?: number }) {
   if (!nodes?.length) return null;
   return (
     <ul className={depth === 0 ? 'space-y-1' : 'mt-1 ml-4 space-y-1 border-l border-[#E5E5EA] pl-3'}>
       {nodes.map((node) => (
-        <li key={node.id || String(node.dingDeptId)}>
-          <div className="flex items-center gap-2 py-1.5 text-sm">
-            <ChevronRight className="w-3.5 h-3.5 text-[#8E8E93]" />
-            <span className="text-[#1C1C1E] font-medium">{node.name}</span>
-            <span className="text-xs text-[#8E8E93]">{node.userCount ?? 0} 人</span>
-          </div>
-          {node.children && node.children.length > 0 && (
-            <DeptTree nodes={node.children} depth={depth + 1} />
-          )}
-        </li>
+        <DeptTreeNode key={node.id || String(node.dingDeptId)} node={node} depth={depth} />
       ))}
     </ul>
+  );
+}
+
+function DeptTreeNode({ node, depth }: { node: DeptNode; depth: number }) {
+  const members = node.members ?? [];
+  const children = node.children ?? [];
+  const expandable = children.length > 0 || members.length > 0;
+  const [open, setOpen] = useState(true);
+  const displayName =
+    depth === 0 && (node.name === '宝娜斯集团' || node.name === '根部门' || !node.name)
+      ? '宝娜斯集团有限公司'
+      : node.name;
+
+  return (
+    <li>
+      <div className="flex items-center gap-2 py-1.5 text-sm">
+        {expandable ? (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className="p-0.5 rounded-md hover:bg-black/5 transition-all duration-200"
+            aria-expanded={open}
+            aria-label={open ? `折叠 ${displayName}` : `展开 ${displayName}`}
+          >
+            <ChevronRight
+              className={cn(
+                'w-3.5 h-3.5 text-[#8E8E93] transition-transform duration-200',
+                open && 'rotate-90'
+              )}
+            />
+          </button>
+        ) : (
+          <span className="w-4 h-4 shrink-0" />
+        )}
+        <span className="text-[#1C1C1E] font-medium">{displayName}</span>
+        <span className="text-xs text-[#8E8E93]">{node.userCount ?? members.length} 人</span>
+      </div>
+      {open && expandable && (
+        <>
+          {members.length > 0 && (
+            <ul className="mt-1 ml-4 space-y-0.5 border-l border-[#E5E5EA] pl-3">
+              {members.map((member) => (
+                <li key={member.dingtalkUserid} className="flex items-center gap-2 py-1 text-sm">
+                  <User className="w-3.5 h-3.5 text-[#8E8E93] shrink-0" />
+                  <span className="text-[#1C1C1E]">{member.name}</span>
+                  <span className="text-xs text-[#8E8E93]">{member.jobTitle || '未填写职位'}</span>
+                  {member.alreadyRegistered && (
+                    <span className="text-xs text-[#34C759]">已注册</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {children.length > 0 && <DeptTree nodes={children} depth={depth + 1} />}
+        </>
+      )}
+    </li>
   );
 }
 
@@ -262,7 +329,10 @@ export default function OrgPage() {
         </section>
 
         <section className="bg-white rounded-2xl border border-[#E5E5EA] p-5">
-          <h2 className="text-base font-semibold text-[#1C1C1E] mb-3">部门树</h2>
+          <h2 className="text-base font-semibold text-[#1C1C1E]">部门树</h2>
+          <p className="text-xs text-[#8E8E93] mt-1 mb-3">
+            根节点为宝娜斯集团有限公司。展开部门查看成员；人员挂在实际所属部门，不会全部归集到集团。
+          </p>
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin text-[#8E8E93]" />
           ) : tree.length === 0 ? (
@@ -297,9 +367,11 @@ export default function OrgPage() {
               <div key={c.dingtalkUserid} className="rounded-xl border border-[#E5E5EA] px-3 py-2">
                 <div className="text-sm font-medium text-[#1C1C1E]">{c.name}</div>
                 <div className="text-xs text-[#8E8E93]">
-                  {c.jobTitle || '未填写职位'}
-                  {c.deptPath ? ` · ${c.deptPath}` : ''}
-                  {c.alreadyRegistered ? ' · 已注册' : ''}
+                  {[
+                    c.jobTitle || '未填写职位',
+                    formatDeptPath(c.deptPath) || (c.deptName === '宝娜斯集团' ? '宝娜斯集团有限公司' : c.deptName),
+                    c.alreadyRegistered ? '已注册' : '',
+                  ].filter(Boolean).join(' · ')}
                 </div>
               </div>
             ))}

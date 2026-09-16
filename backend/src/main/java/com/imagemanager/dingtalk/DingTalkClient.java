@@ -105,7 +105,7 @@ public class DingTalkClient {
             byId.put(ROOT_DEPT_ID, DingDepartment.builder()
                     .deptId(ROOT_DEPT_ID)
                     .parentId(null)
-                    .name("根部门")
+                    .name("宝娜斯集团有限公司")
                     .order(0)
                     .build());
         }
@@ -190,6 +190,13 @@ public class DingTalkClient {
                 for (JsonNode node : list) {
                     DingUser user = parseUser(node);
                     if (user.getUserid() != null && !user.getUserid().isBlank()) {
+                        // user/list 的 dept_id 是直属部门事实；dept_id_list 可能缺字段或把根部门排第一
+                        if (user.getDeptIdList() == null) {
+                            user.setDeptIdList(new ArrayList<>());
+                        }
+                        if (!user.getDeptIdList().contains(deptId)) {
+                            user.getDeptIdList().add(deptId);
+                        }
                         users.add(user);
                     }
                 }

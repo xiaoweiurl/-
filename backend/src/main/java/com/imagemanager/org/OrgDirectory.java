@@ -18,6 +18,11 @@ public interface OrgDirectory {
 
     List<OrgDepartmentView> listActiveDepartments(String company);
 
+    /**
+     * 在职人员与部门的多对多关系（含 primary 回退），用于部门树挂人。
+     */
+    List<OrgDeptMemberRow> listActiveMemberships(String company);
+
     List<OrgContact> searchContacts(String company, String keyword, int limit);
 
     void bindLocalUser(String orgUserId, String localUserId);
@@ -33,5 +38,19 @@ public interface OrgDirectory {
         private String name;
         private String path;
         private int userCount;
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    class OrgDeptMemberRow {
+        private String dingUserId;
+        private String name;
+        private String jobTitle;
+        private String localUserId;
+        private Long dingDeptId;
+        private String deptName;
+        private String deptPath;
     }
 }
