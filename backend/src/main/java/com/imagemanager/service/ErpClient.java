@@ -18,6 +18,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import java.util.Objects;
+
 /**
  * ERP 系统 HTTP 客户端（统一请求拦截器）
  *
@@ -34,16 +36,19 @@ public class ErpClient {
 
     /** ERP 鉴权失败（token 无效/过期，需重新登录） */
     public static class ErpAuthException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         public ErpAuthException(String message) { super(message); }
     }
 
     /** ERP 网络不可达（连接超时/拒绝/DNS 失败） */
     public static class ErpNetworkException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         public ErpNetworkException(String message, Throwable cause) { super(message, cause); }
     }
 
     /** ERP 业务失败（code=0 或 -200） */
     public static class ErpBizException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         public ErpBizException(String message) { super(message); }
     }
 
@@ -151,7 +156,7 @@ public class ErpClient {
                 headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
             }
             ResponseEntity<String> resp = buildRestTemplate()
-                    .exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                    .exchange(Objects.requireNonNull(url), Objects.requireNonNull(HttpMethod.GET), new HttpEntity<>(headers), String.class);
             if (resp.getStatusCode().value() == 401) {
                 throw new ErpAuthException("ERP 返回 401 未授权，请重新登录");
             }

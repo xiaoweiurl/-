@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import java.util.Objects;
+
 /**
  * 知识库控制器 - 独立的知识文档管理系统
  * 数据按公司隔离，同一公司所有用户共享数据
@@ -142,7 +144,7 @@ public class KnowledgeBaseController {
             docs = knowledgeBaseService.searchDocuments(company, keyword, pageable);
         } else if (categoryId != null && !categoryId.isEmpty()) {
             List<KnowledgeBaseDoc> list = knowledgeBaseService.getDocumentsByCategory(company, UUID.fromString(categoryId));
-            docs = new org.springframework.data.domain.PageImpl<>(list);
+            docs = new org.springframework.data.domain.PageImpl<>(Objects.requireNonNull(list));
         } else {
             docs = knowledgeBaseService.getDocuments(company, pageable);
         }

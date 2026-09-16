@@ -131,7 +131,7 @@ public class ShareServiceImpl implements ShareService {
 
         // 获取资源内容并直接放入顶层
         if ("album".equals(shareLink.getResourceType())) {
-            Album album = albumRepository.findById(shareLink.getResourceId()).orElse(null);
+            Album album = albumRepository.findById(Objects.requireNonNull(shareLink.getResourceId())).orElse(null);
             if (album != null) {
                 result.put("album", Map.of(
                     "id", album.getId(),
@@ -141,7 +141,7 @@ public class ShareServiceImpl implements ShareService {
                 result.put("images", imageRepository.findMainImagesByAlbumIdAndDeletedFalse(shareLink.getResourceId()));
             }
         } else if ("image".equals(shareLink.getResourceType())) {
-            Image image = imageRepository.findById(shareLink.getResourceId()).orElse(null);
+            Image image = imageRepository.findById(Objects.requireNonNull(shareLink.getResourceId())).orElse(null);
             if (image != null) {
                 result.put("images", java.util.List.of(image));
             }
@@ -152,7 +152,7 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public ShareLinkDTO getShareDetail(String shareLinkId, String userId) {
-        ShareLink shareLink = shareLinkRepository.findById(shareLinkId)
+        ShareLink shareLink = shareLinkRepository.findById(Objects.requireNonNull(shareLinkId))
                 .orElseThrow(() -> new RuntimeException("分享链接不存在"));
 
         // 检查权限
@@ -180,7 +180,7 @@ public class ShareServiceImpl implements ShareService {
     @Override
     @Transactional
     public void deleteShare(String shareLinkId, String userId) {
-        ShareLink shareLink = shareLinkRepository.findById(shareLinkId)
+        ShareLink shareLink = shareLinkRepository.findById(Objects.requireNonNull(shareLinkId))
                 .orElseThrow(() -> new RuntimeException("分享链接不存在"));
 
         if (!shareLink.getCreatedBy().equals(userId)) {
@@ -263,8 +263,8 @@ public class ShareServiceImpl implements ShareService {
 
     private String getResourceName(String resourceType, String resourceId) {
         return switch (resourceType) {
-            case "album" -> albumRepository.findById(resourceId).map(album -> album.getName()).orElse(null);
-            case "image" -> imageRepository.findById(resourceId).map(image -> image.getTitle()).orElse(null);
+            case "album" -> albumRepository.findById(Objects.requireNonNull(resourceId)).map(album -> album.getName()).orElse(null);
+            case "image" -> imageRepository.findById(Objects.requireNonNull(resourceId)).map(image -> image.getTitle()).orElse(null);
             default -> null;
         };
     }
@@ -299,7 +299,7 @@ public class ShareServiceImpl implements ShareService {
 
         // 获取创建者名称
         if (shareLink.getCreatedBy() != null) {
-            userRepository.findById(shareLink.getCreatedBy())
+            userRepository.findById(Objects.requireNonNull(shareLink.getCreatedBy()))
                     .ifPresent(user -> dto.setCreatedByName(user.getUsername()));
         }
 

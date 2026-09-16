@@ -139,7 +139,7 @@ public class CharsetUtil {
             if (isValidChinese(new String(rawBytes, Charset.forName("GB2312")))) {
                 return new String(rawBytes, Charset.forName("GB2312"));
             }
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             // 忽略
         }
         
@@ -149,7 +149,7 @@ public class CharsetUtil {
             if (isValidChinese(utf8Result)) {
                 return utf8Result;
             }
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             // 忽略
         }
         
@@ -186,7 +186,7 @@ public class CharsetUtil {
                 try {
                     String hex = input.substring(i + 1, i + 3);
                     result[index++] = (byte) Integer.parseInt(hex, 16);
-                } catch (NumberFormatException e) {
+                } catch (@SuppressWarnings("unused") NumberFormatException e) {
                     // 不是有效的 %XX 格式，跳过
                 }
             }
@@ -224,7 +224,7 @@ public class CharsetUtil {
                         i += 3;
                         continue;
                     }
-                } catch (NumberFormatException e) {
+                } catch (@SuppressWarnings("unused") NumberFormatException e) {
                     // 解析失败，当作普通字符处理
                 }
             }
@@ -251,7 +251,7 @@ public class CharsetUtil {
                 if (isValidChinese(decoded)) {
                     return decoded;
                 }
-            } catch (Exception e) {
+            } catch (@SuppressWarnings("unused") Exception e) {
                 // 忽略
             }
         }
@@ -346,7 +346,7 @@ public class CharsetUtil {
                     log.debug("乱码修复成功: 使用 {}", charset.name());
                     return converted;
                 }
-            } catch (Exception e) {
+            } catch (@SuppressWarnings("unused") Exception e) {
                 // 继续尝试下一个编码
             }
         }

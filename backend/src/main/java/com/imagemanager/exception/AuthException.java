@@ -5,6 +5,8 @@ package com.imagemanager.exception;
  * 由 GlobalExceptionHandler 统一捕获并返回 401
  */
 public class AuthException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
     public AuthException(String message) {
         super(message);
     }

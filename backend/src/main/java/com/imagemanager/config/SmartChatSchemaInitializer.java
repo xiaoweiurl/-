@@ -103,7 +103,7 @@ public class SmartChatSchemaInitializer {
                 return; // 列已存在，跳过
             }
             String sql = String.format("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition);
-            jdbc.execute(sql);
+            jdbc.execute(Objects.requireNonNull(sql));
             log.info("[Schema] 已添加列: {}.{}", table, column);
         } catch (Exception e) {
             log.warn("[Schema] 添加列 {}.{} 失败（可能已存在）: {}", table, column, e.getMessage());

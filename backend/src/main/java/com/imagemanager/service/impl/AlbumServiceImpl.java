@@ -43,7 +43,7 @@ public class AlbumServiceImpl implements AlbumService {
     @Override
     public Album getAlbumById(String id) {
         log.info("获取相册详情：{}", id);
-        return albumRepository.findById(id)
+        return albumRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("相册不存在"));
     }
     
@@ -256,7 +256,7 @@ public class AlbumServiceImpl implements AlbumService {
     public Album updateAlbum(String id, String name, String description, String matchingConfig) {
         log.info("更新相册：{}", id);
         
-        Album album = albumRepository.findById(id)
+        Album album = albumRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("相册不存在"));
         
         if (name != null) album.setName(name);
@@ -271,7 +271,7 @@ public class AlbumServiceImpl implements AlbumService {
     public void deleteAlbum(String id) {
         log.info("删除相册：{}", id);
         
-        Album album = albumRepository.findById(id).orElse(null);
+        Album album = albumRepository.findById(Objects.requireNonNull(id)).orElse(null);
         if (album == null) {
             throw new RuntimeException("相册不存在");
         }
@@ -288,7 +288,7 @@ public class AlbumServiceImpl implements AlbumService {
             throw new RuntimeException("相册下仍有 " + imageCount + " 张图片，请先删除图片后再删除相册");
         }
         
-        albumRepository.deleteById(id);
+        albumRepository.deleteById(Objects.requireNonNull(id));
     }
     
     @Override
@@ -365,8 +365,8 @@ public class AlbumServiceImpl implements AlbumService {
         }
         
         // 3. 删除当前相册本身
-        albumRepository.findById(albumId).ifPresent(album -> {
-            albumRepository.deleteById(albumId);
+        albumRepository.findById(Objects.requireNonNull(albumId)).ifPresent(album -> {
+            albumRepository.deleteById(Objects.requireNonNull(albumId));
             processedAlbumIds.add(albumId);
         });
         totalAlbumCount++;
@@ -383,7 +383,7 @@ public class AlbumServiceImpl implements AlbumService {
      * 更新相册图片数量
      */
     public void updateImageCount(String albumId) {
-        albumRepository.findById(albumId).ifPresent(album -> {
+        albumRepository.findById(Objects.requireNonNull(albumId)).ifPresent(album -> {
             int count = (int) imageRepository.countByAlbumIdAndDeletedFalse(albumId);
             album.setImageCount(count);
             album.setUpdatedAt(LocalDateTime.now());

@@ -45,7 +45,7 @@ public class DataModelService {
         params.add(size);
         params.add((page - 1) * size);
 
-        List<Map<String, Object>> models = jdbc.queryForList(sql.toString(), params.toArray());
+        List<Map<String, Object>> models = jdbc.queryForList(Objects.requireNonNull(sql.toString()), params.toArray());
         // 为每个模型附加字段数和记录数，并解析 JSONB
         for (Map<String, Object> m : models) {
             parseJsonbFields(m);
@@ -113,7 +113,7 @@ public class DataModelService {
 
         sql.append(" WHERE id = ?");
         params.add(id);
-        jdbc.update(sql.toString(), params.toArray());
+        jdbc.update(Objects.requireNonNull(sql.toString()), params.toArray());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
@@ -197,7 +197,7 @@ public class DataModelService {
         sql.append(" WHERE id = ? AND model_id = ?");
         params.add(fieldId);
         params.add(modelId);
-        jdbc.update(sql.toString(), params.toArray());
+        jdbc.update(Objects.requireNonNull(sql.toString()), params.toArray());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
@@ -250,14 +250,13 @@ public class DataModelService {
             }
             if (jsonStr == null || jsonStr.trim().isEmpty()) return new LinkedHashMap<>();
             return objectMapper.readValue(jsonStr, Map.class);
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return new LinkedHashMap<>();
         }
     }
 
     /** 解析 Map 中所有 JSONB 类型字段（PGobject → 真实对象） */
     private void parseJsonbFields(Map<String, Object> map, String... jsonbKeys) {
-        Set<String> keys = jsonbKeys.length > 0 ? new HashSet<>(Arrays.asList(jsonbKeys)) : null;
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             Object val = entry.getValue();
             if (val instanceof PGobject) {
@@ -268,7 +267,7 @@ public class DataModelService {
                 }
                 try {
                     entry.setValue(objectMapper.readValue(jsonStr, Object.class));
-                } catch (Exception e) {
+                } catch (@SuppressWarnings("unused") Exception e) {
                     entry.setValue(jsonStr);
                 }
             }
@@ -295,7 +294,7 @@ public class DataModelService {
         params.add(size);
         params.add((page - 1) * size);
 
-        List<Map<String, Object>> records = jdbc.queryForList(sql.toString(), params.toArray());
+        List<Map<String, Object>> records = jdbc.queryForList(Objects.requireNonNull(sql.toString()), params.toArray());
         // 解析每条记录的 JSONB data 字段为真实 Map
         for (Map<String, Object> r : records) {
             Object dataObj = r.get("data");
@@ -329,7 +328,7 @@ public class DataModelService {
     public Map<String, Object> createRecord(UUID modelId, Map<String, Object> body) {
         Object dataObj = body.getOrDefault("data", new LinkedHashMap<>());
         String dataJson;
-        try { dataJson = objectMapper.writeValueAsString(dataObj); } catch (Exception e) { dataJson = "{}"; }
+        try { dataJson = objectMapper.writeValueAsString(dataObj); } catch (@SuppressWarnings("unused") Exception e) { dataJson = "{}"; }
         String createdBy = (String) body.getOrDefault("createdBy", "admin");
         String status = (String) body.getOrDefault("status", "active");
 
@@ -348,7 +347,7 @@ public class DataModelService {
 
         if (body.containsKey("data")) {
             sql.append(", data = ?::jsonb");
-            try { params.add(objectMapper.writeValueAsString(body.get("data"))); } catch (Exception e) { params.add("{}"); }
+            try { params.add(objectMapper.writeValueAsString(body.get("data"))); } catch (@SuppressWarnings("unused") Exception e) { params.add("{}"); }
         }
         if (body.containsKey("status")) { sql.append(", status = ?"); params.add(body.get("status")); }
         if (body.containsKey("updatedBy")) { sql.append(", updated_by = ?"); params.add(body.get("updatedBy")); }
@@ -356,7 +355,7 @@ public class DataModelService {
         sql.append(" WHERE id = ? AND model_id = ?");
         params.add(recordId);
         params.add(modelId);
-        jdbc.update(sql.toString(), params.toArray());
+        jdbc.update(Objects.requireNonNull(sql.toString()), params.toArray());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);

@@ -61,8 +61,7 @@ public class ImageDynamicRepository {
             String checkSQL = "SELECT tablename FROM pg_tables WHERE tablename = ? AND schemaname = 'public'";
             Query query = entityManager.createNativeQuery(checkSQL);
             query.setParameter(1, tableName);
-            @SuppressWarnings("unchecked")
-            List<String> results = query.getResultList();
+            List<?> results = query.getResultList();
             return !results.isEmpty();
         } catch (Exception e) {
             log.warn("检查表是否存在失败: {}", tableName, e.getMessage());
@@ -77,7 +76,6 @@ public class ImageDynamicRepository {
         try {
             String querySQL = "SELECT tablename FROM pg_tables WHERE tablename LIKE 'images\\_%' AND schemaname = 'public' AND tablename != 'images'";
             Query query = entityManager.createNativeQuery(querySQL);
-            @SuppressWarnings("unchecked")
             List<String> tables = query.getResultList();
             return tables != null ? tables : new ArrayList<>();
         } catch (Exception e) {
@@ -207,7 +205,6 @@ public class ImageDynamicRepository {
             Query query = entityManager.createNativeQuery(querySQL);
             query.setParameter(1, imageId);
 
-            @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             if (results.isEmpty()) {
                 return null;
@@ -234,7 +231,6 @@ public class ImageDynamicRepository {
             Query query = entityManager.createNativeQuery(querySQL);
             query.setParameter(1, imageId);
 
-            @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             if (results.isEmpty()) {
                 return null;
@@ -768,7 +764,7 @@ public class ImageDynamicRepository {
                     Query query = entityManager.createNativeQuery(countSQL);
                     long result = ((Number) query.getSingleResult()).longValue();
                     total += result;
-                } catch (Exception e) {
+                } catch (@SuppressWarnings("unused") Exception e) {
                     log.warn("统计表 {} 图片数量失败", tableName);
                 }
             }
@@ -796,7 +792,7 @@ public class ImageDynamicRepository {
                     Query query = entityManager.createNativeQuery(countSQL);
                     long result = ((Number) query.getSingleResult()).longValue();
                     total += result;
-                } catch (Exception e) {
+                } catch (@SuppressWarnings("unused") Exception e) {
                     log.warn("统计表 {} 主图数量失败", tableName);
                 }
             }
@@ -892,7 +888,6 @@ public class ImageDynamicRepository {
                 query.setParameter(entry.getKey(), entry.getValue());
             }
 
-            @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             List<Image> images = new ArrayList<>();
             for (Object[] row : results) {
@@ -966,7 +961,6 @@ public class ImageDynamicRepository {
                 unionSQL, orderBy, pageSize, offset);
             Query query = entityManager.createNativeQuery(finalSQL);
 
-            @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             List<Image> images = new ArrayList<>();
             for (Object[] row : results) {

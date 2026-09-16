@@ -95,7 +95,7 @@ public class QuotationController {
         if (v == null) return;
         try {
             target.put(key, new BigDecimal(v.toString()));
-        } catch (NumberFormatException ignored) {
+        } catch (@SuppressWarnings("unused") NumberFormatException ignored) {
         }
     }
 }

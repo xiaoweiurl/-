@@ -71,7 +71,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+                TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
                 txTemplate.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
                 try {
                     // 步骤1: 更新状态为 PROCESSING（独立事务提交）
@@ -81,7 +81,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                     });
 
                     // 步骤2: 向量化（独立事务，包含所有 INSERT）
-                    PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
+                    PositionKnowledgeCard fresh = cardRepository.findById(Objects.requireNonNull(savedId)).orElse(null);
                     if (fresh != null) {
                         int successCount = vectorizeCard(fresh);
 
@@ -114,7 +114,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
     public PositionKnowledgeCard updateCard(String id, PositionKnowledgeCard card, String userId, String company) {
         PositionKnowledgeCard existing = (company != null && !company.isEmpty())
                 ? cardRepository.findByIdAndCompany(id, company).orElse(null)
-                : cardRepository.findById(id).orElse(null);
+                : cardRepository.findById(Objects.requireNonNull(id)).orElse(null);
         if (existing == null) throw new IllegalArgumentException("卡片不存在或无权访问");
 
         validateAllFields(card);
@@ -154,7 +154,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
+                TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
                 txTemplate.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
                 try {
                     // 先删除旧向量（独立事务）
@@ -169,7 +169,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                         return null;
                     });
 
-                    PositionKnowledgeCard fresh = cardRepository.findById(savedId).orElse(null);
+                    PositionKnowledgeCard fresh = cardRepository.findById(Objects.requireNonNull(savedId)).orElse(null);
                     if (fresh != null) {
                         int successCount = vectorizeCard(fresh);
 
@@ -202,7 +202,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             return cardRepository.findByIdAndCompany(id, company)
                     .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
         }
-        return cardRepository.findById(id)
+        return cardRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
     }
 
@@ -212,7 +212,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
         if (company != null && !company.isBlank()) {
             page = cardRepository.findByCompany(company, pageable);
         } else {
-            page = cardRepository.findAll(pageable);
+            page = cardRepository.findAll(Objects.requireNonNull(pageable));
         }
 
         if ((keyword != null && !keyword.isBlank()) || (department != null && !department.isBlank())) {
@@ -232,7 +232,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                         return match;
                     })
                     .toList();
-            return new org.springframework.data.domain.PageImpl<>(filtered, pageable, filtered.size());
+            return new org.springframework.data.domain.PageImpl<>(filtered, Objects.requireNonNull(pageable), filtered.size());
         }
 
         return page;
@@ -246,10 +246,10 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             card = cardRepository.findByIdAndCompany(id, company)
                     .orElseThrow(() -> new IllegalArgumentException("卡片不存在或无权访问"));
         } else {
-            card = cardRepository.findById(id)
+            card = cardRepository.findById(Objects.requireNonNull(id))
                     .orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
         }
-        cardRepository.delete(card);
+        cardRepository.delete(Objects.requireNonNull(card));
 
         // 删除向量记录
         try {
@@ -338,7 +338,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                     continue;
                 }
                 String vectorStr = arrayToVectorString(embedding);
-                TransactionTemplate tx = new TransactionTemplate(transactionManager);
+                TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
                 tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
                 tx.execute(status -> {
                     jdbcTemplate.update(
@@ -420,7 +420,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
      * 删除岗位卡片对应的向量记录
      */
     private void deleteCardVectors(String cardId) {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         tx.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
         Integer deletedObj = tx.execute(status -> jdbcTemplate.update(
             "DELETE FROM knowledge_embeddings WHERE source_type = 'POSITION_CARD' AND source_doc_id = ?",

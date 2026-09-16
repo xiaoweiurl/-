@@ -191,7 +191,7 @@ public class LocalStorageServiceImpl implements FileStorageService {
             try {
                 URI uri = URI.create(path);
                 path = uri.getPath();
-            } catch (Exception e) {
+            } catch (@SuppressWarnings("unused") Exception e) {
                 log.warn("URL解析失败，尝试字符串截取: {}", fileKey);
             }
         }

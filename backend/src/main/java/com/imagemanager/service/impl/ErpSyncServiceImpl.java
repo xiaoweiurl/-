@@ -330,7 +330,7 @@ public class ErpSyncServiceImpl implements ErpSyncService {
     private void simulateLatency() {
         try {
             Thread.sleep(ThreadLocalRandom.current().nextInt(300, 1200));
-        } catch (InterruptedException e) {
+        } catch (@SuppressWarnings("unused") InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
@@ -397,7 +397,7 @@ public class ErpSyncServiceImpl implements ErpSyncService {
             return jdbcTemplate.queryForMap(
                     "SELECT last_sync_time, total_records, last_added, last_status, last_message, last_duration_ms "
                             + "FROM erp_sync_state WHERE module_key = ?", moduleKey);
-        } catch (EmptyResultDataAccessException e) {
+        } catch (@SuppressWarnings("unused") EmptyResultDataAccessException e) {
             Map<String, Object> empty = new LinkedHashMap<>();
             empty.put("last_sync_time", null);
             empty.put("total_records", 0L);
@@ -415,7 +415,7 @@ public class ErpSyncServiceImpl implements ErpSyncService {
                     "SELECT last_sync_time FROM erp_sync_state WHERE module_key = ? AND last_status = 'success'",
                     Timestamp.class, moduleKey);
             return ts != null ? ts.toLocalDateTime() : null;
-        } catch (EmptyResultDataAccessException e) {
+        } catch (@SuppressWarnings("unused") EmptyResultDataAccessException e) {
             return null;
         }
     }

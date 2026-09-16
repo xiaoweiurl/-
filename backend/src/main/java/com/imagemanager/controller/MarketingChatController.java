@@ -68,7 +68,7 @@ public class MarketingChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
             return emitter;
         }
     }
@@ -87,7 +87,7 @@ public class MarketingChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
             return emitter;
         }
         try {
@@ -100,7 +100,7 @@ public class MarketingChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
             return emitter;
         }
     }

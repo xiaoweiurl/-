@@ -61,7 +61,7 @@ public class OpsService {
             summary.put("requestsPerMinute", minutes > 0 ? totalCalls / minutes : totalCalls);
             summary.put("activeUsers", 0);
             summary.put("uptime", java.time.Duration.between(LocalDateTime.now().minusDays(7), LocalDateTime.now()).toString());
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             summary.put("totalRequests", 0); summary.put("errorCount", 0);
             summary.put("avgResponseTime", 0); summary.put("successRate", 0);
             summary.put("errorRate", 0); summary.put("requestsPerMinute", 0);
@@ -82,7 +82,6 @@ public class OpsService {
                     (company != null ? " AND company = ?" : "") +
                     " GROUP BY DATE_TRUNC('hour', created_at) ORDER BY hour";
             List<Map<String, Object>> trend = jdbcTemplate.queryForList(trendSql, statsParams);
-            DateTimeFormatter hourFmt = DateTimeFormatter.ofPattern("HH:mm");
             for (Map<String, Object> row : trend) {
                 Map<String, Object> h = new HashMap<>();
                 Object hourVal = row.get("hour");
@@ -148,7 +147,7 @@ public class OpsService {
                     cpuUsage = sunOsBean.getProcessCpuLoad() * 100.0;
                     if (cpuUsage < 0) cpuUsage = 0;
                 }
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
 
             Map<String, Object> cpu = new HashMap<>();
             cpu.put("current", Math.round(cpuUsage * 10.0) / 10.0);
@@ -172,7 +171,7 @@ public class OpsService {
                 disk.put("usedGb", Math.round(usedGb * 10.0) / 10.0);
                 disk.put("totalGb", Math.round(totalGb * 10.0) / 10.0);
                 disk.put("percentage", totalBytes > 0 ? Math.round((double) usedBytes / totalBytes * 1000.0) / 10.0 : 0);
-            } catch (Exception ex) {
+            } catch (@SuppressWarnings("unused") Exception ex) {
                 disk.put("usedGb", 0.0);
                 disk.put("totalGb", 0.0);
                 disk.put("percentage", 0);
@@ -187,7 +186,7 @@ public class OpsService {
                         (company != null ? " AND company = ?" : "");
                 long reqCount = toLong(jdbcTemplate.queryForMap(reqCountSql, statsParams).get("cnt"));
                 network.put("totalRequests", reqCount);
-            } catch (Exception ex) {
+            } catch (@SuppressWarnings("unused") Exception ex) {
                 network.put("totalRequests", 0);
             }
 
@@ -267,7 +266,7 @@ public class OpsService {
         Map<String, Object> result = new HashMap<>();
         String userId = getUserIdFromRequest(request);
 
-        TransactionTemplate txResolve = new TransactionTemplate(transactionManager);
+        TransactionTemplate txResolve = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         Integer updatedObj = txResolve.execute(status ->
                 jdbcTemplate.update(
                         "UPDATE system_errors SET resolved = true, resolved_by = ?, resolved_at = NOW() WHERE id = ?",
@@ -347,13 +346,13 @@ public class OpsService {
                 for (var gcBean : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
                     gcPauseMs += gcBean.getCollectionTime();
                 }
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
 
             // 峰值线程数（通过 ThreadMXBean）
             int peakThreadCount = threadCount;
             try {
                 peakThreadCount = java.lang.management.ManagementFactory.getThreadMXBean().getPeakThreadCount();
-            } catch (Exception ignored) {}
+            } catch (@SuppressWarnings("unused") Exception ignored) {}
 
             Map<String, Object> jvm = new HashMap<>();
             jvm.put("heapUsedMb", heapUsed);
@@ -365,18 +364,17 @@ public class OpsService {
 
             // 数据库连接池指标（通过注入的 DataSource 获取 HikariCP 指标）
             Map<String, Object> database = new HashMap<>();
-            int activeConns = 0, idleConns = 0, maxConns = 0, waitingConns = 0;
+            int activeConns = 0, maxConns = 0, waitingConns = 0;
             try {
                 if (dataSource instanceof com.zaxxer.hikari.HikariDataSource hikariDs) {
                     var pool = hikariDs.getHikariPoolMXBean();
                     if (pool != null) {
                         activeConns = pool.getActiveConnections();
-                        idleConns = pool.getIdleConnections();
                         maxConns = hikariDs.getMaximumPoolSize();
                         waitingConns = pool.getThreadsAwaitingConnection();
                     }
                 }
-            } catch (NoClassDefFoundError | Exception ignored) {}
+            } catch (@SuppressWarnings("unused") NoClassDefFoundError | Exception ignored) {}
             database.put("activeConnections", activeConns);
             database.put("maxConnections", maxConns > 0 ? maxConns : 100);
             database.put("waitingConnections", waitingConns);
@@ -387,7 +385,7 @@ public class OpsService {
                         (company != null ? " AND company = ?" : "");
                 long slowCount = toLong(jdbcTemplate.queryForMap(slowCountSql, params).get("cnt"));
                 database.put("slowQueryCount", slowCount);
-            } catch (Exception ex) {
+            } catch (@SuppressWarnings("unused") Exception ex) {
                 database.put("slowQueryCount", 0);
             }
             runtime.put("database", database);
@@ -448,7 +446,7 @@ public class OpsService {
         String id = UUID.randomUUID().toString();
         String name = type + "_backup_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         tx.executeWithoutResult(status -> {
             jdbcTemplate.update(
                     "INSERT INTO backup_records (id, name, type, status, description, created_by, company, started_at) " +
@@ -487,7 +485,7 @@ public class OpsService {
     public void recordMetric(Map<String, Object> metric) {
         try {
             String id = UUID.randomUUID().toString();
-            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             tx.executeWithoutResult(status -> {
                 jdbcTemplate.update(
                         "INSERT INTO api_metrics (id, endpoint, method, status_code, response_time_ms, " +
@@ -531,18 +529,18 @@ public class OpsService {
                 // 已有相同未解决错误，增加计数并更新 last_seen_at
                 String existingId = (String) existing.get("id");
                 int count = ((Number) existing.get("occurrence_count")).intValue() + 1;
-                TransactionTemplate txUpdate = new TransactionTemplate(transactionManager);
+                TransactionTemplate txUpdate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
                 txUpdate.executeWithoutResult(status -> {
                     jdbcTemplate.update(
                             "UPDATE system_errors SET occurrence_count = ?, last_seen_at = NOW() WHERE id = ?",
                             count, existingId);
                 });
                 return;
-            } catch (Exception ignored) {
+            } catch (@SuppressWarnings("unused") Exception ignored) {
                 // 没有找到已有错误，插入新记录
             }
 
-            TransactionTemplate tx = new TransactionTemplate(transactionManager);
+            TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             tx.executeWithoutResult(status -> {
                 jdbcTemplate.update(
                         "INSERT INTO system_errors (id, error_type, severity, message, stack_trace, " +
@@ -600,12 +598,12 @@ public class OpsService {
     private long toLong(Object val) {
         if (val == null) return 0;
         if (val instanceof Number) return ((Number) val).longValue();
-        try { return Long.parseLong(val.toString()); } catch (Exception e) { return 0; }
+        try { return Long.parseLong(val.toString()); } catch (@SuppressWarnings("unused") Exception e) { return 0; }
     }
 
     private double toDouble(Object val) {
         if (val == null) return 0;
         if (val instanceof Number) return ((Number) val).doubleValue();
-        try { return Double.parseDouble(val.toString()); } catch (Exception e) { return 0; }
+        try { return Double.parseDouble(val.toString()); } catch (@SuppressWarnings("unused") Exception e) { return 0; }
     }
 }

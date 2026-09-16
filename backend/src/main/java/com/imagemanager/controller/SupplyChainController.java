@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 import java.util.*;
 
@@ -107,7 +108,7 @@ public class SupplyChainController {
     @Operation(summary = "创建产品报价单")
     public ResponseEntity<?> createQuotation(@RequestBody ProductQuotation quotation, HttpServletRequest request) {
         getCurrentUser(request);
-        return ResponseEntity.ok(productQuotationRepository.save(quotation));
+        return ResponseEntity.ok(productQuotationRepository.save(Objects.requireNonNull(quotation)));
     }
 
     @PutMapping("/quotations/{id}")
@@ -122,7 +123,7 @@ public class SupplyChainController {
     @Operation(summary = "删除产品报价单")
     public ResponseEntity<?> deleteQuotation(@PathVariable Integer id, HttpServletRequest request) {
         getCurrentUser(request);
-        productQuotationRepository.deleteById(id);
+        productQuotationRepository.deleteById(Objects.requireNonNull(id));
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -164,7 +165,7 @@ public class SupplyChainController {
     @Operation(summary = "创建原料入库记录")
     public ResponseEntity<?> createWarehouse(@RequestBody RawMaterialWarehouse warehouse, HttpServletRequest request) {
         getCurrentUser(request);
-        return ResponseEntity.ok(rawMaterialWarehouseRepository.save(warehouse));
+        return ResponseEntity.ok(rawMaterialWarehouseRepository.save(Objects.requireNonNull(warehouse)));
     }
 
     @PutMapping("/warehouse/{id}")
@@ -179,7 +180,7 @@ public class SupplyChainController {
     @Operation(summary = "删除原料入库记录")
     public ResponseEntity<?> deleteWarehouse(@PathVariable Integer id, HttpServletRequest request) {
         getCurrentUser(request);
-        rawMaterialWarehouseRepository.deleteById(id);
+        rawMaterialWarehouseRepository.deleteById(Objects.requireNonNull(id));
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -211,7 +212,7 @@ public class SupplyChainController {
     @Operation(summary = "创建原料采购记录")
     public ResponseEntity<?> createPurchase(@RequestBody RawMaterialPurchase purchase, HttpServletRequest request) {
         getCurrentUser(request);
-        return ResponseEntity.ok(rawMaterialPurchaseRepository.save(purchase));
+        return ResponseEntity.ok(rawMaterialPurchaseRepository.save(Objects.requireNonNull(purchase)));
     }
 
     @PutMapping("/purchases/{id}")
@@ -226,7 +227,7 @@ public class SupplyChainController {
     @Operation(summary = "删除原料采购记录")
     public ResponseEntity<?> deletePurchase(@PathVariable Integer id, HttpServletRequest request) {
         getCurrentUser(request);
-        rawMaterialPurchaseRepository.deleteById(id);
+        rawMaterialPurchaseRepository.deleteById(Objects.requireNonNull(id));
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -258,7 +259,7 @@ public class SupplyChainController {
     @Operation(summary = "创建生产计划")
     public ResponseEntity<?> createPlan(@RequestBody ProductionPlan plan, HttpServletRequest request) {
         getCurrentUser(request);
-        return ResponseEntity.ok(productionPlanRepository.save(plan));
+        return ResponseEntity.ok(productionPlanRepository.save(Objects.requireNonNull(plan)));
     }
 
     @PutMapping("/plans/{id}")
@@ -273,7 +274,7 @@ public class SupplyChainController {
     @Operation(summary = "删除生产计划")
     public ResponseEntity<?> deletePlan(@PathVariable Integer id, HttpServletRequest request) {
         getCurrentUser(request);
-        productionPlanRepository.deleteById(id);
+        productionPlanRepository.deleteById(Objects.requireNonNull(id));
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -305,7 +306,7 @@ public class SupplyChainController {
     @Operation(summary = "创建辅料采购记录")
     public ResponseEntity<?> createAccessory(@RequestBody AccessoryPurchase accessory, HttpServletRequest request) {
         getCurrentUser(request);
-        return ResponseEntity.ok(accessoryPurchaseRepository.save(accessory));
+        return ResponseEntity.ok(accessoryPurchaseRepository.save(Objects.requireNonNull(accessory)));
     }
 
     @PutMapping("/accessories/{id}")
@@ -320,7 +321,7 @@ public class SupplyChainController {
     @Operation(summary = "删除辅料采购记录")
     public ResponseEntity<?> deleteAccessory(@PathVariable Integer id, HttpServletRequest request) {
         getCurrentUser(request);
-        accessoryPurchaseRepository.deleteById(id);
+        accessoryPurchaseRepository.deleteById(Objects.requireNonNull(id));
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -345,19 +346,17 @@ public class SupplyChainController {
             ResponseEntity<?> quoteResult = getSmartQuoteProductList(0.3, 0.15, request);
             Object body = quoteResult.getBody();
             List<Object> quotes = null;
-            if (body instanceof Map) {
-                Map<String, Object> bodyMap = (Map<String, Object>) body;
+            if (body instanceof Map<?, ?> bodyMap) {
                 Object productsObj = bodyMap.get("products");
-                if (productsObj instanceof List) {
-                    quotes = (List<Object>) productsObj;
+                if (productsObj instanceof List<?> productsList) {
+                    quotes = new ArrayList<>(productsList);
                 }
             }
             if (quotes != null && !quotes.isEmpty()) {
                 double totalProfit = 0;
                 int count = 0;
                 for (Object q : quotes) {
-                    if (q instanceof Map) {
-                        Map<String, Object> qm = (Map<String, Object>) q;
+                    if (q instanceof Map<?, ?> qm) {
                         Object pr = qm.get("profitRate");
                         if (pr instanceof Number) {
                             totalProfit += ((Number) pr).doubleValue();
@@ -369,7 +368,7 @@ public class SupplyChainController {
             } else {
                 stats.put("avgProfitRate", 0);
             }
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             stats.put("avgProfitRate", 0);
         }
         return ResponseEntity.ok(stats);
@@ -516,8 +515,7 @@ public class SupplyChainController {
     private String getCellStr(org.apache.poi.ss.usermodel.Row row, int col) {
         org.apache.poi.ss.usermodel.Cell cell = row.getCell(col);
         if (cell == null) return null;
-        cell.setCellType(org.apache.poi.ss.usermodel.CellType.STRING);
-        String val = cell.getStringCellValue();
+        String val = new org.apache.poi.ss.usermodel.DataFormatter().formatCellValue(cell);
         return (val == null || val.trim().isEmpty()) ? null : val.trim();
     }
 
@@ -527,7 +525,7 @@ public class SupplyChainController {
         try {
             double d = cell.getNumericCellValue();
             return BigDecimal.valueOf(d);
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return null;
         }
     }
@@ -537,7 +535,7 @@ public class SupplyChainController {
         if (cell == null) return null;
         try {
             return (int) cell.getNumericCellValue();
-        } catch (Exception e) {
+        } catch (@SuppressWarnings("unused") Exception e) {
             return null;
         }
     }
@@ -651,7 +649,6 @@ public class SupplyChainController {
             java.util.List<Map<String, Object>> productList = new java.util.ArrayList<>();
 
             BigDecimal profitRate = BigDecimal.valueOf(targetProfitRate);
-            BigDecimal procCost = BigDecimal.valueOf(processingCost);
 
             for (ProductQuotation q : quotations) {
                 BigDecimal materialCost = BigDecimal.ZERO;
@@ -706,13 +703,13 @@ public class SupplyChainController {
                 BigDecimal R = q.getMachineHourlyRate() != null ? q.getMachineHourlyRate() : new BigDecimal("50");
                 BigDecimal P = q.getSingleMachineOutputHourly() != null ? q.getSingleMachineOutputHourly() : new BigDecimal("1000");
                 BigDecimal weavingCostVal = P.compareTo(BigDecimal.ZERO) > 0
-                        ? R.divide(P, 4, /* ROUND_HALF_UP */4)
+                        ? R.divide(P, 4, RoundingMode.HALF_UP)
                         : BigDecimal.ZERO;
 
                 // 4. 后整理成本 = M/1000 × D
                 BigDecimal M = q.getSewingWeight() != null ? q.getSewingWeight() : BigDecimal.ZERO;
                 BigDecimal D = q.getDyeingUnitPrice() != null ? q.getDyeingUnitPrice() : BigDecimal.ZERO;
-                BigDecimal postProcessCost = M.multiply(D).divide(new BigDecimal("1000"), 4, /* ROUND_HALF_UP */4);
+                BigDecimal postProcessCost = M.multiply(D).divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP);
 
                 BigDecimal manufacturingCost = weavingCostVal.add(postProcessCost);
                 BigDecimal yieldRate = q.getYieldRate() != null ? q.getYieldRate() : new BigDecimal("100");
@@ -721,18 +718,18 @@ public class SupplyChainController {
                 BigDecimal costPrice = materialCost.add(accessoryCost).add(manufacturingCost);
                 // 净成本 = 成本价 / 正品率 × 100
                 BigDecimal netCostVal = yieldRate.compareTo(BigDecimal.ZERO) > 0
-                        ? costPrice.multiply(new BigDecimal("100")).divide(yieldRate, 4, /* ROUND_HALF_UP */4)
+                        ? costPrice.multiply(new BigDecimal("100")).divide(yieldRate, 4, RoundingMode.HALF_UP)
                         : costPrice;
 
                 BigDecimal totalCost = netCostVal;
 
                 // 建议报价 = 净成本 / (1 - 利润率)
                 BigDecimal suggestedPrice = BigDecimal.ONE.subtract(profitRate).compareTo(BigDecimal.ZERO) > 0
-                        ? totalCost.divide(BigDecimal.ONE.subtract(profitRate), 4, /* ROUND_HALF_UP */4)
+                        ? totalCost.divide(BigDecimal.ONE.subtract(profitRate), 4, RoundingMode.HALF_UP)
                         : totalCost;
                 // 实际利润率 = (建议报价 - 净成本) / 建议报价
                 BigDecimal actualProfitRate = suggestedPrice.compareTo(BigDecimal.ZERO) > 0
-                        ? suggestedPrice.subtract(totalCost).divide(suggestedPrice, 4, /* ROUND_HALF_UP */4)
+                        ? suggestedPrice.subtract(totalCost).divide(suggestedPrice, 4, RoundingMode.HALF_UP)
                         : BigDecimal.ZERO;
 
                 // 日产能来自报价表
@@ -870,7 +867,7 @@ public class SupplyChainController {
                 for (Map<String, Object> b : breakdown) {
                     BigDecimal c = (BigDecimal) b.get("cost");
                     BigDecimal pct = rowTotal.compareTo(BigDecimal.ZERO) > 0 ?
-                            c.divide(rowTotal, 4, /* ROUND_HALF_UP */4).multiply(BigDecimal.valueOf(100)) :
+                            c.divide(rowTotal, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)) :
                             BigDecimal.ZERO;
                     breakdownWithPct.add(Map.of("name", b.get("name"), "cost", c, "percentage", pct));
                 }
@@ -895,9 +892,9 @@ public class SupplyChainController {
             summary.put("totalAccessoryCost", totalAccessoryCost);
             summary.put("totalCost", totalCost);
             summary.put("avgCostPerProduct", quotations.isEmpty() ? BigDecimal.ZERO :
-                    totalCost.divide(BigDecimal.valueOf(quotations.size()), 4, /* ROUND_HALF_UP */4));
+                    totalCost.divide(BigDecimal.valueOf(quotations.size()), 4, RoundingMode.HALF_UP));
             summary.put("materialCostRatio", totalCost.compareTo(BigDecimal.ZERO) > 0 ?
-                    totalMaterialCost.divide(totalCost, 4, /* ROUND_HALF_UP */4).multiply(BigDecimal.valueOf(100)) :
+                    totalMaterialCost.divide(totalCost, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)) :
                     BigDecimal.ZERO);
 
             Map<String, Object> result = new LinkedHashMap<>();

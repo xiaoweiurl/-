@@ -12,7 +12,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 查询增强器：调用大模型将用户原始问题重写为3-5个变体查询，
@@ -70,15 +72,15 @@ public class QueryEnhancer {
             不要包含其他内容。
             """, originalQuery);
 
-        String requestBody = mapper.writeValueAsString(new java.util.HashMap<String, Object>() {{
-            put("model", ollamaModel);
-            put("prompt", prompt);
-            put("stream", false);
-            put("options", new java.util.HashMap<String, Object>() {{
-                put("temperature", 0.7);
-                put("num_predict", 300);
-            }});
-        }});
+        Map<String, Object> options = new HashMap<>();
+        options.put("temperature", 0.7);
+        options.put("num_predict", 300);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("model", ollamaModel);
+        payload.put("prompt", prompt);
+        payload.put("stream", false);
+        payload.put("options", options);
+        String requestBody = mapper.writeValueAsString(payload);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(ollamaUrl + "/api/generate"))

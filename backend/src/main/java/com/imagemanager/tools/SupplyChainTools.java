@@ -216,7 +216,7 @@ public class SupplyChainTools {
             }
 
             long sqlStart = System.currentTimeMillis();
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(trimmedSql);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(Objects.requireNonNull(trimmedSql));
             long sqlElapsed = System.currentTimeMillis() - sqlStart;
 
             // 慢 SQL 监控（超过 500ms 告警）

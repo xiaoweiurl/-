@@ -1,5 +1,6 @@
 package com.imagemanager.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.entity.*;
 import com.imagemanager.repository.*;
@@ -123,7 +124,7 @@ public class BackupServiceImpl implements BackupService {
         
         try {
             // 用户信息
-            Optional<User> userOpt = userRepository.findById(userId);
+            Optional<User> userOpt = userRepository.findById(Objects.requireNonNull(userId));
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
                 Map<String, Object> userInfo = new HashMap<>();
@@ -169,8 +170,8 @@ public class BackupServiceImpl implements BackupService {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> importData = objectMapper.readValue(jsonData, Map.class);
+            Map<String, Object> importData = objectMapper.readValue(
+                    jsonData, new TypeReference<Map<String, Object>>() {});
             
             int albumsImported = 0;
             int imagesImported = 0;
