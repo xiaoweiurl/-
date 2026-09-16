@@ -69,7 +69,6 @@ public class DocumentServiceImpl implements DocumentService {
         
         try {
             Files.createDirectories(documentPath);
-            log.info("文档存储目录初始化成功: {}, baseUrl: {}", documentPath, baseUrl);
         } catch (IOException e) {
             log.error("创建文档存储目录失败", e);
         }
@@ -91,7 +90,6 @@ public class DocumentServiceImpl implements DocumentService {
                     .createdAt(LocalDateTime.now())
                     .build();
             notificationRepository.save(notification);
-            log.info("文档通知已创建: {} - {}", title, resourceId);
         } catch (Exception e) {
             log.error("创建文档通知失败", e);
         }
@@ -182,7 +180,6 @@ public class DocumentServiceImpl implements DocumentService {
             
             document = documentRepository.save(document);
             
-            log.info("文档上传成功: {} -> {}, category: {}", fileName, url, autoCategory);
             
             // 创建上传通知
             createNotification(
@@ -280,7 +277,6 @@ public class DocumentServiceImpl implements DocumentService {
         document.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(document);
         
-        log.info("文档已删除: {}", id);
         
         // 创建删除通知
         createNotification(
@@ -342,7 +338,6 @@ public class DocumentServiceImpl implements DocumentService {
         document.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(document);
         
-        log.info("文档已恢复: {}", id);
         
         // 创建恢复通知
         createNotification(
@@ -406,7 +401,6 @@ public class DocumentServiceImpl implements DocumentService {
                 Path fullPath = Paths.get(filePath);
                 if (Files.exists(fullPath)) {
                     Files.delete(fullPath);
-                    log.info("文档物理文件已删除: {}", fullPath);
                 }
             } catch (IOException e) {
                 log.error("删除文档物理文件失败: {}", filePath, e);
@@ -416,7 +410,6 @@ public class DocumentServiceImpl implements DocumentService {
         // 从数据库中永久删除
         documentRepository.delete(document);
         
-        log.info("文档已永久删除: {}", id);
         
         // 创建永久删除通知
         createNotification(

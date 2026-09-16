@@ -190,7 +190,6 @@ export default function UploadDialog({
 
     // 如果有任意成功，关闭对话框并刷新列表
     if (successCount > 0) {
-      console.log('[UploadDialog] 上传成功，准备关闭对话框并刷新');
       
       // 创建上传成功通知
       addNotification({
@@ -206,7 +205,6 @@ export default function UploadDialog({
       onOpenChange(false);
       
       // 调用刷新回调
-      console.log('[UploadDialog] 调用 onUploadSuccess');
       onUploadSuccess();
     }
   };

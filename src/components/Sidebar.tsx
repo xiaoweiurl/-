@@ -520,11 +520,9 @@ export default function Sidebar({
       });
 
       const result = await response.json();
-      console.log('[Sidebar] 创建相册响应:', response.status, result);
 
       // API 路由已确保返回 success 字段
       if (result.success) {
-        console.log('[Sidebar] 创建相册成功，关闭弹窗');
         toast.success(result.message || '相册创建成功');
         setAlbumName('');
         setAlbumDescription('');
@@ -672,10 +670,8 @@ export default function Sidebar({
       });
 
       const result = await response.json();
-      console.log('[Sidebar] 更新相册响应:', response.status, result);
 
       if (result.success) {
-        console.log('[Sidebar] 更新相册成功，关闭弹窗');
         toast.success(result.message || '相册更新成功');
         setIsEditDialogOpen(false);
         setAlbumToEdit(null);

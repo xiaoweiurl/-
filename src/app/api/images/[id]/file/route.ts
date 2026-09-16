@@ -68,7 +68,6 @@ export async function GET(
       imageUrl = BACKEND_STATIC_URL + imageUrl;
     }
 
-    console.log('[Image File] 下载图片, id:', id, 'imageUrl:', imageUrl.substring(0, 100));
 
     // 尝试获取图片文件
     let imageResponse: Response | null = null;
@@ -83,7 +82,6 @@ export async function GET(
 
     // 主 URL 失败时，尝试 originalUrl 降级
     if ((!imageResponse || !imageResponse.ok) && originalUrl && originalUrl !== imageUrl) {
-      console.log('[Image File] 尝试 originalUrl 降级:', originalUrl.substring(0, 80));
       try {
         imageResponse = await fetch(originalUrl, {
           signal: AbortSignal.timeout(30000),

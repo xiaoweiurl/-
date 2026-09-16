@@ -30,7 +30,6 @@ public class DataModelTableInitializer {
                 Integer.class
             );
             if (count != null && count > 0) {
-                log.info("data_models 表已存在，跳过初始化");
                 return;
             }
 

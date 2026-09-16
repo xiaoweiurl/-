@@ -120,7 +120,6 @@ public class MatchingEngine {
             }
             
             if (matched) {
-                log.debug("文件 {} 通过 {} 模式匹配到关键词 {}", fileName, mode, keyword);
                 return MatchResult.matched(keyword);
             }
         }
@@ -164,8 +163,6 @@ public class MatchingEngine {
                     
                     String processedSynonym = caseSensitive ? synonym : synonym.toLowerCase();
                     if (processedFileName.contains(processedSynonym)) {
-                        log.debug("文件 {} 通过同义词 {} 匹配到目标关键词 {}", 
-                                 fileName, synonym, group.getTargetKeyword());
                         // 返回原始关键词（相册关键词）而不是同义词
                         for (String keyword : keywords) {
                             if (keyword.equals(group.getTargetKeyword())) {
@@ -190,7 +187,6 @@ public class MatchingEngine {
             if (keyword.length() > 2) {
                 String prefix = caseSensitive ? keyword.substring(0, 2) : keyword.substring(0, 2).toLowerCase();
                 if (processedFileName.contains(prefix)) {
-                    log.debug("文件 {} 通过前缀 {} 模糊匹配到关键词 {}", fileName, prefix, keyword);
                     return MatchResult.matched(keyword);
                 }
             }

@@ -493,7 +493,6 @@ export default function FileUpload({
     try {
       const fullUrl = getFullFileUrl(file.url);
       const sessionId = getSessionId();
-      console.log('[FileUpload] 下载文件，完整URL:', fullUrl, 'sessionId:', sessionId ? sessionId.substring(0, 8) + '...' : 'null');
       
       const response = await fetch(fullUrl, {
         headers: {

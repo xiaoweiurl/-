@@ -34,7 +34,6 @@ public class OpsController {
     public ApiResponse<Map<String, Object>> getMetrics(
             @RequestParam(defaultValue = "24h") String period,
             HttpServletRequest request) {
-        log.info("[Ops] 获取API指标, period={}", period);
         return ApiResponse.success(opsService.getMetrics(period, request));
     }
 
@@ -49,7 +48,6 @@ public class OpsController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
             HttpServletRequest request) {
-        log.info("[Ops] 获取错误列表, severity={}, resolved={}, page={}", severity, resolved, page);
         return ApiResponse.success(opsService.getErrors(severity, resolved, page, pageSize, request));
     }
 
@@ -73,7 +71,6 @@ public class OpsController {
     public ApiResponse<Map<String, Object>> getPerformance(
             @RequestParam(defaultValue = "1h") String period,
             HttpServletRequest request) {
-        log.info("[Ops] 获取性能指标, period={}", period);
         return ApiResponse.success(opsService.getPerformance(period, request));
     }
 
@@ -86,7 +83,6 @@ public class OpsController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
             HttpServletRequest request) {
-        log.info("[Ops] 获取备份列表, page={}", page);
         return ApiResponse.success(opsService.getBackups(page, pageSize, request));
     }
 

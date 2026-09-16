@@ -46,14 +46,12 @@ export default function MarketingChatPage() {
       // 后端不可用时降级，不强制跳转
       backendFetch('/albums?pageSize=1').then(res => {
         if (res.status === 502) {
-          console.log('[Marketing] 后端不可用，进入降级模式');
           setCompany('宝娜斯集团');
           setUserId('local');
         } else {
           window.location.href = '/login';
         }
       }).catch(() => {
-        console.log('[Marketing] 后端不可用，进入降级模式');
         setCompany('宝娜斯集团');
         setUserId('local');
       });

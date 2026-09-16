@@ -237,25 +237,13 @@ export default function KnowledgePage() {
       // 先检测后端是否可用，不可用则留在页面（降级模式）
       backendFetch('/albums?pageSize=1').then(res => {
         if (res.status === 502) {
-          console.log('[Knowledge] 后端不可用，进入降级模式');
+          return;
         } else {
           window.location.href = '/login';
         }
       }).catch(() => {
-        console.log('[Knowledge] 后端不可用，进入降级模式');
       });
     }
-  }, []);
-
-  // 浏览器后退防护 - 不自动跳转，让正常流程处理
-  useEffect(() => {
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        console.log('[Knowledge] 从 bfcache 恢复');
-      }
-    };
-    window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
   }, []);
 
   // 加载分类

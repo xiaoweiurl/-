@@ -6,7 +6,6 @@ import com.imagemanager.entity.SystemSetting;
 import com.imagemanager.repository.*;
 import com.imagemanager.service.StorageService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,7 +17,6 @@ import java.util.Map;
 
 import java.util.Objects;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StorageServiceImpl implements StorageService {
@@ -56,7 +54,6 @@ public class StorageServiceImpl implements StorageService {
 
         quota.setMaxStorageBytes(maxStorageBytes);
         storageQuotaRepository.save(quota);
-        log.info("Updated storage quota for user {}: {} bytes", userId, maxStorageBytes);
     }
 
     @Override
@@ -75,14 +72,12 @@ public class StorageServiceImpl implements StorageService {
     @Transactional
     public void addUsedStorage(String userId, Long bytes) {
         storageQuotaRepository.addUsedStorage(userId, bytes);
-        log.debug("Added {} bytes to user {} storage", bytes, userId);
     }
 
     @Override
     @Transactional
     public void subtractUsedStorage(String userId, Long bytes) {
         storageQuotaRepository.subtractUsedStorage(userId, bytes);
-        log.debug("Subtracted {} bytes from user {} storage", bytes, userId);
     }
 
     @Override
@@ -101,7 +96,6 @@ public class StorageServiceImpl implements StorageService {
 
         quota.setUsedStorageBytes(totalSize);
         storageQuotaRepository.save(quota);
-        log.info("Recalculated storage for user {}: {} bytes", userId, totalSize);
     }
 
     @Override
@@ -149,7 +143,6 @@ public class StorageServiceImpl implements StorageService {
         quota.setMaxStorageBytes(defaultQuota);
         quota.setUsedStorageBytes(0L);
         storageQuotaRepository.save(quota);
-        log.info("Initialized storage quota for user {}: {} bytes", userId, defaultQuota);
     }
 
     private StorageQuotaDTO toDTO(StorageQuota quota) {

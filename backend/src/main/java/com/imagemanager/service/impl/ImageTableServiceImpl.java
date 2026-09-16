@@ -33,11 +33,9 @@ public class ImageTableServiceImpl implements ImageTableService {
         }
 
         String tableName = getUserTableName(username);
-        log.info("createUserImageTable: username={}, tableName={}", username, tableName);
         
         // 检查表是否已存在
         if (userImageTableExists(username)) {
-            log.info("用户图片表已存在: {}", tableName);
             return true;
         }
 
@@ -89,7 +87,6 @@ public class ImageTableServiceImpl implements ImageTableService {
             entityManager.createNativeQuery(createIndexSQL6).executeUpdate();
             entityManager.createNativeQuery(createIndexSQL7).executeUpdate();
             
-            log.info("用户图片表创建成功: {}", tableName);
             return true;
         } catch (Exception e) {
             log.error("创建用户图片表失败: {}", tableName, e);
@@ -137,7 +134,6 @@ public class ImageTableServiceImpl implements ImageTableService {
         String tableName = getUserTableName(username);
         
         if (!userImageTableExists(username)) {
-            log.info("用户图片表不存在: {}", tableName);
             return true;
         }
 
@@ -145,7 +141,6 @@ public class ImageTableServiceImpl implements ImageTableService {
             String dropSQL = String.format("DROP TABLE IF EXISTS %s CASCADE", tableName);
             entityManager.createNativeQuery(dropSQL).executeUpdate();
             
-            log.info("用户图片表删除成功: {}", tableName);
             return true;
         } catch (Exception e) {
             log.error("删除用户图片表失败: {}", tableName, e);
@@ -190,20 +185,17 @@ public class ImageTableServiceImpl implements ImageTableService {
             log.warn("用户名清理后为空，使用 hashCode 兜底: username={}, sanitizedUsername={}", username, sanitizedUsername);
         }
         String tableName = TABLE_PREFIX + sanitizedUsername;
-        log.info("getUserTableName: username={}, sanitizedUsername={}, tableName={}", username, sanitizedUsername, tableName);
         return tableName;
     }
 
     @Override
     @Transactional
     public boolean ensureUserImageTable(String username) {
-        log.info("ensureUserImageTable 调用: username={}", username);
         if (username == null || username.isEmpty()) {
             log.error("ensureUserImageTable: 用户名为空，无法创建表");
             return false;
         }
         if (userImageTableExists(username)) {
-            log.info("ensureUserImageTable: 表已存在, username={}, tableName={}", username, getUserTableName(username));
             return true;
         }
         return createUserImageTable(username);

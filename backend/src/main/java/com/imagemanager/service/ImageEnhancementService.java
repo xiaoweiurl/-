@@ -199,15 +199,12 @@ public class ImageEnhancementService {
             return null;
         }
 
-        log.info("开始图片增强处理, 原尺寸: {}x{}, 超分辨率: {}", 
-                image.getWidth(), image.getHeight(), enableSuperResolution);
 
         BufferedImage result = image;
 
         // 超分辨率放大
         if (enableSuperResolution && (image.getWidth() < 800 || image.getHeight() < 800)) {
             result = superResolution2x(result);
-            log.info("超分辨率完成, 新尺寸: {}x{}", result.getWidth(), result.getHeight());
         }
 
         // 边缘锐化
@@ -216,7 +213,6 @@ public class ImageEnhancementService {
         // 对比度微调
         result = enhanceContrast(result, 1.1f);
 
-        log.info("图片增强处理完成");
 
         return result;
     }

@@ -45,7 +45,6 @@ public class CharsetUtil {
         // 首先检查是否是完整的 URL，如果是则提取 catName 参数
         String extractedValue = extractUrlParamValue(input, "catName");
         if (extractedValue != null) {
-            log.info("从URL中提取catName参数: {}", extractedValue);
             input = extractedValue;
         }
 
@@ -57,7 +56,6 @@ public class CharsetUtil {
         // 尝试 URL 解码（处理 %CC%F9%C9%ED 格式的 URL 编码）
         String urlDecoded = tryUrlDecode(input);
         if (urlDecoded != null && !urlDecoded.equals(input)) {
-            log.info("URL解码成功: {} -> {}", input, urlDecoded);
             return urlDecoded;
         }
 
@@ -343,7 +341,6 @@ public class CharsetUtil {
             try {
                 String converted = new String(bytes, charset);
                 if (isValidChinese(converted)) {
-                    log.debug("乱码修复成功: 使用 {}", charset.name());
                     return converted;
                 }
             } catch (@SuppressWarnings("unused") Exception e) {

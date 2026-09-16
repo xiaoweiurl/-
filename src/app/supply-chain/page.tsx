@@ -87,12 +87,11 @@ export default function SupplyChainPage() {
     if (!sessionId) {
       backendFetch('/albums?pageSize=1').then(res => {
         if (res.status === 502) {
-          console.log('[SupplyChain] 后端不可用，进入降级模式');
+          return;
         } else {
           window.location.href = '/login';
         }
       }).catch(() => {
-        console.log('[SupplyChain] 后端不可用，进入降级模式');
       });
     }
     fetch('/api/auth/login', { credentials: 'include' })

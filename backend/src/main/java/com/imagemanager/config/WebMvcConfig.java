@@ -63,8 +63,5 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 添加 uploads 路径映射
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:" + localPath + "/");
-        
-        System.out.println("静态资源映射: /uploads/** -> file:" + localPath);
-        System.out.println("工作目录: " + userDir);
     }
 }

@@ -1,8 +1,5 @@
 package com.imagemanager.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,8 +16,6 @@ import java.util.regex.Pattern;
  * @author AI Assistant
  */
 public class KeywordExtractor {
-    
-    private static final Logger log = LoggerFactory.getLogger(KeywordExtractor.class);
     
     // ==================== 行业复合词典 ====================
     // 这些词在分词时必须保持完整，不能拆开
@@ -232,7 +227,6 @@ public class KeywordExtractor {
     public static List<String> extractKeywords(String query) {
         if (query == null || query.isBlank()) return Collections.emptyList();
         
-        log.debug("[关键词提取] 原始查询: '{}'", query);
         
         // Step 1: 提取产品编码（最高优先级）
         List<String> productCodes = extractAllProductCodes(query);
@@ -291,8 +285,6 @@ public class KeywordExtractor {
             deduped = deduped.subList(0, 8);
         }
         
-        log.info("[关键词提取] query='{}' => 产品编码={}, 复合词={}, 行业词={}, 其他={}, 最终={}", 
-                 query, productCodes, businessCompounds, businessTerms, otherWords, deduped);
         
         return deduped;
     }

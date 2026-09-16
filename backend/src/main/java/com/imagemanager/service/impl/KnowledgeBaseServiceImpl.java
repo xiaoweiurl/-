@@ -192,7 +192,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             int failCount = 0;
             String firstError = null;
 
-            log.info("文本文档向量化开始: docId={}, 切片数={}, embedding模型={}", docId, chunks.size(), ollamaEmbeddingModel);
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
@@ -230,7 +229,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
-            log.info("文本文档向量化结束: docId={}, 成功={}, 失败={}", docId, successCount, failCount);
             if (successCount == 0) {
                 log.error("文本文档向量化全部失败: docId={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
             }
@@ -268,8 +266,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 return;
             }
 
-            log.info("知识库文档解析结果: docId={}, textLength={}, preview={}", 
-                docId, text.length(), text.substring(0, Math.min(text.length(), 200)).replace("\n", "\\n"));
 
             // 保存提取的文本
             // Update file content and status via direct SQL for reliability
@@ -287,7 +283,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             int failCount = 0;
             String firstError = null;
 
-            log.info("知识库文档向量化开始: docId={}, 切片数={}, embedding模型={}", docId, chunks.size(), ollamaEmbeddingModel);
 
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
@@ -325,7 +320,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
-            log.info("知识库文档向量化结束: docId={}, 成功={}, 失败={}", docId, successCount, failCount);
             if (successCount == 0) {
                 log.error("知识库文档向量化全部失败: docId={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
             }
@@ -406,7 +400,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
-            log.info("知识库文档 {} 重试向量化完成: {}/{} 切片成功", docId, successCount, chunks.size());
         } catch (Exception e) {
             log.error("知识库文档 {} 重试向量化失败: {}", docId, e.getMessage(), e);
             updateDocEmbeddingStatus(docId, 0, "FAILED");
@@ -449,7 +442,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         // 删除对应的向量记录
         try {
             jdbcTemplate.update("DELETE FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND source_doc_id = ?", id.toString());
-            log.info("删除知识库文档 {} 对应的向量记录", id);
             // Milvus 双删
             if (milvusService != null && milvusService.isEnabled()) {
                 milvusService.deleteByDocId(id.toString());
@@ -516,7 +508,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public List<MemorySearchResult> search(String query, double minScore, int limit, String company) {
         try {
-            log.info("知识库搜索: query='{}', minScore={}, limit={}, company='{}'", query, minScore, limit, company);
             
             // ====== Milvus 检索分支（启用时优先走 Milvus） ======
             if (milvusService != null && milvusService.isEnabled()) {
@@ -552,7 +543,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // ====== 原有 pgvector 混合检索逻辑 ======
             // Step 1: 从查询中提取关键词（去除停用词、保留核心名词）
             List<String> keywords = extractKeywords(query);
-            log.info("知识库搜索: 提取关键词={}", keywords);
             
             // Step 1.5: 关键词诊断 — 用 EXISTS 代替 COUNT(*)，避免全表扫描
             try {
@@ -561,7 +551,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         Boolean embExists = jdbcTemplate.queryForObject(
                             "SELECT EXISTS(SELECT 1 FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND chunk_text ILIKE ? LIMIT 1)",
                             Boolean.class, "%" + kw + "%");
-                        log.info("知识库搜索诊断: 关键词'{}' → embeddings表{}数据", kw, Boolean.TRUE.equals(embExists) ? "有" : "无");
                     }
                 }
             } catch (Exception diagEx) {
@@ -578,14 +567,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 }
             }
             if (!productCodes.isEmpty()) {
-                log.info("知识库搜索: 检测到货号关键词{}, 优先执行关键词精确搜索", productCodes);
                 try {
                     List<MemorySearchResult> keywordResults = keywordSearchFallback(productCodes, company, limit);
                     if (!keywordResults.isEmpty()) {
-                        log.info("知识库搜索: 货号关键词搜索成功, 返回{}条结果", keywordResults.size());
                         return keywordResults;
                     }
-                    log.info("知识库搜索: 货号关键词搜索无结果, 尝试直接SQL搜索");
                 } catch (Exception kwEx) {
                     log.error("知识库搜索: 货号关键词搜索异常: {}", kwEx.getMessage(), kwEx);
                 }
@@ -593,10 +579,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 try {
                     List<MemorySearchResult> directResults = directKeywordSearch(productCodes, company, limit);
                     if (!directResults.isEmpty()) {
-                        log.info("知识库搜索: 直接SQL搜索成功, 返回{}条结果", directResults.size());
                         return directResults;
                     }
-                    log.info("知识库搜索: 直接SQL搜索也无结果");
                 } catch (Exception directEx) {
                     log.error("知识库搜索: 直接SQL搜索异常: {}", directEx.getMessage(), directEx);
                 }
@@ -621,7 +605,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 log.warn("知识库搜索: 获取查询Embedding失败, 尝试纯关键词搜索");
                 return keywordSearchFallback(keywords, company, limit);
             }
-            log.info("知识库搜索: 获取查询Embedding成功, 维度={}", queryEmbedding.length);
 
             String vectorStr = arrayToVectorString(queryEmbedding);
 
@@ -629,7 +612,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             try {
                 Integer totalEmbeddings = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE'", Integer.class);
-                log.info("知识库搜索诊断: KNOWLEDGE_BASE总记录={}", totalEmbeddings);
             } catch (Exception diagEx) {
                 log.warn("知识库搜索诊断查询失败: {}", diagEx.getMessage());
             }
@@ -659,11 +641,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             // Step 5: 如果关键词过滤后结果太少，降级到纯向量搜索
             List<MemorySearchResult> hybridResults = executeHybridSearch(sql, vectorStr, keywords, company, minScore, candidateLimit);
-            log.info("知识库搜索: 混合检索返回{}条结果", hybridResults.size());
             
             if (hybridResults.size() < 3 && !keywords.isEmpty()) {
                 // 关键词过滤太严格，降级为纯向量搜索（去掉关键词条件）
-                log.info("知识库搜索: 关键词过滤结果不足({}条<3), 降级为纯向量搜索", hybridResults.size());
                 String pureVectorSql = "WITH candidates AS (" +
                         "SELECT e.id, e.chunk_text, e.source_doc_id, e.chunk_index, e.created_at, " +
                         "e.embedding <=> CAST(? AS vector) AS distance " +
@@ -710,22 +690,18 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             
             // Step 7: 向量搜索结果为空时，降级到纯关键词搜索
             if (finalResults.isEmpty() && !keywords.isEmpty()) {
-                log.info("知识库搜索: 向量搜索结果为空, 降级到纯关键词搜索, keywords={}", keywords);
                 List<MemorySearchResult> keywordResults = keywordSearchFallback(keywords, company, limit);
                 if (!keywordResults.isEmpty()) {
-                    log.info("知识库搜索: 关键词搜索兜底返回{}条结果", keywordResults.size());
                     return keywordResults;
                 }
                 // Step 7.1: 最终兜底 — 零JOIN直接搜索
                 log.warn("知识库搜索: 关键词搜索也为空, 启用直接SQL兜底搜索");
                 List<MemorySearchResult> directResults = directKeywordSearch(keywords, company, limit);
                 if (!directResults.isEmpty()) {
-                    log.info("知识库搜索: 直接SQL兜底返回{}条结果", directResults.size());
                     return directResults;
                 }
             }
             
-            log.info("知识库搜索: 最终返回{}条结果(混合检索+智能截断)", finalResults.size());
             return finalResults;
         } catch (Exception e) {
             log.error("知识库向量搜索失败: {}", e.getMessage());
@@ -885,7 +861,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             sql.append("ORDER BY created_at DESC LIMIT ?");
             params.add(limit);
             
-            log.info("直接SQL搜索: SQL={}, params={}", sql.toString(), params);
             
             results = jdbcTemplate.query(Objects.requireNonNull(sql.toString()), (rs, rowNum) -> {
                 MemorySearchResult r = new MemorySearchResult();
@@ -905,7 +880,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 return r;
             }, params.toArray());
             
-            log.info("直接SQL搜索: 找到{}条结果", results.size());
         } catch (Exception e) {
             log.error("直接SQL搜索异常: {}", e.getMessage(), e);
         }
@@ -969,7 +943,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     seenDocIds.add(r.getContent().hashCode() + "_" + r.getSource());
                 }
             }
-            log.info("关键词搜索embeddings表返回{}条结果", embeddingResults.size());
         } catch (Exception e) {
             log.warn("关键词搜索embeddings表失败", e);
         }
@@ -1019,7 +992,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         .score(0.3)  // 文档级搜索分数较低
                         .build();
                 });
-                log.info("关键词搜索docs表兜底返回{}条结果", results.size());
             } catch (Exception e) {
                 log.error("关键词搜索docs表兜底失败", e);
             }
@@ -1046,7 +1018,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         docRepository.save(doc);
         final UUID docUuid = doc.getId();
         executorService.execute(() -> processEmbeddingRetry(docUuid));
-        log.info("触发重新向量化, docId={}", docId);
     }
 
     private String determineFileType(String extension) {
@@ -1089,7 +1060,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 for (int i = 0; i < embeddingNode.size(); i++) {
                     embedding[i] = (float) embeddingNode.get(i).asDouble();
                 }
-                log.info("Ollama embedding成功: model={}, 维度={}", ollamaEmbeddingModel, embedding.length);
                 return embedding;
             }
 

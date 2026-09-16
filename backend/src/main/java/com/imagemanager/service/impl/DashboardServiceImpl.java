@@ -58,7 +58,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public DashboardStatsResponse getDashboardStats(String period) {
-        log.info("[Dashboard] 获取仪表盘统计数据，周期: {}", period);
 
         // 计算统计天数
         int days = switch (period.toLowerCase()) {
@@ -94,7 +93,6 @@ public class DashboardServiceImpl implements DashboardService {
         // 7. AI能力统计
         response.setAiStats(getAIStats());
 
-        log.info("[Dashboard] 统计数据获取完成");
         return response;
     }
 
@@ -298,7 +296,6 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取热门资源（按浏览/下载/收藏排序）
      */
     public List<DashboardStatsResponse.HotResource> getHotResources(int limit) {
-        log.info("[Dashboard] 获取热门资源，数量: {}", limit);
 
         // 获取所有未删除图片
         List<Image> allImages = imageRepository.findAll().stream()
@@ -339,7 +336,6 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取热门相册
      */
     public List<DashboardStatsResponse.HotAlbum> getHotAlbums(int limit) {
-        log.info("[Dashboard] 获取热门相册，数量: {}", limit);
 
         // 获取所有未删除图片
         List<Image> allImages = imageRepository.findAll().stream()
@@ -391,7 +387,6 @@ public class DashboardServiceImpl implements DashboardService {
      * 获取今日活跃度统计
      */
     public DashboardStatsResponse.ActivityStats getActivityStats() {
-        log.info("[Dashboard] 获取活跃度统计");
 
         LocalDateTime today = LocalDateTime.now(BEIJING_ZONE).withHour(0).withMinute(0).withSecond(0);
         LocalDateTime yesterday = today.minusDays(1);

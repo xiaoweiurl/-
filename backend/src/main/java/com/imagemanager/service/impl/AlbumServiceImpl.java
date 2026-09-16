@@ -36,13 +36,11 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public List<Album> getAllAlbums() {
-        log.info("获取所有相册");
         return albumRepository.findAllByOrderBySortOrderAsc();
     }
     
     @Override
     public Album getAlbumById(String id) {
-        log.info("获取相册详情：{}", id);
         return albumRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("相册不存在"));
     }
@@ -95,7 +93,6 @@ public class AlbumServiceImpl implements AlbumService {
                         .userId(userId)
                         .build();
                 parent = albumRepository.save(parent);
-                log.info("创建父相册: {}", parentName);
             }
         } else {
             parent = parentOpt.get();
@@ -109,7 +106,6 @@ public class AlbumServiceImpl implements AlbumService {
         Optional<Album> childOpt = albumRepository.findFirstByUserIdAndNameAndParentId(userId, childName, parentId);
         if (childOpt.isPresent()) {
             // 子相册已存在，直接返回
-            log.info("找到已有子相册: {}/{}", parentLabel, childName);
             return childOpt.get();
         }
         
@@ -129,7 +125,6 @@ public class AlbumServiceImpl implements AlbumService {
                 .userId(userId)
                 .build();
         child = albumRepository.save(child);
-        log.info("创建子相册: {}/{}", parentName, childName);
         return child;
     }
 
@@ -149,7 +144,6 @@ public class AlbumServiceImpl implements AlbumService {
 
         if (childOpt.isPresent()) {
             // 子相册已存在，直接返回
-            log.info("找到已有子相册: parentId={}, childName={}", parentId, childName);
             return childOpt.get();
         }
 
@@ -182,10 +176,8 @@ public class AlbumServiceImpl implements AlbumService {
                 .build();
         try {
             child = albumRepository.save(child);
-            log.info("创建子相册: parentId={}, childName={}, fullName={}", parentId, childName, fullPath);
         } catch (DataIntegrityViolationException e) {
             // 并发情况下，另一个线程已创建了相同路径的相册，重新查询获取
-            log.info("子相册已被其他线程创建，重新获取：{}", fullPath);
             Optional<Album> retry = albumRepository.findFirstByUserIdAndPath(userId, fullPath);
             if (retry.isPresent()) {
                 child = retry.get();
@@ -208,7 +200,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public Album createAlbum(String name, String description, List<String> keywords, String matchingConfig) {
-        log.info("创建相册：{}，关键词：{}，匹配配置：{}", name, keywords, matchingConfig);
         
         long count = albumRepository.count();
         
@@ -241,8 +232,6 @@ public class AlbumServiceImpl implements AlbumService {
                 .build();
         
         Album saved = albumRepository.save(album);
-        log.info("相册创建成功，ID：{}，关键词：{}，匹配配置：{}", 
-                 saved.getId(), saved.getKeywords(), saved.getMatchingConfig());
         
         return saved;
     }
@@ -254,7 +243,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public Album updateAlbum(String id, String name, String description, String matchingConfig) {
-        log.info("更新相册：{}", id);
         
         Album album = albumRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new RuntimeException("相册不存在"));
@@ -269,7 +257,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public void deleteAlbum(String id) {
-        log.info("删除相册：{}", id);
         
         Album album = albumRepository.findById(Objects.requireNonNull(id)).orElse(null);
         if (album == null) {
@@ -294,7 +281,6 @@ public class AlbumServiceImpl implements AlbumService {
     @Override
     @Transactional
     public Map<String, Object> batchDeleteAlbums(List<String> ids) {
-        log.info("批量删除相册（级联删除），数量：{}", ids.size());
         
         int successCount = 0;
         int failCount = 0;
@@ -310,7 +296,6 @@ public class AlbumServiceImpl implements AlbumService {
                 deletedAlbumCount += counts[0];
                 deletedImageCount += counts[1];
                 successCount++;
-                log.info("级联删除相册成功：{}，删除相册数：{}，图片数：{}", id, counts[0], counts[1]);
             } catch (Exception e) {
                 failCount++;
                 Map<String, String> failItem = new HashMap<>();
@@ -327,8 +312,6 @@ public class AlbumServiceImpl implements AlbumService {
         result.put("deletedAlbumCount", deletedAlbumCount);
         result.put("deletedImageCount", deletedImageCount);
         result.put("failedItems", failedItems);
-        log.info("批量删除完成，成功：{} 个主相册，删除了 {} 个相册和 {} 张图片",
-                 successCount, deletedAlbumCount, deletedImageCount);
         
         return result;
     }
@@ -405,7 +388,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public int batchUpdateMatchingMode(String mode) {
-        log.info("批量更新相册匹配模式为：{}", mode);
         
         // 验证模式是否有效
         String[] validModes = {"contains", "exact", "startsWith", "endsWith", "regex", "fuzzy"};
@@ -435,19 +417,16 @@ public class AlbumServiceImpl implements AlbumService {
             updatedCount++;
         }
         
-        log.info("批量更新完成，共更新 {} 个相册的匹配模式为 {}", updatedCount, mode);
         return updatedCount;
     }
     
     @Override
     public int resetAllMatchingConfig() {
-        log.info("重置所有相册的匹配配置为默认值（包含匹配）");
         return batchUpdateMatchingMode("contains");
     }
     
     @Override
     public Album createAlbumWithParent(String name, String parentId, String description, List<String> keywords) {
-        log.info("创建层级相册：{}，父级：{}", name, parentId);
         
         String userId = SessionUtil.requireCurrentUserId();
         String path;
@@ -467,7 +446,6 @@ public class AlbumServiceImpl implements AlbumService {
         // 检查是否已存在
         Optional<Album> existing = albumRepository.findFirstByUserIdAndPath(userId, path);
         if (existing.isPresent()) {
-            log.info("相册已存在：{}", path);
             return existing.get();
         }
         
@@ -495,12 +473,10 @@ public class AlbumServiceImpl implements AlbumService {
     @Override
     @Transactional
     public Album getOrCreateAlbumByPath(String fullPath) {
-        log.info("根据路径获取或创建相册：{}", fullPath);
         
         // 尝试检测并转换 GB2312/GBK/GB18030 编码的中文字符
         String convertedPath = CharsetUtil.convertToUtf8(fullPath);
         if (!convertedPath.equals(fullPath)) {
-            log.info("编码转换成功: {} -> {}", fullPath, convertedPath);
             fullPath = convertedPath;
         }
         
@@ -520,14 +496,12 @@ public class AlbumServiceImpl implements AlbumService {
             // 尝试用规范化后的名称查找
             Optional<Album> fuzzyMatch = albumRepository.findFirstByUserIdAndPath(userId, normalizedPath);
             if (fuzzyMatch.isPresent()) {
-                log.info("模糊匹配到已有相册：{} -> {}", fullPath, normalizedPath);
                 return fuzzyMatch.get();
             }
             
             // 尝试查找路径中包含该名称的相册
             List<Album> matches = albumRepository.findByUserIdAndPathContaining(userId, normalizedPath);
             if (!matches.isEmpty()) {
-                log.info("从 {} 个匹配中找到相册：{}", matches.size(), matches.get(0).getPath());
                 return matches.get(0);
             }
         }
@@ -571,10 +545,8 @@ public class AlbumServiceImpl implements AlbumService {
                 try {
                     parent = albumRepository.save(album);
                     parentId = parent.getId();
-                    log.info("创建相册：{}，路径：{}", part, currentPath);
                 } catch (DataIntegrityViolationException e) {
                     // 并发情况下，另一个线程已创建了相同路径的相册，重新查询获取
-                    log.info("相册已被其他线程创建，重新获取：{}", currentPath);
                     Optional<Album> retry = albumRepository.findFirstByUserIdAndPath(userId, currentPath);
                     if (retry.isPresent()) {
                         parent = retry.get();
@@ -591,7 +563,6 @@ public class AlbumServiceImpl implements AlbumService {
     
     @Override
     public List<Album> getAlbumTree(String userId) {
-        log.info("获取用户层级相册树：{}", userId);
         return albumRepository.findByUserIdAndParentIdIsNullOrderBySortOrderAsc(userId);
     }
     

@@ -39,39 +39,29 @@ public class DataFixController {
             List<Map<String, Object>> beforeStats = jdbcTemplate.queryForList(
                 "SELECT is_main_image, COUNT(*) as count FROM images WHERE album_id = 'album-underwear' GROUP BY is_main_image"
             );
-            log.info("修复前的值分布: {}", beforeStats);
-
-            // 统计所有图片的 is_main_image 值分布
-            List<Map<String, Object>> allStats = jdbcTemplate.queryForList(
-                "SELECT is_main_image, COUNT(*) as count FROM images GROUP BY is_main_image"
-            );
-            log.info("所有图片的 is_main_image 值分布: {}", allStats);
 
             // 修复：将内衣相册的所有图片都标记为主图
             int updated = jdbcTemplate.update(
                 "UPDATE images SET is_main_image = true WHERE album_id = 'album-underwear'"
             );
-            log.info("修复了 {} 条记录", updated);
+            log.info("DataFix 内衣相册主图标记完成，更新 {} 条", updated);
 
             // 统计修复后的值分布
             List<Map<String, Object>> afterStats = jdbcTemplate.queryForList(
                 "SELECT is_main_image, COUNT(*) as count FROM images WHERE album_id = 'album-underwear' GROUP BY is_main_image"
             );
-            log.info("修复后的值分布: {}", afterStats);
 
             // 统计主图数量
             Integer mainImageCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM images WHERE album_id = 'album-underwear' AND is_main_image = true",
                 Integer.class
             );
-            log.info("主图总数 (is_main_image = true): {}", mainImageCount);
 
             // 统计所有图片数量
             Integer allImageCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM images WHERE album_id = 'album-underwear'",
                 Integer.class
             );
-            log.info("所有图片总数: {}", allImageCount);
 
             return ApiResponse.success(
                 "修复完成！修复了 " + updated + " 条记录，" +

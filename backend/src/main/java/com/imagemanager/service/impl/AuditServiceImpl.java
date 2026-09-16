@@ -64,7 +64,6 @@ public class AuditServiceImpl implements AuditService {
             }
 
             auditLogRepository.save(auditLog);
-            log.debug("Audit log saved: {} - {} - {}", action, resourceType, resourceId);
         } catch (Exception e) {
             log.error("Failed to save audit log: {}", e.getMessage());
         }
@@ -117,7 +116,6 @@ public class AuditServiceImpl implements AuditService {
             }
 
             auditLogRepository.save(auditLog);
-            log.debug("Audit failure log saved: {} - {} - {}", action, resourceType, resourceId);
         } catch (Exception e) {
             log.error("Failed to save audit failure log: {}", e.getMessage());
         }
@@ -156,7 +154,6 @@ public class AuditServiceImpl implements AuditService {
     public void cleanOldLogs(int retentionDays) {
         LocalDateTime before = LocalDateTime.now().minusDays(retentionDays);
         auditLogRepository.deleteByCreatedAtBefore(before);
-        log.info("Cleaned audit logs older than {} days", retentionDays);
     }
 
     private AuditLogDTO toDTO(AuditLog auditLog) {

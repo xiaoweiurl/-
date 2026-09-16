@@ -198,7 +198,6 @@ public class RateLimiter {
                     records.entrySet().removeIf(entry -> 
                             entry.getValue().lastRequest.get() < cutoff);
                     lastCleanup = now;
-                    log.debug("清理了过期速率限制记录，当前记录数: {}", records.size());
                 }
             }
         }

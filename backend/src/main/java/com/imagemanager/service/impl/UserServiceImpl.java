@@ -62,14 +62,12 @@ public class UserServiceImpl implements UserService {
     @Override
     public User getCurrentUser() {
         String currentUserId = SessionUtil.requireCurrentUserId();
-        log.info("获取当前用户信息: {}", currentUserId);
         return userRepository.findById(Objects.requireNonNull(currentUserId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
     
     @Override
     public List<Notification> getNotifications() {
-        log.info("获取通知列表");
         String currentUserId = SessionUtil.requireCurrentUserId();
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(currentUserId);
     }
@@ -78,7 +76,6 @@ public class UserServiceImpl implements UserService {
     public Notification createNotification(CreateNotificationRequest request) {
         // 从session获取当前用户ID
         String currentUserId = SessionUtil.requireCurrentUserId();
-        log.info("创建通知：userId={}, type={}, title={}", currentUserId, request.getType(), request.getTitle());
 
         Notification notification = Notification.builder()
                 .id(UUID.randomUUID().toString())
@@ -92,7 +89,6 @@ public class UserServiceImpl implements UserService {
                 .build();
         
         notification = notificationRepository.save(notification);
-        log.info("通知创建成功，ID：{}", notification.getId());
 
         return notification;
     }
@@ -114,18 +110,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void deleteNotification(String notificationId) {
-        log.info("删除通知：{}", notificationId);
         
         Notification notification = notificationRepository.findById(Objects.requireNonNull(notificationId))
                 .orElseThrow(() -> new RuntimeException("通知不存在"));
         
         notificationRepository.delete(Objects.requireNonNull(notification));
-        log.info("通知删除成功");
     }
     
     @Override
     public void markNotificationRead(String notificationId) {
-        log.info("标记通知为已读：{}", notificationId);
         Notification notification = notificationRepository.findById(Objects.requireNonNull(notificationId))
                 .orElseThrow(() -> new RuntimeException("通知不存在"));
         notification.setRead(true);
@@ -135,7 +128,6 @@ public class UserServiceImpl implements UserService {
     @Override
     public void markAllNotificationsRead() {
         String userId = SessionUtil.requireCurrentUserId();
-        log.info("标记所有通知为已读：{}", userId);
         List<Notification> notifications = notificationRepository.findByUserIdAndReadFalse(userId);
         notifications.forEach(n -> n.setRead(true));
         notificationRepository.saveAll(notifications);
@@ -144,7 +136,6 @@ public class UserServiceImpl implements UserService {
     @Override
     public Integer getUnreadCount() {
         String userId = SessionUtil.requireCurrentUserId();
-        log.info("获取未读通知数量：{}", userId);
         return notificationRepository.countByUserIdAndReadFalse(userId);
     }
     
@@ -178,7 +169,6 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public UserSettings getSettings(String userId) {
-        log.info("获取用户设置，用户ID：{}", userId);
         
         UserSettingsEntity entity = userSettingsRepository.findByUserId(userId)
                 .orElseGet(() -> createDefaultSettings(userId));
@@ -188,7 +178,6 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public UserSettings updateSettings(String userId, UserSettings settings) {
-        log.info("更新用户设置，用户ID：{}", userId);
         
         UserSettingsEntity entity = userSettingsRepository.findByUserId(userId)
                 .orElseGet(() -> createDefaultSettings(userId));
@@ -243,7 +232,6 @@ public class UserServiceImpl implements UserService {
      * 创建默认设置
      */
     private UserSettingsEntity createDefaultSettings(String userId) {
-        log.info("创建默认设置，用户ID：{}", userId);
         
         UserSettingsEntity entity = UserSettingsEntity.builder()
                 .id(UUID.randomUUID().toString())
@@ -327,7 +315,6 @@ public class UserServiceImpl implements UserService {
         
         // 创建用户图片表（动态表方案）
         boolean tableCreated = imageTableService.ensureUserImageTable(user.getUsername());
-        log.info("用户图片表创建: userId={}, result={}", user.getId(), tableCreated);
         
         log.info("用户创建成功，ID：{}", user.getId());
         return user;
@@ -335,7 +322,6 @@ public class UserServiceImpl implements UserService {
     
     @Override
     public User updateUser(String userId, UpdateUserRequest request) {
-        log.info("更新用户信息，用户ID：{}", userId);
         
         User user = getUserById(userId);
         

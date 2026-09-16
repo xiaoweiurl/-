@@ -45,7 +45,6 @@ public class AIController {
     @Operation(summary = "识别图片", description = "使用AI识别图片内容，返回分类和标签")
     public ApiResponse<List<AIRecognitionResponse>> recognizeImages(
             @RequestBody AIRecognitionRequest request) {
-        log.info("AI识别图片，数量：{}", request.getImageUrls() != null ? request.getImageUrls().size() : 0);
         
         List<AIRecognitionResponse> results = new ArrayList<>();
         List<Album> albums = albumService.getAllAlbums();
@@ -89,7 +88,6 @@ public class AIController {
     @Operation(summary = "识别单张图片", description = "根据图片ID识别图片内容")
     public ApiResponse<AIRecognitionResponse> recognizeImage(
             @PathVariable String imageId) {
-        log.info("AI识别单张图片：{}", imageId);
         
         Image image = imageRepository.findById(Objects.requireNonNull(imageId))
                 .orElseThrow(() -> new RuntimeException("图片不存在"));

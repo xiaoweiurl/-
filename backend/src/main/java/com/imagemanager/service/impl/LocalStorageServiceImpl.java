@@ -48,7 +48,6 @@ public class LocalStorageServiceImpl implements FileStorageService {
         
         try {
             Files.createDirectories(uploadPath);
-            log.info("本地存储目录初始化成功: {}, baseUrl: {}", uploadPath, baseUrl);
         } catch (IOException e) {
             log.error("创建存储目录失败", e);
         }
@@ -69,7 +68,6 @@ public class LocalStorageServiceImpl implements FileStorageService {
             Files.createDirectories(targetPath.getParent());
             Files.copy(file.getInputStream(), targetPath);
             
-            log.info("文件上传成功: {}", fullPath);
             // 返回完整URL，格式: {baseUrl}/uploads/{fullPath}
             return baseUrl + "/uploads/" + fullPath;
         } catch (IOException e) {
@@ -88,7 +86,6 @@ public class LocalStorageServiceImpl implements FileStorageService {
             Files.createDirectories(targetPath.getParent());
             Files.copy(file.getInputStream(), targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-            log.info("文件上传成功(指定key): {}", fullPath);
             return fullPath;
         } catch (IOException e) {
             log.error("文件上传失败(指定key)", e);
@@ -104,7 +101,6 @@ public class LocalStorageServiceImpl implements FileStorageService {
             Files.createDirectories(targetPath.getParent());
             Files.write(targetPath, data);
             
-            log.info("文件上传成功: {}", fullPath);
             // 返回完整URL
             return baseUrl + "/uploads/" + fullPath;
         } catch (IOException e) {

@@ -1,6 +1,5 @@
 package com.imagemanager.enhance;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -13,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * 对应PDF教程中的ChatMemoryManager。
  */
-@Slf4j
 @Component
 public class ChatMemoryManager {
 
@@ -109,7 +107,6 @@ public class ChatMemoryManager {
     public void clear(String conversationId) {
         if (conversationId != null) {
             memoryMap.remove(conversationId);
-            log.info("[ChatMemory] 清除会话记忆: {}", conversationId);
         }
     }
 
@@ -125,18 +122,13 @@ public class ChatMemoryManager {
      */
     public void cleanupStaleSessions(long maxIdleMs) {
         long now = System.currentTimeMillis();
-        int removed = 0;
         Iterator<Map.Entry<String, LinkedList<ChatMessage>>> it = memoryMap.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, LinkedList<ChatMessage>> entry = it.next();
             LinkedList<ChatMessage> msgs = entry.getValue();
             if (msgs.isEmpty() || (now - msgs.getLast().timestamp) > maxIdleMs) {
                 it.remove();
-                removed++;
             }
-        }
-        if (removed > 0) {
-            log.info("[ChatMemory] 清理了 {} 个超时会话", removed);
         }
     }
 

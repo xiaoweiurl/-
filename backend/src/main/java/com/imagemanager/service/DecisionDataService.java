@@ -185,7 +185,6 @@ public class DecisionDataService {
                     + "，机台总数 " + total.get("machines") + "，机型分布 " + typeSummary.toString().trim());
             entry.put("data", data);
             out.add(entry);
-            log.info("[结构化数据] 产能排产总览: 款数={}, 机台数={}, 机型数={}", total.get("cnt"), total.get("machines"), byType.size());
         } catch (Exception e) {
             log.warn("[结构化数据] 产能排产总览查询失败: {}", e.getMessage());
         }
@@ -216,9 +215,6 @@ public class DecisionDataService {
                 entry.put("summary", "货号 " + row.get("product_code") + " 排产产能数据");
                 entry.put("data", data);
                 out.add(entry);
-            }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 货号产能明细命中: code={}, 条数={}", code, rows.size());
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 货号产能明细查询失败: {}", e.getMessage());
@@ -270,7 +266,6 @@ public class DecisionDataService {
                     + total.get("orders") + "，TOP客户 " + top.toString().trim());
             entry.put("data", data);
             out.add(entry);
-            log.info("[结构化数据] 客户订单维度统计: 客户数={}, 单号数={}, 分组数={}", total.get("customers"), total.get("orders"), rows.size());
         } catch (Exception e) {
             log.warn("[结构化数据] 客户订单维度统计查询失败: {}", e.getMessage());
         }
@@ -312,7 +307,6 @@ public class DecisionDataService {
                     + " 人，TOP " + top.toString().trim());
             entry.put("data", data);
             out.add(entry);
-            log.info("[结构化数据] 业务员绩效统计: 业务员数={}", rows.size());
         } catch (Exception e) {
             log.warn("[结构化数据] 业务员绩效统计查询失败: {}", e.getMessage());
         }
@@ -359,7 +353,6 @@ public class DecisionDataService {
                     + total.get("orders") + " 单，数量 " + total.get("qty") + "，TOP客户 " + top.toString().trim());
             entry.put("data", data);
             out.add(entry);
-            log.info("[结构化数据] 销售订单维度统计: 客户数={}, 订单数={}", total.get("customers"), total.get("orders"));
         } catch (Exception e) {
             log.warn("[结构化数据] 销售订单维度统计查询失败: {}", e.getMessage());
         }
@@ -402,7 +395,6 @@ public class DecisionDataService {
                     + "，最近交期 " + fmtDate(rows.get(0).get("jh_date")));
             entry.put("data", data);
             out.add(entry);
-            log.info("[结构化数据] 订单需求与交期: 待交付单数={}", rows.size());
         } catch (Exception e) {
             log.warn("[结构化数据] 订单需求与交期查询失败: {}", e.getMessage());
         }
@@ -442,9 +434,6 @@ public class DecisionDataService {
                         + "，下机秒数 " + row.get("xjsl") + "，理论产量 " + row.get("djcl") + "）");
                 entry.put("data", data);
                 out.add(entry);
-            }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 工艺单参数命中: code={}, 条数={}", code, rows.size());
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 工艺单参数查询失败: {}", e.getMessage());
@@ -490,7 +479,6 @@ public class DecisionDataService {
                 data.put("处理要求", "如实告知用户该货号这些维度暂无数据（可能表未同步或该货号确实未录入），禁止编造工序/工价/原料/机台数据");
                 miss.put("data", data);
                 out.add(miss);
-                log.info("[结构化数据] 货号 {} 缺失维度: {}", code, missing);
             }
         }
         return out;
@@ -547,9 +535,6 @@ public class DecisionDataService {
                 entry.put("data", data);
                 out.add(entry);
             }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 商品库文件夹命中: code={}, 条数={}", code, rows.size());
-            }
         } catch (Exception e) {
             log.warn("[结构化数据] 商品库文件夹查询失败: {}", e.getMessage());
         }
@@ -595,9 +580,6 @@ public class DecisionDataService {
                 entry.put("data", data);
                 out.add(entry);
             }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 内衣工艺单命中: code={}, 条数={}", code, rows.size());
-            }
         } catch (Exception e) {
             log.warn("[结构化数据] 内衣工艺单查询失败: {}", e.getMessage());
         }
@@ -639,11 +621,6 @@ public class DecisionDataService {
                         + "，供应商 " + row.get("supplier") + "）");
                 entry.put("data", data);
                 out.add(entry);
-            }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 采购原料BOM命中: code={}, 条数={}", code, rows.size());
-            } else {
-                log.info("[结构化数据] 采购原料BOM未命中: code={}", code);
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 采购原料BOM查询失败: {}", e.getMessage());
@@ -687,11 +664,6 @@ public class DecisionDataService {
                         + "」机台产能（机型 " + row.get("jix") + "，理论产量 " + row.get("llcl") + "）");
                 entry.put("data", data);
                 out.add(entry);
-            }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 机台产能命中: code={}, 条数={}", code, rows.size());
-            } else {
-                log.info("[结构化数据] 机台产能未命中: code={}", code);
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 机台产能查询失败: {}", e.getMessage());
@@ -746,11 +718,6 @@ public class DecisionDataService {
                 entry.put("data", data);
                 out.add(entry);
             }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 工序工价命中: code={}, 条数={}", code, rows.size());
-            } else {
-                log.info("[结构化数据] 工序工价未命中: code={}", code);
-            }
         } catch (Exception e) {
             log.warn("[结构化数据] 工序工价查询失败: {}", e.getMessage());
         }
@@ -793,9 +760,6 @@ public class DecisionDataService {
                 entry.put("data", data);
                 out.add(entry);
             }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 销售订单命中: code={}, 条数={}", code, rows.size());
-            }
         } catch (Exception e) {
             log.warn("[结构化数据] 销售订单查询失败: {}", e.getMessage());
         }
@@ -834,9 +798,6 @@ public class DecisionDataService {
                         + "，售价 " + row.get("saleprice") + "）");
                 entry.put("data", data);
                 out.add(entry);
-            }
-            if (!rows.isEmpty()) {
-                log.info("[结构化数据] 产品报价信息命中: code={}, 条数={}", code, rows.size());
             }
         } catch (Exception e) {
             log.warn("[结构化数据] 产品报价信息查询失败: {}", e.getMessage());

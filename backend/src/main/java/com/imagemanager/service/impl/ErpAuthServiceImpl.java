@@ -54,6 +54,7 @@ public class ErpAuthServiceImpl implements ErpAuthService {
         } else {
             try {
                 token = erpClient.login(effectiveUid, effectivePassword, effectiveCustomId);
+                log.info("[ERP登录] 账号 {} 登录成功", effectiveUid);
             } catch (ErpClient.ErpNetworkException e) {
                 // ERP 不可达时降级为演示 token，保证演示可用
                 token = "demo-" + UUID.randomUUID().toString().replace("-", "");
@@ -85,7 +86,6 @@ public class ErpAuthServiceImpl implements ErpAuthService {
             return cachedToken;
         }
         // 无缓存 token：使用后端固定凭证自动登录（无需用户手动操作）
-        log.info("[ERP登录] 无缓存 token，使用配置凭证自动登录（账号 {}）", erpProperties.getUid());
         login(null, null, null);
         return cachedToken;
     }
@@ -114,6 +114,5 @@ public class ErpAuthServiceImpl implements ErpAuthService {
     @Override
     public void logout() {
         clearToken();
-        log.info("[ERP登录] 已登出");
     }
 }

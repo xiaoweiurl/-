@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       expireTime: 86400 * 30, // 30 天有效期
     });
 
-    console.log(`[文件上传] 成功: ${fileName} -> ${actualKey}`);
 
     return NextResponse.json({
       success: true,

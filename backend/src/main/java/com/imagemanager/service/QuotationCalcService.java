@@ -425,7 +425,6 @@ public class QuotationCalcService {
                     BigDecimal.class, huohao.toString());
             return r.isEmpty() ? BigDecimal.ZERO : r.get(0);
         } catch (Exception e) {
-            log.debug("工艺单缝拼克重兜底查询失败: {}", e.getMessage());
             return BigDecimal.ZERO;
         }
     }
@@ -466,7 +465,6 @@ public class QuotationCalcService {
             }
             return result;
         } catch (Exception e) {
-            log.debug("批量工艺单缝拼克重查询失败: {}", e.getMessage());
             return Collections.emptyMap();
         }
     }

@@ -97,7 +97,6 @@ export async function isBackendAvailable(): Promise<boolean> {
       
       backendAvailableCache = response.status < 500;
       lastCheckTime = now;
-      console.log(`[Backend] 服务端检测后端可用性: ${response.status} -> ${backendAvailableCache}`);
       return backendAvailableCache;
     } else {
       // 客户端：通过统一 BFF 代理检测
@@ -110,20 +109,19 @@ export async function isBackendAvailable(): Promise<boolean> {
       if (response.status === 502) {
         backendAvailableCache = false;
         lastCheckTime = now;
-        console.log('[Backend] 后端服务不可用 (502)');
+        console.warn('[Backend] 后端服务不可用 (502)');
         return false;
       }
       
       // 其他任何状态码都说明后端在运行
       backendAvailableCache = true;
       lastCheckTime = now;
-      console.log(`[Backend] 后端服务可用 (status: ${response.status})`);
       return true;
     }
   } catch (error) {
     backendAvailableCache = false;
     lastCheckTime = now;
-    console.log('[Backend] 后端服务不可用', error instanceof Error ? error.message : error);
+    console.warn('[Backend] 后端服务不可用', error instanceof Error ? error.message : error);
     return false;
   }
 }
@@ -198,7 +196,6 @@ export async function backendFetch(
     fetchOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
   }
 
-  console.log(`[Backend] ${isServerSide() ? 'SSR' : 'CSR'} ${options.method || 'GET'} ${url}`);
 
   try {
     const response = await fetch(url, fetchOptions);
@@ -225,7 +222,6 @@ export async function backendFetchFormData(
   
   const sessionId = getSessionId(requestHeaders);
   
-  console.log(`[Backend] ${isServerSide() ? 'SSR' : 'CSR'} POST (FormData) ${url}`);
 
   const fetchOptions: RequestInit = {
     method: 'POST',

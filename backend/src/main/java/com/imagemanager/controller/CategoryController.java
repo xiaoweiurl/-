@@ -8,7 +8,6 @@ import com.imagemanager.service.AlbumService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,7 +21,6 @@ import java.util.stream.Collectors;
  * @author Image Manager Team
  * @version 1.0.0
  */
-@Slf4j
 @RestController
 @RequestMapping("/categories")
 @Tag(name = "分类管理", description = "图片分类、相册相关接口")
@@ -40,7 +38,6 @@ public class CategoryController {
     @GetMapping
     @Operation(summary = "获取所有分类", description = "获取所有图片分类（相册）列表")
     public ApiResponse<List<CategoryResponse>> getAllCategories() {
-        log.info("获取所有分类");
         
         List<Album> albums = albumService.getAllAlbums();
         List<CategoryResponse> categories = albums.stream()
@@ -57,7 +54,6 @@ public class CategoryController {
     @Operation(summary = "获取分类详情", description = "根据ID获取分类详细信息")
     public ApiResponse<CategoryResponse> getCategoryById(
             @Parameter(description = "分类ID") @PathVariable String id) {
-        log.info("获取分类详情：{}", id);
         
         Album album = albumService.getAlbumById(id);
         return ApiResponse.success(convertToCategoryResponse(album));
@@ -72,7 +68,6 @@ public class CategoryController {
             @Parameter(description = "分类ID") @PathVariable String id,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "40") Integer pageSize) {
-        log.info("获取分类图片：{}", id);
         
         List<Image> images = imageRepository.findByAlbumIdAndDeletedFalse(id, 
                 org.springframework.data.domain.PageRequest.of(page - 1, pageSize))
@@ -87,7 +82,6 @@ public class CategoryController {
     @GetMapping("/tags")
     @Operation(summary = "获取所有标签", description = "获取所有图片AI标签及使用次数")
     public ApiResponse<List<TagResponse>> getAllTags() {
-        log.info("获取所有标签");
         return ApiResponse.success(new ArrayList<>());
     }
     

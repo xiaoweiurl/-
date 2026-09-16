@@ -39,7 +39,6 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
     try {
       const res = await fetch(`/api/knowledge/cards?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
-      console.log('[KnowledgeCardList] API response:', JSON.stringify(data).substring(0, 500));
       if (data.success) {
         const rawCards = data.cards || data.data || [];
         // Normalize: support both embeddingStatus and embedding_status
@@ -47,7 +46,6 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
           ...c,
           embeddingStatus: c.embeddingStatus ?? c.embedding_status ?? null,
         }));
-        console.log('[KnowledgeCardList] Cards embedding status:', normalized.map((c: any) => ({ id: c.id, status: c.embeddingStatus })));
         setCards(normalized);
       }
     } catch (err) {

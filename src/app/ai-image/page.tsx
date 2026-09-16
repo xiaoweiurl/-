@@ -251,7 +251,6 @@ export default function AiImagePage() {
         setIsUploadingRef(true);
         try {
           imageUrls = await convertRefImagesToBase64();
-          console.log('[AI生图] 参考图片转换完成，数量:', imageUrls.length);
         } catch (err) {
           console.error('参考图片转换失败:', err);
         }

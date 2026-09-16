@@ -69,8 +69,6 @@ export async function GET(request: NextRequest) {
     
     // 从 cookie 获取 session_id
     const cookieHeader = request.headers.get('cookie') || '';
-    const sessionId = extractSessionIdFromCookie(cookieHeader);
-    console.log('[API] 验证会话，sessionId:', sessionId?.substring(0, 8) + '...');
     
     // 调用后端验证会话
     const response = await backendFetch('/auth/session', {
@@ -79,10 +77,8 @@ export async function GET(request: NextRequest) {
       },
     });
     
-    console.log('[API] 验证会话，后端响应状态:', response.status);
     
     const result = await handleBackendResponse(response);
-    console.log('[API] 验证会话，结果:', result);
     
     return NextResponse.json(result, { status: result.success ? 200 : 401 });
   } catch (error) {
@@ -92,15 +88,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-/**
- * 从 cookie 字符串中提取 session_id
- */
-function extractSessionIdFromCookie(cookieHeader: string): string | null {
-  if (!cookieHeader) return null;
-  const match = cookieHeader.match(/session_id=([^;]+)/);
-  return match ? match[1] : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -135,21 +122,14 @@ export async function POST(request: NextRequest) {
       body: { username, password, rememberMe, company, forceLogin },
     });
     
-    // 打印后端响应信息
-    console.log('[API] 登录，后端响应状态:', response.status);
-    
     // 从响应头获取 sessionId（更可靠的方式）
     const sessionIdFromHeader = response.headers.get('X-Session-Id');
-    console.log('[API] 登录，从响应头 X-Session-Id 获取:', sessionIdFromHeader?.substring(0, 8) + '...');
     
     const result = await response.json();
-    console.log('[API /auth/login] 后端返回:', JSON.stringify(result, null, 2));
-    console.log('[API /auth/login] forceLogin:', forceLogin, 'alreadyLoggedIn:', result.data?.alreadyLoggedIn);
     
     if (result.success || result.code === 200) {
       // SSO: 检查是否已登录 — 用 HTTP 409 明确信号，不依赖 JSON 字段
       if (result.data?.alreadyLoggedIn) {
-        console.log('[API] 用户已登录，返回 409 确认提示');
         return NextResponse.json({
           success: false,
           error: 'ALREADY_LOGGED_IN',
@@ -169,8 +149,6 @@ export async function POST(request: NextRequest) {
         }, { status: 500 });
       }
       
-      console.log('[API] 登录成功，使用 sessionId:', finalSessionId.substring(0, 8) + '...');
-      console.log('[API] 即将设置 cookie，domain:', undefined, 'sameSite:', 'lax');
       
       // 创建响应并直接设置 cookie
       const response = NextResponse.json({
@@ -198,15 +176,10 @@ export async function POST(request: NextRequest) {
         path: '/',
       });
       
-      // 打印 cookie 设置后的响应头（安全：不完整打印，含会话标识，仅记录是否存在）
-      const setCookieHeader = response.headers.get('set-cookie');
-      console.log('[API] Set-Cookie 头已设置:', !!setCookieHeader);
-
       // 如果响应头为空，手动添加
-      if (!setCookieHeader) {
+      if (!response.headers.get('set-cookie')) {
         const cookieValue = `session_id=${finalSessionId}; Path=/; HttpOnly; Max-Age=${maxAge}; SameSite=Lax${cookieSecure ? '; Secure' : ''}`;
         response.headers.append('Set-Cookie', cookieValue);
-        console.log('[API] 手动添加 Set-Cookie: session_id=***');
       }
       
       return response;

@@ -62,12 +62,8 @@ public class RagPipeline {
      * @return 重排序后的Top-K文档片段
      */
     public List<MemorySearchResult> enhancedSearch(String query, String company, int topK) {
-        long startTime = System.currentTimeMillis();
-        log.info("[RagPipeline] 开始增强检索, query='{}', company='{}', topK={}", query, company, topK);
-
         // ========== Step 1: 查询增强 ==========
         List<String> enhancedQueries = queryEnhancer.enhance(query);
-        log.info("[RagPipeline] 查询增强生成 {} 个变体: {}", enhancedQueries.size(), enhancedQueries);
 
         // ========== Step 2: 多路向量并行召回 ==========
         // ensure原始查询在列表首位
@@ -80,7 +76,6 @@ public class RagPipeline {
             CompletableFuture<List<MemorySearchResult>> future = CompletableFuture.supplyAsync(() -> {
                 try {
                     List<MemorySearchResult> results = knowledgeBaseService.search(q, RECALL_MIN_SCORE, 10, company);
-                    log.info("[RagPipeline] 查询'{}' 召回 {} 条", q, results != null ? results.size() : 0);
                     return results != null ? results : Collections.<MemorySearchResult>emptyList();
                 } catch (Exception e) {
                     log.warn("[RagPipeline] 查询'{}' 检索失败: {}", q, e.getMessage());
@@ -115,11 +110,9 @@ public class RagPipeline {
                 } catch (@SuppressWarnings("unused") Exception ignored) {}
             }
         }
-        log.info("[RagPipeline] 多路召回总计 {} 条", allResults.size());
 
         if (allResults.isEmpty()) {
             // 降级：略降阈值重试（仍保持合理下限，避免召回垃圾切片）
-            log.info("[RagPipeline] 召回为空，降低阈值到0.25重试");
             try {
                 allResults = knowledgeBaseService.search(query, 0.25f, 15, company);
                 if (allResults == null) allResults = new ArrayList<>();
@@ -129,17 +122,14 @@ public class RagPipeline {
         }
 
         if (allResults.isEmpty()) {
-            log.info("[RagPipeline] 无召回结果");
             return Collections.emptyList();
         }
 
         // ========== Step 3: 去重 ==========
         List<MemorySearchResult> deduped = dedupByContent(allResults);
-        log.info("[RagPipeline] 去重后 {} 条", deduped.size());
 
         // ========== Step 4: Reranker重排序 ==========
         List<MemorySearchResult> reranked = reranker.rerank(query, deduped, topK);
-        log.info("[RagPipeline] Rerank后保留 {} 条", reranked.size());
 
         // ========== Step 5: 相关性过滤 ==========
         // rerank normalize 分数 < RERANK_MIN_SCORE 的切片视为不相关，直接丢弃：
@@ -149,18 +139,8 @@ public class RagPipeline {
             double s = r.getScore() != null ? r.getScore() : 0;
             if (s >= RERANK_MIN_SCORE) {
                 filtered.add(r);
-            } else {
-                log.info("[RagPipeline] 过滤低分切片: score={}, content={}...",
-                        String.format("%.3f", s),
-                        r.getContent() != null ? r.getContent().substring(0, Math.min(40, r.getContent().length())) : "");
             }
         }
-        if (filtered.isEmpty() && !reranked.isEmpty()) {
-            log.info("[RagPipeline] 全部切片低于相关性阈值({}), 返回空结果（不注入弱相关上下文）", RERANK_MIN_SCORE);
-        }
-
-        long elapsed = System.currentTimeMillis() - startTime;
-        log.info("[RagPipeline] 增强检索完成, 保留 {} 条, 耗时 {}ms", filtered.size(), elapsed);
 
         return filtered;
     }

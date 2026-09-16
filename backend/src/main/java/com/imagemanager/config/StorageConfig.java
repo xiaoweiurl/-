@@ -4,6 +4,7 @@ import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.impl.LocalStorageServiceImpl;
 import com.imagemanager.service.impl.S3StorageServiceImpl;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,7 @@ import org.springframework.context.annotation.Primary;
  * 环境变量可覆盖
  */
 @Data
+@Slf4j
 @Configuration
 @ConfigurationProperties(prefix = "app.storage")
 public class StorageConfig {
@@ -50,14 +52,14 @@ public class StorageConfig {
             try {
                 S3StorageServiceImpl s3 = new S3StorageServiceImpl(this);
                 s3.testConnection();
-                System.out.println("[Storage] 图片存储 - S3 初始化成功: " + s3Endpoint + "/" + s3BucketName);
+                log.info("[Storage] 图片存储 - S3 初始化成功: {}/{}", s3Endpoint, s3BucketName);
                 return s3;
             } catch (Exception e) {
-                System.err.println("[Storage] S3连接失败，图片存储降级到本地: " + e.getMessage());
+                log.warn("[Storage] S3连接失败，图片存储降级到本地: {}", e.getMessage());
                 return createLocalStorage();
             }
         } else {
-            System.out.println("[Storage] 图片存储 - 使用本地存储模式");
+            log.info("[Storage] 图片存储 - 使用本地存储模式");
             return createLocalStorage();
         }
     }
@@ -68,7 +70,7 @@ public class StorageConfig {
      */
     @Bean
     public FileStorageService localFileStorageService() {
-        System.out.println("[Storage] 文档存储 - 使用本地存储: " + localPath);
+        log.info("[Storage] 文档存储 - 使用本地存储: {}", localPath);
         return createLocalStorage();
     }
 

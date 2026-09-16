@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
         const sessionId = cookieStore.get('session_id')?.value;
         const cookieHeader = sessionId ? `session_id=${sessionId}` : '';
         
-        console.log('[API] 预览批量替换主图 - sessionId:', sessionId ? `${sessionId.substring(0, 8)}...` : 'null');
         
         const body = await request.json();
         const { imageIds } = body;
