@@ -181,12 +181,17 @@ public class OrgRegistrationService {
         for (OrgContact contact : contacts) {
             boolean registered = (contact.getLocalUserId() != null && !contact.getLocalUserId().isBlank())
                     || userRepository.findByDingtalkUserid(contact.getDingUserId()).isPresent();
+            String path = OrgAffiliation.canonicalPath(contact.getDeptPath());
+            String deptName = contact.getDeptName();
+            if (OrgAffiliation.isShortCompanyLabel(deptName)) {
+                deptName = OrgAffiliation.leafName(path);
+            }
             list.add(DingTalkContactCandidate.builder()
                     .dingtalkUserid(contact.getDingUserId())
                     .name(contact.getName())
                     .jobTitle(contact.getJobTitle())
-                    .deptName(contact.getDeptName())
-                    .deptPath(contact.getDeptPath())
+                    .deptName(deptName)
+                    .deptPath(path)
                     .alreadyRegistered(registered)
                     .build());
         }

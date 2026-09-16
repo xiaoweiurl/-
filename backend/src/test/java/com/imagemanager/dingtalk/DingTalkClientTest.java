@@ -102,6 +102,29 @@ class DingTalkClientTest {
         assertEquals("张三", users.get(0).getName());
         assertEquals("工程师", users.get(0).getTitle());
         assertEquals("u2", users.get(1).getUserid());
+        assertTrue(users.get(0).getDeptIdList().contains(2L));
+        assertTrue(users.get(1).getDeptIdList().contains(2L));
+    }
+
+    @Test
+    void listUsersAddsQueriedDeptWhenDeptIdListMissingOrRootOnly() {
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            if (url.contains("/topapi/v2/user/list")) {
+                return "{\"errcode\":0,\"result\":{\"has_more\":false,\"list\":["
+                        + "{\"userid\":\"u1\",\"name\":\"张三\",\"dept_id_list\":[]},"
+                        + "{\"userid\":\"u2\",\"name\":\"李四\",\"dept_id_list\":[1]}"
+                        + "]}}";
+            }
+            throw new IllegalStateException(url);
+        });
+        List<DingUser> users = client.fetchUsersInDepartments(List.of(88L));
+        assertEquals(2, users.size());
+        assertTrue(users.get(0).getDeptIdList().contains(88L));
+        assertTrue(users.get(1).getDeptIdList().contains(88L));
+        assertTrue(users.get(1).getDeptIdList().contains(1L));
     }
 
     @Test

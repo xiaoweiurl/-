@@ -73,8 +73,10 @@ public class OrgDirectoryJdbc implements OrgDirectory {
     public List<OrgDepartmentView> listActiveDepartments(String company) {
         return jdbcTemplate.query(
                 "SELECT d.id, d.ding_dept_id, d.parent_ding_dept_id, d.name, d.path, "
-                        + " (SELECT COUNT(*) FROM org_users u WHERE u.company = d.company AND u.active = TRUE "
-                        + "  AND u.primary_ding_dept_id = d.ding_dept_id) AS user_count "
+                        + " (SELECT COUNT(DISTINCT u.id) FROM org_users u "
+                        + "   JOIN org_user_departments ud ON ud.org_user_id = u.id "
+                        + "   WHERE u.company = d.company AND u.active = TRUE "
+                        + "     AND ud.ding_dept_id = d.ding_dept_id) AS user_count "
                         + " FROM org_departments d WHERE d.company = ? AND d.active = TRUE "
                         + " ORDER BY d.order_num, d.name",
                 (rs, i) -> OrgDepartmentView.builder()
@@ -89,6 +91,35 @@ public class OrgDirectoryJdbc implements OrgDirectory {
     }
 
     @Override
+    public List<OrgDirectory.OrgDeptMemberRow> listActiveMemberships(String company) {
+        return jdbcTemplate.query(
+                "SELECT u.ding_userid, u.name, u.job_title, u.local_user_id, m.ding_dept_id, "
+                        + " d.name AS dept_name, d.path AS dept_path "
+                        + " FROM org_users u "
+                        + " JOIN ("
+                        + "   SELECT ud.org_user_id, ud.ding_dept_id FROM org_user_departments ud "
+                        + "   INNER JOIN org_users ou ON ou.id = ud.org_user_id "
+                        + "     WHERE ou.company = ? AND ou.active = TRUE "
+                        + "   UNION "
+                        + "   SELECT id, primary_ding_dept_id FROM org_users "
+                        + "     WHERE company = ? AND active = TRUE AND primary_ding_dept_id IS NOT NULL "
+                        + " ) m ON m.org_user_id = u.id "
+                        + " LEFT JOIN org_departments d ON d.company = u.company AND d.ding_dept_id = m.ding_dept_id "
+                        + " WHERE u.company = ? AND u.active = TRUE "
+                        + " ORDER BY u.name",
+                (rs, i) -> OrgDirectory.OrgDeptMemberRow.builder()
+                        .dingUserId(rs.getString("ding_userid"))
+                        .name(rs.getString("name"))
+                        .jobTitle(rs.getString("job_title"))
+                        .localUserId(rs.getString("local_user_id"))
+                        .dingDeptId(longOrNull(rs, "ding_dept_id"))
+                        .deptName(rs.getString("dept_name"))
+                        .deptPath(rs.getString("dept_path"))
+                        .build(),
+                company, company, company);
+    }
+
+    @Override
     public List<OrgContact> searchContacts(String company, String keyword, int limit) {
         int size = Math.min(Math.max(limit, 1), 100);
         if (keyword == null || keyword.isBlank()) {
@@ -99,7 +130,7 @@ public class OrgDirectoryJdbc implements OrgDirectory {
         String like = "%" + keyword.trim() + "%";
         return jdbcTemplate.query(
                 CONTACT_SELECT + " WHERE u.company = ? AND u.active = TRUE "
-                        + " AND (u.name ILIKE ? OR u.job_title ILIKE ? OR d.name ILIKE ?) "
+                        + " AND (u.name ILIKE ? OR u.job_title ILIKE ? OR disp.dept_name ILIKE ?) "
                         + " ORDER BY u.name LIMIT ?",
                 CONTACT_MAPPER, company, like, like, like, size);
     }
@@ -113,11 +144,22 @@ public class OrgDirectoryJdbc implements OrgDirectory {
 
     private static final String CONTACT_SELECT =
             "SELECT u.id AS id, u.ding_userid, u.ding_unionid, u.name, u.job_title, u.email, u.mobile, "
-                    + " u.avatar_url, u.primary_ding_dept_id, u.local_user_id, u.active, "
-                    + " d.name AS dept_name, d.path AS dept_path "
+                    + " u.avatar_url, COALESCE(disp.ding_dept_id, u.primary_ding_dept_id) AS primary_ding_dept_id, "
+                    + " u.local_user_id, u.active, "
+                    + " disp.dept_name AS dept_name, disp.dept_path AS dept_path "
                     + " FROM org_users u "
-                    + " LEFT JOIN org_departments d ON d.company = u.company "
-                    + "  AND d.ding_dept_id = u.primary_ding_dept_id";
+                    + " LEFT JOIN LATERAL ("
+                    + "   SELECT d.ding_dept_id, d.name AS dept_name, d.path AS dept_path "
+                    + "   FROM ("
+                    + "     SELECT ud.ding_dept_id AS ding_dept_id FROM org_user_departments ud WHERE ud.org_user_id = u.id "
+                    + "     UNION "
+                    + "     SELECT u.primary_ding_dept_id WHERE u.primary_ding_dept_id IS NOT NULL "
+                    + "   ) ids "
+                    + "   JOIN org_departments d ON d.company = u.company "
+                    + "     AND d.ding_dept_id = ids.ding_dept_id AND d.active = TRUE "
+                    + "   ORDER BY length(COALESCE(d.path, '')) DESC, d.path DESC "
+                    + "   LIMIT 1"
+                    + " ) disp ON TRUE";
 
     private static final RowMapper<OrgContact> CONTACT_MAPPER = (rs, i) -> OrgContact.builder()
             .id(rs.getString("id"))

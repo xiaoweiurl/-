@@ -78,7 +78,7 @@ public class OrgController {
     }
 
     @GetMapping("/departments")
-    @Operation(summary = "部门树")
+    @Operation(summary = "部门树", description = "返回完整部门树（根节点为钉钉根部门全称「宝娜斯集团有限公司」），每个节点含直属成员（姓名/职位/是否已注册）。同一人同时属于上下级时只出现在最具体部门。")
     public ApiResponse<List<OrgDepartmentNode>> departments(
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
         ApiResponse<Void> denied = checkAdminOrAbove(sessionId);
