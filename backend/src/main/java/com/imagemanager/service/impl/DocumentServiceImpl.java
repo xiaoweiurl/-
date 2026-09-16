@@ -1,6 +1,6 @@
 package com.imagemanager.service.impl;
 
-import com.imagemanager.config.StorageConfig;
+import com.imagemanager.config.StorageProperties;
 import com.imagemanager.entity.Document;
 import com.imagemanager.entity.Notification;
 import com.imagemanager.repository.DocumentRepository;
@@ -39,7 +39,7 @@ import com.imagemanager.util.SessionUtil;
 public class DocumentServiceImpl implements DocumentService {
     
     @Autowired
-    private StorageConfig storageConfig;
+    private StorageProperties storageProperties;
     
     @Autowired
     private DocumentRepository documentRepository;
@@ -59,8 +59,8 @@ public class DocumentServiceImpl implements DocumentService {
     @PostConstruct
     public void init() {
         // 使用存储配置的绝对路径
-        this.documentPath = Paths.get(storageConfig.getLocalPath()).toAbsolutePath().normalize().resolve("documents");
-        this.baseUrl = storageConfig.getBaseUrl();
+        this.documentPath = Paths.get(storageProperties.getLocalPath()).toAbsolutePath().normalize().resolve("documents");
+        this.baseUrl = storageProperties.getBaseUrl();
         
         // 确保 baseUrl 格式正确（不以 / 结尾）
         if (baseUrl != null && baseUrl.endsWith("/")) {

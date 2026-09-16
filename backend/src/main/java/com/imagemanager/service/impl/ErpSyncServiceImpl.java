@@ -48,7 +48,8 @@ public class ErpSyncServiceImpl implements ErpSyncService {
             new ModuleDef("gongyi-bujian", "工艺部件", "Technology/NGyBujQuery", false, 20),
             new ModuleDef("gongyi-gongxu", "工艺工序", "Technology/NGyWorkTypeQuery", false, 25),
             new ModuleDef("gongxu-gongjia", "工序工价", "Technology/NGyHuohaoPriceQuery", false, 15),
-            new ModuleDef("yuanliao-bom", "原料BOM", "Material/MaterialYLQuery", false, 18)
+            // 与其它工艺接口同属 Technology/；旧路径 Material/MaterialYLQuery 会 HTTP 500
+            new ModuleDef("yuanliao-bom", "原料BOM", "Technology/MaterialYLQuery", false, 18)
     );
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -131,11 +132,14 @@ public class ErpSyncServiceImpl implements ErpSyncService {
 
     @Override
     public Map<String, Object> syncModule(String moduleKey) {
-        ModuleDef def = MODULES.stream()
+        return doSync(findModule(moduleKey));
+    }
+
+    private static ModuleDef findModule(String moduleKey) {
+        return MODULES.stream()
                 .filter(m -> m.key().equals(moduleKey))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("未知同步模块: " + moduleKey));
-        return doSync(def);
     }
 
     @Override

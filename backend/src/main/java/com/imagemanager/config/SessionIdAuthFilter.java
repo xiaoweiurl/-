@@ -2,9 +2,9 @@ package com.imagemanager.config;
 
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.service.AuthService;
+import com.imagemanager.util.SessionIdExtractor;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,9 +21,9 @@ import java.io.IOException;
 import java.util.Collections;
 
 /**
- * 自定义认证过滤器
- * 处理 X-Session-Id 请求头进行认证
- * 
+ * 自定义认证过滤器。
+ * 会话解析与 BFF 一致：session_id Cookie 优先于 X-Session-Id（见 {@link SessionIdExtractor}）。
+ *
  * @author Image Manager Team
  * @version 1.0.0
  */
@@ -49,8 +49,7 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
             return;
         }
         
-        // 尝试从多个来源获取 sessionId
-        String sessionId = extractSessionId(request);
+        String sessionId = SessionIdExtractor.extract(request);
         
         if (sessionId != null) {
             // 验证 session（从 Redis 读取）
@@ -85,40 +84,6 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
         
         // 没有有效的 session，继续执行（让 Spring Security 处理）
         filterChain.doFilter(request, response);
-    }
-    
-    /**
-     * 提取 Session ID
-     */
-    private String extractSessionId(HttpServletRequest request) {
-        // 1. 优先从 X-Session-Id 请求头获取
-        String xSessionId = request.getHeader("X-Session-Id");
-        if (xSessionId != null && !xSessionId.isEmpty()) {
-            return xSessionId;
-        }
-        
-        // 2. 从 Cookie 中获取
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("session_id".equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        
-        // 3. 从 Header 中的 Cookie 字符串获取
-        String cookieHeader = request.getHeader("Cookie");
-        if (cookieHeader != null) {
-            for (String part : cookieHeader.split(";")) {
-                String trimmed = part.trim();
-                if (trimmed.startsWith("session_id=")) {
-                    return trimmed.substring("session_id=".length());
-                }
-            }
-        }
-        
-        return null;
     }
     
     /**

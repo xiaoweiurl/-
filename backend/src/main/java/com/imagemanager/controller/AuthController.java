@@ -6,6 +6,7 @@ import com.imagemanager.exception.RegisterMatchException;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.ImageTableService;
+import com.imagemanager.util.SessionIdExtractor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -138,7 +139,7 @@ public class AuthController {
         }
         // 兜底：从请求头/Cookie 获取
         if (sessionId == null || sessionId.isEmpty()) {
-            sessionId = extractSessionId(request);
+            sessionId = SessionIdExtractor.extract(request);
         }
 
         if (sessionId != null && !sessionId.isEmpty()) {
@@ -168,7 +169,7 @@ public class AuthController {
         }
         // 兜底：从 header/cookie 获取
         if (sessionId == null || sessionId.isEmpty()) {
-            sessionId = extractSessionId(request);
+            sessionId = SessionIdExtractor.extract(request);
         }
 
         if (sessionId != null && !sessionId.isEmpty()) {
@@ -189,7 +190,7 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        String sessionId = extractSessionId(request);
+        String sessionId = SessionIdExtractor.extract(request);
         
         if (sessionId == null) {
             log.warn("验证会话失败：没有 session_id");
@@ -348,32 +349,4 @@ public class AuthController {
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
     
-    /**
-     * 从请求中提取 session_id
-     */
-    private String extractSessionId(HttpServletRequest request) {
-        // 从 X-Session-Id 头获取（前端传递）
-        String sessionId = request.getHeader("X-Session-Id");
-        if (sessionId != null && !sessionId.isEmpty()) {
-            return sessionId;
-        }
-        
-        // 从 Authorization 头获取
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
-        }
-        
-        // 从 Cookie 中获取
-        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (jakarta.servlet.http.Cookie cookie : cookies) {
-                if ("session_id".equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        
-        return null;
-    }
 }
