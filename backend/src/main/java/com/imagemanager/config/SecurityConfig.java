@@ -1,6 +1,7 @@
 package com.imagemanager.config;
 
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +30,7 @@ import java.util.Arrays;
  * @author Image Manager Team
  * @version 2.0.0
  */
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
@@ -51,6 +53,10 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
+            String uri = request.getRequestURI();
+            if (uri != null && uri.contains("/erp-sync")) {
+                log.warn("[ERP] 未认证请求被拒绝: {} {}", request.getMethod(), uri);
+            }
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
@@ -64,6 +70,10 @@ public class SecurityConfig {
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
+            String uri = request.getRequestURI();
+            if (uri != null && uri.contains("/erp-sync")) {
+                log.warn("[ERP] 权限不足: {} {}", request.getMethod(), uri);
+            }
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");

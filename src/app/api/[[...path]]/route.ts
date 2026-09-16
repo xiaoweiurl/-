@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveBffSessionId } from '@/lib/bff-session';
 
 /**
  * 统一 BFF 代理（根级 optional catch-all）
@@ -46,12 +47,14 @@ function buildForwardHeaders(request: NextRequest): Headers {
     headers.set(key, value);
   });
 
-  // 会话：仅接受 X-Session-Id 请求头或 session_id Cookie（与 Java 侧口径一致），统一转为 X-Session-Id
+  // 会话：httpOnly session_id Cookie 优先于可能过期的 X-Session-Id（localStorage）
   const headerSession = request.headers.get('x-session-id');
   const cookieSession = request.cookies.get('session_id')?.value;
-  const sessionId = headerSession || cookieSession;
+  const sessionId = resolveBffSessionId(headerSession, cookieSession);
   if (sessionId) {
     headers.set('X-Session-Id', sessionId);
+  } else {
+    headers.delete('X-Session-Id');
   }
 
   return headers;
