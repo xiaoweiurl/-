@@ -1,14 +1,14 @@
 package com.imagemanager.controller;
 
 import com.imagemanager.config.AuthInterceptor;
-import com.imagemanager.config.StorageConfig;
+import com.imagemanager.config.StorageProperties;
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.dto.StorageQuotaDTO;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.StorageService;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,12 +22,19 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/storage")
-@RequiredArgsConstructor
 public class StorageController {
 
     private final StorageService storageService;
     private final FileStorageService fileStorageService;
-    private final StorageConfig storageConfig;
+    private final StorageProperties storageProperties;
+
+    public StorageController(StorageService storageService,
+                             @Qualifier("imageStorageService") FileStorageService fileStorageService,
+                             StorageProperties storageProperties) {
+        this.storageService = storageService;
+        this.fileStorageService = fileStorageService;
+        this.storageProperties = storageProperties;
+    }
 
     /**
      * 获取当前用户的存储配额
@@ -174,13 +181,13 @@ public class StorageController {
         }
 
         // 存储类型信息
-        String storageType = storageConfig.getType();
+        String storageType = storageProperties.getType();
         result.put("storageType", storageType);
         
         if ("s3".equalsIgnoreCase(storageType)) {
-            result.put("endpoint", storageConfig.getS3Endpoint());
-            result.put("region", storageConfig.getS3Region());
-            result.put("bucket", storageConfig.getS3BucketName());
+            result.put("endpoint", storageProperties.getS3Endpoint());
+            result.put("region", storageProperties.getS3Region());
+            result.put("bucket", storageProperties.getS3BucketName());
             
             try {
                 // 尝试上传一个测试文件（不删除，方便用户在OSS控制台验证）
@@ -213,7 +220,7 @@ public class StorageController {
         } else {
             result.put("success", true);
             result.put("message", "当前使用本地存储，非S3模式");
-            result.put("localPath", storageConfig.getLocalPath());
+            result.put("localPath", storageProperties.getLocalPath());
         }
         
         return ResponseEntity.ok(result);

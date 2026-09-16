@@ -1,6 +1,6 @@
 package com.imagemanager.service.impl;
 
-import com.imagemanager.config.StorageConfig;
+import com.imagemanager.config.StorageProperties;
 import com.imagemanager.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,24 +22,18 @@ import java.util.UUID;
 @Slf4j
 public class LocalStorageServiceImpl implements FileStorageService {
     
-    private StorageConfig storageConfig;
+    private StorageProperties storageProperties;
     private Path uploadPath;
     private String baseUrl;
     
-    public LocalStorageServiceImpl() {
-    }
-    
-    public LocalStorageServiceImpl(StorageConfig storageConfig) {
-        this.storageConfig = storageConfig;
-    }
-    
-    public void setStorageConfig(StorageConfig storageConfig) {
-        this.storageConfig = storageConfig;
+    public LocalStorageServiceImpl(StorageProperties storageProperties) {
+        this.storageProperties = storageProperties;
+        init();
     }
     
     public void init() {
-        this.uploadPath = Paths.get(storageConfig.getLocalPath()).toAbsolutePath().normalize();
-        this.baseUrl = storageConfig.getBaseUrl();
+        this.uploadPath = Paths.get(storageProperties.getLocalPath()).toAbsolutePath().normalize();
+        this.baseUrl = storageProperties.getBaseUrl();
         
         // 确保 baseUrl 格式正确（不以 / 结尾）
         if (baseUrl != null && baseUrl.endsWith("/")) {

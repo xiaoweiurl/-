@@ -144,12 +144,17 @@ app:
     max-size: 52428800  # 50MB for images
     document-max-size: 5368709120  # 5GB for documents
   
-  # 存储配置 — S3 密钥在 StorageConfig.java 中硬编码，不在 YAML 中暴露
+  # 存储配置 — S3 凭据通过环境变量注入（短名 S3_* 或 APP_STORAGE_S3_*）
   storage:
-    type: s3
+    type: ${STORAGE_TYPE:s3}
     local-path: ./uploads
     base-url: /api
     presigned-url-expire: 604800
+    s3-endpoint: ${S3_ENDPOINT:}
+    s3-region: ${S3_REGION:}
+    s3-bucket-name: ${S3_BUCKET_NAME:}
+    s3-access-key: ${S3_ACCESS_KEY:}
+    s3-secret-key: ${S3_SECRET_KEY:}
   
   # AI 配置（向量化 Embedding + 对话）
   # Coze API Token: 登录 https://www.coze.cn/ → 个人空间 → 设置 → 开发者令牌

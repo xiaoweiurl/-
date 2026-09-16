@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -50,7 +51,7 @@ public class AiImageController {
     public AiImageController(ImageRepository imageRepository,
                              ImageDynamicRepository imageDynamicRepository,
                              ImageTableService imageTableService,
-                             FileStorageService fileStorageService) {
+                             @Qualifier("imageStorageService") FileStorageService fileStorageService) {
         this.imageRepository = imageRepository;
         this.imageDynamicRepository = imageDynamicRepository;
         this.imageTableService = imageTableService;
