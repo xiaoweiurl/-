@@ -1027,42 +1027,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         
         return results;
     }
-    
-    /**
-     * 智能截断 — 按score分层保留高质量结果
-     * 高分(>=0.7)全保留, 中分(0.5-0.7)最多5条, 低分(<0.5)最多3条
-     */
-    private List<MemorySearchResult> smartTruncate(List<MemorySearchResult> results, int limit) {
-        if (results.size() <= limit) return results;
-        
-        List<MemorySearchResult> highScore = new ArrayList<>();
-        List<MemorySearchResult> midScore = new ArrayList<>();
-        List<MemorySearchResult> lowScore = new ArrayList<>();
-        
-        for (MemorySearchResult r : results) {
-            double s = r.getScore() != null ? r.getScore() : 0;
-            if (s >= 0.7) highScore.add(r);
-            else if (s >= 0.5) midScore.add(r);
-            else lowScore.add(r);
-        }
-        
-        List<MemorySearchResult> finalResults = new ArrayList<>(highScore);
-        // 中分最多补5条
-        int midCount = Math.min(5, midScore.size());
-        finalResults.addAll(midScore.subList(0, midCount));
-        // 低分最多补3条
-        int lowCount = Math.min(3, lowScore.size());
-        finalResults.addAll(lowScore.subList(0, lowCount));
-        
-        // 最终不超过limit
-        if (finalResults.size() > limit) {
-            finalResults = finalResults.subList(0, limit);
-        }
-        
-        log.info("智能截断: 总{}条 → 高分{} 中分{} 低分{} → 最终{}条",
-                results.size(), highScore.size(), midScore.size(), lowScore.size(), finalResults.size());
-        return finalResults;
-    }
 
     @Override
     public void retryEmbedding(String docId, String company) {

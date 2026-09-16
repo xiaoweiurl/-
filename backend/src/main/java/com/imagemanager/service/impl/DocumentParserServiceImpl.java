@@ -105,9 +105,9 @@ public class DocumentParserServiceImpl implements DocumentParserService {
 
                 log.info("Excel解析[v2]: sheet={}, headerCount={}, headers={}, format={}", 
                     sheet.getSheetName(), headers.size(), headers, 
-                    (headers.isEmpty() || headers.stream().allMatch(String::isEmpty)) ? "原始|分隔" : "自然语言描述句");
+                    (headers.isEmpty() || headers.stream().allMatch(h -> h.isEmpty())) ? "原始|分隔" : "自然语言描述句");
 
-                if (headers.isEmpty() || headers.stream().allMatch(String::isEmpty)) {
+                if (headers.isEmpty() || headers.stream().allMatch(h -> h.isEmpty())) {
                     // 无表头，退化为原始 | 分隔格式
                     log.warn("Excel解析[v2]: 未检测到表头，使用原始|分隔格式, sheet={}", sheet.getSheetName());
                     for (Row row : sheet) {

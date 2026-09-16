@@ -1,14 +1,11 @@
 package com.imagemanager.util;
 
-import lombok.extern.slf4j.Slf4j;
-
 /**
  * 密码强度验证工具
  * 
  * @author Image Manager Team
  * @version 1.0.0
  */
-@Slf4j
 public class PasswordValidator {
     
     // 密码强度等级

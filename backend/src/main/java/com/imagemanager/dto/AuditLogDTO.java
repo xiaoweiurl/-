@@ -12,7 +12,6 @@ public class AuditLogDTO {
     private String userId;
     private String username;
     private String action;
-    private String actionDisplay;
     private String resourceType;
     private String resourceId;
     private String resourceName;

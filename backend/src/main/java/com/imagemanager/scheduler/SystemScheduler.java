@@ -6,7 +6,6 @@ import com.imagemanager.entity.SystemSetting;
 import com.imagemanager.repository.ImageRepository;
 import com.imagemanager.repository.ShareLinkRepository;
 import com.imagemanager.repository.SystemSettingRepository;
-import com.imagemanager.service.AuditService;
 import com.imagemanager.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +28,6 @@ public class SystemScheduler {
     private final ShareLinkRepository shareLinkRepository;
     private final SystemSettingRepository systemSettingRepository;
     private final StorageService storageService;
-    private final AuditService auditService;
 
     /**
      * 清理回收站过期图片

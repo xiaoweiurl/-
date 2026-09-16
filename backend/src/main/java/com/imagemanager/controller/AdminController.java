@@ -44,7 +44,7 @@ public class AdminController {
         try {
             List<User> users = userService.getAllUsers();
             List<UserInfo> userInfos = users.stream()
-                    .map(this::convertToUserInfo)
+                    .map(user -> convertToUserInfo(user))
                     .collect(Collectors.toList());
             
             log.info("获取用户列表成功，共 {} 个用户", userInfos.size());

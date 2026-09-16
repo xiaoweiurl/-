@@ -3,7 +3,6 @@ package com.imagemanager.controller;
 import com.imagemanager.service.AiCallLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +15,6 @@ import java.util.Map;
 /**
  * AI 能力用量监控接口（真实调用数据，无任何模拟）
  */
-@Slf4j
 @RestController
 @RequestMapping("/ai-usage")
 @Tag(name = "AI用量监控", description = "AI 能力真实调用统计（服务健康/模型用量/调用记录/限流配置）")

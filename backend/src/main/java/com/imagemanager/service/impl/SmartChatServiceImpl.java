@@ -187,6 +187,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 } else {
                     history = getChatHistory(userId, company, convId);
+                    if (history == null) {
+                        history = new ArrayList<>();
+                    }
                     // 回填到内存缓存
                     for (Map<String, Object> msg : history) {
                         String role = (String) msg.get("role");
@@ -1044,8 +1047,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 7. 流式调用本地模型（Ollama）
                 // 联网策略：仅企划智能体（factory/planning 子模式）允许联网检索（阶段一 MiniMax web_search 已在前面完成）；
-                // 其他模式与子模式一律不联网、也不判断联网意图。
-                boolean enableWebSearch = "planning".equals(resolvedSubMode);
+                // 其他模式与子模式一律不联网、也不判断联网意图。streamChat 本身只走 Ollama NDJSON，不再接收联网开关。
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
                 long chatCallStart = System.currentTimeMillis();
@@ -1053,7 +1055,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         ? AiCallLogService.CAP_FACTORY_CHAT
                         : AiCallLogService.CAP_SMART_CHAT;
                 try {
-                    streamChat(emitter, messages, fullResponse, fullReasoning, enableWebSearch);
+                    streamChat(emitter, messages, fullResponse, fullReasoning);
                     if (aiCallLogService != null) {
                         aiCallLogService.record(chatCapability, null, true,
                                 System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
@@ -1951,13 +1953,17 @@ public class SmartChatServiceImpl implements SmartChatService {
             // 阈值与 RagPipeline 召回粗筛对齐（0.30），过低会召回弱相关切片引发幻觉
             log.info("[知识库] 使用直接向量检索（knowledgeBaseService.search）");
             List<MemorySearchResult> allResults = knowledgeBaseService.search(query, 0.30, 15, company);
-            log.info("[知识库] 直接检索返回 {} 条结果", allResults != null ? allResults.size() : 0);
+            if (allResults == null) {
+                allResults = Collections.emptyList();
+            }
+            log.info("[知识库] 直接检索返回 {} 条结果", allResults.size());
 
             for (MemorySearchResult r : allResults) {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("content", r.getContent() != null ? r.getContent() : "");
                 item.put("score", r.getScore() != null ? r.getScore() : 0);
-                item.put("cardId", r.getId().toString());
+                UUID resultId = r.getId() != null ? r.getId() : r.getCardId();
+                item.put("cardId", resultId != null ? resultId.toString() : "");
                 item.put("title", r.getTitle() != null ? r.getTitle() : "");
                 item.put("domain", r.getDomainName() != null ? r.getDomainName() : "知识库");
                 item.put("source", "knowledge_base");
@@ -3840,27 +3846,11 @@ public class SmartChatServiceImpl implements SmartChatService {
     }
 
     /**
-     * 流式调用MiniMax API (Anthropic兼容接口)
-     */
-    /**
-     * 流式调用DeepSeek V4 Pro（思考模式）
-     * 
-     * 两种模式：
-     * 1. 普通模式：使用Chat Completions API（无联网搜索）
-     * 2. 联网搜索模式：使用Anthropic兼容端点 + web_search_20250305工具
-     * 
-     * Chat Completions格式：
-     * - 端点: POST {base_url}/chat/completions
-     * - SSE: data: {"choices":[{"delta":{"reasoning_content":"..."}}]}
-     * 
-     * Anthropic格式（联网搜索）：
-     * - 端点: POST {base_url}/anthropic/v1/messages
-     * - 请求: {"model":"deepseek-v4-pro","messages":[...],"tools":[{"type":"web_search_20250305"}]}
-     * - SSE: event: content_block_delta, data: {"delta":{"type":"thinking_delta","thinking":"..."}}
-     *        event: content_block_delta, data: {"delta":{"type":"text_delta","text":"..."}}
+     * 流式调用本地 Ollama /api/chat（NDJSON）。
+     * 旧 OpenAI/Anthropic SSE 解析（parseOpenAISSEStream 等）已删除：主路径从未调用它们。
      */
     private void streamChat(SseEmitter emitter, List<Map<String, Object>> messages,
-                            StringBuilder fullResponse, StringBuilder reasoningContent, boolean enableWebSearch) {
+                            StringBuilder fullResponse, StringBuilder reasoningContent) {
         try {
             log.info("使用Ollama模型进行对话: {}", ollamaChatModel);
 
@@ -3917,26 +3907,6 @@ public class SmartChatServiceImpl implements SmartChatService {
 
 
     /**
-     * 转换消息格式：OpenAI → Anthropic
-     * OpenAI: {"role":"user","content":"text"}
-     * Anthropic: {"role":"user","content":"text"} (基本相同)
-     * 
-     * 特殊处理：
-     * - assistant消息中的reasoning_content：Anthropic不支持此字段，移除
-     * - tool消息：暂不处理
-     */
-    private List<Map<String, Object>> convertToAnthropicMessages(List<Map<String, Object>> openAIMessages) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Map<String, Object> msg : openAIMessages) {
-            Map<String, Object> converted = new HashMap<>(msg);
-            // 移除reasoning_content（Anthropic格式不支持在消息中传此字段）
-            converted.remove("reasoning_content");
-            result.add(converted);
-        }
-        return result;
-    }
-
-    /**
      * 构建API端点URL
      */
     private String buildEndpointUrl(String baseUrl, String path) {
@@ -3954,264 +3924,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         return url + path;
     }
 
-    /**
-     * 创建HTTP连接
-     */
-    private HttpURLConnection createConnection(String url, String apiKey, String authType) throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Authorization", authType + " " + apiKey);
-        conn.setDoOutput(true);
-        conn.setConnectTimeout(60000);
-        conn.setReadTimeout(600000);
-        return conn;
-    }
 
-    /**
-     * 检查HTTP响应码
-     */
-    private void checkResponseCode(HttpURLConnection conn) throws Exception {
-        int responseCode = conn.getResponseCode();
-        if (responseCode != 200) {
-            BufferedReader errorReader = new BufferedReader(
-                    new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8));
-            StringBuilder errorBody = new StringBuilder();
-            String line;
-            while ((line = errorReader.readLine()) != null) {
-                errorBody.append(line);
-            }
-            errorReader.close();
-            throw new RuntimeException("DeepSeek API返回错误 " + responseCode + ": " + errorBody);
-        }
-    }
-
-    /**
-     * 解析OpenAI格式的SSE流（Chat Completions API）
-     * 
-     * SSE格式:
-     *   data: {"choices":[{"delta":{"reasoning_content":"..."}}]}
-     *   data: {"choices":[{"delta":{"content":"..."}}]}
-     *   data: [DONE]
-     */
-    private void parseOpenAISSEStream(SseEmitter emitter, HttpURLConnection conn,
-                                       StringBuilder fullResponse, StringBuilder reasoningContent) throws Exception {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("data:")) {
-                    String data = line.substring(5).trim();
-                    if (data.isEmpty()) continue;
-
-                    if ("[DONE]".equals(data)) {
-                        sendDoneEvent(emitter, reasoningContent);
-                        return;
-                    }
-
-                    try {
-                        JsonNode node = objectMapper.readTree(data);
-                        JsonNode choices = node.path("choices");
-                        if (choices.isArray() && choices.size() > 0) {
-                            JsonNode choice = choices.get(0);
-                            JsonNode delta = choice.path("delta");
-                            String finishReason = choice.path("finish_reason").asText("");
-
-                            // 思维链内容
-                            if (delta.has("reasoning_content") && !delta.path("reasoning_content").isNull()) {
-                                String reasoning = delta.path("reasoning_content").asText("");
-                                if (!reasoning.isEmpty()) {
-                                    reasoningContent.append(reasoning);
-                                    emitter.send(SseEmitter.event().name("message").data(
-                                            objectMapper.writeValueAsString(Map.of(
-                                                    "type", "reasoning_delta",
-                                                    "content", reasoning
-                                            ))
-                                    ));
-                                }
-                            }
-
-                            // 最终回答内容
-                            if (delta.has("content") && !delta.path("content").isNull()) {
-                                String content = delta.path("content").asText("");
-                                if (!content.isEmpty()) {
-                                    fullResponse.append(content);
-                                    emitter.send(SseEmitter.event().name("message").data(
-                                            objectMapper.writeValueAsString(Map.of(
-                                                    "type", "content",
-                                                    "content", content
-                                            ))
-                                    ));
-                                }
-                            }
-
-                            if (!finishReason.isEmpty() && !"null".equals(finishReason)) {
-                                log.info("DeepSeek完成原因: {}, 累计输出字符数: {}", finishReason, fullResponse.length());
-                            }
-                        }
-                    } catch (Exception parseEx) {
-                        if (parseEx instanceof RuntimeException) throw parseEx;
-                        log.debug("解析SSE行失败: {}", data);
-                    }
-                }
-            }
-        }
-        // 如果没有收到[DONE]但流正常结束
-        sendDoneEvent(emitter, reasoningContent);
-    }
-
-    /**
-     * 解析Anthropic格式的SSE流（联网搜索模式）
-     * 
-     * Anthropic SSE事件流:
-     *   event: message_start
-     *     data: {"type":"message_start","message":{"id":"...","role":"assistant",...}}
-     *   event: content_block_start
-     *     data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking",...}}
-     *   event: content_block_start
-     *     data: {"type":"content_block_start","index":1,"content_block":{"type":"text",...}}
-     *   event: content_block_start
-     *     data: {"type":"content_block_start","index":2,"content_block":{"type":"web_search_tool_result",...}}
-     *   event: content_block_delta
-     *     data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"..."}}
-     *   event: content_block_delta
-     *     data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"..."}}
-     *   event: content_block_stop
-     *   event: message_stop
-     */
-    private void parseAnthropicSSEStream(SseEmitter emitter, HttpURLConnection conn,
-                                          StringBuilder fullResponse, StringBuilder reasoningContent) throws Exception {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            String currentEvent = null;
-
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty()) {
-                    currentEvent = null;
-                    continue;
-                }
-
-                // 事件类型
-                if (line.startsWith("event:")) {
-                    currentEvent = line.substring(6).trim();
-                    continue;
-                }
-
-                // 事件数据
-                if (line.startsWith("data:")) {
-                    String data = line.substring(5).trim();
-                    if (data.isEmpty()) continue;
-
-                    try {
-                        JsonNode node = objectMapper.readTree(data);
-                        String type = node.path("type").asText("");
-
-                        switch (type) {
-                            case "content_block_start": {
-                                JsonNode contentBlock = node.path("content_block");
-                                String blockType = contentBlock.path("type").asText("");
-                                if ("web_search_tool_result".equals(blockType)) {
-                                    // 联网搜索结果，通知前端
-                                    emitter.send(SseEmitter.event().name("message").data(
-                                            objectMapper.writeValueAsString(Map.of(
-                                                    "type", "web_search_result",
-                                                    "content", "正在检索互联网信息..."
-                                            ))
-                                    ));
-                                }
-                                break;
-                            }
-
-                            case "content_block_delta": {
-                                int index = node.path("index").asInt();
-                                JsonNode delta = node.path("delta");
-                                String deltaType = delta.path("type").asText("");
-
-                                switch (deltaType) {
-                                    case "thinking_delta": {
-                                        // 思维链增量
-                                        String thinking = delta.path("thinking").asText("");
-                                        if (!thinking.isEmpty()) {
-                                            reasoningContent.append(thinking);
-                                            emitter.send(SseEmitter.event().name("message").data(
-                                                    objectMapper.writeValueAsString(Map.of(
-                                                            "type", "reasoning_delta",
-                                                            "content", thinking
-                                                    ))
-                                            ));
-                                        }
-                                        break;
-                                    }
-
-                                    case "text_delta": {
-                                        // 回答文本增量
-                                        String text = delta.path("text").asText("");
-                                        if (!text.isEmpty()) {
-                                            fullResponse.append(text);
-                                            emitter.send(SseEmitter.event().name("message").data(
-                                                    objectMapper.writeValueAsString(Map.of(
-                                                            "type", "content",
-                                                            "content", text
-                                                    ))
-                                            ));
-                                        }
-                                        break;
-                                    }
-
-                                    default:
-                                        log.debug("未处理的Anthropic delta类型: {}", deltaType);
-                                }
-                                break;
-                            }
-
-                            case "message_stop": {
-                                // 消息结束
-                                sendDoneEvent(emitter, reasoningContent);
-                                return;
-                            }
-
-                            case "message_start":
-                            case "content_block_stop":
-                            case "ping":
-                                // 忽略这些事件
-                                break;
-
-                            default:
-                                log.debug("未处理的Anthropic事件类型: {}", type);
-                        }
-                    } catch (Exception parseEx) {
-                        if (parseEx instanceof RuntimeException) throw parseEx;
-                        log.debug("解析Anthropic SSE行失败: {}", data);
-                    }
-                }
-            }
-        }
-        // 如果没有收到message_stop但流正常结束
-        sendDoneEvent(emitter, reasoningContent);
-    }
-
-    /**
-     * 发送完成事件（思维链汇总 + done标记）
-     */
-    private void sendDoneEvent(SseEmitter emitter, StringBuilder reasoningContent) throws Exception {
-        if (reasoningContent.length() > 0) {
-            emitter.send(SseEmitter.event().name("message").data(
-                    objectMapper.writeValueAsString(Map.of(
-                            "type", "reasoning",
-                            "content", reasoningContent.toString()
-                    ))
-            ));
-        }
-        emitter.send(SseEmitter.event().name("message").data(
-                objectMapper.writeValueAsString(Map.of("type", "done"))
-        ));
-    }
-
-    /**
-     * 调用Ollama Embedding API获取文本向量
-     */
     /**
      * 文本向量化（带调用日志埋点的包装方法）：记录真实成功/失败与耗时
      */
@@ -4291,7 +4004,6 @@ public class SmartChatServiceImpl implements SmartChatService {
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
 
         int lineCount = 0;
-        long startTime = System.currentTimeMillis();
         String line;
         while ((line = reader.readLine()) != null) {
             lineCount++;

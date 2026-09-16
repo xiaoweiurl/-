@@ -194,7 +194,7 @@ public class ErpSyncServiceImpl implements ErpSyncService {
         // 增量起点：数据库最新同步时间；首次回看 90 天（全量）
         LocalDateTime lastSync = loadLastSyncTime(def.key());
         boolean incremental = lastSync != null;
-        LocalDateTime rangeStart = incremental ? lastSync : now.minusDays(FIRST_SYNC_LOOKBACK_DAYS);
+        LocalDateTime rangeStart = lastSync != null ? lastSync : now.minusDays(FIRST_SYNC_LOOKBACK_DAYS);
 
         int added = 0;
         int skipped = 0;

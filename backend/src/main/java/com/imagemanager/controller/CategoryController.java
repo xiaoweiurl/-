@@ -44,7 +44,7 @@ public class CategoryController {
         
         List<Album> albums = albumService.getAllAlbums();
         List<CategoryResponse> categories = albums.stream()
-                .map(this::convertToCategoryResponse)
+                .map(album -> convertToCategoryResponse(album))
                 .collect(Collectors.toList());
         
         return ApiResponse.success(categories);

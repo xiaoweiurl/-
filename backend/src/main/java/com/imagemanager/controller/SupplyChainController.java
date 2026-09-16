@@ -393,7 +393,6 @@ public class SupplyChainController {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private int importExcelData(MultipartFile file, String type) throws Exception {
         org.apache.poi.ss.usermodel.Workbook wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(file.getInputStream());
         org.apache.poi.ss.usermodel.Sheet sheet = wb.getSheetAt(0);

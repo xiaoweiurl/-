@@ -10,6 +10,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.annotation.PostConstruct;
 
+import java.util.Objects;
+
 /**
  * 智能对话表 Schema 自动修复
  * 
@@ -31,7 +33,7 @@ public class SmartChatSchemaInitializer {
 
     @PostConstruct
     public void init() {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         tx.executeWithoutResult(status -> {
             try {
                 // 1. 确保 smart_chat_conversations 表存在

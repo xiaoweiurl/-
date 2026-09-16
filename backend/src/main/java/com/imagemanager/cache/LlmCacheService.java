@@ -86,7 +86,6 @@ public class LlmCacheService {
      * @param query 用户问题
      * @return 缓存的检索结果列表，不存在返回 null
      */
-    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getCachedRagResult(String userId, String query) {
         String key = buildRagCacheKey(userId, query);
         String json = get(key, String.class);
@@ -124,7 +123,6 @@ public class LlmCacheService {
      * @param sql 查询SQL
      * @return 缓存的查询结果列表，不存在返回 null
      */
-    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getCachedDbResult(String userId, String sql) {
         String key = buildDbCacheKey(userId, sql);
         String json = get(key, String.class);

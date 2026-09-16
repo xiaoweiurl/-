@@ -2,7 +2,6 @@ package com.imagemanager.tools;
 
 import com.imagemanager.service.QuotationCalcService;
 import dev.langchain4j.agent.tool.Tool;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +16,6 @@ import java.util.Map;
  * - 查询工具：参数化 SQL，只读，防注入
  * - 计算工具：后端 BigDecimal 确定性计算，大模型不碰数学
  */
-@Slf4j
 @Component
 public class QuotationTools {
 

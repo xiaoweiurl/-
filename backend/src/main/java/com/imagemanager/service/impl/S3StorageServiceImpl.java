@@ -285,8 +285,11 @@ public class S3StorageServiceImpl implements FileStorageService {
     @Override
     public String getFileUrl(String fileKey) {
         checkInitialized();
+        if (fileKey == null || fileKey.isEmpty()) {
+            throw new IllegalArgumentException("fileKey 不能为空");
+        }
         // 如果已经是完整HTTP URL，直接返回
-        if (fileKey != null && (fileKey.startsWith("http://") || fileKey.startsWith("https://"))) {
+        if (fileKey.startsWith("http://") || fileKey.startsWith("https://")) {
             return fileKey;
         }
         String key = fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
@@ -298,6 +301,9 @@ public class S3StorageServiceImpl implements FileStorageService {
         checkInitialized();
         if (s3Presigner == null) {
             throw new RuntimeException("S3 Presigner 未初始化");
+        }
+        if (fileKey == null || fileKey.isEmpty()) {
+            throw new IllegalArgumentException("fileKey 不能为空");
         }
 
         String key = fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
@@ -397,6 +403,9 @@ public class S3StorageServiceImpl implements FileStorageService {
             try {
                 URI uri = URI.create(fileKey);
                 String path = uri.getPath();
+                if (path == null || path.isEmpty()) {
+                    return fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
+                }
                 // 虚拟托管风格: https://{bucket}.s3.oss-cn-hangzhou.aliyuncs.com/{key}
                 // 路径只有 /key，不含 bucket名
                 // 路径风格: https://s3.oss-cn-hangzhou.aliyuncs.com/{bucket}/{key}

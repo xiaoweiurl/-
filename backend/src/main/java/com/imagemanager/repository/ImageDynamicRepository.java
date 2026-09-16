@@ -1091,51 +1091,6 @@ public class ImageDynamicRepository {
     }
 
     /**
-     * 将 List<String> 转为 JSON 数组字符串
-     */
-    private String toJsonArray(List<String> list) {
-        if (list == null || list.isEmpty()) return "[]";
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < list.size(); i++) {
-            if (i > 0) sb.append(",");
-            sb.append("\"").append(list.get(i).replace("\"", "\\\"")).append("\"");
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-
-    /**
-     * 解析 tags JSON 字符串
-     */
-    private List<String> parseTags(String tagsStr) {
-        if (tagsStr == null || tagsStr.isEmpty() || tagsStr.equals("[]") || tagsStr.equals("null")) {
-            return new ArrayList<>();
-        }
-        try {
-            // 简单的 JSON 数组解析
-            String trimmed = tagsStr.trim();
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                trimmed = trimmed.substring(1, trimmed.length() - 1);
-                if (trimmed.isEmpty()) {
-                    return new ArrayList<>();
-                }
-                String[] parts = trimmed.split(",");
-                List<String> tags = new ArrayList<>();
-                for (String part : parts) {
-                    String tag = part.trim().replace("\"", "").replace("'", "");
-                    if (!tag.isEmpty()) {
-                        tags.add(tag);
-                    }
-                }
-                return tags;
-            }
-        } catch (Exception e) {
-            log.warn("解析 tags 失败: {}", tagsStr);
-        }
-        return new ArrayList<>();
-    }
-
-    /**
      * 返回空分页
      */
     private PageResponse<Image> emptyPage(ImageQueryRequest request) {

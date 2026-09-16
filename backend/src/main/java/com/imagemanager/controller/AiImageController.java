@@ -42,8 +42,6 @@ public class AiImageController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final RestTemplate restTemplate = new RestTemplate();
-
     private final ImageRepository imageRepository;
     private final ImageDynamicRepository imageDynamicRepository;
     private final ImageTableService imageTableService;

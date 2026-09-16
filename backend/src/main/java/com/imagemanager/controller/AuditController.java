@@ -6,7 +6,6 @@ import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.service.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +18,6 @@ import java.util.Map;
  * 审计日志控制器
  * 权限：仅管理员可访问
  */
-@Slf4j
 @RestController
 @RequestMapping("/audit")
 @RequiredArgsConstructor

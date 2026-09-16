@@ -2,7 +2,6 @@ package com.imagemanager.controller;
 
 import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.service.GoodsLibraryService;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,7 +15,6 @@ import java.util.Map;
  * 文件夹式商品管理：文件夹名 = 货号 + 品名，
  * 四类图片（主图/侧面图/细节/产品图）上传 OSS，备注五字段（卖点/竞品/功能/对应人群/使用场景）
  */
-@Slf4j
 @RestController
 @RequestMapping("/goods-library")
 public class GoodsLibraryController {

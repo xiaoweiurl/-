@@ -267,12 +267,12 @@ public class OpsService {
         Map<String, Object> result = new HashMap<>();
         String userId = getUserIdFromRequest(request);
 
-        int updated;
         TransactionTemplate txResolve = new TransactionTemplate(transactionManager);
-        updated = txResolve.execute(status ->
+        Integer updatedObj = txResolve.execute(status ->
                 jdbcTemplate.update(
                         "UPDATE system_errors SET resolved = true, resolved_by = ?, resolved_at = NOW() WHERE id = ?",
                         userId, id));
+        int updated = updatedObj != null ? updatedObj : 0;
 
         result.put("success", updated > 0);
         result.put("id", id);

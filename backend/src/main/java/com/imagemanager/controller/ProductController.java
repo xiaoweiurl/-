@@ -65,10 +65,10 @@ public class ProductController {
         List<String> productIds = null;
         if (keyword != null && !keyword.isEmpty()) {
             List<Product> products = productRepository.searchByName(SessionUtil.requireCurrentUserId(), keyword);
-            productIds = products.stream().map(Product::getId).collect(Collectors.toList());
+            productIds = products.stream().map(product -> product.getId()).collect(Collectors.toList());
         } else if (category != null && !category.isEmpty()) {
             List<Product> products = productRepository.findByUserIdAndCategory(SessionUtil.requireCurrentUserId(), category);
-            productIds = products.stream().map(Product::getId).collect(Collectors.toList());
+            productIds = products.stream().map(product -> product.getId()).collect(Collectors.toList());
         }
 
         // 如果有商品筛选条件但结果为空

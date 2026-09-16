@@ -129,7 +129,7 @@ public class StorageServiceImpl implements StorageService {
     public Page<StorageQuotaDTO> getAllUserQuotas(int page, int pageSize) {
         Pageable pageable = PageRequest.of(page - 1, pageSize);
         return storageQuotaRepository.findAll(pageable)
-                .map(this::toDTO);
+                .map(quota -> toDTO(quota));
     }
 
     @Override

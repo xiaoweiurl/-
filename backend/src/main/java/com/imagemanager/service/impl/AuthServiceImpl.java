@@ -1,6 +1,5 @@
 package com.imagemanager.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.dto.LoginRequest;
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.dto.RegisterRequest;
@@ -57,8 +56,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired(required = false)
     private com.imagemanager.cache.LlmCacheService llmCacheService;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ============ Redis Key 前缀 ============
     private static final String SESSION_KEY_PREFIX = "session:";

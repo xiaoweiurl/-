@@ -3,7 +3,6 @@ package com.imagemanager.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemanager.config.ErpProperties;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -30,7 +29,6 @@ import java.util.Map;
  * - 401 / -100 / -101 统一抛出 ErpAuthException（调用方据此清除 token 并要求重新登录）
  * - 网络不可达抛出 ErpNetworkException（同步服务据此降级为演示数据）
  */
-@Slf4j
 @Component
 public class ErpClient {
 
