@@ -359,7 +359,7 @@ public class AlbumServiceImpl implements AlbumService {
         // 2. 删除当前相册下的所有图片（批量软删除）
         List<Image> images = imageRepository.findByAlbumIdAndDeletedFalse(albumId);
         if (!images.isEmpty()) {
-            List<String> imageIds = images.stream().map(Image::getId).collect(Collectors.toList());
+            List<String> imageIds = images.stream().map(image -> image.getId()).collect(Collectors.toList());
             imageRepository.softDeleteByIds(imageIds);
             totalImageCount += images.size();
         }

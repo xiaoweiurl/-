@@ -734,7 +734,7 @@ public class ImageServiceImpl implements ImageService {
             String albumName = finalAlbumName;
             if (finalAlbumId != null && albumName == null) {
                 albumName = albumRepository.findById(finalAlbumId)
-                        .map(Album::getName)
+                        .map(album -> album.getName())
                         .orElse(null);
             }
             
@@ -821,7 +821,7 @@ public class ImageServiceImpl implements ImageService {
             image.setAlbumId(albumId);
             // 更新相册名称
             String albumName = albumRepository.findById(albumId)
-                    .map(Album::getName)
+                    .map(album -> album.getName())
                     .orElse(null);
             if (albumName != null) {
                 image.setAlbumName(albumName);
@@ -1347,7 +1347,7 @@ public class ImageServiceImpl implements ImageService {
         
         // 获取相册名称
         String albumName = albumRepository.findById(albumId)
-                .map(Album::getName)
+                .map(album -> album.getName())
                 .orElse(null);
         
         for (String id : ids) {
@@ -1583,7 +1583,7 @@ public class ImageServiceImpl implements ImageService {
         
         // 更新所有相关相册的图片数量
         Set<String> affectedAlbumIds = uploadedImages.stream()
-                .map(Image::getAlbumId)
+                .map(img -> img.getAlbumId())
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         
@@ -1628,7 +1628,7 @@ public class ImageServiceImpl implements ImageService {
             // 如果有相册ID但没有相册名称，查找相册名称
             if (albumId != null && albumName == null) {
                 albumName = albumRepository.findById(albumId)
-                        .map(Album::getName)
+                        .map(album -> album.getName())
                         .orElse(null);
             }
             
@@ -1938,7 +1938,7 @@ public class ImageServiceImpl implements ImageService {
             }
 
             // 生成商品ID（用于关联主图和详情图）
-            String productId = existingProduct.map(Product::getId).orElse("product-" + UUID.randomUUID().toString().substring(0, 8));
+            String productId = existingProduct.map(product -> product.getId()).orElse("product-" + UUID.randomUUID().toString().substring(0, 8));
 
             // 获取父相册名称（来自 Excel 文件名）
             String parentAlbumName = request.getParentAlbumName();
@@ -2528,7 +2528,7 @@ public class ImageServiceImpl implements ImageService {
             String albumName = finalAlbumName;
             if (finalAlbumId != null && albumName == null) {
                 albumName = albumRepository.findById(finalAlbumId)
-                        .map(Album::getName)
+                        .map(album -> album.getName())
                         .orElse(null);
             }
             

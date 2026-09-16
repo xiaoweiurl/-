@@ -443,7 +443,7 @@ public class QuotationCalcService {
         try {
             List<String> codes = huohaos.stream()
                     .filter(Objects::nonNull)
-                    .map(String::trim)
+                    .map(s -> s.trim())
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .limit(500)

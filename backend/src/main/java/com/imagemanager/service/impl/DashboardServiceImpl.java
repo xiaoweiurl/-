@@ -106,7 +106,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<Image> allImages = imageRepository.findByDeletedFalse();
 
         long totalImages = allImages.size();
-        long totalSize = allImages.stream().mapToLong(Image::getSize).sum();
+        long totalSize = allImages.stream().mapToLong(img -> img.getSize()).sum();
         long favoritesCount = allImages.stream()
             .filter(img -> img.getFavorite() != null && img.getFavorite())
             .count();
@@ -189,7 +189,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             List<Image> dayImages = imagesByDate.getOrDefault(date, new ArrayList<>());
             long count = dayImages.size();
-            long size = dayImages.stream().mapToLong(Image::getSize).sum();
+            long size = dayImages.stream().mapToLong(img -> img.getSize()).sum();
 
             result.add(new DashboardStatsResponse.TrendData(dateStr, count, size));
         }
@@ -284,7 +284,7 @@ public class DashboardServiceImpl implements DashboardService {
         for (Map.Entry<String, List<Image>> entry : imagesByType.entrySet()) {
             String type = entry.getKey();
             Long count = (long) entry.getValue().size();
-            Long size = entry.getValue().stream().mapToLong(Image::getSize).sum();
+            Long size = entry.getValue().stream().mapToLong(img -> img.getSize()).sum();
             result.add(new DashboardStatsResponse.FileTypeStat(type, count, size));
         }
 
@@ -307,7 +307,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 获取所有相册
         Map<String, Album> albumMap = albumRepository.findAll().stream()
-                .collect(Collectors.toMap(Album::getId, album -> album, (a, b) -> a));
+                .collect(Collectors.toMap(album -> album.getId(), album -> album, (a, b) -> a));
 
         // 计算热度分数（浏览3 + 下载5 + 收藏10）
         return allImages.stream()
@@ -354,7 +354,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 获取相册信息
         Map<String, Album> albumMap = albumRepository.findAll().stream()
-                .collect(Collectors.toMap(Album::getId, album -> album, (a, b) -> a));
+                .collect(Collectors.toMap(album -> album.getId(), album -> album, (a, b) -> a));
 
         // 转换为热门相册数据
         return imagesByAlbum.entrySet().stream()

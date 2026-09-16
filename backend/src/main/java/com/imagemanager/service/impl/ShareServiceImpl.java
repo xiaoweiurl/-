@@ -263,8 +263,8 @@ public class ShareServiceImpl implements ShareService {
 
     private String getResourceName(String resourceType, String resourceId) {
         return switch (resourceType) {
-            case "album" -> albumRepository.findById(resourceId).map(Album::getName).orElse(null);
-            case "image" -> imageRepository.findById(resourceId).map(Image::getTitle).orElse(null);
+            case "album" -> albumRepository.findById(resourceId).map(album -> album.getName()).orElse(null);
+            case "image" -> imageRepository.findById(resourceId).map(image -> image.getTitle()).orElse(null);
             default -> null;
         };
     }

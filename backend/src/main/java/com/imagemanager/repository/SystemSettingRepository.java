@@ -12,7 +12,7 @@ public interface SystemSettingRepository extends JpaRepository<SystemSetting, St
     Optional<SystemSetting> findBySettingKey(String settingKey);
     
     default String getValue(String key, String defaultValue) {
-        return findBySettingKey(key).map(SystemSetting::getSettingValue).orElse(defaultValue);
+        return findBySettingKey(key).map(setting -> setting.getSettingValue()).orElse(defaultValue);
     }
     
     default int getIntValue(String key, int defaultValue) {
