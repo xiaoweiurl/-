@@ -298,8 +298,8 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
 
         // 策略2：使用正则表达式提取中文词语
         // 优先匹配更长的词语（4-6个中文字符），再匹配短的（2-3个）
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("[\\u4e00-\\u9fa5]{4,6}");
-        java.util.regex.Matcher matcher = pattern.matcher(cleanedName);
+        Pattern pattern = Pattern.compile("[\\u4e00-\\u9fa5]{4,6}");
+        Matcher matcher = pattern.matcher(cleanedName);
 
         if (matcher.find()) {
             String potentialCategory = matcher.group();
@@ -319,7 +319,7 @@ public class AIRecognitionServiceImpl implements AIRecognitionService {
         }
 
         // 如果没有找到长词，尝试提取2-3个中文字符
-        pattern = java.util.regex.Pattern.compile("[\\u4e00-\\u9fa5]{2,3}");
+        pattern = Pattern.compile("[\\u4e00-\\u9fa5]{2,3}");
         matcher = pattern.matcher(cleanedName);
 
         Set<String> excludedWords = new HashSet<>(Arrays.asList(

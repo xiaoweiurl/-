@@ -2,13 +2,13 @@ package com.imagemanager.config;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -75,7 +75,7 @@ public class SecurityConfig {
      * CORS 允许来源白名单（逗号分隔），通过 app.cors.allowed-origins 配置。
      * 安全约束：allowCredentials=true 时禁止使用通配符 *，必须显式列举前端地址。
      */
-    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:http://localhost:5000}")
+    @Value("${app.cors.allowed-origins:http://localhost:5000}")
     private String allowedOrigins;
 
     /**
@@ -120,16 +120,16 @@ public class SecurityConfig {
             // CORS 配置
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             // 添加自定义认证过滤器（在 Spring Security 过滤器之前）
-            .addFilterBefore(sessionIdAuthFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(sessionIdAuthFilter, UsernamePasswordAuthenticationFilter.class)
             // CSRF 说明：本系统鉴权不依赖浏览器自动携带的凭证 —— 前端通过自定义请求头
             // X-Session-Id 传递会话（跨站表单/图片等 CSRF 向量无法附加自定义头），天然免疫 CSRF；
             // Cookie 仅为同站便捷通道且已设置 SameSite=Lax（见 AuthController），跨站请求不会携带。
             // 因此保持 CSRF 关闭，避免双通道鉴权下的误拦截。
-            .csrf(AbstractHttpConfigurer::disable)
+            .csrf(c -> c.disable())
             // 禁用 HTTP Basic
-            .httpBasic(AbstractHttpConfigurer::disable)
+            .httpBasic(b -> b.disable())
             // 禁用表单登录
-            .formLogin(AbstractHttpConfigurer::disable)
+            .formLogin(f -> f.disable())
             // Session 管理策略
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
