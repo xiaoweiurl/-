@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { Camera, Loader2, X } from 'lucide-react';
 import { loginHref, samplerFormPath } from '@/lib/auth-redirect';
 import { isDingTalkEnv } from '@/lib/dingtalk-env';
-import { dingTalkFreeLogin } from '@/lib/dingtalk-sso';
+import { beginSingleFlight, dingTalkFreeLogin } from '@/lib/dingtalk-sso';
 
 interface GoodsDetail {
   id: number;
@@ -77,6 +77,7 @@ export default function SamplerFormPage() {
   const [uploadingSlot, setUploadingSlot] = useState<SlotKey | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const recoverAuthInFlight = useRef<Promise<boolean> | null>(null);
 
   const applyDetail = useCallback((d: GoodsDetail) => {
     setDetail(d);
@@ -95,19 +96,21 @@ export default function SamplerFormPage() {
     window.location.href = loginHref(samplerFormPath(id));
   }, [id]);
 
-  const recoverAuth = useCallback(async (): Promise<boolean> => {
-    if (!isGoodsId(id)) return false;
-    if (!isDingTalkEnv()) {
-      redirectToPasswordLogin();
+  const recoverAuth = useCallback((): Promise<boolean> => {
+    return beginSingleFlight(recoverAuthInFlight, async () => {
+      if (!isGoodsId(id)) return false;
+      if (!isDingTalkEnv()) {
+        redirectToPasswordLogin();
+        return false;
+      }
+      setSsoHint('正在通过钉钉身份进入表单');
+      const result = await dingTalkFreeLogin(id);
+      setSsoHint(null);
+      if (result.ok) return true;
+      setNeedPasswordLogin(true);
+      setLoadError(result.error || '钉钉免登失败。请确认应用已发布，或使用中台账号登录。');
       return false;
-    }
-    setSsoHint('正在通过钉钉身份进入表单');
-    const result = await dingTalkFreeLogin(id);
-    setSsoHint(null);
-    if (result.ok) return true;
-    setNeedPasswordLogin(true);
-    setLoadError(result.error || '钉钉免登失败。请确认应用已发布，或使用中台账号登录。');
-    return false;
+    });
   }, [id, redirectToPasswordLogin]);
 
   const fetchDetail = useCallback(async (allowSso = true) => {

@@ -1,6 +1,7 @@
 package com.imagemanager.dingtalk;
 
 import com.imagemanager.config.DingTalkProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.util.UUID;
 /**
  * 钉钉 H5 {@code dd.config} 参数（corpId / agentId / 签名）。不暴露 AppSecret。
  */
+@Slf4j
 @Service
 public class DingTalkJsapiConfigService {
 
@@ -34,6 +36,10 @@ public class DingTalkJsapiConfigService {
         data.put("corpId", properties.getCorpId() == null ? "" : properties.getCorpId().trim());
         Long agentId = properties.resolveAgentId();
         data.put("agentId", agentId == null ? "" : String.valueOf(agentId));
+        if (configured && !properties.hasCorpId()) {
+            log.warn("钉钉 JSAPI 配置 corpId 为空（未设置 DINGTALK_CORP_ID）。"
+                    + "H5 免登无法换取有效 authCode；工作通知 HTTP 链接不受影响。");
+        }
         if (!configured) {
             return data;
         }

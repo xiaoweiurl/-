@@ -1,14 +1,18 @@
 /**
- * DingTalk H5 免登：加载 JSAPI → requestAuthCode / getAuthCode → 后端换会话。
+ * DingTalk H5 免登：加载 JSAPI → requestAuthCode → 后端换会话。
  *
- * 企业内部应用 H5 使用 {@code dd.runtime.permission.requestAuthCode}（classic）
- * 或 {@code dd.getAuthCode}（JSAPI 2.0）；与本仓库 topapi/v2/user/getuserinfo 免登配套。
+ * 企业内部应用 H5 必须用 {@code dd.runtime.permission.requestAuthCode({ corpId })}。
+ * 无 corpId 时禁止调用 getAuthCode：取到的码会被 getuserinfo 以 40078 拒绝。
+ * getAuthCode / dt.getAuthCode 仅在 classic API 不可用且 corpId 已配置时回退。
  */
 
 import { isDingTalkEnv } from './dingtalk-env';
 
 const JSAPI_SRC = 'https://g.alicdn.com/dingding/dingtalk-jsapi/2.15.0/dingtalk.open.js';
 const AUTH_TIMEOUT_MS = 12_000;
+
+export const DINGTALK_CORP_ID_REQUIRED =
+  '钉钉免登缺少企业 CorpId。请运维配置环境变量 DINGTALK_CORP_ID（开放平台「应用信息」中的 CorpId）后重启后端。未配置时无法调用 requestAuthCode，继续取码会出现 40078「不存在的临时授权码」。';
 
 type JsapiConfig = {
   configured?: boolean;
@@ -19,7 +23,7 @@ type JsapiConfig = {
   signature?: string;
 };
 
-type DdLike = {
+export type DingTalkDdLike = {
   ready?: (cb: () => void) => void;
   config?: (opts: Record<string, unknown>) => void;
   error?: (cb: (err: unknown) => void) => void;
@@ -33,10 +37,14 @@ type DdLike = {
 
 declare global {
   interface Window {
-    dd?: DdLike;
+    dd?: DingTalkDdLike;
     dt?: { getAuthCode?: (opts: Record<string, unknown>) => unknown };
   }
 }
+
+const freeLoginInFlight: { current: Promise<{ ok: boolean; error?: string }> | null } = {
+  current: null,
+};
 
 export async function fetchDingTalkJsapiConfig(pageUrl: string): Promise<JsapiConfig> {
   const res = await fetch(
@@ -48,6 +56,10 @@ export async function fetchDingTalkJsapiConfig(pageUrl: string): Promise<JsapiCo
 }
 
 export async function dingTalkFreeLogin(goodsId: string): Promise<{ ok: boolean; error?: string }> {
+  return beginSingleFlight(freeLoginInFlight, () => dingTalkFreeLoginOnce(goodsId));
+}
+
+async function dingTalkFreeLoginOnce(goodsId: string): Promise<{ ok: boolean; error?: string }> {
   if (!isDingTalkEnv()) {
     return { ok: false, error: '请在钉钉中打开' };
   }
@@ -78,20 +90,21 @@ export async function dingTalkFreeLogin(goodsId: string): Promise<{ ok: boolean;
 }
 
 export async function requestDingTalkAuthCode(config: JsapiConfig): Promise<string> {
+  const corpId = resolveDingTalkCorpId(config.corpId);
   const dd = await loadDingTalkJsapi();
-  applyDdConfig(dd, config);
+  applyDdConfig(dd, { ...config, corpId });
   return withTimeout(
-    waitReadyThen(dd, () => getAuthCodeFromDd(dd, config.corpId || '')),
+    waitReadyThen(dd, () => getAuthCodeFromDd(dd, corpId)),
     AUTH_TIMEOUT_MS,
     '获取钉钉授权码超时，请确认已发布应用且 H5 可信域名包含本站',
   );
 }
 
-function applyDdConfig(dd: DdLike, config: JsapiConfig) {
+function applyDdConfig(dd: DingTalkDdLike, config: JsapiConfig) {
   if (!config.signature || !dd.config) return;
   dd.config({
     agentId: config.agentId || undefined,
-    corpId: config.corpId || undefined,
+    corpId: config.corpId,
     timeStamp: config.timeStamp,
     nonceStr: config.nonceStr,
     signature: config.signature,
@@ -100,7 +113,7 @@ function applyDdConfig(dd: DdLike, config: JsapiConfig) {
   });
 }
 
-function waitReadyThen<T>(dd: DdLike, fn: () => Promise<T>): Promise<T> {
+function waitReadyThen<T>(dd: DingTalkDdLike, fn: () => Promise<T>): Promise<T> {
   if (typeof dd.ready !== 'function') {
     return fn();
   }
@@ -127,9 +140,17 @@ function waitReadyThen<T>(dd: DdLike, fn: () => Promise<T>): Promise<T> {
   });
 }
 
-function getAuthCodeFromDd(dd: DdLike, corpId: string): Promise<string> {
-  const opts: Record<string, unknown> = {};
-  if (corpId) opts.corpId = corpId;
+/**
+ * H5 微应用取码：优先 classic requestAuthCode({ corpId })。
+ * 无 corpId 时直接失败，绝不调用 getAuthCode（避免 40078）。
+ */
+export function getAuthCodeFromDd(
+  dd: DingTalkDdLike,
+  corpId: string | null | undefined,
+  dtGetAuthCode?: ((opts: Record<string, unknown>) => unknown) | undefined,
+): Promise<string> {
+  const resolvedCorpId = resolveDingTalkCorpId(corpId);
+  const opts: Record<string, unknown> = { corpId: resolvedCorpId };
 
   return new Promise((resolve, reject) => {
     const onSuccess = (res: { code?: string; authCode?: string } | null | undefined) => {
@@ -139,7 +160,14 @@ function getAuthCodeFromDd(dd: DdLike, corpId: string): Promise<string> {
     };
     const onFail = (err: unknown) => reject(new Error(formatJsapiError(err)));
 
-    const dtGet = typeof window !== 'undefined' ? window.dt?.getAuthCode : undefined;
+    const classic = dd.runtime?.permission?.requestAuthCode;
+    if (typeof classic === 'function') {
+      settleMaybePromise(classic({ ...opts, onSuccess, onFail }), onSuccess, onFail);
+      return;
+    }
+    const dtGet =
+      dtGetAuthCode ??
+      (typeof window !== 'undefined' ? window.dt?.getAuthCode : undefined);
     if (typeof dtGet === 'function') {
       settleMaybePromise(dtGet({ ...opts, onSuccess, onFail }), onSuccess, onFail);
       return;
@@ -148,13 +176,33 @@ function getAuthCodeFromDd(dd: DdLike, corpId: string): Promise<string> {
       settleMaybePromise(dd.getAuthCode({ ...opts, onSuccess, onFail }), onSuccess, onFail);
       return;
     }
-    const classic = dd.runtime?.permission?.requestAuthCode;
-    if (typeof classic === 'function') {
-      settleMaybePromise(classic({ ...opts, onSuccess, onFail }), onSuccess, onFail);
-      return;
-    }
     reject(new Error('当前页面无法调用钉钉免登 JSAPI，请在钉钉内打开并确认应用已发布'));
   });
+}
+
+export function resolveDingTalkCorpId(corpId: string | null | undefined): string {
+  const id = (corpId || '').trim();
+  if (!id) {
+    throw new Error(DINGTALK_CORP_ID_REQUIRED);
+  }
+  return id;
+}
+
+/**
+ * Share one in-flight promise so authCode is not requested/consumed twice.
+ * Compatible with React refs (`useRef<Promise<T> | null>(null)`).
+ */
+export function beginSingleFlight<T>(
+  holder: { current: Promise<T> | null },
+  start: () => Promise<T>,
+): Promise<T> {
+  if (holder.current) return holder.current;
+  const run = start();
+  holder.current = run;
+  void run.finally(() => {
+    if (holder.current === run) holder.current = null;
+  });
+  return run;
 }
 
 function settleMaybePromise(
@@ -167,7 +215,7 @@ function settleMaybePromise(
   }
 }
 
-export function loadDingTalkJsapi(): Promise<DdLike> {
+export function loadDingTalkJsapi(): Promise<DingTalkDdLike> {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('非浏览器环境'));
   }
