@@ -130,6 +130,7 @@ public class SecurityConfig {
                 .requestMatchers("/auth/register").permitAll()
                 .requestMatchers("/auth/session").permitAll()
                 .requestMatchers("/auth/forgot-password/**").permitAll()
+                .requestMatchers("/auth/dingtalk", "/auth/dingtalk/**").permitAll()
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 // 分享链接公开访问 - 无需认证（context-path 已去掉 /api 前缀）

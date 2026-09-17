@@ -205,42 +205,50 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("用户名或密码错误");
         }
 
-        // ============ SSO: 检查用户是否已有活跃会话 ============
-        String userId = user.getId();
-        String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
-        String oldSessionId = redisTemplate.opsForValue().get(userSessionKey);
+        boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
         boolean forceLogin = request.getForceLogin() != null && request.getForceLogin();
+        String companyOverride = request.getCompany();
+        return persistUserSession(user, rememberMe, forceLogin, companyOverride);
+    }
 
-        if (oldSessionId != null && !forceLogin) {
-            // 验证旧 session 是否真的还活着
-            String sessionKey = SESSION_KEY_PREFIX + oldSessionId;
-            Map<Object, Object> oldSession = redisTemplate.opsForHash().entries(sessionKey);
-            
-            if (!oldSession.isEmpty()) {
-                // 用户已有活跃会话，返回提示让前端确认
-                log.info("SSO: 用户 {} 已有活跃会话(oldSessionId={}***), 等待确认是否踢掉",
-                        request.getUsername(), oldSessionId.substring(0, Math.min(8, oldSessionId.length())));
-                return LoginResponse.builder()
-                        .alreadyLoggedIn(true)
-                        .message("该账户已在其他地方登录，确认登录将使之前的登录失效")
-                        .build();
-            } else {
-                // 旧 session 已过期，清理映射
-                redisTemplate.delete(userSessionKey);
-            }
+    @Override
+    public LoginResponse issueSession(User user, boolean rememberMe, boolean forceKick) {
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("用户不存在");
         }
+        return persistUserSession(user, rememberMe, forceKick, null);
+    }
 
-        if (oldSessionId != null && forceLogin) {
-            // 强制登录，踢掉旧会话
-            redisTemplate.delete(SESSION_KEY_PREFIX + oldSessionId);
-            log.info("SSO: 踢掉用户 {} 的旧会话 {}", request.getUsername(), oldSessionId.substring(0, Math.min(8, oldSessionId.length())));
+    @Override
+    public LoginResponse issueSamplerSession(String dingUserId, String displayName, String company, long goodsId) {
+        if (dingUserId == null || dingUserId.isBlank()) {
+            throw new IllegalArgumentException("缺少钉钉 userid");
         }
+        if (goodsId <= 0) {
+            throw new IllegalArgumentException("打样免登需要商品编号");
+        }
+        String userId = samplerPrincipalId(dingUserId.trim());
+        String name = displayName == null || displayName.isBlank() ? dingUserId.trim() : displayName.trim();
+        LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
+                .id(userId)
+                .username(name)
+                .role("sampler")
+                .membership("free")
+                .company(company)
+                .mustChangePassword(false)
+                .scope("sampler")
+                .samplerGoodsId(String.valueOf(goodsId))
+                .build();
+        long timeoutHours = 12;
+        return storeSession(userId, userInfo, false, true, timeoutHours);
+    }
 
-        // ============ 创建新 session ============
-        String sessionId = generateSecureSessionId();
+    private LoginResponse persistUserSession(User user, boolean rememberMe, boolean forceKick,
+                                             String companyOverride) {
+        String userId = user.getId();
         String effectiveCompany = user.getCompany();
         if (effectiveCompany == null || effectiveCompany.trim().isEmpty()) {
-            effectiveCompany = request.getCompany();
+            effectiveCompany = companyOverride;
         }
         LoginResponse.UserInfo userInfo = LoginResponse.UserInfo.builder()
                 .id(userId)
@@ -251,32 +259,59 @@ public class AuthServiceImpl implements AuthService {
                 .membership(user.getMembership())
                 .company(effectiveCompany)
                 .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
+                .scope("full")
                 .build();
 
-        boolean rememberMe = request.getRememberMe() != null && request.getRememberMe();
         long timeoutHours = rememberMe ? SESSION_TIMEOUT_REMEMBER_HOURS : SESSION_TIMEOUT_HOURS;
+        LoginResponse response = storeSession(userId, userInfo, rememberMe, forceKick, timeoutHours);
+
+        if (response.getAlreadyLoggedIn() == null || !Boolean.TRUE.equals(response.getAlreadyLoggedIn())) {
+            user.setLastLoginAt(LocalDateTime.now());
+            userRepository.save(user);
+            log.info("用户登录成功：{}, SSO会话已建立", user.getUsername());
+        }
+        return response;
+    }
+
+    private LoginResponse storeSession(String userId, LoginResponse.UserInfo userInfo,
+                                       boolean rememberMe, boolean forceKick, long timeoutHours) {
+        String userSessionKey = USER_SESSION_KEY_PREFIX + userId;
+        String oldSessionId = redisTemplate.opsForValue().get(userSessionKey);
+
+        if (oldSessionId != null && !forceKick) {
+            String sessionKey = SESSION_KEY_PREFIX + oldSessionId;
+            Map<Object, Object> oldSession = redisTemplate.opsForHash().entries(sessionKey);
+            if (!oldSession.isEmpty()) {
+                log.info("SSO: 用户 {} 已有活跃会话(oldSessionId={}***), 等待确认是否踢掉",
+                        userInfo.getUsername(), oldSessionId.substring(0, Math.min(8, oldSessionId.length())));
+                return LoginResponse.builder()
+                        .alreadyLoggedIn(true)
+                        .message("该账户已在其他地方登录，确认登录将使之前的登录失效")
+                        .build();
+            }
+            redisTemplate.delete(userSessionKey);
+        }
+
+        if (oldSessionId != null && forceKick) {
+            redisTemplate.delete(SESSION_KEY_PREFIX + oldSessionId);
+            log.info("SSO: 踢掉用户 {} 的旧会话 {}", userInfo.getUsername(),
+                    oldSessionId.substring(0, Math.min(8, oldSessionId.length())));
+        }
+
+        String sessionId = generateSecureSessionId();
         long expiresAt = System.currentTimeMillis() + timeoutHours * 60 * 60 * 1000;
-
-        // 存入 Redis
         saveSessionToRedis(sessionId, userInfo, rememberMe, expiresAt, timeoutHours);
-
-        // SSO: 记录用户当前 sessionId
         redisTemplate.opsForValue().set(userSessionKey, Objects.requireNonNull(sessionId), timeoutHours, TimeUnit.HOURS);
-
-        // 验证存储是否成功
-        String verifySessionId = redisTemplate.opsForValue().get(userSessionKey);
-
-        // 更新最后登录时间
-        user.setLastLoginAt(LocalDateTime.now());
-        userRepository.save(user);
-
-        log.info("用户登录成功：{}, SSO会话已建立", request.getUsername());
 
         return LoginResponse.builder()
                 .sessionId(sessionId)
                 .user(userInfo)
                 .expiresIn(timeoutHours * 60 * 60 * 1000)
                 .build();
+    }
+
+    static String samplerPrincipalId(String dingUserId) {
+        return "dt:" + dingUserId;
     }
 
     @Override
@@ -381,6 +416,8 @@ public class AuthServiceImpl implements AuthService {
                 .membership((String) sessionData.get("membership"))
                 .company((String) sessionData.get("company"))
                 .mustChangePassword(Boolean.parseBoolean((String) sessionData.getOrDefault("mustChangePassword", "false")))
+                .scope(emptyToNull((String) sessionData.get("scope")))
+                .samplerGoodsId(emptyToNull((String) sessionData.get("samplerGoodsId")))
                 .build();
 
         // 续期逻辑：剩余时间不足 2 小时则自动续期
@@ -582,6 +619,8 @@ public class AuthServiceImpl implements AuthService {
         sessionData.put("membership", userInfo.getMembership() != null ? userInfo.getMembership() : "");
         sessionData.put("company", userInfo.getCompany() != null ? userInfo.getCompany() : "");
         sessionData.put("mustChangePassword", String.valueOf(Boolean.TRUE.equals(userInfo.getMustChangePassword())));
+        sessionData.put("scope", userInfo.getScope() != null ? userInfo.getScope() : "full");
+        sessionData.put("samplerGoodsId", userInfo.getSamplerGoodsId() != null ? userInfo.getSamplerGoodsId() : "");
         sessionData.put("rememberMe", String.valueOf(rememberMe));
         sessionData.put("createTime", String.valueOf(System.currentTimeMillis()));
         sessionData.put("lastAccessAt", String.valueOf(System.currentTimeMillis()));
@@ -623,5 +662,12 @@ public class AuthServiceImpl implements AuthService {
         }
         redisTemplate.delete(userSessionKey);
 
+    }
+
+    private static String emptyToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value;
     }
 }

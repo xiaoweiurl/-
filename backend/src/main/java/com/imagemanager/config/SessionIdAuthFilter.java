@@ -86,6 +86,7 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
                path.startsWith("/auth/register") ||
                path.startsWith("/auth/session") ||
                path.startsWith("/auth/forgot-password") ||
+               path.startsWith("/auth/dingtalk") ||
                path.startsWith("/share/access") ||
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||

@@ -45,4 +45,9 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 已绑定钉钉 userid 的本地账号，用于按姓名解析工作通知接收人。
      */
     List<User> findByDingtalkUseridIsNotNull();
+
+    /**
+     * 按昵称查询（钉钉免登姓名匹配；昵称可不唯一）。
+     */
+    List<User> findByNickname(String nickname);
 }

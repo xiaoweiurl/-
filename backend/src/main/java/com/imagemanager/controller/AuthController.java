@@ -1,6 +1,10 @@
 package com.imagemanager.controller;
 
 import com.imagemanager.dto.*;
+import com.imagemanager.dingtalk.DingTalkException;
+import com.imagemanager.dingtalk.DingTalkFreeLoginException;
+import com.imagemanager.dingtalk.DingTalkFreeLoginService;
+import com.imagemanager.dingtalk.DingTalkJsapiConfigService;
 import com.imagemanager.entity.User;
 import com.imagemanager.exception.RegisterMatchException;
 import com.imagemanager.repository.UserRepository;
@@ -44,6 +48,12 @@ public class AuthController {
     
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private DingTalkFreeLoginService dingTalkFreeLoginService;
+
+    @Autowired
+    private DingTalkJsapiConfigService dingTalkJsapiConfigService;
     
     /**
      * 用户注册（钉钉姓名匹配）。初始密码固定 123456，首次登录强制改密。
@@ -120,6 +130,78 @@ public class AuthController {
             log.error("登录失败: ", e);
             return ApiResponse.error(401, e.getMessage());
         }
+    }
+
+    /**
+     * 钉钉 H5 免登：JSAPI authCode 换本地会话。公开端点。
+     */
+    @PostMapping("/dingtalk")
+    @Operation(summary = "钉钉免登", description = "用钉钉 JSAPI authCode 换取中台会话；未注册通讯录成员仅获得打样表单作用域")
+    public ResponseEntity<ApiResponse<LoginResponse>> dingTalkFreeLogin(
+            @RequestBody(required = false) DingTalkFreeLoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response) {
+        try {
+            String clientId = "dingtalk:" + clientKey(httpRequest);
+            if (!com.imagemanager.util.RateLimiter.allow(clientId, com.imagemanager.util.RateLimiter.LimitType.LOGIN)) {
+                long resetTime = com.imagemanager.util.RateLimiter.getResetTime(
+                        clientId, com.imagemanager.util.RateLimiter.LimitType.LOGIN);
+                return ResponseEntity.status(429)
+                        .body(ApiResponse.error(429, "免登尝试次数过多，请在 " + resetTime + " 秒后重试"));
+            }
+            String authCode = request == null ? null : request.resolveAuthCode();
+            LoginResponse loginResponse = dingTalkFreeLoginService.login(authCode,
+                    request == null ? null : request.getGoodsId());
+            String sessionId = loginResponse.getSessionId();
+            if (sessionId != null) {
+                response.setHeader("X-Session-Id", sessionId);
+            }
+            String username = loginResponse.getUser() != null ? loginResponse.getUser().getUsername() : null;
+            if (username != null && !username.isEmpty()
+                    && !"sampler".equalsIgnoreCase(loginResponse.getUser().getRole())) {
+                imageTableService.ensureUserImageTable(username);
+            }
+            return ResponseEntity.ok(ApiResponse.success("钉钉免登成功", loginResponse));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
+        } catch (DingTalkFreeLoginException e) {
+            return ResponseEntity.status(e.getHttpStatus())
+                    .body(ApiResponse.error(e.getHttpStatus(), e.getMessage()));
+        } catch (DingTalkException e) {
+            log.warn("钉钉免登失败: {}", e.getMessage());
+            int status = e.getMessage() != null && e.getMessage().contains("未配置") ? 503 : 401;
+            return ResponseEntity.status(status).body(ApiResponse.error(status, e.getMessage()));
+        } catch (Exception e) {
+            log.error("钉钉免登失败: ", e);
+            return ResponseEntity.status(401).body(ApiResponse.error(401, "钉钉免登失败"));
+        }
+    }
+
+    /**
+     * 钉钉 JSAPI 配置（corpId / agentId / dd.config 签名）。公开端点，不含 Secret。
+     */
+    @GetMapping("/dingtalk/config")
+    @Operation(summary = "钉钉 JSAPI 配置", description = "返回 corpId、agentId；若传入本站 url 则附带 dd.config 签名")
+    public ApiResponse<java.util.Map<String, Object>> dingTalkJsapiConfig(
+            @RequestParam(value = "url", required = false) String url) {
+        try {
+            return ApiResponse.success("ok", dingTalkJsapiConfigService.build(url));
+        } catch (DingTalkException e) {
+            log.warn("钉钉 JSAPI 配置失败: {}", e.getMessage());
+            return ApiResponse.error(503, e.getMessage());
+        } catch (Exception e) {
+            log.error("钉钉 JSAPI 配置失败: ", e);
+            return ApiResponse.error(500, "无法生成钉钉 JSAPI 配置");
+        }
+    }
+
+    private static String clientKey(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        String ip = request.getRemoteAddr();
+        return ip == null || ip.isBlank() ? "unknown" : ip;
     }
     
     /**

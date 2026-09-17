@@ -2,7 +2,6 @@ package com.imagemanager.service;
 
 import com.imagemanager.config.DingTalkProperties;
 import com.imagemanager.dingtalk.DingTalkClient;
-import com.imagemanager.dingtalk.DingTalkLinks;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
 import com.imagemanager.org.OrgNameMatcher;
@@ -121,13 +120,13 @@ public class GoodsSamplerNoticeService {
         if (formHttp.isBlank()) {
             return DingTalkWorkNotice.text(title, markdown.replace("**", "").replace("### ", ""));
         }
-        String clickUrl = DingTalkLinks.workNoticeUrl(
-                formHttp, properties.getCorpId(), properties.resolveAgentId());
-        return DingTalkWorkNotice.actionCard(title, markdown, "填写打样表单", clickUrl);
+        // 使用裸 HTTP 链接（非 dingtalk:// 包装）。#19 的 openapp/page/link 协议在应用未发布时
+        // 会提示「非钉钉页面」；H5 可信域名发布后，钉钉内置浏览器直接打开 /sampler/{id} 并走免登。
+        return DingTalkWorkNotice.actionCard(title, markdown, "填写打样表单", formHttp);
     }
 
     /**
-     * 打样员专用表单（手机优先），需登录；不是商品库列表或桌面编辑页。
+     * 打样员专用表单（手机优先）。钉钉内打开后走 H5 免登，无需中台密码。
      * 路径：{@code {FRONTEND_URL}/sampler/{goodsId}}
      */
     String formUrl(long goodsId) {

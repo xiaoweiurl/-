@@ -236,6 +236,14 @@ pnpm start
 - 成员信息读权限（`topapi/v2/user/list`）
 - 可选：通讯录手机号信息（有则写入 `org_users.mobile`）
 - 工作通知（Phase 2）：企业内工作通知发送权限（`topapi/message/corpconversation/asyncsend_v2`）
+- H5 微应用免登（Phase 3）：应用必须 **发布** 后，安全设置里的 H5 可信域名才会生效
+
+### 钉钉开放平台（打样免登必做）
+
+1. **H5 可信域名** 包含 `ai.bonasoma.com`（不要带路径）。
+2. **应用首页** 与可信域名一致，例如 `http://ai.bonasoma.com`。
+3. 安全设置改完后必须 **应用发布**。只保存草稿、不发布时，钉钉仍会提示「非钉钉页面」，JSAPI `getAuthCode` 也不可用。
+4. 发布后请重新指定一次打样员（或改一下 sampler 再改回），让系统发出 **新的** 工作通知；旧通知里的 `dingtalk://` 包装链接不会自动更新。新通知按钮应为裸地址：`http://ai.bonasoma.com/sampler/{id}`。
 
 ### 选用的 OpenAPI
 
@@ -246,6 +254,8 @@ pnpm start
 | 子部门（仅下一级，需递归） | POST | `https://oapi.dingtalk.com/topapi/v2/department/listsub` |
 | 部门成员（cursor 分页） | POST | `https://oapi.dingtalk.com/topapi/v2/user/list` |
 | 工作通知（Phase 2） | POST | `https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2` |
+| H5 免登 userid | POST | `https://oapi.dingtalk.com/topapi/v2/user/getuserinfo`（body: JSAPI `authCode`） |
+| JSAPI ticket | GET | `https://oapi.dingtalk.com/get_jsapi_ticket` |
 
 ### 同步与注册流程
 
@@ -264,7 +274,7 @@ pnpm start
 
 商品库创建或更新时，若 **打样员（sampler）新填写或变更为另一人**，向该打样员推送钉钉企业内部应用**工作通知**。sampler 未变的普通保存不重复通知。
 
-公开未登录表单链接（工位填报等）本阶段**明确不做**，由产品后续另开需求。
+公开未登录表单链接（工位填报等）**不做**；打样员在钉钉内打开工作通知后走 **H5 免登**（无需中台用户名密码）。
 
 ### 行为
 
@@ -273,21 +283,20 @@ pnpm start
    - 优先 `org_users`（已同步通讯录）
    - 其次 `users.dingtalk_userid`（已注册办公账号的 username / nickname）
    - 0 人、同名多人、userid 为空：记 warn 日志并跳过，不硬失败
-3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转**已登录**详情页 `{FRONTEND_URL}/goods-library/{id}`（即打样员表单，已做手机端适配）；无前端地址时退化为 text。
+3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转 **裸 HTTP** `{FRONTEND_URL}/sampler/{id}`（打样专用表单）。不要再包 `dingtalk://` 协议：应用未发布时包装链接会提示「非钉钉页面」。
 4. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
 
-公开未登录表单本阶段不做。打样员须先登录（401 会跳转 `/login`），与全站会话一致。
+打样员在钉钉内打开表单后由 Phase 3 免登建会话；浏览器里打开则仍跳转 `/login?returnUrl=/sampler/{id}`。
 
 ### 手机端（钉钉内打开）
 
-工作通知打开的是商品详情编辑页 `src/app/goods-library/[id]/page.tsx`（非公开表单）。约 **375px** 宽下应满足：
+工作通知打开的是打样专用页 `src/app/sampler/[id]/page.tsx`。约 **375px** 宽下应满足：
 
-- 顶栏不横向溢出（删除为图标，长路径隐藏）
-- 商品信息单列、输入框 ≥44px、字号 16px（避免 iOS 聚焦放大）
-- 保存按钮全宽、图片操作按钮常显（不依赖 hover）
-- 新建弹层为底部抽屉、单列表单
+- 顶栏不横向溢出
+- 表单单列、输入框足够大（避免 iOS 聚焦放大）
+- 保存按钮全宽、图片操作常显（不依赖 hover）
 
-验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/goods-library/{id}`；再对照桌面宽度确认布局未挤乱。
+验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/sampler/{id}`。
 
 ### 额外环境变量
 
@@ -298,7 +307,23 @@ pnpm start
 
 ### 范围
 
-Phase 1 组织同步 / 姓名注册行为不变。车间考勤、ERP、钉钉 SSO 登录均不在本能力范围内。
+Phase 1 组织同步 / 姓名注册行为不变。车间考勤、ERP 不在本能力范围内。
+
+## 钉钉 H5 免登（Phase 3，打样表单）
+
+钉钉工作通知打开 `/sampler/{id}` 时，**不要**再跳中台用户名密码。页面检测到钉钉 UA 后：
+
+1. 拉取 `GET /api/auth/dingtalk/config?url=`（corpId / agentId，本站 URL 才签 `dd.config`）。
+2. 加载钉钉 JSAPI，调用 `dd.runtime.permission.requestAuthCode` 或 `dd.getAuthCode`。
+3. `POST /api/auth/dingtalk` `{ authCode, goodsId }`：
+   - 后端用 AppKey/Secret 调 `topapi/v2/user/getuserinfo` 换 userid
+   - **已注册**：`users.dingtalk_userid`，或通讯录已绑定 `local_user_id`，或姓名唯一匹配已注册用户（并回写绑定）→ 完整中台会话（角色不变，不放宽 `/admin` `/org` ERP）
+   - **通讯录有人但尚未注册**：签发 **sampler 作用域** 短会话（12 小时），只能 GET/PUT 该商品与上传/删除其图片，不能进商品库列表、知识库、组织同步、ERP、管理端
+4. Next.js 登录路由种 `session_id` Cookie，随后加载/保存表单。
+
+非钉钉浏览器仍走 `/login?returnUrl=/sampler/{id}`。免登失败时表单页提供「使用账号登录」。
+
+公开接口：`POST /api/auth/dingtalk`、`GET /api/auth/dingtalk/config`（permitAll）。**不**把 `/admin` `/org` `/erp-sync` 放行。
 
 ## 项目结构
 

@@ -124,9 +124,7 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(notice.getBody().contains("打样员"));
         assertTrue(notice.hasLink());
         assertTrue(notice.getBody().contains("http://localhost:5000/sampler/9"));
-        assertTrue(notice.getSingleUrl().contains("sampler%2F9")
-                || notice.getSingleUrl().contains("/sampler/9"));
-        assertTrue(notice.getSingleUrl().startsWith("dingtalk://"));
+        assertEquals("http://localhost:5000/sampler/9", notice.getSingleUrl());
         assertEquals("填写打样表单", notice.getSingleTitle());
     }
 
@@ -181,13 +179,12 @@ class GoodsSamplerNoticeServiceTest {
         DingTalkWorkNotice notice = captor.getValue();
         assertTrue(notice.getBody().contains("未命名商品"));
         assertTrue(notice.getBody().contains("http://localhost:5000/sampler/77"));
-        assertTrue(notice.getSingleUrl().contains("sampler%2F77")
-                || notice.getSingleUrl().contains("/sampler/77"));
+        assertEquals("http://localhost:5000/sampler/77", notice.getSingleUrl());
         assertTrue(!notice.getSingleUrl().contains("goods-library"));
     }
 
     @Test
-    void openAppWrapWhenCorpIdConfigured() {
+    void workNoticeUsesPlainHttpEvenWhenCorpIdConfigured() {
         properties.setCorpId("dingcorp");
         when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
         when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
@@ -197,9 +194,8 @@ class GoodsSamplerNoticeServiceTest {
         ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
         verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
         String click = captor.getValue().getSingleUrl();
-        assertTrue(click.contains("action/openapp"));
-        assertTrue(click.contains("redirect_url="));
-        assertTrue(click.contains("sampler%2F9"));
+        assertEquals("http://localhost:5000/sampler/9", click);
+        assertTrue(!click.startsWith("dingtalk://"));
     }
 
     @Test

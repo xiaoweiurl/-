@@ -95,6 +95,46 @@ class AuthInterceptorAuthDecisionTest {
         assertEquals(403, response.getStatus());
     }
 
+    @Test
+    void samplerScopeCannotHitErpOrOrg() throws Exception {
+        LoginResponse.UserInfo sampler = LoginResponse.UserInfo.builder()
+                .id("dt:u1").username("打样员").role("sampler").scope("sampler").samplerGoodsId("9").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("dt:u1", null, SessionAuthorities.fromRole("sampler")));
+
+        MockHttpServletRequest erp = new MockHttpServletRequest("GET", "/erp-sync/status");
+        erp.setContextPath("/api");
+        erp.setRequestURI("/api/erp-sync/status");
+        erp.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, sampler);
+        MockHttpServletResponse erpRes = new MockHttpServletResponse();
+        assertTrue(!interceptor.preHandle(erp, erpRes, new Object()));
+        assertEquals(403, erpRes.getStatus());
+
+        MockHttpServletRequest org = new MockHttpServletRequest("POST", "/org/sync");
+        org.setContextPath("/api");
+        org.setRequestURI("/api/org/sync");
+        org.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, sampler);
+        MockHttpServletResponse orgRes = new MockHttpServletResponse();
+        assertTrue(!interceptor.preHandle(org, orgRes, new Object()));
+        assertEquals(403, orgRes.getStatus());
+    }
+
+    @Test
+    void samplerScopeMayAccessBoundGoodsForm() throws Exception {
+        LoginResponse.UserInfo sampler = LoginResponse.UserInfo.builder()
+                .id("dt:u1").username("打样员").role("sampler").scope("sampler").samplerGoodsId("9").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("dt:u1", null, SessionAuthorities.fromRole("sampler")));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/goods-library/9");
+        request.setContextPath("/api");
+        request.setRequestURI("/api/goods-library/9");
+        request.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, sampler);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+        assertEquals(200, response.getStatus());
+    }
+
     private static MockHttpServletRequest goodsLibraryRequest() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/goods-library");
         request.setContextPath("/api");
