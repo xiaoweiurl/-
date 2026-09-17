@@ -96,6 +96,75 @@ class AuthInterceptorAuthDecisionTest {
     }
 
     @Test
+    void authenticatedUserMayAccessOwnSettings() throws Exception {
+        when(authService.validateSession("sess")).thenReturn(LoginResponse.UserInfo.builder()
+                .id("u1").username("xiaowei").role("user").scope("full").build());
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/settings");
+        request.setContextPath("/api");
+        request.setRequestURI("/api/user/settings");
+        request.addHeader("X-Session-Id", "sess");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+        assertEquals(200, response.getStatus());
+    }
+
+    @Test
+    void securityContextUserMayAccessOwnSettings() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "u1", null, SessionAuthorities.fromRole("user")));
+        when(authService.validateSession("sess")).thenReturn(LoginResponse.UserInfo.builder()
+                .id("u1").username("xiaowei").role("user").scope("full").build());
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/settings");
+        request.setContextPath("/api");
+        request.setRequestURI("/api/user/settings");
+        request.addHeader("X-Session-Id", "sess");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+        assertEquals(200, response.getStatus());
+    }
+
+    @Test
+    void samplerScopeCannotAccessAccountSettings() throws Exception {
+        LoginResponse.UserInfo sampler = LoginResponse.UserInfo.builder()
+                .id("dt:u1").username("打样员").role("sampler").scope("sampler").samplerGoodsId("9").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("dt:u1", null, SessionAuthorities.fromRole("sampler")));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/settings");
+        request.setContextPath("/api");
+        request.setRequestURI("/api/user/settings");
+        request.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, sampler);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertTrue(!interceptor.preHandle(request, response, new Object()));
+        assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    void securityContextUserCannotResetOthersPassword() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "u1", null, SessionAuthorities.fromRole("user")));
+        when(authService.validateSession("sess")).thenReturn(LoginResponse.UserInfo.builder()
+                .id("u1").username("xiaowei").role("user").build());
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin/users/u2/reset-password");
+        request.setContextPath("/api");
+        request.setRequestURI("/api/admin/users/u2/reset-password");
+        request.addHeader("X-Session-Id", "sess");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean ok = interceptor.preHandle(request, response, new Object());
+        assertTrue(!ok);
+        assertEquals(403, response.getStatus());
+    }
+
+    @Test
     void samplerScopeCannotHitErpOrOrg() throws Exception {
         LoginResponse.UserInfo sampler = LoginResponse.UserInfo.builder()
                 .id("dt:u1").username("打样员").role("sampler").scope("sampler").samplerGoodsId("9").build();

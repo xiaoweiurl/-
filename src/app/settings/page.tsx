@@ -20,6 +20,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSettings, type AppSettings } from '@/contexts/SettingsContext';
+import { canAccessAccountSettings, isAdminOrAbove, roleDisplayName } from '@/lib/auth';
 import StorageStats from '@/components/StorageStats';
 import AuditLogs from '@/components/AuditLogs';
 import BackupRestore from '@/components/BackupRestore';
@@ -28,7 +29,8 @@ interface UserInfo {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'user';
+  role: string;
+  scope?: string;
   avatar?: string;
   avatarUrl?: string;
   nickname?: string;
@@ -39,6 +41,8 @@ interface UserInfo {
 }
 
 type SettingsTab = 'profile' | 'security' | 'notifications' | 'appearance' | 'display' | 'storage' | 'audit' | 'backup';
+
+const ADMIN_ONLY_TABS: SettingsTab[] = ['storage', 'audit', 'backup'];
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -101,8 +105,8 @@ export default function SettingsPage() {
         }
         
         setCurrentUser(authData.data);
-        // 权限检查：仅管理员可访问系统设置
-        if (authData.data?.role !== 'admin') {
+        // 账户设置：任意完整会话用户可进入；打样作用域会话保持隔离
+        if (!canAccessAccountSettings(authData.data)) {
           setAccessDenied(true);
           setIsLoading(false);
           return;
@@ -123,6 +127,13 @@ export default function SettingsPage() {
     
     fetchData();
   }, []);
+
+  React.useEffect(() => {
+    if (!currentUser) return;
+    if (ADMIN_ONLY_TABS.includes(activeTab) && !isAdminOrAbove(currentUser.role)) {
+      setActiveTab('profile');
+    }
+  }, [activeTab, currentUser]);
 
   // 保存个人资料
   const handleSaveProfile = async () => {
@@ -273,15 +284,18 @@ export default function SettingsPage() {
     );
   }
 
+  const isAdmin = isAdminOrAbove(currentUser?.role);
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'profile', label: '个人资料', icon: <User className="w-5 h-5" /> },
     { id: 'security', label: '账号安全', icon: <Lock className="w-5 h-5" /> },
     { id: 'notifications', label: '通知设置', icon: <Bell className="w-5 h-5" /> },
     { id: 'appearance', label: '外观设置', icon: <Palette className="w-5 h-5" /> },
     { id: 'display', label: '显示设置', icon: <Image className="w-5 h-5" /> },
-    { id: 'storage', label: '存储管理', icon: <HardDrive className="w-5 h-5" /> },
-    { id: 'audit', label: '操作日志', icon: <FileText className="w-5 h-5" /> },
-    { id: 'backup', label: '备份恢复', icon: <Database className="w-5 h-5" /> },
+    ...(isAdmin ? [
+      { id: 'storage' as const, label: '存储管理', icon: <HardDrive className="w-5 h-5" /> },
+      { id: 'audit' as const, label: '操作日志', icon: <FileText className="w-5 h-5" /> },
+      { id: 'backup' as const, label: '备份恢复', icon: <Database className="w-5 h-5" /> },
+    ] : []),
   ];
 
   return (
@@ -319,7 +333,7 @@ export default function SettingsPage() {
         <div className="flex flex-col items-center justify-center min-h-screen gap-4">
           <Lock className="w-16 h-16 text-[#3a3a3c]" />
           <h2 className="text-xl font-semibold text-[#8e8e93]">无访问权限</h2>
-          <p className="text-[#8e8e93]">仅管理员可访问此页面</p>
+          <p className="text-[#8e8e93]">当前会话无法访问账户设置</p>
           <button
             onClick={() => router.push('/')}
             className="px-4 py-2 bg-[#007aff] text-white rounded-lg hover:bg-[#007aff] transition-colors"
@@ -593,7 +607,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex justify-between py-2">
                       <span className="text-[#8e8e93]">角色</span>
-                      <span className="text-[#8e8e93]">{currentUser?.role === 'admin' ? '管理员' : '普通用户'}</span>
+                      <span className="text-[#8e8e93]">{roleDisplayName(currentUser?.role)}</span>
                     </div>
                     <div className="flex justify-between py-2">
                       <span className="text-[#8e8e93]">注册时间</span>
@@ -863,18 +877,16 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* 存储管理 */}
-            {activeTab === 'storage' && (
+            {/* 存储 / 审计 / 备份：仅管理员及以上 */}
+            {isAdmin && activeTab === 'storage' && (
               <StorageStats />
             )}
 
-            {/* 操作日志 */}
-            {activeTab === 'audit' && (
+            {isAdmin && activeTab === 'audit' && (
               <AuditLogs />
             )}
 
-            {/* 备份恢复 */}
-            {activeTab === 'backup' && (
+            {isAdmin && activeTab === 'backup' && (
               <BackupRestore />
             )}
           </main>
