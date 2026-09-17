@@ -76,6 +76,26 @@ export function isSuperAdmin(role?: string | null): boolean {
   return role === 'superadmin';
 }
 
+type SessionLike = {
+  role?: string | null;
+  scope?: string | null;
+} | null | undefined;
+
+/** 钉钉打样作用域会话：仅能填指定商品表单，不能进完整中台设置 */
+export function isSamplerSession(user?: SessionLike): boolean {
+  if (!user) return false;
+  return user.role === 'sampler' || user.scope === 'sampler';
+}
+
+/**
+ * 是否可进入自己的账户设置（个人资料 / 改密 / 偏好）
+ * 任意完整会话用户均可；打样作用域会话保持隔离
+ */
+export function canAccessAccountSettings(user?: SessionLike): boolean {
+  if (!user) return false;
+  return !isSamplerSession(user);
+}
+
 /** 角色显示名（三级） */
 export function roleDisplayName(role?: string | null): string {
   if (role === 'superadmin') return '超级管理员';

@@ -32,6 +32,7 @@ import {
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { canResetPasswordOf, isAdminOrAbove } from '@/lib/auth';
 
 interface UserInfo {
   id: string;
@@ -74,6 +75,7 @@ export default function UserManagementPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(true);
   const [accessDenied, setAccessDenied] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState<{ id: string; role: string } | null>(null);
   const [users, setUsers] = React.useState<UserInfo[]>([]);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showAddModal, setShowAddModal] = React.useState(false);
@@ -93,7 +95,8 @@ export default function UserManagementPage() {
         if (!sessionId) { router.push('/login'); return; }
         const res = await backendFetch('/auth/session', { headers: { 'X-Session-Id': sessionId } });
         const result = await res.json();
-        if (result.code === 200 && result.data?.role === 'admin') {
+        if (result.code === 200 && isAdminOrAbove(result.data?.role)) {
+          setCurrentUser({ id: result.data.id, role: result.data.role });
           setAccessDenied(false);
         } else {
           setAccessDenied(true);
@@ -247,6 +250,11 @@ export default function UserManagementPage() {
 
     if (newPassword.length < 6) {
       toast.error('密码长度至少6位');
+      return;
+    }
+
+    if (!canResetPasswordOf(currentUser?.role, currentUser?.id || '', selectedUser.role, selectedUser.id)) {
+      toast.error('仅管理员和超级管理员可重置其他用户密码');
       return;
     }
 
@@ -476,6 +484,7 @@ export default function UserManagementPage() {
                             <Pencil className="w-4 h-4" />
                             编辑用户
                           </DropdownMenuItem>
+                          {canResetPasswordOf(currentUser?.role, currentUser?.id || '', user.role, user.id) && (
                           <DropdownMenuItem
                             onClick={() => {
                               setSelectedUser(user);
@@ -486,6 +495,7 @@ export default function UserManagementPage() {
                             <KeyRound className="w-4 h-4" />
                             重置密码
                           </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() => {
                               setSelectedUser(user);

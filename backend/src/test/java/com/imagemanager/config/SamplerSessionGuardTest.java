@@ -16,6 +16,8 @@ class SamplerSessionGuardTest {
         assertTrue(SamplerSessionGuard.allows("/admin/users", "GET", user));
         assertTrue(SamplerSessionGuard.allows("/org/sync", "POST", user));
         assertTrue(SamplerSessionGuard.allows("/goods-library", "GET", user));
+        assertTrue(SamplerSessionGuard.allows("/user/settings", "GET", user));
+        assertTrue(SamplerSessionGuard.allows("/user/password", "PUT", user));
     }
 
     @Test
@@ -34,6 +36,9 @@ class SamplerSessionGuardTest {
         assertFalse(SamplerSessionGuard.allows("/org/sync", "POST", sampler));
         assertFalse(SamplerSessionGuard.allows("/admin/users", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/images", "GET", sampler));
+        assertFalse(SamplerSessionGuard.allows("/user/settings", "GET", sampler));
+        assertFalse(SamplerSessionGuard.allows("/user/password", "PUT", sampler));
+        assertFalse(SamplerSessionGuard.allows("/admin/users/u2/reset-password", "POST", sampler));
     }
 
     @Test

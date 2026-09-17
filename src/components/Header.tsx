@@ -26,6 +26,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';
+import { isAdminOrAbove } from '@/lib/auth';
 
 export interface CurrentUser {
   id: string;
@@ -366,7 +367,7 @@ export default function Header({
               </div>
               
               <div className="p-1.5">
-                {currentUser?.role === 'admin' && (
+                {isAdminOrAbove(currentUser?.role) && (
                   <button
                     onClick={() => { setShowUserMenu(false); router.push('/user-settings'); }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-black/5 transition-colors text-left"
