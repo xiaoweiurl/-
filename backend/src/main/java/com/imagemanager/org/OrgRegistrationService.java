@@ -6,7 +6,9 @@ import com.imagemanager.dto.RegisterRequest;
 import com.imagemanager.entity.User;
 import com.imagemanager.exception.RegisterMatchException;
 import com.imagemanager.repository.UserRepository;
+import com.imagemanager.service.ImageTableService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -39,17 +41,55 @@ public class OrgRegistrationService {
     private final PasswordEncoder passwordEncoder;
     private final DingTalkProperties properties;
     private final TransactionTemplate txTemplate;
+    private final ImageTableService imageTableService;
 
     public OrgRegistrationService(OrgDirectory orgDirectory,
                                   UserRepository userRepository,
                                   PasswordEncoder passwordEncoder,
                                   DingTalkProperties properties,
-                                  PlatformTransactionManager transactionManager) {
+                                  PlatformTransactionManager transactionManager,
+                                  @Nullable ImageTableService imageTableService) {
         this.orgDirectory = orgDirectory;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
         this.txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
+        this.imageTableService = imageTableService;
+    }
+
+    /**
+     * 打样推送前幂等开户：仅用已同步的钉钉通讯录（{@code org_users}）按姓名精确匹配。
+     * 唯一命中且尚无本地账号时走 {@link #register}；已绑定则返回已存在。
+     * 同名多人 / 无匹配 / 异常不抛出，由调用方取消工作通知（不得在无账号时推送）。
+     */
+    public EnsureAccountResult ensureAccountByName(String name) {
+        if (OrgNameMatcher.isBlank(name) || OrgNameMatcher.normalize(name).isEmpty()) {
+            return EnsureAccountResult.skippedBlank();
+        }
+        try {
+            RegisterRequest request = new RegisterRequest();
+            request.setName(name.trim());
+            User user = register(request);
+            ensureImageTableQuietly(user);
+            log.info("打样推送自动开通本地账号: name={}, userId={}, username={}, dingUserId={}",
+                    name, user.getId(), user.getUsername(), user.getDingtalkUserid());
+            return EnsureAccountResult.created(user);
+        } catch (RegisterMatchException e) {
+            if (e.getKind() == RegisterMatchException.Kind.ALREADY_REGISTERED) {
+                log.debug("打样推送跳过自动开户：通讯录成员已绑定本地账号 name={}", name);
+                return EnsureAccountResult.alreadyExists(e.getMessage());
+            }
+            if (e.getKind() == RegisterMatchException.Kind.MULTIPLE) {
+                log.info("打样推送跳过自动开户：同名多人无法唯一开户 name={}", name);
+                return EnsureAccountResult.skippedAmbiguous(e.getMessage());
+            }
+            log.info("打样推送跳过自动开户：通讯录无唯一匹配 name={}, kind={}, msg={}",
+                    name, e.getKind(), e.getMessage());
+            return EnsureAccountResult.skippedNoMatch(e.getMessage());
+        } catch (Exception e) {
+            log.warn("打样推送自动开户失败（应取消工作通知）: name={}, err={}", name, e.getMessage());
+            return EnsureAccountResult.failed(e.getMessage());
+        }
     }
 
     public User register(RegisterRequest request) {
@@ -207,6 +247,18 @@ public class OrgRegistrationService {
         return list;
     }
 
+    private void ensureImageTableQuietly(User user) {
+        if (imageTableService == null || user == null || user.getUsername() == null || user.getUsername().isBlank()) {
+            return;
+        }
+        try {
+            imageTableService.ensureUserImageTable(user.getUsername());
+        } catch (Exception e) {
+            log.warn("自动开户后创建用户图片表失败（账号已可用）: username={}, err={}",
+                    user.getUsername(), e.getMessage());
+        }
+    }
+
     private String resolveCompany(String company) {
         String value = company == null || company.isBlank() ? properties.getCompany() : company.trim();
         if (value == null || value.isBlank()) {
@@ -216,6 +268,80 @@ public class OrgRegistrationService {
             throw new IllegalArgumentException("公司只能选择宝娜斯集团");
         }
         return value;
+    }
+
+    /**
+     * 打样推送开户结果。仅 {@link Status#CREATED} / {@link Status#ALREADY_EXISTS} 表示本地账号已就绪，
+     * 其余状态调用方不得发送工作通知。
+     */
+    public static final class EnsureAccountResult {
+        public enum Status {
+            CREATED,
+            ALREADY_EXISTS,
+            SKIPPED_BLANK,
+            SKIPPED_AMBIGUOUS,
+            SKIPPED_NO_MATCH,
+            FAILED
+        }
+
+        private final Status status;
+        private final User user;
+        private final String message;
+
+        private EnsureAccountResult(Status status, User user, String message) {
+            this.status = status;
+            this.user = user;
+            this.message = message;
+        }
+
+        public static EnsureAccountResult created(User user) {
+            return new EnsureAccountResult(Status.CREATED, user, "created");
+        }
+
+        public static EnsureAccountResult alreadyExists() {
+            return alreadyExists("already registered");
+        }
+
+        public static EnsureAccountResult alreadyExists(String message) {
+            return new EnsureAccountResult(Status.ALREADY_EXISTS, null, message);
+        }
+
+        public static EnsureAccountResult skippedBlank() {
+            return new EnsureAccountResult(Status.SKIPPED_BLANK, null, "姓名为空");
+        }
+
+        public static EnsureAccountResult skippedAmbiguous(String message) {
+            return new EnsureAccountResult(Status.SKIPPED_AMBIGUOUS, null, message);
+        }
+
+        public static EnsureAccountResult skippedNoMatch(String message) {
+            return new EnsureAccountResult(Status.SKIPPED_NO_MATCH, null, message);
+        }
+
+        public static EnsureAccountResult failed(String message) {
+            return new EnsureAccountResult(Status.FAILED, null, message);
+        }
+
+        public Status getStatus() {
+            return status;
+        }
+
+        public User getUser() {
+            return user;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public boolean isCreated() {
+            return status == Status.CREATED;
+        }
+
+        /** 本地 {@code users} 账号已存在或刚按通讯录创建成功。 */
+        public boolean hasLocalAccount() {
+            return status == Status.CREATED || status == Status.ALREADY_EXISTS;
+        }
     }
 
     private static String sanitize(String raw) {

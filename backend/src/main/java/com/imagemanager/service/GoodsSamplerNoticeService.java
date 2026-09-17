@@ -7,14 +7,18 @@ import com.imagemanager.dingtalk.DingTalkSamplerTicketService;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
 import com.imagemanager.org.OrgNameMatcher;
+import com.imagemanager.org.OrgRegistrationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
  * 商品库打样员工作通知：仅在 sampler 新设或变更为他人时投递。
  * AgentId 未配置时功能关闭（记日志、不抛异常、不影响商品保存）。
+ * <p>固定顺序：按钉钉已同步通讯录姓名开户（{@link OrgRegistrationService#ensureAccountByName}）
+ * → 再解析 userid / 签发 ticket / 发送工作通知。开户未成功（同名、无匹配、异常）则取消推送。
  */
 @Slf4j
 @Service
@@ -22,17 +26,20 @@ public class GoodsSamplerNoticeService {
 
     private final DingTalkClient dingTalkClient;
     private final DingTalkUseridResolver useridResolver;
+    private final OrgRegistrationService orgRegistrationService;
     private final DingTalkProperties properties;
     private final DingTalkSamplerTicketService ticketService;
     private final String frontendUrl;
 
     public GoodsSamplerNoticeService(DingTalkClient dingTalkClient,
                                      DingTalkUseridResolver useridResolver,
+                                     @Nullable OrgRegistrationService orgRegistrationService,
                                      DingTalkProperties properties,
                                      DingTalkSamplerTicketService ticketService,
                                      @Value("${app.frontend.url:http://localhost:5000}") String frontendUrl) {
         this.dingTalkClient = dingTalkClient;
         this.useridResolver = useridResolver;
+        this.orgRegistrationService = orgRegistrationService;
         this.properties = properties;
         this.ticketService = ticketService;
         this.frontendUrl = frontendUrl;
@@ -84,6 +91,13 @@ public class GoodsSamplerNoticeService {
                     "工作通知未启用（缺少 AgentId 或 AppKey/Secret）");
         }
 
+        // 推送前必须先用已同步的钉钉通讯录开户；未成功则不发通知。
+        OrgRegistrationService.EnsureAccountResult ensured = ensureAccountFromOrg(next);
+        SamplerNoticeResult blocked = skipIfAccountMissing(next, ensured);
+        if (blocked != null) {
+            return blocked;
+        }
+
         DingTalkUseridResolver.ResolveResult resolved = useridResolver.resolveByName(next);
         if (resolved.getStatus() == DingTalkUseridResolver.ResolveResult.Status.AMBIGUOUS) {
             return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS,
@@ -107,6 +121,50 @@ public class GoodsSamplerNoticeService {
                 goods == null ? null : goods.getGoodsId(), next, resolved.getUserid(),
                 resolved.getSource(), taskId);
         return SamplerNoticeResult.sent(resolved.getUserid(), taskId);
+    }
+
+    /**
+     * 推送前按钉钉已同步通讯录开户。仅 CREATED / ALREADY_EXISTS 视为本地账号已就绪。
+     */
+    OrgRegistrationService.EnsureAccountResult ensureAccountFromOrg(String samplerName) {
+        if (orgRegistrationService == null) {
+            log.warn("打样推送取消：开户服务不可用 sampler={}", samplerName);
+            return OrgRegistrationService.EnsureAccountResult.failed("开户服务不可用");
+        }
+        try {
+            OrgRegistrationService.EnsureAccountResult result =
+                    orgRegistrationService.ensureAccountByName(samplerName);
+            if (result == null) {
+                return OrgRegistrationService.EnsureAccountResult.failed("开户结果为空");
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("打样推送自动开户失败，取消工作通知: sampler={}, err={}",
+                    samplerName, e.getMessage());
+            return OrgRegistrationService.EnsureAccountResult.failed(e.getMessage());
+        }
+    }
+
+    private static SamplerNoticeResult skipIfAccountMissing(
+            String samplerName, OrgRegistrationService.EnsureAccountResult ensured) {
+        if (ensured != null && ensured.hasLocalAccount()) {
+            return null;
+        }
+        OrgRegistrationService.EnsureAccountResult.Status status =
+                ensured == null ? OrgRegistrationService.EnsureAccountResult.Status.FAILED : ensured.getStatus();
+        String detail = ensured == null ? "开户结果为空" : ensured.getMessage();
+        if (status == OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_AMBIGUOUS) {
+            log.info("打样推送取消：通讯录同名多人无法唯一开户 sampler={}, detail={}", samplerName, detail);
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS, detail);
+        }
+        if (status == OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_NO_MATCH
+                || status == OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_BLANK) {
+            log.info("打样推送取消：通讯录无唯一匹配，未创建账号 sampler={}, detail={}", samplerName, detail);
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_USERID, detail);
+        }
+        log.warn("打样推送取消：自动开户未成功，不发送工作通知 sampler={}, status={}, detail={}",
+                samplerName, status, detail);
+        return SamplerNoticeResult.failed(null, detail == null ? "自动开户失败，取消工作通知" : detail);
     }
 
     DingTalkWorkNotice buildNotice(String samplerName, GoodsSamplerNotice goods, String dingUserId) {
