@@ -4,6 +4,7 @@ import com.imagemanager.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -39,4 +40,9 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 按钉钉 userid 查询
      */
     Optional<User> findByDingtalkUserid(String dingtalkUserid);
+
+    /**
+     * 已绑定钉钉 userid 的本地账号，用于按姓名解析工作通知接收人。
+     */
+    List<User> findByDingtalkUseridIsNotNull();
 }

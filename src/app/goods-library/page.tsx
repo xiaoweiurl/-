@@ -80,6 +80,10 @@ export default function GoodsLibraryPage() {
     try {
       const url = kw ? `/api/goods-library?keyword=${encodeURIComponent(kw)}` : '/api/goods-library';
       const res = await fetch(url);
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
       const data = await res.json();
       if (data.success) setFolders(data.data || []);
     } catch (e) {
@@ -152,51 +156,58 @@ export default function GoodsLibraryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#1c1c1e]">
-      {/* 顶栏 */}
-      <div className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 border-b border-[rgba(0,122,255,0.15)]">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-4">
-          <button
-            onClick={() => router.push('/')}
-            className="p-2 rounded-lg hover:bg-[rgba(118,118,128,0.12)] text-[#8e8e93] hover:text-[#1c1c1e] transition-colors"
-            title="返回首页"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#007AFF] flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+    <div className="min-h-[100dvh] bg-white text-[#1c1c1e] overflow-x-hidden pb-[max(1.25rem,env(safe-area-inset-bottom))] touch-manipulation">
+      {/* 顶栏：手机端折成两行，搜索全宽 */}
+      <div className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 border-b border-[rgba(0,122,255,0.15)] pt-[env(safe-area-inset-top)]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:h-16 sm:py-0 sm:gap-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => router.push('/')}
+              className="shrink-0 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-[rgba(118,118,128,0.12)] text-[#8e8e93] hover:text-[#1c1c1e] transition-colors"
+              title="返回首页"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="w-8 h-8 rounded-lg bg-[#007AFF] flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.04)] shrink-0">
               <FolderOpen className="w-4 h-4 text-[#1C1C1E]" />
             </div>
-            <h1 className="text-lg font-semibold">商品库</h1>
-            <span className="text-xs text-[#8e8e93]">{folders.length} 个商品文件夹</span>
+            <h1 className="text-lg font-semibold truncate">商品库</h1>
+            <span className="text-xs text-[#8e8e93] shrink-0">{folders.length} 个</span>
+            <div className="flex-1" />
+            <button
+              onClick={() => setShowCreate(true)}
+              className="sm:hidden shrink-0 min-h-11 flex items-center gap-1 px-3 rounded-lg bg-[#007AFF] text-white text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              新建
+            </button>
           </div>
 
-          <div className="flex-1" />
+          <div className="flex items-center gap-2 sm:flex-1 sm:justify-end">
+            <div className="relative flex-1 sm:flex-none">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" />
+              <input
+                value={keyword}
+                onChange={e => setKeyword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                placeholder="搜索货号 / 品名 / 客户"
+                className="w-full sm:w-64 min-h-11 pl-9 pr-3 py-2 rounded-lg bg-white border border-[rgba(229,229,234,0.5)] text-base sm:text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
+              />
+            </div>
 
-          {/* 搜索 */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" />
-            <input
-              value={keyword}
-              onChange={e => setKeyword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder="搜索货号 / 品名 / 客户 / 订单号"
-              className="w-64 pl-9 pr-3 py-2 rounded-lg bg-white border border-[rgba(229,229,234,0.5)] text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
-            />
+            <button
+              onClick={() => setShowCreate(true)}
+              className="hidden sm:flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-lg bg-[#007AFF] text-white text-sm font-medium shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              新建商品
+            </button>
           </div>
-
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#007AFF] text-white text-sm font-medium shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            新建商品
-          </button>
         </div>
       </div>
 
       {/* 文件夹网格 */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {loading ? (
           <div className="flex items-center justify-center py-32 text-[#8e8e93]">
             <Loader2 className="w-6 h-6 animate-spin mr-2" /> 加载中...
@@ -246,7 +257,7 @@ export default function GoodsLibraryPage() {
                 <button
                   onClick={e => handleDelete(e, folder.id)}
                   disabled={deletingId === folder.id}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-[rgba(242,242,247,0.8)] text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[#f2f2f7] opacity-0 group-hover:opacity-100 transition-all"
+                  className="absolute top-2 right-2 min-w-9 min-h-9 p-2 rounded-lg bg-[rgba(242,242,247,0.9)] text-[#8e8e93] hover:text-[#ff3b30] hover:bg-[#f2f2f7] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                   title="删除商品文件夹"
                 >
                   {deletingId === folder.id
@@ -259,11 +270,11 @@ export default function GoodsLibraryPage() {
         )}
       </div>
 
-      {/* 新建商品对话框（第一层表格信息，均允许为空） */}
+      {/* 新建商品对话框：手机端底部抽屉 + 单列表单，避免横向滚动 */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
           <div
-            className="w-full max-w-lg bg-[#ffffff] rounded-2xl border border-[rgba(229,229,234,0.6)] shadow-2xl p-6"
+            className="w-full max-w-lg max-h-[100dvh] overflow-y-auto bg-[#ffffff] rounded-t-2xl sm:rounded-2xl border border-[rgba(229,229,234,0.6)] shadow-2xl p-4 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={e => e.stopPropagation()}
           >
             <h2 className="text-base font-semibold mb-1">新建商品文件夹</h2>
@@ -271,7 +282,7 @@ export default function GoodsLibraryPage() {
               填写商品信息（均允许为空），文件夹名称将自动生成为「货号 + 品名」
             </p>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {FORM_FIELDS.map(({ key, label, icon: Icon, required }) => (
                 <div key={key}>
                   <label className="flex items-center gap-1.5 text-xs text-[#8e8e93] mb-1.5">
@@ -283,7 +294,8 @@ export default function GoodsLibraryPage() {
                     value={form[key]}
                     onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder={required ? `请输入${label}（必填）` : `请输入${label}（可空）`}
-                    className="w-full px-3 py-2 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
+                    autoComplete="off"
+                    className="w-full min-h-11 px-3 py-2.5 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-base sm:text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
                   />
                 </div>
               ))}
@@ -292,7 +304,7 @@ export default function GoodsLibraryPage() {
             {/* 商品图片（均可空，创建时一次性上传） */}
             <div className="mt-5">
               <div className="text-xs text-[#8e8e93] mb-2">商品图片（均可空，将分别以 主图/侧面图/细节/产品图 命名）</div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {IMAGE_SLOTS.map(({ key, label }) => (
                   <div key={key}>
                     <input
@@ -312,7 +324,7 @@ export default function GoodsLibraryPage() {
                         <img src={slotPreviews[key]} alt={label} className="w-full h-full object-cover" />
                         <button
                           onClick={() => setSlotFiles(prev => ({ ...prev, [key]: null }))}
-                          className="absolute top-1 right-1 p-1 rounded-md bg-[rgba(242,242,247,0.8)] text-[#8e8e93] hover:text-[#ff3b30] opacity-0 group-hover:opacity-100 transition-all"
+                          className="absolute top-1 right-1 min-w-9 min-h-9 p-2 rounded-md bg-[rgba(242,242,247,0.9)] text-[#8e8e93] hover:text-[#ff3b30] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                           title="移除"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -343,12 +355,12 @@ export default function GoodsLibraryPage() {
                 onChange={e => setForm(prev => ({ ...prev, remark: e.target.value }))}
                 rows={3}
                 placeholder={'卖点：\n竞品：\n功能：\n对应人群：\n使用场景：'}
-                className="w-full px-3 py-2 rounded-lg bg-white border border-[rgba(229,229,234,0.6)] text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] resize-none"
+                className="w-full min-h-24 px-3 py-2.5 rounded-lg bg-white border border-[rgba(229,229,234,0.6)] text-base sm:text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] resize-none"
               />
             </div>
 
             {/* 文件夹名预览 */}
-            <div className="mt-4 px-3 py-2 rounded-lg bg-[rgba(0,122,255,0.05)] border border-[rgba(0,122,255,0.2)] text-xs text-[#8e8e93]">
+            <div className="mt-4 px-3 py-2 rounded-lg bg-[rgba(0,122,255,0.05)] border border-[rgba(0,122,255,0.2)] text-xs text-[#8e8e93] break-all">
               文件夹名称：
               <span className="text-[#007aff] font-medium">
                 {(() => {
@@ -362,17 +374,17 @@ export default function GoodsLibraryPage() {
               </span>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-6">
               <button
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 rounded-lg text-sm text-[#8e8e93] hover:text-[#1c1c1e] hover:bg-[rgba(118,118,128,0.12)] transition-colors"
+                className="w-full sm:w-auto min-h-11 px-4 py-2.5 rounded-lg text-sm text-[#8e8e93] hover:text-[#1c1c1e] hover:bg-[rgba(118,118,128,0.12)] transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#007AFF] text-white text-sm font-medium shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] disabled:opacity-50 transition-all"
+                className="w-full sm:w-auto min-h-11 flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg bg-[#007AFF] text-white text-sm font-medium shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] disabled:opacity-50 transition-all"
               >
                 {creating && <Loader2 className="w-4 h-4 animate-spin" />}
                 创建商品文件夹

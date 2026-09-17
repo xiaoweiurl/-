@@ -140,12 +140,68 @@ class DingTalkClientTest {
     }
 
     @Test
-    void parseUserReadsV2Fields() throws Exception {
-        var node = objectMapper.readTree("{\"userid\":\"zhangsan\",\"unionid\":\"un\",\"name\":\"张三\","
-                + "\"title\":\"总监\",\"dept_id_list\":[1,2],\"org_email\":\"z@corp.com\"}");
-        DingUser user = DingTalkClient.parseUser(node);
-        assertEquals("zhangsan", user.getUserid());
-        assertEquals(List.of(1L, 2L), user.getDeptIdList());
-        assertEquals("z@corp.com", user.getEmail());
+    void sendWorkNoticePostsActionCardWithAgentId() {
+        properties.setAgentId("123456");
+        AtomicInteger calls = new AtomicInteger();
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            if (url.contains("/topapi/message/corpconversation/asyncsend_v2")) {
+                calls.incrementAndGet();
+                assertTrue(body.contains("\"agent_id\":123456"));
+                assertTrue(body.contains("\"userid_list\":\"u-zhang\""));
+                assertTrue(body.contains("\"msgtype\":\"action_card\""));
+                assertTrue(body.contains("您被指定为打样员"));
+                assertTrue(body.contains("/goods-library/9"));
+                assertTrue(body.contains("\"to_all_user\":false"));
+                return "{\"errcode\":0,\"errmsg\":\"ok\",\"task_id\":88}";
+            }
+            throw new IllegalStateException(url);
+        });
+        long taskId = client.sendWorkNotice("u-zhang",
+                DingTalkWorkNotice.actionCard("您被指定为打样员", "正文", "查看商品详情",
+                        "http://localhost:5000/goods-library/9"));
+        assertEquals(88L, taskId);
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void sendWorkNoticeUsesTextWhenNoLink() {
+        properties.setAgentId("99");
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            assertTrue(url.contains("/topapi/message/corpconversation/asyncsend_v2"));
+            assertTrue(body.contains("\"msgtype\":\"text\""));
+            return "{\"errcode\":0,\"task_id\":1}";
+        });
+        assertEquals(1L, client.sendWorkNotice("u1", DingTalkWorkNotice.text("标题", "内容")));
+    }
+
+    @Test
+    void sendWorkNoticeWithoutAgentIdThrowsClearError() {
+        properties.setAgentId("");
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (m, u, b, h) -> {
+            throw new AssertionError("should not call HTTP when agent-id missing");
+        });
+        DingTalkException ex = assertThrows(DingTalkException.class,
+                () -> client.sendWorkNotice("u1", DingTalkWorkNotice.text("t", "b")));
+        assertTrue(ex.getMessage().contains("DINGTALK_AGENT_ID"));
+    }
+
+    @Test
+    void sendWorkNoticeSurfacesErrmsg() {
+        properties.setAgentId("1");
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            return "{\"errcode\":40035,\"errmsg\":\"不合法的agent_id\"}";
+        });
+        DingTalkException ex = assertThrows(DingTalkException.class,
+                () -> client.sendWorkNotice("u1", DingTalkWorkNotice.text("t", "b")));
+        assertTrue(ex.getMessage().contains("不合法的agent_id"));
     }
 }

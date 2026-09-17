@@ -36,8 +36,10 @@ import java.util.Set;
  *   <li>子部门列表：POST https://oapi.dingtalk.com/topapi/v2/department/listsub
  *       （只返回下一级，需递归；跳过 dept_id &lt; 0 的家校通讯录）</li>
  *   <li>部门成员：POST https://oapi.dingtalk.com/topapi/v2/user/list（分页 cursor）</li>
+ *   <li>工作通知：POST https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2
+ *       （需 AgentId；未配置时上层跳过发送）</li>
  * </ul>
- * 权限：通讯录部门信息读权限、成员信息读权限（手机号可选）。
+ * 权限：通讯录部门信息读权限、成员信息读权限（手机号可选）、企业内工作通知发送权限。
  */
 @Slf4j
 @Component
@@ -129,6 +131,34 @@ public class DingTalkClient {
             }
         }
         return new ArrayList<>(byId.values());
+    }
+
+    /**
+     * 发送企业内部应用工作通知。
+     * API：POST /topapi/message/corpconversation/asyncsend_v2
+     *
+     * @return 钉钉 task_id
+     */
+    public long sendWorkNotice(String dingUserId, DingTalkWorkNotice notice) {
+        ensureConfigured();
+        Long agentId = properties.resolveAgentId();
+        if (agentId == null) {
+            throw DingTalkException.agentIdMissing();
+        }
+        if (dingUserId == null || dingUserId.isBlank()) {
+            throw new DingTalkException("钉钉工作通知缺少 userid");
+        }
+        if (notice == null) {
+            throw new DingTalkException("钉钉工作通知缺少消息内容");
+        }
+        String token = getAccessToken();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("agent_id", agentId);
+        payload.put("userid_list", dingUserId.trim());
+        payload.put("to_all_user", false);
+        payload.put("msg", notice.toMsgMap());
+        JsonNode root = postOapi(token, "/topapi/message/corpconversation/asyncsend_v2", payload);
+        return root.path("task_id").asLong(0);
     }
 
     /**

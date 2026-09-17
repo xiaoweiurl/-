@@ -2,6 +2,8 @@ package com.imagemanager.service.impl;
 
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.GoodsLibraryService;
+import com.imagemanager.service.GoodsSamplerNotice;
+import com.imagemanager.service.GoodsSamplerNoticeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -34,14 +36,17 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     private final JdbcTemplate jdbcTemplate;
     private final FileStorageService fileStorageService;
     private final TransactionTemplate txTemplate;
+    private final GoodsSamplerNoticeService samplerNoticeService;
 
     public GoodsLibraryServiceImpl(JdbcTemplate jdbcTemplate, FileStorageService fileStorageService,
-                                   PlatformTransactionManager transactionManager) {
+                                   PlatformTransactionManager transactionManager,
+                                   GoodsSamplerNoticeService samplerNoticeService) {
         this.jdbcTemplate = jdbcTemplate;
         this.fileStorageService = fileStorageService;
         // 编程式事务：HikariCP auto-commit=false 且本类方法不声明 @Transactional（避免 OSS 网络调用拖长事务），
         // 因此所有写库操作必须通过 TransactionTemplate 显式提交，否则连接归还时会被回滚
         this.txTemplate = new TransactionTemplate(java.util.Objects.requireNonNull(transactionManager));
+        this.samplerNoticeService = samplerNoticeService;
     }
 
     @Override
@@ -85,6 +90,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
             throw new IllegalStateException("创建失败：未获取到商品ID");
         }
         long id = ((Number) idObj).longValue();
+        notifySamplerIfChanged(null, nz(fields.get("sampler")), created, id);
 
         // 一次性上传创建时携带的四类图片（均允许为空）；图片失败不影响已创建的文件夹
         if (images != null) {
@@ -128,6 +134,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
             throw new IllegalArgumentException("发起人不能为空");
         }
         String folderName = folderName(merged.get("goods_no"), merged.get("product_name"));
+        String previousSampler = existing.get("sampler") == null ? "" : String.valueOf(existing.get("sampler"));
 
         txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                 "UPDATE goods_library SET folder_name=?, initiator=?, sampler=?, product_name=?, goods_no=?," +
@@ -137,6 +144,9 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
                 merged.get("goods_no"), merged.get("customer"), merged.get("order_no"),
                 merged.get("remark"),
                 id));
+        Map<String, String> noticeFields = new LinkedHashMap<>(merged);
+        noticeFields.put("folder_name", folderName);
+        notifySamplerIfChanged(previousSampler, merged.get("sampler"), noticeFields, id);
         return getGoods(id);
     }
 
@@ -212,6 +222,36 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     }
 
     // ==================== 内部辅助 ====================
+
+    /**
+     * 事务已提交后再发工作通知：sampler 未变不推送；解析/发送失败不影响商品保存。
+     */
+    private void notifySamplerIfChanged(String previousSampler, String newSampler,
+                                        Map<String, ?> fields, long id) {
+        if (samplerNoticeService == null) {
+            return;
+        }
+        try {
+            samplerNoticeService.notifySamplerAssignedAsync(previousSampler, newSampler,
+                    new GoodsSamplerNotice(
+                            id,
+                            str(fields, "folder_name"),
+                            str(fields, "goods_no"),
+                            str(fields, "product_name"),
+                            str(fields, "initiator")));
+        } catch (Exception e) {
+            log.warn("[GoodsLibrary] 打样员工作通知调度失败（不影响保存）: id={}, err={}",
+                    id, e.getMessage());
+        }
+    }
+
+    private String str(Map<String, ?> fields, String key) {
+        if (fields == null) {
+            return "";
+        }
+        Object v = fields.get(key);
+        return v == null ? "" : String.valueOf(v);
+    }
 
     /** 图片文件基础校验：类型 + 大小 */
     private void validateImageFile(MultipartFile file) {
