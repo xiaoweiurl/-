@@ -23,6 +23,7 @@ import com.imagemanager.service.UserService;
 import com.imagemanager.util.ByteArrayMultipartFile;
 import com.imagemanager.util.CharsetUtil;
 import com.imagemanager.util.SessionUtil;
+import com.imagemanager.util.UploadStorageKeys;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 
@@ -559,31 +560,32 @@ public class ImageServiceImpl implements ImageService {
     }
     
     /**
-     * 刷新单个URL：如果是当前存储桶的签名URL则重新生成，否则返回null（保持原值）
+     * 刷新单个URL：OSS 预签名过期时重新签发；本地 /uploads 路径在 S3 启用时换成预签名，供前端直连 OSS。
      */
     private String refreshSingleUrl(String url, String fileKey, String filePath) {
         if (url == null || url.isEmpty()) return null;
-        
-        // 非HTTP URL（本地路径等）不处理
-        if (!url.startsWith("http://") && !url.startsWith("https://")) return null;
-        
-        // 检测是否为签名URL（包含签名参数）
-        boolean isPresigned = url.contains("X-Amz-Signature") || url.contains("Signature=") || url.contains("OSSAccessKeyId");
-        
-        // 确定可用的存储key：优先fileKey，其次filePath
-        String key = (fileKey != null && !fileKey.isEmpty()) ? fileKey : filePath;
-        if (key == null || key.isEmpty()) {
-            // 尝试从URL中提取key
+
+        String key = resolveRefreshStorageKey(url, fileKey, filePath);
+
+        // 相对 /api/uploads 路径此前被当成“非 HTTP”直接跳过，图库一直打本地代理。
+        if (UploadStorageKeys.isLocalUploadUrl(url) && canGenerateOssPresignedUrl()
+                && key != null && !key.isEmpty()) {
             try {
-                key = fileStorageService.getStorageKey(url);
-            } catch (@SuppressWarnings("unused") Exception e) {
-                return null;
+                String newUrl = fileStorageService.generatePresignedUrl(key, 604800);
+                if (isHttpUrl(newUrl)) {
+                    return newUrl;
+                }
+            } catch (Exception e) {
+                log.warn("本地上传路径刷新为预签名URL失败，保留原路径走 /uploads 回源: {}", e.getMessage());
             }
+            return null;
         }
-        
+
+        if (!isHttpUrl(url)) return null;
+
+        boolean isPresigned = url.contains("X-Amz-Signature") || url.contains("Signature=") || url.contains("OSSAccessKeyId");
         if (key == null || key.isEmpty()) return null;
-        
-        // 如果是签名URL，或者URL包含存储桶域名，重新生成签名URL
+
         if (isPresigned) {
             try {
                 String newUrl = fileStorageService.generatePresignedUrl(key, 604800); // 7天
@@ -593,8 +595,34 @@ public class ImageServiceImpl implements ImageService {
             } catch (@SuppressWarnings("unused") Exception e) {
             }
         }
-        
-        return null; // 不刷新，保持原值
+
+        return null;
+    }
+
+    private String resolveRefreshStorageKey(String url, String fileKey, String filePath) {
+        String key = UploadStorageKeys.resolveStorageKey(fileKey, filePath, url);
+        if (key != null && !key.isEmpty()) {
+            return key;
+        }
+        if (fileStorageService == null || url == null || url.isEmpty()) {
+            return null;
+        }
+        try {
+            return fileStorageService.getStorageKey(url);
+        } catch (@SuppressWarnings("unused") Exception e) {
+            return null;
+        }
+    }
+
+    private boolean canGenerateOssPresignedUrl() {
+        return fileStorageService != null
+                && storageProperties != null
+                && storageProperties.isS3Configured()
+                && !(fileStorageService instanceof LocalStorageServiceImpl);
+    }
+
+    private static boolean isHttpUrl(String url) {
+        return url != null && (url.startsWith("http://") || url.startsWith("https://"));
     }
     
     @Override
