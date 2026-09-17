@@ -58,8 +58,9 @@ public class OrgRegistrationService {
     }
 
     /**
-     * 打样推送侧幂等开户：姓名唯一命中通讯录且尚无本地账号时，走 {@link #register} 同一套规则创建。
-     * 已绑定 / 同名多人 / 无匹配 / 任何异常均不抛出，便于调用方继续发送工作通知。
+     * 打样推送前幂等开户：仅用已同步的钉钉通讯录（{@code org_users}）按姓名精确匹配。
+     * 唯一命中且尚无本地账号时走 {@link #register}；已绑定则返回已存在。
+     * 同名多人 / 无匹配 / 异常不抛出，由调用方取消工作通知（不得在无账号时推送）。
      */
     public EnsureAccountResult ensureAccountByName(String name) {
         if (OrgNameMatcher.isBlank(name) || OrgNameMatcher.normalize(name).isEmpty()) {
@@ -86,7 +87,7 @@ public class OrgRegistrationService {
                     name, e.getKind(), e.getMessage());
             return EnsureAccountResult.skippedNoMatch(e.getMessage());
         } catch (Exception e) {
-            log.warn("打样推送自动开户失败（不影响工作通知）: name={}, err={}", name, e.getMessage());
+            log.warn("打样推送自动开户失败（应取消工作通知）: name={}, err={}", name, e.getMessage());
             return EnsureAccountResult.failed(e.getMessage());
         }
     }
@@ -270,7 +271,8 @@ public class OrgRegistrationService {
     }
 
     /**
-     * 打样推送开户结果。{@link Status#FAILED} 时调用方仍应尝试发送工作通知（userid 已知）。
+     * 打样推送开户结果。仅 {@link Status#CREATED} / {@link Status#ALREADY_EXISTS} 表示本地账号已就绪，
+     * 其余状态调用方不得发送工作通知。
      */
     public static final class EnsureAccountResult {
         public enum Status {
@@ -334,6 +336,11 @@ public class OrgRegistrationService {
 
         public boolean isCreated() {
             return status == Status.CREATED;
+        }
+
+        /** 本地 {@code users} 账号已存在或刚按通讯录创建成功。 */
+        public boolean hasLocalAccount() {
+            return status == Status.CREATED || status == Status.ALREADY_EXISTS;
         }
     }
 

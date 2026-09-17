@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -220,6 +221,7 @@ class OrgRegistrationServiceTest {
 
         assertEquals(OrgRegistrationService.EnsureAccountResult.Status.CREATED, result.getStatus());
         assertTrue(result.isCreated());
+        assertTrue(result.hasLocalAccount());
         assertEquals("张三", result.getUser().getUsername());
         assertEquals("u1", result.getUser().getDingtalkUserid());
         assertEquals(Boolean.TRUE, result.getUser().getMustChangePassword());
@@ -237,6 +239,7 @@ class OrgRegistrationServiceTest {
         OrgRegistrationService.EnsureAccountResult result = service.ensureAccountByName("张三");
 
         assertEquals(OrgRegistrationService.EnsureAccountResult.Status.ALREADY_EXISTS, result.getStatus());
+        assertTrue(result.hasLocalAccount());
         verify(userRepository, never()).saveAndFlush(any(User.class));
         verify(directory, never()).bindLocalUser(anyString(), anyString());
         verify(passwordEncoder, never()).encode(anyString());
@@ -276,6 +279,7 @@ class OrgRegistrationServiceTest {
         OrgRegistrationService.EnsureAccountResult result = service.ensureAccountByName("张三");
 
         assertEquals(OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_AMBIGUOUS, result.getStatus());
+        assertFalse(result.hasLocalAccount());
         verify(userRepository, never()).saveAndFlush(any(User.class));
         verify(directory, never()).bindLocalUser(anyString(), anyString());
     }
@@ -287,6 +291,7 @@ class OrgRegistrationServiceTest {
         OrgRegistrationService.EnsureAccountResult result = service.ensureAccountByName("王五");
 
         assertEquals(OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_NO_MATCH, result.getStatus());
+        assertFalse(result.hasLocalAccount());
         verify(userRepository, never()).saveAndFlush(any(User.class));
         verify(directory, never()).bindLocalUser(anyString(), anyString());
     }

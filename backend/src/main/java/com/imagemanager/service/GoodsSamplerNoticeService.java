@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 /**
  * 商品库打样员工作通知：仅在 sampler 新设或变更为他人时投递。
  * AgentId 未配置时功能关闭（记日志、不抛异常、不影响商品保存）。
- * 投递前按姓名幂等开户（{@link OrgRegistrationService#ensureAccountByName}）；
- * 开户失败仍继续发工作通知（userid 已知时）。
+ * <p>固定顺序：按钉钉已同步通讯录姓名开户（{@link OrgRegistrationService#ensureAccountByName}）
+ * → 再解析 userid / 签发 ticket / 发送工作通知。开户未成功（同名、无匹配、异常）则取消推送。
  */
 @Slf4j
 @Service
@@ -91,6 +91,13 @@ public class GoodsSamplerNoticeService {
                     "工作通知未启用（缺少 AgentId 或 AppKey/Secret）");
         }
 
+        // 推送前必须先用已同步的钉钉通讯录开户；未成功则不发通知。
+        OrgRegistrationService.EnsureAccountResult ensured = ensureAccountFromOrg(next);
+        SamplerNoticeResult blocked = skipIfAccountMissing(next, ensured);
+        if (blocked != null) {
+            return blocked;
+        }
+
         DingTalkUseridResolver.ResolveResult resolved = useridResolver.resolveByName(next);
         if (resolved.getStatus() == DingTalkUseridResolver.ResolveResult.Status.AMBIGUOUS) {
             return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS,
@@ -100,9 +107,6 @@ public class GoodsSamplerNoticeService {
             return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_USERID,
                     "未找到打样员「" + next + "」的钉钉 userid");
         }
-
-        // 唯一命中后再开户：同名多人/无匹配保持现有 skip，开户失败仍继续发通知。
-        ensureLocalAccountQuietly(next);
 
         DingTalkWorkNotice notice = buildNotice(next, goods, resolved.getUserid());
         if (notice.hasLink()) {
@@ -120,27 +124,47 @@ public class GoodsSamplerNoticeService {
     }
 
     /**
-     * 按姓名走 {@link OrgRegistrationService#ensureAccountByName} 幂等开户。
-     * 失败只记日志，不阻断后续工作通知（userid 已解析）。
+     * 推送前按钉钉已同步通讯录开户。仅 CREATED / ALREADY_EXISTS 视为本地账号已就绪。
      */
-    void ensureLocalAccountQuietly(String samplerName) {
+    OrgRegistrationService.EnsureAccountResult ensureAccountFromOrg(String samplerName) {
         if (orgRegistrationService == null) {
-            return;
+            log.warn("打样推送取消：开户服务不可用 sampler={}", samplerName);
+            return OrgRegistrationService.EnsureAccountResult.failed("开户服务不可用");
         }
         try {
             OrgRegistrationService.EnsureAccountResult result =
                     orgRegistrationService.ensureAccountByName(samplerName);
             if (result == null) {
-                return;
+                return OrgRegistrationService.EnsureAccountResult.failed("开户结果为空");
             }
-            if (result.getStatus() == OrgRegistrationService.EnsureAccountResult.Status.FAILED) {
-                log.warn("打样推送自动开户失败（继续发送工作通知）: sampler={}, err={}",
-                        samplerName, result.getMessage());
-            }
+            return result;
         } catch (Exception e) {
-            log.warn("打样推送自动开户失败（继续发送工作通知）: sampler={}, err={}",
+            log.warn("打样推送自动开户失败，取消工作通知: sampler={}, err={}",
                     samplerName, e.getMessage());
+            return OrgRegistrationService.EnsureAccountResult.failed(e.getMessage());
         }
+    }
+
+    private static SamplerNoticeResult skipIfAccountMissing(
+            String samplerName, OrgRegistrationService.EnsureAccountResult ensured) {
+        if (ensured != null && ensured.hasLocalAccount()) {
+            return null;
+        }
+        OrgRegistrationService.EnsureAccountResult.Status status =
+                ensured == null ? OrgRegistrationService.EnsureAccountResult.Status.FAILED : ensured.getStatus();
+        String detail = ensured == null ? "开户结果为空" : ensured.getMessage();
+        if (status == OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_AMBIGUOUS) {
+            log.info("打样推送取消：通讯录同名多人无法唯一开户 sampler={}, detail={}", samplerName, detail);
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS, detail);
+        }
+        if (status == OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_NO_MATCH
+                || status == OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_BLANK) {
+            log.info("打样推送取消：通讯录无唯一匹配，未创建账号 sampler={}, detail={}", samplerName, detail);
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_USERID, detail);
+        }
+        log.warn("打样推送取消：自动开户未成功，不发送工作通知 sampler={}, status={}, detail={}",
+                samplerName, status, detail);
+        return SamplerNoticeResult.failed(null, detail == null ? "自动开户失败，取消工作通知" : detail);
     }
 
     DingTalkWorkNotice buildNotice(String samplerName, GoodsSamplerNotice goods, String dingUserId) {

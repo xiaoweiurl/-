@@ -15,6 +15,7 @@ import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -111,27 +113,31 @@ class GoodsSamplerNoticeServiceTest {
     }
 
     @Test
-    void skipsWhenUseridMissing() {
+    void skipsWhenUseridMissingAfterAccountReady() {
         when(useridResolver.resolveByName("王五")).thenReturn(
                 DingTalkUseridResolver.ResolveResult.missing());
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "王五", sampleGoods());
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_NO_USERID, result.getStatus());
+        verify(orgRegistrationService).ensureAccountByName("王五");
+        InOrder order = inOrder(orgRegistrationService, useridResolver);
+        order.verify(orgRegistrationService).ensureAccountByName("王五");
+        order.verify(useridResolver).resolveByName("王五");
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
-        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
     void skipsWhenNameAmbiguous() {
-        when(useridResolver.resolveByName("张三")).thenReturn(
-                DingTalkUseridResolver.ResolveResult.ambiguous("org_users 同名 2 人"));
+        when(orgRegistrationService.ensureAccountByName("张三")).thenReturn(
+                OrgRegistrationService.EnsureAccountResult.skippedAmbiguous("org_users 同名 2 人"));
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged("", "张三", sampleGoods());
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS, result.getStatus());
+        verify(orgRegistrationService).ensureAccountByName("张三");
+        verify(useridResolver, never()).resolveByName(anyString());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
-        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -156,6 +162,7 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(notice.getBody().contains("[填写打样表单](http://localhost:5000/sampler/9)"));
         assertEquals("http://localhost:5000/sampler/9", notice.getSingleUrl());
         assertEquals("填写打样表单", notice.getSingleTitle());
+        assertEnsureThenResolveThenSend("李四", "u-li");
     }
 
     @Test
@@ -166,7 +173,7 @@ class GoodsSamplerNoticeServiceTest {
         SamplerNoticeResult result = service.notifyIfSamplerChanged("李四", "王五", sampleGoods());
 
         assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
-        verify(dingTalkClient).sendWorkNotice(eq("u-wang"), any());
+        assertEnsureThenResolveThenSend("王五", "u-wang");
     }
 
     @Test
@@ -179,6 +186,7 @@ class GoodsSamplerNoticeServiceTest {
 
         assertEquals(SamplerNoticeResult.Status.FAILED, result.getStatus());
         assertTrue(result.getMessage().contains("网络超时"));
+        assertEnsureThenResolveThenSend("李四", "u-li");
     }
 
     @Test
@@ -306,7 +314,11 @@ class GoodsSamplerNoticeServiceTest {
         String expected = "http://localhost:5000/sampler/9?ticket=v1.payload.sig";
         assertEquals(expected, notice.getSingleUrl());
         assertTrue(notice.getBody().contains("[填写打样表单](" + expected + ")"));
-        verify(ticketService).mint("u-li", 9L);
+        InOrder order = inOrder(orgRegistrationService, useridResolver, ticketService, dingTalkClient);
+        order.verify(orgRegistrationService).ensureAccountByName("李四");
+        order.verify(useridResolver).resolveByName("李四");
+        order.verify(ticketService).mint("u-li", 9L);
+        order.verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
     }
 
     @Test
@@ -377,8 +389,7 @@ class GoodsSamplerNoticeServiceTest {
 
         assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
         assertEquals(11L, result.getTaskId());
-        verify(orgRegistrationService).ensureAccountByName("李四");
-        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
+        assertEnsureThenResolveThenSend("李四", "u-li");
     }
 
     @Test
@@ -398,58 +409,67 @@ class GoodsSamplerNoticeServiceTest {
 
         assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
         assertEquals("u-wang", result.getDingUserId());
-        verify(orgRegistrationService).ensureAccountByName("王五");
-        verify(dingTalkClient).sendWorkNotice(eq("u-wang"), any());
+        assertEnsureThenResolveThenSend("王五", "u-wang");
     }
 
     @Test
-    void ambiguousNameDoesNotCreateAccount() {
-        when(useridResolver.resolveByName("张三")).thenReturn(
-                DingTalkUseridResolver.ResolveResult.ambiguous("org_users 同名 2 人"));
+    void ambiguousNameDoesNotCreateAccountOrSend() {
+        when(orgRegistrationService.ensureAccountByName("张三")).thenReturn(
+                OrgRegistrationService.EnsureAccountResult.skippedAmbiguous("找到多名同名员工，请选择您的身份"));
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "张三", sampleGoods());
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS, result.getStatus());
-        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
+        verify(orgRegistrationService).ensureAccountByName("张三");
+        verify(useridResolver, never()).resolveByName(anyString());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
     }
 
     @Test
-    void missingOrgContactDoesNotCreateAccount() {
-        when(useridResolver.resolveByName("赵六")).thenReturn(
-                DingTalkUseridResolver.ResolveResult.missing());
+    void missingOrgContactDoesNotCreateAccountOrSend() {
+        when(orgRegistrationService.ensureAccountByName("赵六")).thenReturn(
+                OrgRegistrationService.EnsureAccountResult.skippedNoMatch("未在钉钉通讯录中找到该姓名"));
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "赵六", sampleGoods());
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_NO_USERID, result.getStatus());
-        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
+        verify(orgRegistrationService).ensureAccountByName("赵六");
+        verify(useridResolver, never()).resolveByName(anyString());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
     }
 
     @Test
-    void createAccountFailureStillSendsNoticeWhenUseridKnown() {
-        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+    void createAccountFailureCancelsNotice() {
         when(orgRegistrationService.ensureAccountByName("李四"))
                 .thenReturn(OrgRegistrationService.EnsureAccountResult.failed("db down"));
-        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(3L);
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
 
-        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
-        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
+        assertEquals(SamplerNoticeResult.Status.FAILED, result.getStatus());
+        assertTrue(result.getMessage().contains("db down"));
+        verify(orgRegistrationService).ensureAccountByName("李四");
+        verify(useridResolver, never()).resolveByName(anyString());
+        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
     }
 
     @Test
-    void createAccountThrowStillSendsNoticeWhenUseridKnown() {
-        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+    void createAccountThrowCancelsNotice() {
         when(orgRegistrationService.ensureAccountByName("李四"))
                 .thenThrow(new RuntimeException("unexpected"));
-        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(4L);
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
 
-        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
-        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
+        assertEquals(SamplerNoticeResult.Status.FAILED, result.getStatus());
+        verify(orgRegistrationService).ensureAccountByName("李四");
+        verify(useridResolver, never()).resolveByName(anyString());
+        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+    }
+
+    private void assertEnsureThenResolveThenSend(String samplerName, String userid) {
+        InOrder order = inOrder(orgRegistrationService, useridResolver, dingTalkClient);
+        order.verify(orgRegistrationService).ensureAccountByName(samplerName);
+        order.verify(useridResolver).resolveByName(samplerName);
+        order.verify(dingTalkClient).sendWorkNotice(eq(userid), any());
     }
 
     private static GoodsSamplerNotice sampleGoods() {
