@@ -8,6 +8,7 @@ import { User, Lock, Eye, EyeOff, Loader2, Palette, Factory, ArrowLeft, Megaphon
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { BRANDS, COMPANY_OPTIONS, type BrandKey } from '@/lib/brand';
+import { readReturnPath, takeReturnPath } from '@/lib/auth-redirect';
 
 interface LoginResponse {
   success: boolean;
@@ -51,9 +52,11 @@ export default function LoginPage() {
 
   // 客户端初始化：从 localStorage 恢复状态（避免 SSR hydration mismatch）
   React.useEffect(() => {
-    // 恢复 step 状态
+    // 钉钉深链：把 ?returnUrl=/sampler/{id} 写入 sessionStorage，登录多步不丢。
+    // 有回跳地址时不要恢复门户选择，否则会丢掉商品 id。
+    const returnPath = readReturnPath();
     const backToPortal = localStorage.getItem('back_to_portal');
-    if (backToPortal === 'true' && localStorage.getItem('session_id')) {
+    if (!returnPath && backToPortal === 'true' && localStorage.getItem('session_id')) {
       localStorage.removeItem('back_to_portal');
       setStep('portal');
     }
@@ -206,8 +209,13 @@ export default function LoginPage() {
           setSelectedBrand(brandKey);
           localStorage.setItem('selected_brand', brandKey);
           localStorage.setItem('user_company', userCompany);
-          setStep('portal');
           toast.success('登录成功', { description: `欢迎回来，${result.data.user?.username || '用户'}！` });
+          const pendingReturn = takeReturnPath();
+          if (pendingReturn) {
+            window.location.href = pendingReturn;
+            return;
+          }
+          setStep('portal');
         } else {
           setStep('company');
           toast.success('验证通过', { description: '请选择您所属的公司' });
@@ -256,6 +264,11 @@ export default function LoginPage() {
     } catch { /* 降级 */ }
     localStorage.setItem('selected_brand', companyKey);
     localStorage.setItem('user_company', companyName);
+    const pendingReturn = takeReturnPath();
+    if (pendingReturn) {
+      window.location.href = pendingReturn;
+      return;
+    }
     setStep('portal');
   };
 

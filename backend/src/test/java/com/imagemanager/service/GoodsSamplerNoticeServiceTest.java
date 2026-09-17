@@ -123,8 +123,11 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(notice.getBody().contains("BN-001真丝吊带"));
         assertTrue(notice.getBody().contains("打样员"));
         assertTrue(notice.hasLink());
-        assertEquals("http://localhost:5000/goods-library/9", notice.getSingleUrl());
-        assertEquals("查看商品详情", notice.getSingleTitle());
+        assertTrue(notice.getBody().contains("http://localhost:5000/sampler/9"));
+        assertTrue(notice.getSingleUrl().contains("sampler%2F9")
+                || notice.getSingleUrl().contains("/sampler/9"));
+        assertTrue(notice.getSingleUrl().startsWith("dingtalk://"));
+        assertEquals("填写打样表单", notice.getSingleTitle());
     }
 
     @Test
@@ -151,7 +154,7 @@ class GoodsSamplerNoticeServiceTest {
     }
 
     @Test
-    void detailUrlFallsBackToTextWhenFrontendBlank() {
+    void formUrlFallsBackToTextWhenFrontendBlank() {
         GoodsSamplerNoticeService noUrl = new GoodsSamplerNoticeService(
                 dingTalkClient, useridResolver, properties, "  ");
         when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
@@ -163,6 +166,47 @@ class GoodsSamplerNoticeServiceTest {
         verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
         assertTrue(!captor.getValue().hasLink());
         assertEquals("text", captor.getValue().toMsgMap().get("msgtype"));
+    }
+
+    @Test
+    void unnamedGoodsStillLinksByNumericId() {
+        when(useridResolver.resolveByName("肖伟")).thenReturn(found("u-xiao"));
+        when(dingTalkClient.sendWorkNotice(eq("u-xiao"), any())).thenReturn(1L);
+
+        GoodsSamplerNotice unnamed = new GoodsSamplerNotice(77L, "未命名商品", "", "", "肖伟");
+        service.notifyIfSamplerChanged(null, "肖伟", unnamed);
+
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-xiao"), captor.capture());
+        DingTalkWorkNotice notice = captor.getValue();
+        assertTrue(notice.getBody().contains("未命名商品"));
+        assertTrue(notice.getBody().contains("http://localhost:5000/sampler/77"));
+        assertTrue(notice.getSingleUrl().contains("sampler%2F77")
+                || notice.getSingleUrl().contains("/sampler/77"));
+        assertTrue(!notice.getSingleUrl().contains("goods-library"));
+    }
+
+    @Test
+    void openAppWrapWhenCorpIdConfigured() {
+        properties.setCorpId("dingcorp");
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
+        String click = captor.getValue().getSingleUrl();
+        assertTrue(click.contains("action/openapp"));
+        assertTrue(click.contains("redirect_url="));
+        assertTrue(click.contains("sampler%2F9"));
+    }
+
+    @Test
+    void formUrlStripsTrailingSlash() {
+        GoodsSamplerNoticeService trailing = new GoodsSamplerNoticeService(
+                dingTalkClient, useridResolver, properties, "http://ai.bonasoma.com/");
+        assertEquals("http://ai.bonasoma.com/sampler/9", trailing.formUrl(9L));
     }
 
     private static GoodsSamplerNotice sampleGoods() {

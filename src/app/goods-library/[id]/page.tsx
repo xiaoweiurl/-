@@ -9,6 +9,7 @@ import {
   User, PenTool, Hash, CreditCard, Building2, FileText, Save,
   Image as ImageIcon, Sparkles,
 } from 'lucide-react';
+import { loginHref } from '@/lib/auth-redirect';
 
 interface GoodsDetail {
   id: number;
@@ -65,7 +66,7 @@ export default function GoodsDetailPage() {
     try {
       const res = await fetch(`/api/goods-library/${id}`);
       if (res.status === 401) {
-        window.location.href = '/login';
+        window.location.href = loginHref(`/goods-library/${id}`);
         return;
       }
       const data = await res.json();
@@ -80,14 +81,13 @@ export default function GoodsDetailPage() {
         setRemarkForm({ remark: d.remark || '' });
       } else {
         toast.error(data.message || '商品不存在');
-        router.push('/goods-library');
       }
     } catch {
       toast.error('加载失败');
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [id]);
 
   useEffect(() => {
     if (id) fetchDetail();

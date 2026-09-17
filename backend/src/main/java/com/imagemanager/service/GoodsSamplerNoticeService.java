@@ -2,6 +2,7 @@ package com.imagemanager.service;
 
 import com.imagemanager.config.DingTalkProperties;
 import com.imagemanager.dingtalk.DingTalkClient;
+import com.imagemanager.dingtalk.DingTalkLinks;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
 import com.imagemanager.org.OrgNameMatcher;
@@ -106,24 +107,30 @@ public class GoodsSamplerNoticeService {
         String initiator = goods == null || goods.getInitiator() == null || goods.getInitiator().isBlank()
                 ? "未填写" : goods.getInitiator().trim();
         String title = "您被指定为打样员";
+        String formHttp = goods == null ? "" : formUrl(goods.getGoodsId());
         String markdown = "### 打样任务\n\n"
                 + "您被指定为商品 **" + display + "** 的打样员。\n\n"
                 + "- 货号：" + goodsNo + "\n"
                 + "- 品名：" + productName + "\n"
                 + "- 发起人：" + initiator + "\n"
                 + "- 打样员：" + samplerName + "\n\n"
-                + "请及时跟进打样。";
-        String url = goods == null ? "" : detailUrl(goods.getGoodsId());
-        if (url.isBlank()) {
+                + "请及时填写打样信息。";
+        if (!formHttp.isBlank()) {
+            markdown += "\n\n[填写打样表单](" + formHttp + ")";
+        }
+        if (formHttp.isBlank()) {
             return DingTalkWorkNotice.text(title, markdown.replace("**", "").replace("### ", ""));
         }
-        return DingTalkWorkNotice.actionCard(title, markdown, "查看商品详情", url);
+        String clickUrl = DingTalkLinks.workNoticeUrl(
+                formHttp, properties.getCorpId(), properties.resolveAgentId());
+        return DingTalkWorkNotice.actionCard(title, markdown, "填写打样表单", clickUrl);
     }
 
     /**
-     * 钉钉工作通知跳转：已登录商品详情编辑页（手机端已适配），非公开免登表单。
+     * 打样员专用表单（手机优先），需登录；不是商品库列表或桌面编辑页。
+     * 路径：{@code {FRONTEND_URL}/sampler/{goodsId}}
      */
-    String detailUrl(long goodsId) {
+    String formUrl(long goodsId) {
         String base = frontendUrl == null ? "" : frontendUrl.trim();
         if (base.isEmpty()) {
             return "";
@@ -131,6 +138,6 @@ public class GoodsSamplerNoticeService {
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + "/goods-library/" + goodsId;
+        return base + "/sampler/" + goodsId;
     }
 }

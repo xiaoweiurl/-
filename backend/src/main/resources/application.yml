@@ -98,7 +98,7 @@ app:
   backend:
     url: ${BACKEND_URL:http://localhost:8080/api}
 
-  # 前端服务 URL（用于生成文档访问链接）
+  # 前端服务 URL（钉钉工作通知打样表单 {FRONTEND_URL}/sampler/{id}；生产 FRP 为 http://ai.bonasoma.com）
   frontend:
     url: ${FRONTEND_URL:http://localhost:5000}
 

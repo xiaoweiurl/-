@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
+import { loginHref } from '@/lib/auth-redirect';
 import {
   FolderOpen, Plus, Search, Loader2, Trash2, ArrowLeft,
   User, PenTool, Hash, CreditCard, Building2, FileText, ImagePlus, X,
@@ -81,7 +82,7 @@ export default function GoodsLibraryPage() {
       const url = kw ? `/api/goods-library?keyword=${encodeURIComponent(kw)}` : '/api/goods-library';
       const res = await fetch(url);
       if (res.status === 401) {
-        window.location.href = '/login';
+        window.location.href = loginHref();
         return;
       }
       const data = await res.json();
