@@ -220,7 +220,7 @@ pnpm start
 |------|------|------|
 | `DINGTALK_APP_KEY` | 同步时必填 | 企业内部应用 AppKey |
 | `DINGTALK_APP_SECRET` | 同步时必填 | 企业内部应用 AppSecret |
-| `DINGTALK_AGENT_ID` | 否 | 应用 AgentId（Phase 2 工作通知预留） |
+| `DINGTALK_AGENT_ID` | 工作通知必填 | 企业内部应用 AgentId。未配置时应用仍可启动，打样员保存成功但**不发送**工作通知（记日志） |
 | `DINGTALK_CORP_ID` | 否 | 企业 corpId |
 | `DINGTALK_API_BASE_URL` | 否 | 默认 `https://api.dingtalk.com` |
 | `DINGTALK_OAPI_BASE_URL` | 否 | 默认 `https://oapi.dingtalk.com` |
@@ -228,11 +228,14 @@ pnpm start
 
 未配置 AppKey/Secret 时**应用仍可启动**。调用「同步钉钉组织」会返回明确错误，不做 Mock 兜底。CI 可不配置这些变量。
 
+未配置 `DINGTALK_AGENT_ID` 时同步/注册不受影响；商品库打样员工作通知功能关闭（见下方 Phase 2）。
+
 ### 应用权限（钉钉开放平台 → 企业内部应用）
 
 - 通讯录部门信息读权限（`topapi/v2/department/listsub`、`department/get`）
 - 成员信息读权限（`topapi/v2/user/list`）
 - 可选：通讯录手机号信息（有则写入 `org_users.mobile`）
+- 工作通知（Phase 2）：企业内工作通知发送权限（`topapi/message/corpconversation/asyncsend_v2`）
 
 ### 选用的 OpenAPI
 
@@ -242,6 +245,7 @@ pnpm start
 | 部门详情 | POST | `https://oapi.dingtalk.com/topapi/v2/department/get` |
 | 子部门（仅下一级，需递归） | POST | `https://oapi.dingtalk.com/topapi/v2/department/listsub` |
 | 部门成员（cursor 分页） | POST | `https://oapi.dingtalk.com/topapi/v2/user/list` |
+| 工作通知（Phase 2） | POST | `https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2` |
 
 ### 同步与注册流程
 
@@ -255,6 +259,33 @@ pnpm start
 5. 新账号密码固定 `123456`，`must_change_password=true`。登录后沿用现有 `/settings?tab=security&forceChange=1` 改密。邮箱不要求；若钉钉无邮箱则写入 `dt-{userid}@dingtalk.invalid` 占位。
 
 管理员 API（需 admin/superadmin）：`POST /api/org/sync`、`GET /api/org/status`、`GET /api/org/departments`、`GET /api/org/contacts?name=`。
+
+## 钉钉工作通知（Phase 2，商品库打样员）
+
+商品库创建或更新时，若 **打样员（sampler）新填写或变更为另一人**，向该打样员推送钉钉企业内部应用**工作通知**。sampler 未变的普通保存不重复通知。
+
+公开未登录表单链接（工位填报等）本阶段**明确不做**，由产品后续另开需求。
+
+### 行为
+
+1. 事务提交成功后再异步发送，钉钉失败**不影响**商品保存。
+2. 按姓名解析钉钉 userid（去空格精确匹配，与 Phase 1 `OrgNameMatcher` 一致）：
+   - 优先 `org_users`（已同步通讯录）
+   - 其次 `users.dingtalk_userid`（已注册办公账号的 username / nickname）
+   - 0 人、同名多人、userid 为空：记 warn 日志并跳过，不硬失败
+3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转已有详情页 `{FRONTEND_URL}/goods-library/{id}`；无前端地址时退化为 text。
+4. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
+
+### 额外环境变量
+
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `DINGTALK_AGENT_ID` | 发送时必填 | 与 AppKey/Secret 同一企业内部应用的 AgentId |
+| `FRONTEND_URL` | 否 | 工作通知跳转基址，默认 `http://localhost:5000`（已有配置 `app.frontend.url`） |
+
+### 范围
+
+Phase 1 组织同步 / 姓名注册行为不变。车间考勤、ERP、钉钉 SSO 登录均不在本能力范围内。
 
 ## 项目结构
 

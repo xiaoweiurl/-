@@ -25,7 +25,7 @@ public class DingTalkProperties {
     /** 企业内部应用 AppSecret（DINGTALK_APP_SECRET） */
     private String appSecret = "";
 
-    /** 应用 AgentId，Phase 2 工作通知使用；Phase 1 仅保存 */
+    /** 应用 AgentId（DINGTALK_AGENT_ID），工作通知必填；未配置则工作通知功能关闭 */
     private String agentId = "";
 
     /** 企业 corpId，可选 */
@@ -40,6 +40,33 @@ public class DingTalkProperties {
     public boolean isConfigured() {
         return appKey != null && !appKey.isBlank()
                 && appSecret != null && !appSecret.isBlank();
+    }
+
+    /** AgentId 已配置（非空且可解析为数字）。 */
+    public boolean hasAgentId() {
+        return resolveAgentId() != null;
+    }
+
+    /**
+     * 工作通知是否启用：AppKey/Secret + AgentId 均已配置。
+     * 未启用时应用仍可启动，发送路径记录日志后跳过，不抛异常。
+     */
+    public boolean isWorkNoticeEnabled() {
+        return isConfigured() && hasAgentId();
+    }
+
+    /**
+     * 解析 AgentId。钉钉接口要求数字；空白或非数字返回 null（功能关闭）。
+     */
+    public Long resolveAgentId() {
+        if (agentId == null || agentId.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(agentId.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public String resolveApiBaseUrl() {

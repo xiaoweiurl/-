@@ -18,4 +18,9 @@ public class DingTalkException extends RuntimeException {
         return new DingTalkException(
                 "钉钉未配置：请设置环境变量 DINGTALK_APP_KEY 与 DINGTALK_APP_SECRET 后重试");
     }
+
+    public static DingTalkException agentIdMissing() {
+        return new DingTalkException(
+                "钉钉工作通知未启用：请设置环境变量 DINGTALK_AGENT_ID（企业内部应用 AgentId）");
+    }
 }
