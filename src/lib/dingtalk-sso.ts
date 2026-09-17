@@ -149,10 +149,16 @@ export function getAuthCodeFromDd(
   corpId: string | null | undefined,
   dtGetAuthCode?: ((opts: Record<string, unknown>) => unknown) | undefined,
 ): Promise<string> {
-  const resolvedCorpId = resolveDingTalkCorpId(corpId);
-  const opts: Record<string, unknown> = { corpId: resolvedCorpId };
-
   return new Promise((resolve, reject) => {
+    let resolvedCorpId: string;
+    try {
+      resolvedCorpId = resolveDingTalkCorpId(corpId);
+    } catch (e) {
+      reject(e instanceof Error ? e : new Error(DINGTALK_CORP_ID_REQUIRED));
+      return;
+    }
+    const opts: Record<string, unknown> = { corpId: resolvedCorpId };
+
     const onSuccess = (res: { code?: string; authCode?: string } | null | undefined) => {
       const code = res?.code || res?.authCode;
       if (code) resolve(code);
