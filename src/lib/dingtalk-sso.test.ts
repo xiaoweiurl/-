@@ -81,6 +81,59 @@ test('getAuthCodeFromDd always passes corpId to requestAuthCode', async () => {
   };
   await getAuthCodeFromDd(dd, ' dingcorp ');
   assert.equal(received?.corpId, 'dingcorp');
+  assert.equal('clientId' in (received ?? {}), false);
+});
+
+test('getAuthCodeFromDd passes clientId to requestAuthCode when present', async () => {
+  let received: Record<string, unknown> | undefined;
+  const dd: DingTalkDdLike = {
+    runtime: {
+      permission: {
+        requestAuthCode: (opts) => {
+          received = opts;
+          (opts.onSuccess as (res: { code: string }) => void)({ code: 'ok' });
+        },
+      },
+    },
+  };
+  await getAuthCodeFromDd(dd, 'dingcorp', undefined, ' ding-app-key ');
+  assert.equal(received?.corpId, 'dingcorp');
+  assert.equal(received?.clientId, 'ding-app-key');
+});
+
+test('getAuthCodeFromDd omits blank clientId', async () => {
+  let received: Record<string, unknown> | undefined;
+  const dd: DingTalkDdLike = {
+    runtime: {
+      permission: {
+        requestAuthCode: (opts) => {
+          received = opts;
+          (opts.onSuccess as (res: { code: string }) => void)({ code: 'ok' });
+        },
+      },
+    },
+  };
+  await getAuthCodeFromDd(dd, 'dingcorp', undefined, '  ');
+  assert.equal(received?.corpId, 'dingcorp');
+  assert.equal('clientId' in (received ?? {}), false);
+});
+
+test('getAuthCodeFromDd still fails fast without corpId even if clientId present', async () => {
+  let called = false;
+  const dd: DingTalkDdLike = {
+    runtime: {
+      permission: {
+        requestAuthCode: () => {
+          called = true;
+        },
+      },
+    },
+  };
+  await assert.rejects(
+    () => getAuthCodeFromDd(dd, '', undefined, 'ding-app-key'),
+    /DINGTALK_CORP_ID/,
+  );
+  assert.equal(called, false);
 });
 
 test('getAuthCodeFromDd does not call getAuthCode when corpId is missing', async () => {

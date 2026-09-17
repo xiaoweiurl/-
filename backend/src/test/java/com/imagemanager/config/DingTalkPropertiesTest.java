@@ -51,15 +51,15 @@ class DingTalkPropertiesTest {
     }
 
     @Test
-    void protocolLinkWrapRequiresFlagAndCorpId() {
+    void protocolLinkWrapDefaultsTrueButStillNeedsCorpId() {
         DingTalkProperties properties = new DingTalkProperties();
-        assertFalse(properties.isWorkNoticeProtocolLinks());
-        assertFalse(properties.shouldWrapWorkNoticeProtocolLinks());
-
-        properties.setWorkNoticeProtocolLinks(true);
+        assertTrue(properties.isWorkNoticeProtocolLinks());
         assertFalse(properties.shouldWrapWorkNoticeProtocolLinks());
 
         properties.setCorpId("dingabc");
         assertTrue(properties.shouldWrapWorkNoticeProtocolLinks());
+
+        properties.setWorkNoticeProtocolLinks(false);
+        assertFalse(properties.shouldWrapWorkNoticeProtocolLinks());
     }
 }

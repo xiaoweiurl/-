@@ -5,9 +5,14 @@ import com.imagemanager.dingtalk.DingTalkClient;
 import com.imagemanager.dingtalk.DingTalkException;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -184,8 +189,9 @@ class GoodsSamplerNoticeServiceTest {
     }
 
     @Test
-    void corpIdAloneDoesNotWrapProtocolLink() {
+    void protocolFlagFalseKeepsPlainHttpEvenWithCorpId() {
         properties.setCorpId("dingcorp");
+        properties.setWorkNoticeProtocolLinks(false);
         when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
         when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
 
@@ -194,6 +200,48 @@ class GoodsSamplerNoticeServiceTest {
         ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
         verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
         assertEquals("http://localhost:5000/sampler/9", captor.getValue().getSingleUrl());
+    }
+
+    @Test
+    void defaultProtocolFlagWrapsOpenAppWhenCorpIdPresent() {
+        properties.setCorpId("dingcorp");
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
+        String click = captor.getValue().getSingleUrl();
+        assertTrue(click.startsWith("dingtalk://dingtalkclient/action/openapp"));
+        assertTrue(click.contains("redirect_url="));
+        assertTrue(click.contains("sampler%2F9"));
+        assertTrue(captor.getValue().getBody().contains("[填写打样表单](http://localhost:5000/sampler/9)"));
+    }
+
+    @Test
+    void logsClickUrlPrefixWithoutQuerySecrets() {
+        properties.setCorpId("dingcorp");
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        Logger logger = (Logger) LoggerFactory.getLogger(GoodsSamplerNoticeService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+            assertTrue(appender.list.stream().anyMatch(e ->
+                    e.getLevel() == Level.INFO
+                            && e.getFormattedMessage().contains("single_url")
+                            && e.getFormattedMessage().contains("goodsId=9")
+                            && e.getFormattedMessage().contains(
+                                    "prefix=dingtalk://dingtalkclient/action/openapp")
+                            && !e.getFormattedMessage().contains("corpid")
+                            && !e.getFormattedMessage().contains("secret")));
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 
     @Test

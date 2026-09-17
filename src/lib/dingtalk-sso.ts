@@ -1,7 +1,7 @@
 /**
  * DingTalk H5 免登：加载 JSAPI → requestAuthCode → 后端换会话。
  *
- * 企业内部应用 H5 必须用 {@code dd.runtime.permission.requestAuthCode({ corpId })}。
+ * 企业内部应用 H5 必须用 {@code dd.runtime.permission.requestAuthCode({ corpId, clientId? })}。
  * 无 corpId 时禁止调用 getAuthCode：取到的码会被 getuserinfo 以 40078 拒绝。
  * getAuthCode / dt.getAuthCode 仅在 classic API 不可用且 corpId 已配置时回退。
  */
@@ -17,6 +17,8 @@ export const DINGTALK_CORP_ID_REQUIRED =
 type JsapiConfig = {
   configured?: boolean;
   corpId?: string;
+  /** 企业内部应用 AppKey，非 Secret。新版 H5 requestAuthCode 可带 clientId。 */
+  clientId?: string;
   agentId?: string;
   timeStamp?: string;
   nonceStr?: string;
@@ -94,7 +96,7 @@ export async function requestDingTalkAuthCode(config: JsapiConfig): Promise<stri
   const dd = await loadDingTalkJsapi();
   applyDdConfig(dd, { ...config, corpId });
   return withTimeout(
-    waitReadyThen(dd, () => getAuthCodeFromDd(dd, corpId)),
+    waitReadyThen(dd, () => getAuthCodeFromDd(dd, corpId, undefined, config.clientId)),
     AUTH_TIMEOUT_MS,
     '获取钉钉授权码超时，请确认已发布应用且 H5 可信域名包含本站',
   );
@@ -102,9 +104,11 @@ export async function requestDingTalkAuthCode(config: JsapiConfig): Promise<stri
 
 function applyDdConfig(dd: DingTalkDdLike, config: JsapiConfig) {
   if (!config.signature || !dd.config) return;
+  const clientId = (config.clientId || '').trim();
   dd.config({
     agentId: config.agentId || undefined,
     corpId: config.corpId,
+    ...(clientId ? { clientId } : {}),
     timeStamp: config.timeStamp,
     nonceStr: config.nonceStr,
     signature: config.signature,
@@ -141,13 +145,15 @@ function waitReadyThen<T>(dd: DingTalkDdLike, fn: () => Promise<T>): Promise<T> 
 }
 
 /**
- * H5 微应用取码：优先 classic requestAuthCode({ corpId })。
+ * H5 微应用取码：优先 classic requestAuthCode({ corpId, clientId? })。
  * 无 corpId 时直接失败，绝不调用 getAuthCode（避免 40078）。
+ * 有 clientId（AppKey）时一并传入，帮助钉钉定位微应用。
  */
 export function getAuthCodeFromDd(
   dd: DingTalkDdLike,
   corpId: string | null | undefined,
   dtGetAuthCode?: ((opts: Record<string, unknown>) => unknown) | undefined,
+  clientId?: string | null,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     let resolvedCorpId: string;
@@ -158,6 +164,10 @@ export function getAuthCodeFromDd(
       return;
     }
     const opts: Record<string, unknown> = { corpId: resolvedCorpId };
+    const trimmedClientId = (clientId || '').trim();
+    if (trimmedClientId) {
+      opts.clientId = trimmedClientId;
+    }
 
     const onSuccess = (res: { code?: string; authCode?: string } | null | undefined) => {
       const code = res?.code || res?.authCode;

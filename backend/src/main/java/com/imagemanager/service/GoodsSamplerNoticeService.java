@@ -91,6 +91,13 @@ public class GoodsSamplerNoticeService {
         }
 
         DingTalkWorkNotice notice = buildNotice(next, goods);
+        if (notice.hasLink()) {
+            String clickUrl = notice.getSingleUrl();
+            log.info("打样工作通知 single_url: goodsId={}, wrap={}, prefix={}",
+                    goods == null ? null : goods.getGoodsId(),
+                    properties.shouldWrapWorkNoticeProtocolLinks(),
+                    DingTalkLinks.logSafePrefix(clickUrl));
+        }
         long taskId = dingTalkClient.sendWorkNotice(resolved.getUserid(), notice);
         log.info("已向打样员发送钉钉工作通知: goodsId={}, sampler={}, userid={}, source={}, taskId={}",
                 goods == null ? null : goods.getGoodsId(), next, resolved.getUserid(),
@@ -121,8 +128,8 @@ public class GoodsSamplerNoticeService {
         if (formHttp.isBlank()) {
             return DingTalkWorkNotice.text(title, markdown.replace("**", "").replace("### ", ""));
         }
-        // 默认裸 HTTP（#19）：应用未发布时 dingtalk:// 会提示「非钉钉页面」。
-        // 钉钉内打开 /sampler/{id} 后走 H5 免登，无需中台密码。
+        // 默认 wrap=true + corpId → dingtalk://openapp（H5 免登域名绑定）。
+        // DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false 时保持裸 HTTP(S)。
         String clickUrl = DingTalkLinks.workNoticeUrl(
                 formHttp, properties.getCorpId(), properties.resolveAgentId(),
                 properties.shouldWrapWorkNoticeProtocolLinks());
