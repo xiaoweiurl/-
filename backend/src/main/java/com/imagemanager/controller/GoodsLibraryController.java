@@ -11,9 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 商品库控制器
- * 文件夹式商品管理：文件夹名 = 货号 + 品名，
- * 四类图片（主图/侧面图/细节/产品图）上传 OSS，备注五字段（卖点/竞品/功能/对应人群/使用场景）
+ * 商品库控制器。
+ * <p>
+ * 权限：任意<strong>已登录</strong>用户（含钉钉姓名注册的普通 user），不是管理员专属。
+ * 未登录由 Spring Security 返回 401；已登录角色不足才会 403（本模块无角色门槛）。
  */
 @RestController
 @RequestMapping("/goods-library")

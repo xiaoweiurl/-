@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { shouldSkipBffForwardHeader } from '@/lib/bff-forward-headers';
 import { resolveBffSessionId } from '@/lib/bff-session';
 
 /**
@@ -7,6 +8,7 @@ import { resolveBffSessionId } from '@/lib/bff-session';
  * 所有没有专属 route.ts 的 /api/* 请求统一由此转发到 Java 后端。
  * 设计原则：
  * - 鉴权统一：仅透传 Cookie / X-Session-Id 给 Java，由 Java 后端 SessionIdAuthFilter 统一鉴权
+ * - 不转发 Origin/Referer：否则 Java CorsFilter 把 FRP 公网 Origin 当成非法跨域并 403
  * - 流式透传：响应体以流方式管道回浏览器，SSE（text/event-stream）与大文件下载不占用 Node 内存
  * - multipart 原样透传：请求体以 arrayBuffer 转发，保留原始 Content-Type boundary
  * - Set-Cookie 多值透传：登录等接口的种 Cookie 行为不被代理层吞掉
@@ -29,21 +31,11 @@ function getBackendBase(): string {
   return url.replace(/\/api\/?$/, '').replace(/\/+$/, '');
 }
 
-/** 需要跳过的请求头（hop-by-hop / 框架内部头） */
-const SKIP_REQUEST_HEADERS = new Set([
-  'host', 'connection', 'content-length', 'transfer-encoding',
-  'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'x-real-ip',
-  'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
-  'x-middleware-request', 'x-nextjs-data', 'x-invoke-output', 'x-invoke-path', 'x-invoke-query',
-  'rsc', 'next-url',
-]);
-
 function buildForwardHeaders(request: NextRequest): Headers {
   const headers = new Headers();
 
   request.headers.forEach((value, key) => {
-    const lower = key.toLowerCase();
-    if (SKIP_REQUEST_HEADERS.has(lower) || lower.startsWith('x-middleware')) return;
+    if (shouldSkipBffForwardHeader(key)) return;
     headers.set(key, value);
   });
 

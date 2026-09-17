@@ -2,6 +2,7 @@ package com.imagemanager.config;
 
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.service.AuthService;
+import com.imagemanager.util.ApplicationPath;
 import com.imagemanager.util.SessionIdExtractor;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -11,14 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.lang.NonNull;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 
 /**
  * 自定义认证过滤器。
@@ -41,7 +40,7 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         
-        String path = request.getRequestURI();
+        String path = ApplicationPath.of(request);
         
         // 公开端点不需要认证
         if (isPublicEndpoint(path)) {
@@ -61,18 +60,11 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
                 
                 // 将认证信息设置到 Spring Security 的 SecurityContext
                 // admin 与 superadmin 均映射 ROLE_ADMIN（超级管理员拥有全部管理权限）
-                String role = userInfo.getRole();
-                boolean isAdmin = role != null
-                        && ("ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role));
-                SimpleGrantedAuthority authority = new SimpleGrantedAuthority(
-                    isAdmin ? "ROLE_ADMIN" : "ROLE_USER"
-                );
-                
-                UsernamePasswordAuthenticationToken authentication = 
+                UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                         userInfo.getId(),
                         null,
-                        Collections.singletonList(authority)
+                        SessionAuthorities.fromRole(userInfo.getRole())
                     );
                 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -93,6 +85,8 @@ public class SessionIdAuthFilter extends OncePerRequestFilter {
         return path.startsWith("/auth/login") ||
                path.startsWith("/auth/register") ||
                path.startsWith("/auth/session") ||
+               path.startsWith("/auth/forgot-password") ||
+               path.startsWith("/share/access") ||
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||
                path.startsWith("/v3/api-docs") ||

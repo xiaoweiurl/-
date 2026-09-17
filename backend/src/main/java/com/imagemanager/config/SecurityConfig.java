@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -18,11 +19,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
-import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.Arrays;
 
 /**
  * Security 配置类 - 完整安全配置
@@ -53,10 +50,7 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
-            String uri = request.getRequestURI();
-            if (uri != null && uri.contains("/erp-sync")) {
-                log.warn("[ERP] 未认证请求被拒绝: {} {}", request.getMethod(), uri);
-            }
+            log.warn("未认证请求被拒绝: {} {}", request.getMethod(), request.getRequestURI());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
@@ -70,10 +64,9 @@ public class SecurityConfig {
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
-            String uri = request.getRequestURI();
-            if (uri != null && uri.contains("/erp-sync")) {
-                log.warn("[ERP] 权限不足: {} {}", request.getMethod(), uri);
-            }
+            log.warn("已登录但权限不足: {} {} principal={}",
+                    request.getMethod(), request.getRequestURI(),
+                    request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "null");
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
@@ -88,34 +81,16 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins:http://localhost:5000}")
     private String allowedOrigins;
 
+    @Value("${app.frontend.url:http://localhost:5000}")
+    private String frontendUrl;
+
     /**
-     * CORS 配置 - 来源白名单 + Cookie 传递
+     * CORS 配置：白名单（含 FRONTEND_URL）+ 与请求 Host 相同的 Origin（FRP 同站）。
+     * 禁止 "*" 与 allowCredentials 同用。
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // 白名单来源（禁止 "*" 与 allowCredentials 同用的危险组合）
-        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-                .map(origin -> origin.trim())
-                .filter(s -> !s.isEmpty())
-                .toList());
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        // 仅放行实际需要的请求头
-        configuration.setAllowedHeaders(Arrays.asList(
-            "Content-Type", "Authorization", "X-Session-Id", "X-Requested-With"
-        ));
-        // 允许 credentials（Cookie）跨域传递
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
-        // 允许暴露的响应头
-        configuration.setExposedHeaders(Arrays.asList(
-            "Set-Cookie",
-            "X-Session-Id"
-        ));
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+        return new AppCorsConfigurationSource(allowedOrigins, frontendUrl);
     }
     
     /**
@@ -144,6 +119,10 @@ public class SecurityConfig {
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
+            // 匿名认证必须保留：无会话时 AuthorizationFilter 会抛 AccessDeniedException，
+            // ExceptionTranslationFilter 仅在 AnonymousAuthenticationToken 时走 EntryPoint（401）；
+            // 关掉 anonymous 会把「未登录」误报成 403「权限不足」。
+            .anonymous(Customizer.withDefaults())
             // 权限配置
             .authorizeHttpRequests(auth -> auth
                 // 公开端点
@@ -163,7 +142,8 @@ public class SecurityConfig {
                 .requestMatchers("/org/**").hasRole("ADMIN")
                 // 管理员端点需要 ADMIN 角色
                 .requestMatchers("/admin/**").hasRole("ADMIN")
-                // 其他请求需要认证
+                // 业务接口（含 /goods-library/**）只需登录，不按管理员角色拦截。
+                // 钉钉姓名注册用户角色为 user → ROLE_USER，应能列表/读写商品库。
                 .anyRequest().authenticated()
             )
             // 异常处理
