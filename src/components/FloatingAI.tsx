@@ -245,8 +245,8 @@ export default function FloatingAI() {
     }
   }, [isOpen]);
 
-  // 登录页不显示悬浮助手；商品库手机端也不显示，避免挡住打样员表单操作
-  if (pathname === '/login') return null;
+  // 登录页、打样员表单不显示悬浮助手（避免挡住保存）
+  if (pathname === '/login' || pathname.startsWith('/sampler')) return null;
   const hideFabOnMobileGoods = pathname.startsWith('/goods-library');
 
   return (

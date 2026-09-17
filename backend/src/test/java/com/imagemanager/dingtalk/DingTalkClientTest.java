@@ -153,15 +153,15 @@ class DingTalkClientTest {
                 assertTrue(body.contains("\"userid_list\":\"u-zhang\""));
                 assertTrue(body.contains("\"msgtype\":\"action_card\""));
                 assertTrue(body.contains("您被指定为打样员"));
-                assertTrue(body.contains("/goods-library/9"));
+                assertTrue(body.contains("/sampler/9"));
                 assertTrue(body.contains("\"to_all_user\":false"));
                 return "{\"errcode\":0,\"errmsg\":\"ok\",\"task_id\":88}";
             }
             throw new IllegalStateException(url);
         });
         long taskId = client.sendWorkNotice("u-zhang",
-                DingTalkWorkNotice.actionCard("您被指定为打样员", "正文", "查看商品详情",
-                        "http://localhost:5000/goods-library/9"));
+                DingTalkWorkNotice.actionCard("您被指定为打样员", "正文", "填写打样表单",
+                        "http://localhost:5000/sampler/9"));
         assertEquals(88L, taskId);
         assertEquals(1, calls.get());
     }
