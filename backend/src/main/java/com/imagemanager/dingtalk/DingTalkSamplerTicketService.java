@@ -3,6 +3,7 @@ package com.imagemanager.dingtalk;
 import com.imagemanager.config.DingTalkProperties;
 import com.imagemanager.dto.LoginResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,12 @@ public class DingTalkSamplerTicketService {
     private final Environment environment;
     private final Clock clock;
 
+    /**
+     * Spring injection constructor. Required {@code @Autowired}: a package-private
+     * 4-arg test constructor also exists, so Spring will not treat this as the
+     * unique constructor and otherwise falls back to a missing no-arg {@code <init>()}.
+     */
+    @Autowired
     public DingTalkSamplerTicketService(DingTalkProperties properties,
                                         DingTalkFreeLoginService freeLoginService,
                                         Environment environment) {
