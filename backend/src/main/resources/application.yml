@@ -226,8 +226,9 @@ logging:
   pattern:
     console: "%d{HH:mm:ss} [%thread] %msg%n"
 
-# 钉钉企业内部应用（办公/管理端组织同步 + 按姓名注册）
-# 未配置时应用可启动；调用同步接口会返回明确错误，不降级 Mock。
+# 钉钉企业内部应用（办公/管理端组织同步 + 按姓名注册 + 商品库打样员工作通知）
+# 未配置 AppKey/Secret 时应用可启动；调用同步接口会返回明确错误，不降级 Mock。
+# 未配置 AgentId 时工作通知功能关闭（打样员保存仍成功，仅记日志跳过发送）。
 dingtalk:
   api-base-url: ${DINGTALK_API_BASE_URL:https://api.dingtalk.com}
   oapi-base-url: ${DINGTALK_OAPI_BASE_URL:https://oapi.dingtalk.com}

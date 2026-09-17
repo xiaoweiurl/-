@@ -245,8 +245,9 @@ export default function FloatingAI() {
     }
   }, [isOpen]);
 
-  // 登录页不显示悬浮助手
+  // 登录页不显示悬浮助手；商品库手机端也不显示，避免挡住打样员表单操作
   if (pathname === '/login') return null;
+  const hideFabOnMobileGoods = pathname.startsWith('/goods-library');
 
   return (
     <>
@@ -257,7 +258,7 @@ export default function FloatingAI() {
           isOpen
             ? 'bg-[rgba(118,118,128,0.12)] hover:bg-[rgba(0,0,0,0.08)]'
             : 'bg-[#007AFF] hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)]'
-        }`}
+        } ${hideFabOnMobileGoods ? 'max-md:hidden' : ''}`}
       >
         {isOpen ? (
           <X className="w-6 h-6 text-[#1C1C1E]" />
@@ -271,7 +272,7 @@ export default function FloatingAI() {
 
       {/* 聊天面板 */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-[9999] w-[420px] h-[600px] rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(0,0,0,0.12)] border border-[#E5E5EA] flex flex-col bg-white"
+        <div className="fixed bottom-24 right-6 z-[9999] w-[min(420px,calc(100vw-1.5rem))] h-[min(600px,calc(100dvh-8rem))] max-md:hidden rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(0,0,0,0.12)] border border-[#E5E5EA] flex flex-col bg-white"
         >
           {/* 头部 */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(0,122,255,0.2)] bg-[rgba(242,242,247,0.8)] backdrop-blur-xl">

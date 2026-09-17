@@ -64,6 +64,10 @@ export default function GoodsDetailPage() {
   const fetchDetail = useCallback(async () => {
     try {
       const res = await fetch(`/api/goods-library/${id}`);
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         const d = data.data as GoodsDetail;
@@ -192,7 +196,7 @@ export default function GoodsDetailPage() {
         <p className="text-sm">商品文件夹不存在或已被删除</p>
         <button
           onClick={() => router.push('/goods-library')}
-          className="px-4 py-2 rounded-lg bg-[rgba(0,122,255,0.2)] border border-[rgba(0,122,255,0.3)] text-[#007aff] text-sm hover:bg-[rgba(0,122,255,0.3)] transition-colors"
+          className="min-h-11 px-5 py-2.5 rounded-lg bg-[rgba(0,122,255,0.2)] border border-[rgba(0,122,255,0.3)] text-[#007aff] text-sm hover:bg-[rgba(0,122,255,0.3)] transition-colors"
         >
           返回商品库
         </button>
@@ -203,40 +207,42 @@ export default function GoodsDetailPage() {
   const imageUrlOf = (slot: SlotKey) => detail[`${slot}_image_url` as keyof GoodsDetail] as string | null;
 
   return (
-    <div className="min-h-screen bg-white text-[#1c1c1e]">
-      {/* 顶栏 */}
-      <div className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 border-b border-[rgba(0,122,255,0.15)]">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center gap-4">
+    <div className="min-h-[100dvh] bg-white text-[#1c1c1e] overflow-x-hidden pb-[max(1.25rem,env(safe-area-inset-bottom))] touch-manipulation">
+      {/* 顶栏：手机端压缩文案、加大点击区，避免横向溢出 */}
+      <div className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 border-b border-[rgba(0,122,255,0.15)] pt-[env(safe-area-inset-top)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-14 sm:h-16 py-2 flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => router.push('/goods-library')}
-            className="p-2 rounded-lg hover:bg-[rgba(118,118,128,0.12)] text-[#8e8e93] hover:text-[#1c1c1e] transition-colors"
+            className="shrink-0 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-[rgba(118,118,128,0.12)] text-[#8e8e93] hover:text-[#1c1c1e] transition-colors"
             title="返回商品库"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold truncate">{detail.folder_name}</h1>
-            <p className="text-[11px] text-[#8e8e93]">商品文件夹 · OSS 目录 goods-library/{detail.folder_name}</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-semibold truncate">{detail.folder_name}</h1>
+            <p className="hidden sm:block text-[11px] text-[#8e8e93] truncate">
+              商品文件夹 · OSS 目录 goods-library/{detail.folder_name}
+            </p>
           </div>
-          <div className="flex-1" />
           <button
             onClick={handleDelete}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm text-[#ff3b30] border border-[rgba(255,59,48,0.3)] hover:bg-[rgba(255,59,48,0.1)] transition-colors"
+            className="shrink-0 min-h-11 flex items-center gap-1.5 px-2.5 sm:px-3.5 rounded-lg text-sm text-[#ff3b30] border border-[rgba(255,59,48,0.3)] hover:bg-[rgba(255,59,48,0.1)] transition-colors"
           >
-            <Trash2 className="w-4 h-4" /> 删除商品
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">删除商品</span>
           </button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6">
         {/* ===== 第二层：商品图片（主图/侧面图/细节/产品图，均可空） ===== */}
-        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
-          <h2 className="text-sm font-semibold text-[#1c1c1e] flex items-center gap-2 mb-4">
+        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-[#1c1c1e] flex flex-wrap items-center gap-2 mb-4">
             <ImageIcon className="w-4 h-4 text-[#007aff]" />
             商品图片
             <span className="text-[10px] font-normal text-[#8e8e93]">上传至阿里云 OSS，按槽位命名</span>
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {IMAGE_SLOTS.map(({ slot, label }) => {
               const url = imageUrlOf(slot);
               const uploading = uploadingSlot === slot;
@@ -245,7 +251,12 @@ export default function GoodsDetailPage() {
                   <div className="aspect-square rounded-xl border-2 border-dashed border-[rgba(229,229,234,0.6)] bg-[rgba(242,242,247,0.5)] overflow-hidden hover:border-[rgba(0,122,255,0.4)] transition-colors">
                     {url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={url} alt={label} className="w-full h-full object-cover" />
+                      <img
+                        src={url}
+                        alt={label}
+                        className="w-full h-full object-cover"
+                        onClick={() => setPreviewUrl(url)}
+                      />
                     ) : (
                       <button
                         onClick={() => fileInputs.current[slot]?.click()}
@@ -265,29 +276,29 @@ export default function GoodsDetailPage() {
                     {label}
                   </div>
 
-                  {/* 已有图片的操作按钮 */}
+                  {/* 已有图片的操作：手机无 hover，始终显示；桌面悬停显示 */}
                   {url && !uploading && (
-                    <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => setPreviewUrl(url)}
-                        className="p-1.5 rounded-lg bg-[rgba(242,242,247,0.85)] text-[#3a3a3c] hover:text-[#007aff] transition-colors"
+                        className="min-w-9 min-h-9 p-2 rounded-lg bg-[rgba(242,242,247,0.92)] text-[#3a3a3c] hover:text-[#007aff] transition-colors"
                         title="预览"
                       >
-                        <ZoomIn className="w-3.5 h-3.5" />
+                        <ZoomIn className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => fileInputs.current[slot]?.click()}
-                        className="p-1.5 rounded-lg bg-[rgba(242,242,247,0.85)] text-[#3a3a3c] hover:text-[#007aff] transition-colors"
+                        className="min-w-9 min-h-9 p-2 rounded-lg bg-[rgba(242,242,247,0.92)] text-[#3a3a3c] hover:text-[#007aff] transition-colors"
                         title="替换"
                       >
-                        <Upload className="w-3.5 h-3.5" />
+                        <Upload className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleRemoveImage(slot)}
-                        className="p-1.5 rounded-lg bg-[rgba(242,242,247,0.85)] text-[#3a3a3c] hover:text-[#ff3b30] transition-colors"
+                        className="min-w-9 min-h-9 p-2 rounded-lg bg-[rgba(242,242,247,0.92)] text-[#3a3a3c] hover:text-[#ff3b30] transition-colors"
                         title="删除"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   )}
@@ -313,10 +324,10 @@ export default function GoodsDetailPage() {
           </div>
         </div>
 
-        {/* ===== 第一层：商品信息（均可空） ===== */}
-        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[#1c1c1e] flex items-center gap-2">
+        {/* ===== 第一层：商品信息（钉钉工作通知落地表单） ===== */}
+        <div id="goods-info" className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <h2 className="text-sm font-semibold text-[#1c1c1e] flex flex-wrap items-center gap-2">
               <FileText className="w-4 h-4 text-[#007aff]" />
               商品信息
               <span className="text-[10px] font-normal text-[#8e8e93]">货号或品名变更后文件夹自动重命名</span>
@@ -324,15 +335,15 @@ export default function GoodsDetailPage() {
             <button
               onClick={() => saveFields(infoForm, setSavingInfo)}
               disabled={savingInfo}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#007AFF] text-white text-xs font-medium disabled:opacity-50 transition-all"
+              className="w-full sm:w-auto min-h-11 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#007AFF] text-white text-sm font-medium disabled:opacity-50 transition-all"
             >
-              {savingInfo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {savingInfo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               保存信息
             </button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             {INFO_FIELDS.map(({ key, label, icon: Icon, required }) => (
-              <div key={key}>
+              <div key={key} id={key === 'sampler' ? 'sampler-field' : undefined}>
                 <label className="flex items-center gap-1.5 text-xs text-[#8e8e93] mb-1.5">
                   <Icon className="w-3.5 h-3.5" />
                   {label}
@@ -342,7 +353,8 @@ export default function GoodsDetailPage() {
                   value={infoForm[key] || ''}
                   onChange={e => setInfoForm(prev => ({ ...prev, [key]: e.target.value }))}
                   placeholder={required ? `请输入${label}（必填）` : `请输入${label}（可空）`}
-                  className="w-full px-3 py-2 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
+                  autoComplete="off"
+                  className="w-full min-h-11 px-3 py-2.5 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-base sm:text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
                 />
               </div>
             ))}
@@ -350,8 +362,8 @@ export default function GoodsDetailPage() {
         </div>
 
         {/* ===== 备注（卖点/竞品/功能/对应人群/使用场景，均可空） ===== */}
-        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white rounded-xl border border-[rgba(229,229,234,0.5)] p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
             <h2 className="text-sm font-semibold text-[#1c1c1e] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#ff9500]" />
               备注
@@ -359,9 +371,9 @@ export default function GoodsDetailPage() {
             <button
               onClick={() => saveFields(remarkForm, setSavingRemark)}
               disabled={savingRemark}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#007AFF] text-white text-xs font-medium disabled:opacity-50 transition-all"
+              className="w-full sm:w-auto min-h-11 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#007AFF] text-white text-sm font-medium disabled:opacity-50 transition-all"
             >
-              {savingRemark ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {savingRemark ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               保存备注
             </button>
           </div>
@@ -370,7 +382,7 @@ export default function GoodsDetailPage() {
             onChange={e => setRemarkForm({ remark: e.target.value })}
             placeholder={'可填写卖点、竞品、功能、对应人群、使用场景等（可空）\n\n卖点：\n竞品：\n功能：\n对应人群：\n使用场景：'}
             rows={6}
-            className="w-full px-3 py-2 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all resize-none"
+            className="w-full min-h-32 px-3 py-2.5 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-base sm:text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all resize-none"
           />
         </div>
       </div>
@@ -378,13 +390,13 @@ export default function GoodsDetailPage() {
       {/* 图片预览弹层 */}
       {previewUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm p-8"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-8"
           onClick={() => setPreviewUrl(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={previewUrl} alt="预览" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
           <button
-            className="absolute top-6 right-6 p-2 rounded-lg bg-[rgba(242,242,247,0.8)] text-[#3a3a3c] hover:text-[#1C1C1E] transition-colors"
+            className="absolute top-4 right-4 min-w-11 min-h-11 flex items-center justify-center rounded-lg bg-[rgba(242,242,247,0.92)] text-[#3a3a3c] hover:text-[#1C1C1E] transition-colors"
             onClick={() => setPreviewUrl(null)}
           >
             <X className="w-5 h-5" />
