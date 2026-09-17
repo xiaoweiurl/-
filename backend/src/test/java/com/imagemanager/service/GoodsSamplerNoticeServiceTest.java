@@ -6,6 +6,8 @@ import com.imagemanager.dingtalk.DingTalkException;
 import com.imagemanager.dingtalk.DingTalkSamplerTicketService;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
+import com.imagemanager.entity.User;
+import com.imagemanager.org.OrgRegistrationService;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -32,6 +34,7 @@ class GoodsSamplerNoticeServiceTest {
 
     private DingTalkClient dingTalkClient;
     private DingTalkUseridResolver useridResolver;
+    private OrgRegistrationService orgRegistrationService;
     private DingTalkProperties properties;
     private DingTalkSamplerTicketService ticketService;
     private GoodsSamplerNoticeService service;
@@ -40,14 +43,21 @@ class GoodsSamplerNoticeServiceTest {
     void setUp() {
         dingTalkClient = mock(DingTalkClient.class);
         useridResolver = mock(DingTalkUseridResolver.class);
+        orgRegistrationService = mock(OrgRegistrationService.class);
         ticketService = mock(DingTalkSamplerTicketService.class);
         properties = new DingTalkProperties();
         properties.setAppKey("key");
         properties.setAppSecret("secret");
         properties.setAgentId("123456");
         when(ticketService.mint(anyString(), anyLong())).thenReturn(Optional.empty());
-        service = new GoodsSamplerNoticeService(
-                dingTalkClient, useridResolver, properties, ticketService, "http://localhost:5000");
+        when(orgRegistrationService.ensureAccountByName(anyString()))
+                .thenReturn(OrgRegistrationService.EnsureAccountResult.alreadyExists());
+        service = newService("http://localhost:5000");
+    }
+
+    private GoodsSamplerNoticeService newService(String frontendUrl) {
+        return new GoodsSamplerNoticeService(
+                dingTalkClient, useridResolver, orgRegistrationService, properties, ticketService, frontendUrl);
     }
 
     @Test
@@ -55,6 +65,7 @@ class GoodsSamplerNoticeServiceTest {
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "  ", sampleGoods());
         assertEquals(SamplerNoticeResult.Status.SKIPPED_BLANK, result.getStatus());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -62,6 +73,7 @@ class GoodsSamplerNoticeServiceTest {
         SamplerNoticeResult result = service.notifyIfSamplerChanged("张 三", "张三", sampleGoods());
         assertEquals(SamplerNoticeResult.Status.SKIPPED_UNCHANGED, result.getStatus());
         verify(useridResolver, never()).resolveByName(anyString());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
     }
 
@@ -77,6 +89,7 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(result.getMessage().contains("AgentId"));
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
         verify(useridResolver, never()).resolveByName(anyString());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -85,6 +98,7 @@ class GoodsSamplerNoticeServiceTest {
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
         assertEquals(SamplerNoticeResult.Status.SKIPPED_DISABLED, result.getStatus());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -93,6 +107,7 @@ class GoodsSamplerNoticeServiceTest {
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
         assertEquals(SamplerNoticeResult.Status.SKIPPED_DISABLED, result.getStatus());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -104,6 +119,7 @@ class GoodsSamplerNoticeServiceTest {
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_NO_USERID, result.getStatus());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -115,6 +131,7 @@ class GoodsSamplerNoticeServiceTest {
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS, result.getStatus());
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
     }
 
     @Test
@@ -127,6 +144,7 @@ class GoodsSamplerNoticeServiceTest {
         assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
         assertEquals("u-li", result.getDingUserId());
         assertEquals(42L, result.getTaskId());
+        verify(orgRegistrationService).ensureAccountByName("李四");
 
         ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
         verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
@@ -165,8 +183,7 @@ class GoodsSamplerNoticeServiceTest {
 
     @Test
     void formUrlFallsBackToTextWhenFrontendBlank() {
-        GoodsSamplerNoticeService noUrl = new GoodsSamplerNoticeService(
-                dingTalkClient, useridResolver, properties, ticketService, "  ");
+        GoodsSamplerNoticeService noUrl = newService("  ");
         when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
         when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
 
@@ -271,8 +288,7 @@ class GoodsSamplerNoticeServiceTest {
 
     @Test
     void formUrlStripsTrailingSlash() {
-        GoodsSamplerNoticeService trailing = new GoodsSamplerNoticeService(
-                dingTalkClient, useridResolver, properties, ticketService, "http://ai.bonasoma.com/");
+        GoodsSamplerNoticeService trailing = newService("http://ai.bonasoma.com/");
         assertEquals("http://ai.bonasoma.com/sampler/9", trailing.formUrl(9L));
     }
 
@@ -348,6 +364,92 @@ class GoodsSamplerNoticeServiceTest {
         ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
         verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
         assertEquals("http://localhost:5000/sampler/9", captor.getValue().getSingleUrl());
+    }
+
+    @Test
+    void alreadyHasAccountStillSendsNotice() {
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(orgRegistrationService.ensureAccountByName("李四"))
+                .thenReturn(OrgRegistrationService.EnsureAccountResult.alreadyExists());
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(11L);
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
+        assertEquals(11L, result.getTaskId());
+        verify(orgRegistrationService).ensureAccountByName("李四");
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
+    }
+
+    @Test
+    void uniqueOrgMatchCreatesAccountThenNoticeProceeds() {
+        User created = User.builder()
+                .id("new-user")
+                .username("王五")
+                .dingtalkUserid("u-wang")
+                .mustChangePassword(true)
+                .build();
+        when(useridResolver.resolveByName("王五")).thenReturn(found("u-wang"));
+        when(orgRegistrationService.ensureAccountByName("王五"))
+                .thenReturn(OrgRegistrationService.EnsureAccountResult.created(created));
+        when(dingTalkClient.sendWorkNotice(eq("u-wang"), any())).thenReturn(8L);
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "王五", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
+        assertEquals("u-wang", result.getDingUserId());
+        verify(orgRegistrationService).ensureAccountByName("王五");
+        verify(dingTalkClient).sendWorkNotice(eq("u-wang"), any());
+    }
+
+    @Test
+    void ambiguousNameDoesNotCreateAccount() {
+        when(useridResolver.resolveByName("张三")).thenReturn(
+                DingTalkUseridResolver.ResolveResult.ambiguous("org_users 同名 2 人"));
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "张三", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SKIPPED_AMBIGUOUS, result.getStatus());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
+        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+    }
+
+    @Test
+    void missingOrgContactDoesNotCreateAccount() {
+        when(useridResolver.resolveByName("赵六")).thenReturn(
+                DingTalkUseridResolver.ResolveResult.missing());
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "赵六", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SKIPPED_NO_USERID, result.getStatus());
+        verify(orgRegistrationService, never()).ensureAccountByName(anyString());
+        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+    }
+
+    @Test
+    void createAccountFailureStillSendsNoticeWhenUseridKnown() {
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(orgRegistrationService.ensureAccountByName("李四"))
+                .thenReturn(OrgRegistrationService.EnsureAccountResult.failed("db down"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(3L);
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
+    }
+
+    @Test
+    void createAccountThrowStillSendsNoticeWhenUseridKnown() {
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(orgRegistrationService.ensureAccountByName("李四"))
+                .thenThrow(new RuntimeException("unexpected"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(4L);
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
     }
 
     private static GoodsSamplerNotice sampleGoods() {

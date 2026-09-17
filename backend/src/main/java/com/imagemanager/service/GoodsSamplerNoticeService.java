@@ -7,14 +7,18 @@ import com.imagemanager.dingtalk.DingTalkSamplerTicketService;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
 import com.imagemanager.org.OrgNameMatcher;
+import com.imagemanager.org.OrgRegistrationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
  * 商品库打样员工作通知：仅在 sampler 新设或变更为他人时投递。
  * AgentId 未配置时功能关闭（记日志、不抛异常、不影响商品保存）。
+ * 投递前按姓名幂等开户（{@link OrgRegistrationService#ensureAccountByName}）；
+ * 开户失败仍继续发工作通知（userid 已知时）。
  */
 @Slf4j
 @Service
@@ -22,17 +26,20 @@ public class GoodsSamplerNoticeService {
 
     private final DingTalkClient dingTalkClient;
     private final DingTalkUseridResolver useridResolver;
+    private final OrgRegistrationService orgRegistrationService;
     private final DingTalkProperties properties;
     private final DingTalkSamplerTicketService ticketService;
     private final String frontendUrl;
 
     public GoodsSamplerNoticeService(DingTalkClient dingTalkClient,
                                      DingTalkUseridResolver useridResolver,
+                                     @Nullable OrgRegistrationService orgRegistrationService,
                                      DingTalkProperties properties,
                                      DingTalkSamplerTicketService ticketService,
                                      @Value("${app.frontend.url:http://localhost:5000}") String frontendUrl) {
         this.dingTalkClient = dingTalkClient;
         this.useridResolver = useridResolver;
+        this.orgRegistrationService = orgRegistrationService;
         this.properties = properties;
         this.ticketService = ticketService;
         this.frontendUrl = frontendUrl;
@@ -94,6 +101,9 @@ public class GoodsSamplerNoticeService {
                     "未找到打样员「" + next + "」的钉钉 userid");
         }
 
+        // 唯一命中后再开户：同名多人/无匹配保持现有 skip，开户失败仍继续发通知。
+        ensureLocalAccountQuietly(next);
+
         DingTalkWorkNotice notice = buildNotice(next, goods, resolved.getUserid());
         if (notice.hasLink()) {
             String clickUrl = notice.getSingleUrl();
@@ -107,6 +117,30 @@ public class GoodsSamplerNoticeService {
                 goods == null ? null : goods.getGoodsId(), next, resolved.getUserid(),
                 resolved.getSource(), taskId);
         return SamplerNoticeResult.sent(resolved.getUserid(), taskId);
+    }
+
+    /**
+     * 按姓名走 {@link OrgRegistrationService#ensureAccountByName} 幂等开户。
+     * 失败只记日志，不阻断后续工作通知（userid 已解析）。
+     */
+    void ensureLocalAccountQuietly(String samplerName) {
+        if (orgRegistrationService == null) {
+            return;
+        }
+        try {
+            OrgRegistrationService.EnsureAccountResult result =
+                    orgRegistrationService.ensureAccountByName(samplerName);
+            if (result == null) {
+                return;
+            }
+            if (result.getStatus() == OrgRegistrationService.EnsureAccountResult.Status.FAILED) {
+                log.warn("打样推送自动开户失败（继续发送工作通知）: sampler={}, err={}",
+                        samplerName, result.getMessage());
+            }
+        } catch (Exception e) {
+            log.warn("打样推送自动开户失败（继续发送工作通知）: sampler={}, err={}",
+                    samplerName, e.getMessage());
+        }
     }
 
     DingTalkWorkNotice buildNotice(String samplerName, GoodsSamplerNotice goods, String dingUserId) {
