@@ -122,7 +122,8 @@ public class GoodsSamplerNoticeService {
             return DingTalkWorkNotice.text(title, markdown.replace("**", "").replace("### ", ""));
         }
         String clickUrl = DingTalkLinks.workNoticeUrl(
-                formHttp, properties.getCorpId(), properties.resolveAgentId());
+                formHttp, properties.getCorpId(), properties.resolveAgentId(),
+                properties.shouldWrapWorkNoticeProtocolLinks());
         return DingTalkWorkNotice.actionCard(title, markdown, "填写打样表单", clickUrl);
     }
 

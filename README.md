@@ -273,21 +273,28 @@ pnpm start
    - 优先 `org_users`（已同步通讯录）
    - 其次 `users.dingtalk_userid`（已注册办公账号的 username / nickname）
    - 0 人、同名多人、userid 为空：记 warn 日志并跳过，不硬失败
-3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转**已登录**详情页 `{FRONTEND_URL}/goods-library/{id}`（即打样员表单，已做手机端适配）；无前端地址时退化为 text。
+3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮与 markdown `[填写打样表单](http…)` 均跳转**已登录**打样表单 `{FRONTEND_URL}/sampler/{id}`（`src/app/sampler/[id]`）。`single_url` **默认就是该 HTTP(S) 直链**（官方 action_card 示例即为 `https://open.dingtalk.com`，无需 `dingtalk://` 包装）；无前端地址时退化为 text。
 4. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
 
-公开未登录表单本阶段不做。打样员须先登录（401 会跳转 `/login`），与全站会话一致。
+公开未登录表单本阶段不做。打样员须先登录（401 会跳转 `/login?returnUrl=/sampler/{id}`），与全站会话一致。
+
+### 钉钉内打开与「后续页面非钉钉提供」
+
+避免把表单包进 `dingtalk://dingtalkclient/action/openapp` 或 `page/link`（域名未进白名单、或 HTTP FRP 被错误包装时，钉钉会报「后续页面非钉钉提供」）。默认直链即可。
+
+若仍出现该提示，在 **钉钉开放平台 → 该企业内部应用 → 开发管理 → 安全设置 / H5 可信域名** 加入 `FRONTEND_URL` 主机（生产如 `ai.bonasoma.com`），并把应用首页 / PC 首页写成同一站点。HTTP 公网若仍被拒，需上 HTTPS。
+
+仅当同时配置了 `DINGTALK_CORP_ID` **且** `DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=true` 时，按钮 URL 才会包一层 `dingtalk://`；那时安全域名必须包含 FRONTEND_URL 主机。
 
 ### 手机端（钉钉内打开）
 
-工作通知打开的是商品详情编辑页 `src/app/goods-library/[id]/page.tsx`（非公开表单）。约 **375px** 宽下应满足：
+工作通知打开的是打样员专用页 `src/app/sampler/[id]/page.tsx`（非商品库列表）。约 **375px** 宽下应满足：
 
-- 顶栏不横向溢出（删除为图标，长路径隐藏）
+- 顶栏不横向溢出
 - 商品信息单列、输入框 ≥44px、字号 16px（避免 iOS 聚焦放大）
 - 保存按钮全宽、图片操作按钮常显（不依赖 hover）
-- 新建弹层为底部抽屉、单列表单
 
-验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/goods-library/{id}`；再对照桌面宽度确认布局未挤乱。
+验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/sampler/{id}`；桌面编辑仍走 `/goods-library/{id}`。
 
 ### 额外环境变量
 
@@ -295,6 +302,7 @@ pnpm start
 |------|------|------|
 | `DINGTALK_AGENT_ID` | 发送时必填 | 与 AppKey/Secret 同一企业内部应用的 AgentId |
 | `FRONTEND_URL` | 否 | 工作通知跳转基址，默认 `http://localhost:5000`（已有配置 `app.frontend.url`） |
+| `DINGTALK_WORK_NOTICE_PROTOCOL_LINKS` | 否 | 默认 `false`。`true` 且已配 corpId 时才用 `dingtalk://` 包装 `single_url` |
 
 ### 范围
 
@@ -312,6 +320,7 @@ src/
 │   ├── login/page.tsx           # 登录页（分屏布局 + 品牌展示）
 │   ├── register/page.tsx        # 钉钉姓名注册（初始密码 123456，强制改密）
 │   ├── org/page.tsx             # 钉钉组织同步（管理员）
+│   ├── sampler/[id]/page.tsx    # 打样员专用表单（钉钉工作通知落地页）
 │   ├── knowledge/page.tsx       # 知识库（文档 + 岗位卡片 Tab）
 │   ├── chat/page.tsx            # AI 对话页
 │   ├── marketing/page.tsx       # 营销 AI 页
