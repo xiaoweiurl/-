@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -49,7 +50,9 @@ class OrgRegistrationServiceTest {
         txManager = noopTxManager();
         when(passwordEncoder.encode(anyString())).thenAnswer(inv -> "ENC:" + inv.getArgument(0));
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByNickname(anyString())).thenReturn(List.of());
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
         when(userRepository.findByDingtalkUserid(anyString())).thenReturn(Optional.empty());
         when(directory.countActiveContacts("宝娜斯集团")).thenReturn(3);
@@ -330,6 +333,143 @@ class OrgRegistrationServiceTest {
 
         assertTrue(result.isCreated());
         assertEquals("张三", result.getUser().getUsername());
+    }
+
+    @Test
+    void ensureAccountReusesUniqueLocalUserByUsernameAndNickname() {
+        OrgContact contact = sample("0924464954", "洪庭杰", null);
+        contact.setDingUnionId("union-htj");
+        contact.setMobile("13800000000");
+        contact.setAvatarUrl("https://dingtalk/avatar.png");
+        User existing = User.builder()
+                .id("hong-admin")
+                .username("洪庭杰")
+                .nickname("洪庭杰")
+                .email("556674@qq.com")
+                .role("admin")
+                .password("ENC:kept")
+                .mustChangePassword(false)
+                .dingtalkUserid(null)
+                .build();
+        when(directory.findActiveByName("宝娜斯集团", "洪庭杰")).thenReturn(List.of(contact));
+        when(userRepository.findByUsername("洪庭杰")).thenReturn(Optional.of(existing));
+        when(userRepository.findByNickname("洪庭杰")).thenReturn(List.of(existing));
+
+        OrgRegistrationService.EnsureAccountResult result = service.ensureAccountByName("洪庭杰");
+
+        assertEquals(OrgRegistrationService.EnsureAccountResult.Status.ALREADY_EXISTS, result.getStatus());
+        assertTrue(result.hasLocalAccount());
+        assertFalse(result.isCreated());
+        assertEquals("hong-admin", result.getUser().getId());
+        assertEquals("洪庭杰", result.getUser().getUsername());
+        assertEquals("admin", result.getUser().getRole());
+        assertEquals("ENC:kept", result.getUser().getPassword());
+        assertEquals("556674@qq.com", result.getUser().getEmail());
+        assertEquals("0924464954", result.getUser().getDingtalkUserid());
+        assertEquals("union-htj", result.getUser().getDingtalkUnionid());
+        assertEquals("13800000000", result.getUser().getPhone());
+        assertEquals("https://dingtalk/avatar.png", result.getUser().getAvatarUrl());
+        assertEquals("总监", result.getUser().getJobTitle());
+        verify(directory).bindLocalUser("org-1", "hong-admin");
+        verify(userRepository).save(existing);
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void registerReusesUniqueLocalUserByNicknameWithoutSecondInsert() {
+        OrgContact contact = sample("0924464954", "洪庭杰", null);
+        User existing = User.builder()
+                .id("hong-admin")
+                .username("htj-admin")
+                .nickname("洪庭杰")
+                .role("admin")
+                .email("556674@qq.com")
+                .build();
+        when(directory.findActiveByName("宝娜斯集团", "洪庭杰")).thenReturn(List.of(contact));
+        when(userRepository.findByNickname("洪庭杰")).thenReturn(List.of(existing));
+
+        RegisterRequest req = new RegisterRequest();
+        req.setName("洪庭杰");
+        User user = service.register(req);
+
+        assertEquals("hong-admin", user.getId());
+        assertEquals("htj-admin", user.getUsername());
+        assertEquals("admin", user.getRole());
+        assertEquals("0924464954", user.getDingtalkUserid());
+        verify(directory).bindLocalUser("org-1", "hong-admin");
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void ensureAccountAmbiguousLocalSameNameUsersDoesNotCreate() {
+        OrgContact contact = sample("0924464954", "洪庭杰", null);
+        User admin = User.builder()
+                .id("hong-admin")
+                .username("洪庭杰")
+                .nickname("洪庭杰")
+                .role("admin")
+                .build();
+        User extra = User.builder()
+                .id("hong-dup")
+                .username("htj2")
+                .nickname("洪庭杰")
+                .role("user")
+                .build();
+        when(directory.findActiveByName("宝娜斯集团", "洪庭杰")).thenReturn(List.of(contact));
+        when(userRepository.findByUsername("洪庭杰")).thenReturn(Optional.of(admin));
+        when(userRepository.findByNickname("洪庭杰")).thenReturn(List.of(admin, extra));
+
+        OrgRegistrationService.EnsureAccountResult result = service.ensureAccountByName("洪庭杰");
+
+        assertEquals(OrgRegistrationService.EnsureAccountResult.Status.SKIPPED_AMBIGUOUS, result.getStatus());
+        assertFalse(result.hasLocalAccount());
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
+        verify(directory, never()).bindLocalUser(anyString(), anyString());
+        verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void registerAmbiguousLocalSameNameUsersDoesNotCreate() {
+        OrgContact contact = sample("u1", "张三", null);
+        User first = User.builder().id("a").username("张三").nickname("张三").build();
+        User second = User.builder().id("b").username("zhangsan").nickname("张三").build();
+        when(directory.findActiveByName("宝娜斯集团", "张三")).thenReturn(List.of(contact));
+        when(userRepository.findByUsername("张三")).thenReturn(Optional.of(first));
+        when(userRepository.findByNickname("张三")).thenReturn(List.of(first, second));
+
+        RegisterRequest req = new RegisterRequest();
+        req.setName("张三");
+        RegisterMatchException ex = assertThrows(RegisterMatchException.class, () -> service.register(req));
+        assertEquals(409, ex.getHttpStatus());
+        assertEquals(RegisterMatchException.Kind.MULTIPLE, ex.getKind());
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verify(directory, never()).bindLocalUser(anyString(), anyString());
+    }
+
+    @Test
+    void allocateUsernameFallbackWhenPreferredTakenByDifferentDingPerson() {
+        OrgContact contact = sample("0924464954", "洪庭杰", null);
+        User other = User.builder()
+                .id("someone-else")
+                .username("洪庭杰")
+                .nickname("洪庭杰")
+                .dingtalkUserid("ding-other")
+                .role("user")
+                .build();
+        when(directory.findActiveByName("宝娜斯集团", "洪庭杰")).thenReturn(List.of(contact));
+        when(userRepository.findByUsername("洪庭杰")).thenReturn(Optional.of(other));
+        when(userRepository.findByNickname("洪庭杰")).thenReturn(List.of(other));
+
+        OrgRegistrationService.EnsureAccountResult result = service.ensureAccountByName("洪庭杰");
+
+        assertEquals(OrgRegistrationService.EnsureAccountResult.Status.CREATED, result.getStatus());
+        assertEquals("0924464954", result.getUser().getUsername());
+        assertEquals("0924464954", result.getUser().getDingtalkUserid());
+        verify(userRepository).saveAndFlush(any(User.class));
+        verify(directory).bindLocalUser(eq("org-1"), anyString());
     }
 
     private OrgRegistrationService newService(ImageTableService imageTableService) {
