@@ -238,10 +238,10 @@ dingtalk:
   app-secret: ${DINGTALK_APP_SECRET:}
   agent-id: ${DINGTALK_AGENT_ID:}
   corp-id: ${DINGTALK_CORP_ID:}
-  # 默认 false：工作通知 single_url 用裸 HTTP(S) {FRONTEND_URL}/sampler/{id}。
-  # 设为 true 且配置了 corp-id 时才包 dingtalk://openapp 或 page/link；届时必须把
-  # FRONTEND_URL 主机写入该应用「H5 可信域名/安全域名」，HTTP 公网若仍被拒需上 HTTPS。
-  work-notice-protocol-links: ${DINGTALK_WORK_NOTICE_PROTOCOL_LINKS:false}
+  # 默认 true：已配 corp-id 时 single_url 包 dingtalk://openapp（H5 免登需微应用域名绑定）。
+  # 可用 DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false 强制裸 HTTP(S)。
+  # 钉钉开放平台「H5 可信域名」填主机（如 ai.bonasoma.com，不要带 http://）；HTTP 公网若仍被拒需 HTTPS。
+  work-notice-protocol-links: ${DINGTALK_WORK_NOTICE_PROTOCOL_LINKS:true}
   timeout: ${DINGTALK_TIMEOUT:10000}
   company: ${DINGTALK_COMPANY:宝娜斯集团}
 

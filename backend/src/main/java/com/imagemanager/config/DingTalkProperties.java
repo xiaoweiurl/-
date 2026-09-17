@@ -36,10 +36,11 @@ public class DingTalkProperties {
 
     /**
      * 工作通知按钮是否包一层 {@code dingtalk://}（openapp / page/link）。
-     * 默认 false：{@code single_url} 直接用 HTTP(S) 表单地址，避免未配安全域名时
-     * 「后续页面非钉钉提供」。仅当同时配置了 corpId 时包装才生效。
+     * 默认 true：已配置 corpId 时用 openapp 打开 H5，避免裸 HTTP 无法绑定微应用域名
+     * （requestAuthCode error 3）。可用 {@code DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false} 关闭。
+     * 仅当同时配置了 corpId 时包装才生效。
      */
-    private boolean workNoticeProtocolLinks = false;
+    private boolean workNoticeProtocolLinks = true;
 
     /** 请求超时（毫秒） */
     private int timeout = 10000;
@@ -63,8 +64,8 @@ public class DingTalkProperties {
     }
 
     /**
-     * 是否用 {@code dingtalk://} 包装工作通知链接：开关打开且 corpId 非空。
-     * 打开后须把 FRONTEND_URL 主机写入该应用的 H5 可信域名 / 安全域名。
+     * 是否用 {@code dingtalk://} 包装工作通知链接：开关打开（默认 true）且 corpId 非空。
+     * 打开后须把 FRONTEND_URL 主机（不要带 http://）写入该应用的 H5 可信域名 / 安全域名。
      */
     public boolean shouldWrapWorkNoticeProtocolLinks() {
         return workNoticeProtocolLinks && corpId != null && !corpId.isBlank();

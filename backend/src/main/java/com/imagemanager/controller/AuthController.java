@@ -178,10 +178,10 @@ public class AuthController {
     }
 
     /**
-     * 钉钉 JSAPI 配置（corpId / agentId / dd.config 签名）。公开端点，不含 Secret。
+     * 钉钉 JSAPI 配置（corpId / agentId / clientId=AppKey / dd.config 签名）。公开端点，不含 Secret。
      */
     @GetMapping("/dingtalk/config")
-    @Operation(summary = "钉钉 JSAPI 配置", description = "返回 corpId、agentId；若传入本站 url 则附带 dd.config 签名")
+    @Operation(summary = "钉钉 JSAPI 配置", description = "返回 corpId、agentId、clientId（AppKey）；若传入本站 url 则附带 dd.config 签名。不含 AppSecret")
     public ApiResponse<java.util.Map<String, Object>> dingTalkJsapiConfig(
             @RequestParam(value = "url", required = false) String url) {
         try {

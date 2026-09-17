@@ -26,7 +26,10 @@ class DingTalkJsapiConfigServiceTest {
                 client, properties, "http://ai.bonasoma.com");
         Map<String, Object> data = service.build("http://ai.bonasoma.com/sampler/9");
         assertEquals(false, data.get("configured"));
+        assertEquals("", data.get("clientId"));
         assertFalse(data.containsKey("signature"));
+        assertFalse(data.containsKey("appSecret"));
+        assertFalse(data.containsKey("secret"));
     }
 
     @Test
@@ -44,8 +47,11 @@ class DingTalkJsapiConfigServiceTest {
         assertEquals(true, data.get("configured"));
         assertEquals("dingcorp", data.get("corpId"));
         assertEquals("123", data.get("agentId"));
+        assertEquals("k", data.get("clientId"));
         assertTrue(data.get("signature") instanceof String);
         assertEquals("http://ai.bonasoma.com/sampler/9", data.get("url"));
+        assertFalse(data.containsKey("appSecret"));
+        assertFalse(data.containsKey("secret"));
     }
 
     @Test
@@ -59,6 +65,7 @@ class DingTalkJsapiConfigServiceTest {
                 client, properties, "http://ai.bonasoma.com");
         Map<String, Object> data = service.build("https://evil.example/phish");
         assertEquals("dingcorp", data.get("corpId"));
+        assertEquals("k", data.get("clientId"));
         assertFalse(data.containsKey("signature"));
     }
 
@@ -81,6 +88,7 @@ class DingTalkJsapiConfigServiceTest {
             assertEquals(true, data.get("configured"));
             assertEquals("", data.get("corpId"));
             assertEquals("123", data.get("agentId"));
+            assertEquals("k", data.get("clientId"));
             assertTrue(appender.list.stream().anyMatch(e ->
                     e.getLevel() == Level.WARN
                             && e.getFormattedMessage().contains("DINGTALK_CORP_ID")));

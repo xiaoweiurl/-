@@ -17,7 +17,7 @@ class DingTalkLinksTest {
     }
 
     @Test
-    void defaultIsPlainHttpEvenWithCorpIdAndAgent() {
+    void protocolLinksFalseIsPlainHttpEvenWithCorpIdAndAgent() {
         String url = DingTalkLinks.workNoticeUrl(FORM, "dingabc", 123456L, false);
         assertEquals(FORM, url);
         assertFalse(url.startsWith("dingtalk://"));
@@ -51,5 +51,16 @@ class DingTalkLinksTest {
         assertTrue(url.contains("pc_slide=true"));
         assertTrue(url.contains("http%3A%2F%2Flocalhost%3A5000%2Fsampler%2F1"));
         assertFalse(url.contains("openapp"));
+    }
+
+    @Test
+    void logSafePrefixStripsQueryAndKeepsHttpPath() {
+        assertEquals("", DingTalkLinks.logSafePrefix(null));
+        assertEquals("", DingTalkLinks.logSafePrefix("  "));
+        assertEquals("http://ai.bonasoma.com/sampler/42", DingTalkLinks.logSafePrefix(FORM));
+        String wrapped = DingTalkLinks.workNoticeUrl(FORM, "dingabc", 123456L, true);
+        assertEquals("dingtalk://dingtalkclient/action/openapp", DingTalkLinks.logSafePrefix(wrapped));
+        assertFalse(DingTalkLinks.logSafePrefix(wrapped).contains("corpid"));
+        assertFalse(DingTalkLinks.logSafePrefix(wrapped).contains("app_id"));
     }
 }
