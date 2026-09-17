@@ -1,9 +1,9 @@
 /**
- * DingTalk H5 免登：加载 JSAPI → requestAuthCode → 后端换会话。
+ * DingTalk H5 免登：ticket 核销（优先）或 JSAPI requestAuthCode → 后端换会话。
  *
- * 企业内部应用 H5 必须用 {@code dd.runtime.permission.requestAuthCode({ corpId, clientId? })}。
- * 无 corpId 时禁止调用 getAuthCode：取到的码会被 getuserinfo 以 40078 拒绝。
- * getAuthCode / dt.getAuthCode 仅在 classic API 不可用且 corpId 已配置时回退。
+ * 工作通知 URL 带 HMAC ticket 时不依赖 JSAPI 域名微应用绑定（HTTP 上 requestAuthCode
+ * 常报「对应企业没有…域名微应用」）。无 ticket 时仍走企业内部应用 H5
+ * {@code dd.runtime.permission.requestAuthCode({ corpId, clientId? })}。
  */
 
 import { isDingTalkEnv } from './dingtalk-env';
@@ -37,6 +37,14 @@ export type DingTalkDdLike = {
   };
 };
 
+export type RecoverSamplerAuthResult = {
+  ok: boolean;
+  error?: string;
+  via?: 'ticket' | 'jsapi';
+};
+
+export const SAMPLER_TICKET_QUERY = 'ticket';
+
 declare global {
   interface Window {
     dd?: DingTalkDdLike;
@@ -59,6 +67,87 @@ export async function fetchDingTalkJsapiConfig(pageUrl: string): Promise<JsapiCo
 
 export async function dingTalkFreeLogin(goodsId: string): Promise<{ ok: boolean; error?: string }> {
   return beginSingleFlight(freeLoginInFlight, () => dingTalkFreeLoginOnce(goodsId));
+}
+
+export function readSamplerTicketFromSearch(search?: string | null): string | null {
+  const raw = search ?? (typeof window !== 'undefined' ? window.location.search : '');
+  if (!raw) return null;
+  const query = raw.startsWith('?') ? raw.slice(1) : raw;
+  const value = new URLSearchParams(query).get(SAMPLER_TICKET_QUERY);
+  const trimmed = (value || '').trim();
+  return trimmed ? trimmed : null;
+}
+
+export function stripSamplerTicketFromLocation(): void {
+  if (typeof window === 'undefined' || !window.history?.replaceState) return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(SAMPLER_TICKET_QUERY)) return;
+  url.searchParams.delete(SAMPLER_TICKET_QUERY);
+  const qs = url.searchParams.toString();
+  window.history.replaceState(window.history.state, '', url.pathname + (qs ? `?${qs}` : '') + url.hash);
+}
+
+export async function redeemDingTalkSamplerTicket(
+  ticket: string,
+  goodsId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = (ticket || '').trim();
+  if (!trimmed) {
+    return { ok: false, error: '缺少打样通知凭证' };
+  }
+  try {
+    const res = await fetch('/api/auth/dingtalk/ticket', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticket: trimmed, goodsId: Number(goodsId) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && (data.success === true || data.code === 200)) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: data.message || data.error || `打样通知免登失败（${res.status}）`,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '打样通知免登失败' };
+  }
+}
+
+/**
+ * 打样表单鉴权恢复：有 ticket 先核销；失败或无 ticket 时钉钉 UA 再走 JSAPI；否则交给密码登录。
+ */
+export async function recoverSamplerAuth(options: {
+  goodsId: string;
+  ticket?: string | null;
+  isDingTalk?: boolean;
+  redeemTicket?: (ticket: string, goodsId: string) => Promise<{ ok: boolean; error?: string }>;
+  freeLogin?: (goodsId: string) => Promise<{ ok: boolean; error?: string }>;
+}): Promise<RecoverSamplerAuthResult> {
+  const ticket = (options.ticket || '').trim();
+  let ticketError: string | undefined;
+  if (ticket) {
+    const redeem = options.redeemTicket ?? redeemDingTalkSamplerTicket;
+    const redeemed = await redeem(ticket, options.goodsId);
+    if (redeemed.ok) {
+      return { ok: true, via: 'ticket' };
+    }
+    ticketError = redeemed.error;
+  }
+  const inDing = options.isDingTalk ?? isDingTalkEnv();
+  if (inDing) {
+    const freeLogin = options.freeLogin ?? dingTalkFreeLogin;
+    const jsapi = await freeLogin(options.goodsId);
+    if (jsapi.ok) {
+      return { ok: true, via: 'jsapi' };
+    }
+    return { ok: false, error: jsapi.error || ticketError };
+  }
+  if (ticket) {
+    return { ok: false, error: ticketError || '打样通知免登失败' };
+  }
+  return { ok: false, error: '请在钉钉中打开或使用账号登录' };
 }
 
 async function dingTalkFreeLoginOnce(goodsId: string): Promise<{ ok: boolean; error?: string }> {

@@ -25,4 +25,12 @@ public class DingTalkFreeLoginException extends RuntimeException {
     public static DingTalkFreeLoginException goodsRequired() {
         return new DingTalkFreeLoginException(400, "打样免登需要商品编号");
     }
+
+    public static DingTalkFreeLoginException ticketInvalid() {
+        return new DingTalkFreeLoginException(401, "打样通知已过期或无效，请重新打开通知或使用账号登录");
+    }
+
+    public static DingTalkFreeLoginException ticketGoodsMismatch() {
+        return new DingTalkFreeLoginException(400, "打样通知与当前商品不匹配");
+    }
 }

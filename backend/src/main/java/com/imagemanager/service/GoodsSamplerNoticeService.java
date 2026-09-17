@@ -3,6 +3,7 @@ package com.imagemanager.service;
 import com.imagemanager.config.DingTalkProperties;
 import com.imagemanager.dingtalk.DingTalkClient;
 import com.imagemanager.dingtalk.DingTalkLinks;
+import com.imagemanager.dingtalk.DingTalkSamplerTicketService;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
 import com.imagemanager.org.OrgNameMatcher;
@@ -22,15 +23,18 @@ public class GoodsSamplerNoticeService {
     private final DingTalkClient dingTalkClient;
     private final DingTalkUseridResolver useridResolver;
     private final DingTalkProperties properties;
+    private final DingTalkSamplerTicketService ticketService;
     private final String frontendUrl;
 
     public GoodsSamplerNoticeService(DingTalkClient dingTalkClient,
                                      DingTalkUseridResolver useridResolver,
                                      DingTalkProperties properties,
+                                     DingTalkSamplerTicketService ticketService,
                                      @Value("${app.frontend.url:http://localhost:5000}") String frontendUrl) {
         this.dingTalkClient = dingTalkClient;
         this.useridResolver = useridResolver;
         this.properties = properties;
+        this.ticketService = ticketService;
         this.frontendUrl = frontendUrl;
     }
 
@@ -90,7 +94,7 @@ public class GoodsSamplerNoticeService {
                     "未找到打样员「" + next + "」的钉钉 userid");
         }
 
-        DingTalkWorkNotice notice = buildNotice(next, goods);
+        DingTalkWorkNotice notice = buildNotice(next, goods, resolved.getUserid());
         if (notice.hasLink()) {
             String clickUrl = notice.getSingleUrl();
             log.info("打样工作通知 single_url: goodsId={}, wrap={}, prefix={}",
@@ -105,7 +109,7 @@ public class GoodsSamplerNoticeService {
         return SamplerNoticeResult.sent(resolved.getUserid(), taskId);
     }
 
-    DingTalkWorkNotice buildNotice(String samplerName, GoodsSamplerNotice goods) {
+    DingTalkWorkNotice buildNotice(String samplerName, GoodsSamplerNotice goods, String dingUserId) {
         String display = goods == null ? "未命名商品" : goods.displayName();
         String goodsNo = goods == null || goods.getGoodsNo() == null || goods.getGoodsNo().isBlank()
                 ? "未填写" : goods.getGoodsNo().trim();
@@ -114,7 +118,7 @@ public class GoodsSamplerNoticeService {
         String initiator = goods == null || goods.getInitiator() == null || goods.getInitiator().isBlank()
                 ? "未填写" : goods.getInitiator().trim();
         String title = "您被指定为打样员";
-        String formHttp = goods == null ? "" : formUrl(goods.getGoodsId());
+        String formHttp = goods == null ? "" : formUrl(goods.getGoodsId(), dingUserId);
         String markdown = "### 打样任务\n\n"
                 + "您被指定为商品 **" + display + "** 的打样员。\n\n"
                 + "- 货号：" + goodsNo + "\n"
@@ -137,10 +141,14 @@ public class GoodsSamplerNoticeService {
     }
 
     /**
-     * 打样员专用表单（手机优先）。钉钉内打开后走 H5 免登，无需中台密码。
-     * 路径：{@code {FRONTEND_URL}/sampler/{goodsId}}
+     * 打样员专用表单（手机优先）。带 HMAC ticket 时打开即可免登，不依赖 JSAPI 域名微应用。
+     * 路径：{@code {FRONTEND_URL}/sampler/{goodsId}?ticket=...}
      */
     String formUrl(long goodsId) {
+        return formUrl(goodsId, null);
+    }
+
+    String formUrl(long goodsId, String dingUserId) {
         String base = frontendUrl == null ? "" : frontendUrl.trim();
         if (base.isEmpty()) {
             return "";
@@ -148,6 +156,12 @@ public class GoodsSamplerNoticeService {
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + "/sampler/" + goodsId;
+        String url = base + "/sampler/" + goodsId;
+        if (ticketService == null || dingUserId == null || dingUserId.isBlank()) {
+            return url;
+        }
+        return ticketService.mint(dingUserId, goodsId)
+                .map(ticket -> url + "?ticket=" + DingTalkLinks.encode(ticket))
+                .orElse(url);
     }
 }

@@ -246,4 +246,45 @@ class DingTalkFreeLoginServiceTest {
             logger.detachAppender(appender);
         }
     }
+
+    @Test
+    void loginByUseridReusesFullSessionRulesWithoutAuthCode() {
+        User user = User.builder().id("id-1").username("张三").dingtalkUserid("u-zhang").role("user").build();
+        when(userRepository.findByDingtalkUserid("u-zhang")).thenReturn(Optional.of(user));
+
+        LoginResponse response = service.loginByUserid("u-zhang", 9L);
+
+        assertEquals("sess-full", response.getSessionId());
+        verify(dingTalkClient, never()).getUserByAuthCode(anyString());
+        verify(authService).issueSession(user, false, true);
+    }
+
+    @Test
+    void loginByUseridOrgOnlyIssuesSamplerSession() {
+        when(userRepository.findByDingtalkUserid("u-wang")).thenReturn(Optional.empty());
+        when(orgDirectory.findByDingUserId("宝娜斯集团", "u-wang")).thenReturn(Optional.of(
+                OrgContact.builder().id("org-w").dingUserId("u-wang").name("王五").active(true).build()));
+        when(userRepository.findByUsername("王五")).thenReturn(Optional.empty());
+        when(userRepository.findByNickname("王五")).thenReturn(List.of());
+
+        LoginResponse response = service.loginByUserid("u-wang", 9L);
+
+        assertEquals("sess-sampler", response.getSessionId());
+        verify(authService).issueSamplerSession("u-wang", "王五", "宝娜斯集团", 9L);
+        verify(dingTalkClient, never()).getUserByAuthCode(anyString());
+    }
+
+    @Test
+    void loginByUseridUnmatchedDoesNotEscalate() {
+        when(userRepository.findByDingtalkUserid("u-unknown")).thenReturn(Optional.empty());
+        when(orgDirectory.findByDingUserId(eq("宝娜斯集团"), eq("u-unknown"))).thenReturn(Optional.empty());
+        when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByNickname(anyString())).thenReturn(List.of());
+
+        DingTalkFreeLoginException ex = assertThrows(DingTalkFreeLoginException.class,
+                () -> service.loginByUserid("u-unknown", 9L));
+        assertEquals(401, ex.getHttpStatus());
+        verify(authService, never()).issueSession(any(), anyBoolean(), anyBoolean());
+        verify(authService, never()).issueSamplerSession(anyString(), anyString(), anyString(), anyLong());
+    }
 }
