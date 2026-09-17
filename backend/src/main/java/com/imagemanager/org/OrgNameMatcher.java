@@ -27,6 +27,30 @@ public final class OrgNameMatcher {
         return !a.isEmpty() && a.equalsIgnoreCase(b);
     }
 
+    /**
+     * 与注册/开户相同：username 或 nickname 任一命中即视为同一人。
+     */
+    public static boolean matchesUserDisplayName(String name, String username, String nickname) {
+        return namesEqual(name, username) || namesEqual(name, nickname);
+    }
+
+    /**
+     * 按原样 + 去空白两种键查找本地用户（与钉钉免登姓名匹配一致）。
+     */
+    public static List<String> lookupKeys(String name) {
+        if (isBlank(name) || normalize(name).isEmpty()) {
+            return List.of();
+        }
+        List<String> keys = new ArrayList<>();
+        String trimmed = name.trim();
+        keys.add(trimmed);
+        String normalized = normalize(name);
+        if (!normalized.equals(trimmed)) {
+            keys.add(normalized);
+        }
+        return keys;
+    }
+
     public static <T> List<T> matchExact(String name, List<T> items, Function<T, String> nameFn) {
         if (items == null || items.isEmpty() || normalize(name).isEmpty()) {
             return List.of();

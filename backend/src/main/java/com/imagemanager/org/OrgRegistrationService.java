@@ -16,7 +16,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,7 +61,8 @@ public class OrgRegistrationService {
 
     /**
      * 打样推送前幂等开户：仅用已同步的钉钉通讯录（{@code org_users}）按姓名精确匹配。
-     * 唯一命中且尚无本地账号时走 {@link #register}；已绑定则返回已存在。
+     * 匹配顺序：已绑定 local_user_id → 已有 users.dingtalk_userid → 本地 username/nickname
+     * 唯一同名则复用并回填钉钉字段 → 否则创建。本地同名多人视为歧义，不创建。
      * 同名多人 / 无匹配 / 异常不抛出，由调用方取消工作通知（不得在无账号时推送）。
      */
     public EnsureAccountResult ensureAccountByName(String name) {
@@ -69,11 +72,18 @@ public class OrgRegistrationService {
         try {
             RegisterRequest request = new RegisterRequest();
             request.setName(name.trim());
-            User user = register(request);
-            ensureImageTableQuietly(user);
+            ProvisionResult provisioned = provision(request);
+            ensureImageTableQuietly(provisioned.user);
+            if (provisioned.reusedByName) {
+                log.info("打样推送复用同名本地账号: name={}, userId={}, username={}, dingUserId={}",
+                        name, provisioned.user.getId(), provisioned.user.getUsername(),
+                        provisioned.user.getDingtalkUserid());
+                return EnsureAccountResult.alreadyExists(provisioned.user, "reused existing local user by name");
+            }
             log.info("打样推送自动开通本地账号: name={}, userId={}, username={}, dingUserId={}",
-                    name, user.getId(), user.getUsername(), user.getDingtalkUserid());
-            return EnsureAccountResult.created(user);
+                    name, provisioned.user.getId(), provisioned.user.getUsername(),
+                    provisioned.user.getDingtalkUserid());
+            return EnsureAccountResult.created(provisioned.user);
         } catch (RegisterMatchException e) {
             if (e.getKind() == RegisterMatchException.Kind.ALREADY_REGISTERED) {
                 log.debug("打样推送跳过自动开户：通讯录成员已绑定本地账号 name={}", name);
@@ -93,6 +103,10 @@ public class OrgRegistrationService {
     }
 
     public User register(RegisterRequest request) {
+        return provision(request).user;
+    }
+
+    private ProvisionResult provision(RegisterRequest request) {
         String company = resolveCompany(request == null ? null : request.getCompany());
         String name = OrgNameMatcher.requireName(request == null ? null
                 : OrgNameMatcher.firstNonBlank(request.getName(), request.getUsername()));
@@ -124,11 +138,13 @@ public class OrgRegistrationService {
             throw RegisterMatchException.alreadyRegistered();
         }
 
-        User created = txTemplate.execute(status -> createUser(company, name, contact));
+        ProvisionResult created = txTemplate.execute(status -> createUser(company, name, contact));
         if (created == null) {
             throw new IllegalStateException("注册事务未提交");
         }
-        log.info("钉钉姓名注册成功: name={}, dingUserId={}, username={}", name, contact.getDingUserId(), created.getUsername());
+        log.info("钉钉姓名注册{}: name={}, dingUserId={}, username={}",
+                created.reusedByName ? "复用同名账号" : "成功",
+                name, contact.getDingUserId(), created.user.getUsername());
         return created;
     }
 
@@ -136,14 +152,29 @@ public class OrgRegistrationService {
         return toCandidates(orgDirectory.searchContacts(resolveCompany(company), keyword, 50));
     }
 
-    private User createUser(String company, String displayName, OrgContact contact) {
-        // Prior attempt may have inserted users but failed before org_users.local_user_id
-        // was bound (JPA persist vs JDBC FK). Reuse that row so name registration is retryable.
+    private ProvisionResult createUser(String company, String displayName, OrgContact contact) {
+        // 1) users.dingtalk_userid already equals this contact → reuse (orphan bind retry).
         Optional<User> existing = userRepository.findByDingtalkUserid(contact.getDingUserId());
         if (existing.isPresent()) {
             User user = existing.get();
             orgDirectory.bindLocalUser(contact.getId(), user.getId());
-            return user;
+            return ProvisionResult.reusedDing(user);
+        }
+
+        String matchName = OrgNameMatcher.firstNonBlank(contact.getName(), displayName);
+        List<User> nameMatches = findLocalUsersByDisplayName(matchName);
+        if (nameMatches.size() > 1) {
+            // 4) Multiple local same-name users → do not guess, do not allocate dingUserId username.
+            throw RegisterMatchException.multipleLocal(matchName);
+        }
+        if (nameMatches.size() == 1) {
+            User candidate = nameMatches.get(0);
+            if (isReusableForContact(candidate, contact.getDingUserId())) {
+                // 3) Unique username/nickname match → bind and fill missing DingTalk fields.
+                User reused = bindExistingLocalUser(company, contact, candidate);
+                return ProvisionResult.reusedByName(reused);
+            }
+            // Preferred username occupied by a different DingTalk person: fall through to allocateUsername.
         }
 
         String username = allocateUsername(displayName, contact.getDingUserId());
@@ -176,6 +207,69 @@ public class OrgRegistrationService {
         // JdbcTemplate bind runs in the same TX but does not trigger Hibernate auto-flush.
         // Without flush, Postgres rejects org_users.local_user_id FK (user row not visible yet).
         userRepository.saveAndFlush(user);
+        orgDirectory.bindLocalUser(contact.getId(), user.getId());
+        return ProvisionResult.created(user);
+    }
+
+    /**
+     * 按 OrgNameMatcher 规则在 username / nickname 上查找本地用户（去空白、忽略大小写）。
+     */
+    List<User> findLocalUsersByDisplayName(String name) {
+        if (OrgNameMatcher.isBlank(name) || OrgNameMatcher.normalize(name).isEmpty()) {
+            return List.of();
+        }
+        Map<String, User> byId = new LinkedHashMap<>();
+        for (String key : OrgNameMatcher.lookupKeys(name)) {
+            userRepository.findByUsername(key).ifPresent(u -> {
+                if (u.getId() != null) {
+                    byId.put(u.getId(), u);
+                }
+            });
+            List<User> nick = userRepository.findByNickname(key);
+            if (nick != null) {
+                for (User u : nick) {
+                    if (u != null && u.getId() != null) {
+                        byId.put(u.getId(), u);
+                    }
+                }
+            }
+        }
+        List<User> matched = new ArrayList<>();
+        for (User user : byId.values()) {
+            if (OrgNameMatcher.matchesUserDisplayName(name, user.getUsername(), user.getNickname())) {
+                matched.add(user);
+            }
+        }
+        return matched;
+    }
+
+    private static boolean isReusableForContact(User user, String dingUserId) {
+        String existing = user.getDingtalkUserid();
+        return OrgNameMatcher.isBlank(existing) || existing.equals(dingUserId);
+    }
+
+    private User bindExistingLocalUser(String company, OrgContact contact, User user) {
+        if (OrgNameMatcher.isBlank(user.getDingtalkUserid()) && !OrgNameMatcher.isBlank(contact.getDingUserId())) {
+            user.setDingtalkUserid(contact.getDingUserId());
+        }
+        if (OrgNameMatcher.isBlank(user.getDingtalkUnionid()) && !OrgNameMatcher.isBlank(contact.getDingUnionId())) {
+            user.setDingtalkUnionid(contact.getDingUnionId());
+        }
+        if (OrgNameMatcher.isBlank(user.getAvatarUrl()) && !OrgNameMatcher.isBlank(contact.getAvatarUrl())) {
+            user.setAvatarUrl(contact.getAvatarUrl());
+        }
+        if (OrgNameMatcher.isBlank(user.getPhone()) && !OrgNameMatcher.isBlank(contact.getMobile())) {
+            user.setPhone(contact.getMobile());
+        }
+        if (OrgNameMatcher.isBlank(user.getJobTitle()) && !OrgNameMatcher.isBlank(contact.getJobTitle())) {
+            user.setJobTitle(contact.getJobTitle());
+        }
+        if (OrgNameMatcher.isBlank(user.getOrgDeptId()) && contact.getPrimaryDingDeptId() != null) {
+            orgDirectory.findLocalDeptId(company, contact.getPrimaryDingDeptId())
+                    .ifPresent(user::setOrgDeptId);
+        }
+        user.setDingSyncedAt(LocalDateTime.now());
+        userRepository.save(user);
         orgDirectory.bindLocalUser(contact.getId(), user.getId());
         return user;
     }
@@ -303,7 +397,11 @@ public class OrgRegistrationService {
         }
 
         public static EnsureAccountResult alreadyExists(String message) {
-            return new EnsureAccountResult(Status.ALREADY_EXISTS, null, message);
+            return alreadyExists(null, message);
+        }
+
+        public static EnsureAccountResult alreadyExists(User user, String message) {
+            return new EnsureAccountResult(Status.ALREADY_EXISTS, user, message);
         }
 
         public static EnsureAccountResult skippedBlank() {
@@ -341,6 +439,28 @@ public class OrgRegistrationService {
         /** 本地 {@code users} 账号已存在或刚按通讯录创建成功。 */
         public boolean hasLocalAccount() {
             return status == Status.CREATED || status == Status.ALREADY_EXISTS;
+        }
+    }
+
+    static final class ProvisionResult {
+        final User user;
+        final boolean reusedByName;
+
+        private ProvisionResult(User user, boolean reusedByName) {
+            this.user = user;
+            this.reusedByName = reusedByName;
+        }
+
+        static ProvisionResult created(User user) {
+            return new ProvisionResult(user, false);
+        }
+
+        static ProvisionResult reusedDing(User user) {
+            return new ProvisionResult(user, false);
+        }
+
+        static ProvisionResult reusedByName(User user) {
+            return new ProvisionResult(user, true);
         }
     }
 

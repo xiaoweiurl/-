@@ -67,6 +67,12 @@ public class RegisterMatchException extends RuntimeException {
                 candidates, Kind.MULTIPLE);
     }
 
+    public static RegisterMatchException multipleLocal(String name) {
+        return new RegisterMatchException(409,
+                "本地已有多名同名账号「" + name + "」，无法自动绑定",
+                List.of(), Kind.MULTIPLE);
+    }
+
     public static RegisterMatchException alreadyRegistered() {
         return new RegisterMatchException(409, "该钉钉通讯录成员已注册账号，请直接登录",
                 List.of(), Kind.ALREADY_REGISTERED);

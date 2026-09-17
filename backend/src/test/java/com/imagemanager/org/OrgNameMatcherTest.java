@@ -46,4 +46,18 @@ class OrgNameMatcherTest {
         assertThrows(IllegalArgumentException.class, () -> OrgNameMatcher.requireName("  "));
         assertThrows(IllegalArgumentException.class, () -> OrgNameMatcher.requireName(null));
     }
+
+    @Test
+    void matchesUserDisplayNameOnUsernameOrNickname() {
+        assertTrue(OrgNameMatcher.matchesUserDisplayName("洪庭杰", "洪庭杰", null));
+        assertTrue(OrgNameMatcher.matchesUserDisplayName("洪庭杰", "admin", "洪 庭杰"));
+        assertFalse(OrgNameMatcher.matchesUserDisplayName("洪庭杰", "0924464954", "dt-user"));
+    }
+
+    @Test
+    void lookupKeysIncludesTrimmedAndNormalized() {
+        assertEquals(List.of("张 三", "张三"), OrgNameMatcher.lookupKeys(" 张 三 "));
+        assertEquals(List.of("洪庭杰"), OrgNameMatcher.lookupKeys("洪庭杰"));
+        assertEquals(List.of(), OrgNameMatcher.lookupKeys("  "));
+    }
 }
