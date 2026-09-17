@@ -62,4 +62,15 @@ class DingTalkPropertiesTest {
         properties.setWorkNoticeProtocolLinks(false);
         assertFalse(properties.shouldWrapWorkNoticeProtocolLinks());
     }
+
+    @Test
+    void samplerTicketTtlDefaultsToSevenDays() {
+        DingTalkProperties properties = new DingTalkProperties();
+        assertEquals(7, properties.getSamplerTicketTtlDays());
+        assertEquals(7, properties.resolveSamplerTicketTtlDays());
+        properties.setSamplerTicketTtlDays(0);
+        assertEquals(7, properties.resolveSamplerTicketTtlDays());
+        properties.setSamplerTicketTtlDays(14);
+        assertEquals(14, properties.resolveSamplerTicketTtlDays());
+    }
 }

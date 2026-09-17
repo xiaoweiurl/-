@@ -3,6 +3,7 @@ package com.imagemanager.service;
 import com.imagemanager.config.DingTalkProperties;
 import com.imagemanager.dingtalk.DingTalkClient;
 import com.imagemanager.dingtalk.DingTalkException;
+import com.imagemanager.dingtalk.DingTalkSamplerTicketService;
 import com.imagemanager.dingtalk.DingTalkUseridResolver;
 import com.imagemanager.dingtalk.DingTalkWorkNotice;
 import ch.qos.logback.classic.Level;
@@ -14,9 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -29,18 +33,21 @@ class GoodsSamplerNoticeServiceTest {
     private DingTalkClient dingTalkClient;
     private DingTalkUseridResolver useridResolver;
     private DingTalkProperties properties;
+    private DingTalkSamplerTicketService ticketService;
     private GoodsSamplerNoticeService service;
 
     @BeforeEach
     void setUp() {
         dingTalkClient = mock(DingTalkClient.class);
         useridResolver = mock(DingTalkUseridResolver.class);
+        ticketService = mock(DingTalkSamplerTicketService.class);
         properties = new DingTalkProperties();
         properties.setAppKey("key");
         properties.setAppSecret("secret");
         properties.setAgentId("123456");
+        when(ticketService.mint(anyString(), anyLong())).thenReturn(Optional.empty());
         service = new GoodsSamplerNoticeService(
-                dingTalkClient, useridResolver, properties, "http://localhost:5000");
+                dingTalkClient, useridResolver, properties, ticketService, "http://localhost:5000");
     }
 
     @Test
@@ -159,7 +166,7 @@ class GoodsSamplerNoticeServiceTest {
     @Test
     void formUrlFallsBackToTextWhenFrontendBlank() {
         GoodsSamplerNoticeService noUrl = new GoodsSamplerNoticeService(
-                dingTalkClient, useridResolver, properties, "  ");
+                dingTalkClient, useridResolver, properties, ticketService, "  ");
         when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
         when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
 
@@ -265,8 +272,82 @@ class GoodsSamplerNoticeServiceTest {
     @Test
     void formUrlStripsTrailingSlash() {
         GoodsSamplerNoticeService trailing = new GoodsSamplerNoticeService(
-                dingTalkClient, useridResolver, properties, "http://ai.bonasoma.com/");
+                dingTalkClient, useridResolver, properties, ticketService, "http://ai.bonasoma.com/");
         assertEquals("http://ai.bonasoma.com/sampler/9", trailing.formUrl(9L));
+    }
+
+    @Test
+    void appendsSignedTicketToFormUrlAndMarkdown() {
+        when(ticketService.mint("u-li", 9L)).thenReturn(Optional.of("v1.payload.sig"));
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
+        DingTalkWorkNotice notice = captor.getValue();
+        String expected = "http://localhost:5000/sampler/9?ticket=v1.payload.sig";
+        assertEquals(expected, notice.getSingleUrl());
+        assertTrue(notice.getBody().contains("[填写打样表单](" + expected + ")"));
+        verify(ticketService).mint("u-li", 9L);
+    }
+
+    @Test
+    void ticketOnHttpUrlIsWrappedByOpenApp() {
+        properties.setCorpId("dingcorp");
+        when(ticketService.mint("u-li", 9L)).thenReturn(Optional.of("v1.payload.sig"));
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
+        String click = captor.getValue().getSingleUrl();
+        assertTrue(click.startsWith("dingtalk://dingtalkclient/action/openapp"));
+        assertTrue(click.contains("sampler%2F9"));
+        assertTrue(click.contains("ticket%3Dv1.payload.sig"));
+        assertTrue(captor.getValue().getBody().contains(
+                "http://localhost:5000/sampler/9?ticket=v1.payload.sig"));
+    }
+
+    @Test
+    void clickUrlLogOmitsTicketQuery() {
+        properties.setCorpId("dingcorp");
+        when(ticketService.mint("u-li", 9L)).thenReturn(Optional.of("v1.payload.sig"));
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        Logger logger = (Logger) LoggerFactory.getLogger(GoodsSamplerNoticeService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+            assertTrue(appender.list.stream().anyMatch(e ->
+                    e.getLevel() == Level.INFO
+                            && e.getFormattedMessage().contains("single_url")
+                            && e.getFormattedMessage().contains(
+                                    "prefix=dingtalk://dingtalkclient/action/openapp")
+                            && !e.getFormattedMessage().contains("v1.payload.sig")
+                            && !e.getFormattedMessage().contains("ticket=")));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void mintEmptyKeepsPlainFormUrl() {
+        when(ticketService.mint("u-li", 9L)).thenReturn(Optional.empty());
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
+
+        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
+        assertEquals("http://localhost:5000/sampler/9", captor.getValue().getSingleUrl());
     }
 
     private static GoodsSamplerNotice sampleGoods() {

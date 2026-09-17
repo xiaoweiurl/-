@@ -65,7 +65,27 @@ public class DingTalkFreeLoginService {
         }
         log.info("钉钉免登换取 userid 成功: userid={}*** name={}",
                 userid.substring(0, Math.min(4, userid.length())), dingUser.getName());
+        return loginByDingUser(dingUser, goodsId);
+    }
 
+    /**
+     * 工作通知 ticket 核销：已持有钉钉 userid，会话规则与 JSAPI 免登相同。
+     */
+    public LoginResponse loginByUserid(String userid, Long goodsId) {
+        if (userid == null || userid.isBlank()) {
+            throw DingTalkFreeLoginException.unmatched();
+        }
+        String id = userid.trim();
+        log.info("钉钉 ticket 免登: userid={}*** goodsId={}",
+                id.substring(0, Math.min(4, id.length())), goodsId);
+        return loginByDingUser(DingTalkAuthUser.builder().userid(id).build(), goodsId);
+    }
+
+    LoginResponse loginByDingUser(DingTalkAuthUser dingUser, Long goodsId) {
+        String userid = dingUser == null ? null : dingUser.getUserid();
+        if (userid == null || userid.isBlank()) {
+            throw DingTalkFreeLoginException.unmatched();
+        }
         Optional<User> bound = userRepository.findByDingtalkUserid(userid);
         if (bound.isPresent()) {
             return fullSession(bound.get(), "users.dingtalk_userid");

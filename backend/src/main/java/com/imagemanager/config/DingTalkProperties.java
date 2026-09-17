@@ -42,6 +42,16 @@ public class DingTalkProperties {
      */
     private boolean workNoticeProtocolLinks = true;
 
+    /**
+     * 打样工作通知 magic ticket HMAC 密钥（{@code DINGTALK_SAMPLER_TICKET_SECRET}）。
+     * 未配置时回退 {@code appSecret}；二者皆空且 local profile 时用内置默认。
+     * 只用于服务端签名，禁止写入 URL。
+     */
+    private String samplerTicketSecret = "";
+
+    /** 打样 ticket 有效期（天），默认 7。 */
+    private int samplerTicketTtlDays = 7;
+
     /** 请求超时（毫秒） */
     private int timeout = 10000;
 
@@ -77,6 +87,13 @@ public class DingTalkProperties {
      */
     public boolean isWorkNoticeEnabled() {
         return isConfigured() && hasAgentId();
+    }
+
+    /**
+     * 打样 ticket TTL：配置 ≤0 时回退 7 天。
+     */
+    public int resolveSamplerTicketTtlDays() {
+        return samplerTicketTtlDays > 0 ? samplerTicketTtlDays : 7;
     }
 
     /**

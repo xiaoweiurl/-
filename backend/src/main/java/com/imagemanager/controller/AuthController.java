@@ -5,6 +5,7 @@ import com.imagemanager.dingtalk.DingTalkException;
 import com.imagemanager.dingtalk.DingTalkFreeLoginException;
 import com.imagemanager.dingtalk.DingTalkFreeLoginService;
 import com.imagemanager.dingtalk.DingTalkJsapiConfigService;
+import com.imagemanager.dingtalk.DingTalkSamplerTicketService;
 import com.imagemanager.entity.User;
 import com.imagemanager.exception.RegisterMatchException;
 import com.imagemanager.repository.UserRepository;
@@ -54,6 +55,9 @@ public class AuthController {
 
     @Autowired
     private DingTalkJsapiConfigService dingTalkJsapiConfigService;
+
+    @Autowired
+    private DingTalkSamplerTicketService dingTalkSamplerTicketService;
     
     /**
      * 用户注册（钉钉姓名匹配）。初始密码固定 123456，首次登录强制改密。
@@ -152,16 +156,7 @@ public class AuthController {
             String authCode = request == null ? null : request.resolveAuthCode();
             LoginResponse loginResponse = dingTalkFreeLoginService.login(authCode,
                     request == null ? null : request.getGoodsId());
-            String sessionId = loginResponse.getSessionId();
-            if (sessionId != null) {
-                response.setHeader("X-Session-Id", sessionId);
-            }
-            String username = loginResponse.getUser() != null ? loginResponse.getUser().getUsername() : null;
-            if (username != null && !username.isEmpty()
-                    && !"sampler".equalsIgnoreCase(loginResponse.getUser().getRole())) {
-                imageTableService.ensureUserImageTable(username);
-            }
-            return ResponseEntity.ok(ApiResponse.success("钉钉免登成功", loginResponse));
+            return completeDingTalkLogin(loginResponse, response, "钉钉免登成功");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
         } catch (DingTalkFreeLoginException e) {
@@ -175,6 +170,53 @@ public class AuthController {
             log.error("钉钉免登失败: ", e);
             return ResponseEntity.status(401).body(ApiResponse.error(401, "钉钉免登失败"));
         }
+    }
+
+    /**
+     * 打样工作通知 magic ticket 核销。公开端点；不依赖 JSAPI 域名微应用。
+     */
+    @PostMapping("/dingtalk/ticket")
+    @Operation(summary = "打样通知 ticket 免登",
+            description = "核销工作通知 URL 上的短时 HMAC ticket，会话规则与钉钉 JSAPI 免登相同")
+    public ResponseEntity<ApiResponse<LoginResponse>> dingTalkSamplerTicket(
+            @RequestBody(required = false) DingTalkSamplerTicketRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response) {
+        try {
+            String clientId = "dingtalk-ticket:" + clientKey(httpRequest);
+            if (!com.imagemanager.util.RateLimiter.allow(clientId, com.imagemanager.util.RateLimiter.LimitType.LOGIN)) {
+                long resetTime = com.imagemanager.util.RateLimiter.getResetTime(
+                        clientId, com.imagemanager.util.RateLimiter.LimitType.LOGIN);
+                return ResponseEntity.status(429)
+                        .body(ApiResponse.error(429, "免登尝试次数过多，请在 " + resetTime + " 秒后重试"));
+            }
+            String ticket = request == null ? null : request.getTicket();
+            LoginResponse loginResponse = dingTalkSamplerTicketService.redeem(
+                    ticket, request == null ? null : request.getGoodsId());
+            return completeDingTalkLogin(loginResponse, response, "钉钉免登成功");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
+        } catch (DingTalkFreeLoginException e) {
+            return ResponseEntity.status(e.getHttpStatus())
+                    .body(ApiResponse.error(e.getHttpStatus(), e.getMessage()));
+        } catch (Exception e) {
+            log.error("打样 ticket 免登失败: ", e);
+            return ResponseEntity.status(401).body(ApiResponse.error(401, "打样通知免登失败"));
+        }
+    }
+
+    private ResponseEntity<ApiResponse<LoginResponse>> completeDingTalkLogin(
+            LoginResponse loginResponse, HttpServletResponse response, String successMessage) {
+        String sessionId = loginResponse.getSessionId();
+        if (sessionId != null) {
+            response.setHeader("X-Session-Id", sessionId);
+        }
+        String username = loginResponse.getUser() != null ? loginResponse.getUser().getUsername() : null;
+        if (username != null && !username.isEmpty()
+                && !"sampler".equalsIgnoreCase(loginResponse.getUser().getRole())) {
+            imageTableService.ensureUserImageTable(username);
+        }
+        return ResponseEntity.ok(ApiResponse.success(successMessage, loginResponse));
     }
 
     /**

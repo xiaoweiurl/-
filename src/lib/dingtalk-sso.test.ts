@@ -4,6 +4,8 @@ import {
   DINGTALK_CORP_ID_REQUIRED,
   beginSingleFlight,
   getAuthCodeFromDd,
+  readSamplerTicketFromSearch,
+  recoverSamplerAuth,
   requestDingTalkAuthCode,
   resolveDingTalkCorpId,
   type DingTalkDdLike,
@@ -192,4 +194,90 @@ test('beginSingleFlight shares one in-flight promise (authCode not double-consum
   const c = beginSingleFlight(holder, start);
   assert.equal(await c, 42);
   assert.equal(starts, 2);
+});
+
+test('readSamplerTicketFromSearch reads ticket query', () => {
+  assert.equal(readSamplerTicketFromSearch('?ticket=v1.abc.sig'), 'v1.abc.sig');
+  assert.equal(readSamplerTicketFromSearch('ticket=v1.abc.sig&x=1'), 'v1.abc.sig');
+  assert.equal(readSamplerTicketFromSearch('?id=9'), null);
+  assert.equal(readSamplerTicketFromSearch(''), null);
+  assert.equal(readSamplerTicketFromSearch('?ticket=%20'), null);
+});
+
+test('recoverSamplerAuth prefers ticket over JSAPI', async () => {
+  let jsapiCalls = 0;
+  const result = await recoverSamplerAuth({
+    goodsId: '9',
+    ticket: 'v1.payload.sig',
+    isDingTalk: true,
+    redeemTicket: async (ticket, goodsId) => {
+      assert.equal(ticket, 'v1.payload.sig');
+      assert.equal(goodsId, '9');
+      return { ok: true };
+    },
+    freeLogin: async () => {
+      jsapiCalls += 1;
+      return { ok: true };
+    },
+  });
+  assert.deepEqual(result, { ok: true, via: 'ticket' });
+  assert.equal(jsapiCalls, 0);
+});
+
+test('recoverSamplerAuth falls back to JSAPI when ticket fails in DingTalk', async () => {
+  const result = await recoverSamplerAuth({
+    goodsId: '9',
+    ticket: 'v1.bad',
+    isDingTalk: true,
+    redeemTicket: async () => ({ ok: false, error: '过期' }),
+    freeLogin: async () => ({ ok: true }),
+  });
+  assert.deepEqual(result, { ok: true, via: 'jsapi' });
+});
+
+test('recoverSamplerAuth does not call JSAPI outside DingTalk when ticket fails', async () => {
+  let jsapiCalls = 0;
+  const result = await recoverSamplerAuth({
+    goodsId: '9',
+    ticket: 'v1.bad',
+    isDingTalk: false,
+    redeemTicket: async () => ({ ok: false, error: '无效凭证' }),
+    freeLogin: async () => {
+      jsapiCalls += 1;
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, '无效凭证');
+  assert.equal(jsapiCalls, 0);
+});
+
+test('recoverSamplerAuth uses JSAPI when no ticket in DingTalk', async () => {
+  let redeemCalls = 0;
+  const result = await recoverSamplerAuth({
+    goodsId: '9',
+    ticket: '  ',
+    isDingTalk: true,
+    redeemTicket: async () => {
+      redeemCalls += 1;
+      return { ok: true };
+    },
+    freeLogin: async (goodsId) => {
+      assert.equal(goodsId, '9');
+      return { ok: true };
+    },
+  });
+  assert.deepEqual(result, { ok: true, via: 'jsapi' });
+  assert.equal(redeemCalls, 0);
+});
+
+test('recoverSamplerAuth without ticket outside DingTalk asks for password login', async () => {
+  const result = await recoverSamplerAuth({
+    goodsId: '9',
+    isDingTalk: false,
+    redeemTicket: async () => ({ ok: true }),
+    freeLogin: async () => ({ ok: true }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.error || '', /账号登录/);
 });

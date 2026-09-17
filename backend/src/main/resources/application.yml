@@ -242,6 +242,10 @@ dingtalk:
   # 可用 DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false 强制裸 HTTP(S)。
   # 钉钉开放平台「H5 可信域名」填主机（如 ai.bonasoma.com，不要带 http://）；HTTP 公网若仍被拒需 HTTPS。
   work-notice-protocol-links: ${DINGTALK_WORK_NOTICE_PROTOCOL_LINKS:true}
+  # 打样工作通知 magic ticket HMAC（不写入 URL）。未配置时回退 DINGTALK_APP_SECRET；
+  # local 且二者皆空时使用内置默认。生产请设 DINGTALK_SAMPLER_TICKET_SECRET 或确保 AppSecret 已注入。
+  sampler-ticket-secret: ${DINGTALK_SAMPLER_TICKET_SECRET:}
+  sampler-ticket-ttl-days: ${DINGTALK_SAMPLER_TICKET_TTL_DAYS:7}
   timeout: ${DINGTALK_TIMEOUT:10000}
   company: ${DINGTALK_COMPANY:宝娜斯集团}
 
