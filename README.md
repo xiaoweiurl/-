@@ -283,10 +283,18 @@ pnpm start
    - 优先 `org_users`（已同步通讯录）
    - 其次 `users.dingtalk_userid`（已注册办公账号的 username / nickname）
    - 0 人、同名多人、userid 为空：记 warn 日志并跳过，不硬失败
-3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转 **裸 HTTP** `{FRONTEND_URL}/sampler/{id}`（打样专用表单）。不要再包 `dingtalk://` 协议：应用未发布时包装链接会提示「非钉钉页面」。
+3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮与 markdown `[填写打样表单](http…)` 均跳转打样表单 `{FRONTEND_URL}/sampler/{id}`。`single_url` **默认就是该 HTTP(S) 直链**（不要包 `dingtalk://`：应用未发布时会提示「非钉钉页面」）；无前端地址时退化为 text。
 4. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
 
-打样员在钉钉内打开表单后由 Phase 3 免登建会话；浏览器里打开则仍跳转 `/login?returnUrl=/sampler/{id}`。
+钉钉内打开表单后由 Phase 3 免登建会话（无需中台用户名密码）；浏览器里打开则仍跳转 `/login?returnUrl=/sampler/{id}`。
+
+### 钉钉内打开与「后续页面非钉钉提供」
+
+默认直链即可。安全设置改完后必须 **应用发布** 才会生效；只保存草稿时钉钉仍会提示「非钉钉页面」，JSAPI 免登也不可用。
+
+在 **钉钉开放平台 → 该企业内部应用 → 开发管理 → 安全设置 / H5 可信域名** 加入 `FRONTEND_URL` 主机（生产如 `ai.bonasoma.com`），并把应用首页 / PC 首页写成同一站点。发布后请重新指定打样员以发出新的裸 HTTP 通知（旧 `dingtalk://` 通知不会自动更新）。HTTP 公网若仍被拒，需上 HTTPS。
+
+仅当同时配置了 `DINGTALK_CORP_ID` **且** `DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=true` 时，按钮 URL 才会包一层 `dingtalk://`；那时安全域名必须包含 FRONTEND_URL 主机。
 
 ### 手机端（钉钉内打开）
 
@@ -296,7 +304,7 @@ pnpm start
 - 表单单列、输入框足够大（避免 iOS 聚焦放大）
 - 保存按钮全宽、图片操作常显（不依赖 hover）
 
-验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/sampler/{id}`。
+验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/sampler/{id}`；桌面编辑仍走 `/goods-library/{id}`。
 
 ### 额外环境变量
 
@@ -304,6 +312,7 @@ pnpm start
 |------|------|------|
 | `DINGTALK_AGENT_ID` | 发送时必填 | 与 AppKey/Secret 同一企业内部应用的 AgentId |
 | `FRONTEND_URL` | 否 | 工作通知跳转基址，默认 `http://localhost:5000`（已有配置 `app.frontend.url`） |
+| `DINGTALK_WORK_NOTICE_PROTOCOL_LINKS` | 否 | 默认 `false`。`true` 且已配 corpId 时才用 `dingtalk://` 包装 `single_url` |
 
 ### 范围
 
@@ -337,6 +346,7 @@ src/
 │   ├── login/page.tsx           # 登录页（分屏布局 + 品牌展示）
 │   ├── register/page.tsx        # 钉钉姓名注册（初始密码 123456，强制改密）
 │   ├── org/page.tsx             # 钉钉组织同步（管理员）
+│   ├── sampler/[id]/page.tsx    # 打样员专用表单（钉钉工作通知落地页）
 │   ├── knowledge/page.tsx       # 知识库（文档 + 岗位卡片 Tab）
 │   ├── chat/page.tsx            # AI 对话页
 │   ├── marketing/page.tsx       # 营销 AI 页
