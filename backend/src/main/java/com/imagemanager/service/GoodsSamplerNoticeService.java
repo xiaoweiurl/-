@@ -120,6 +120,9 @@ public class GoodsSamplerNoticeService {
         return DingTalkWorkNotice.actionCard(title, markdown, "查看商品详情", url);
     }
 
+    /**
+     * 钉钉工作通知跳转：已登录商品详情编辑页（手机端已适配），非公开免登表单。
+     */
     String detailUrl(long goodsId) {
         String base = frontendUrl == null ? "" : frontendUrl.trim();
         if (base.isEmpty()) {

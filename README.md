@@ -273,8 +273,21 @@ pnpm start
    - 优先 `org_users`（已同步通讯录）
    - 其次 `users.dingtalk_userid`（已注册办公账号的 username / nickname）
    - 0 人、同名多人、userid 为空：记 warn 日志并跳过，不硬失败
-3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转已有详情页 `{FRONTEND_URL}/goods-library/{id}`；无前端地址时退化为 text。
+3. 消息为中文 action_card（标题「您被指定为打样员」），单按钮跳转**已登录**详情页 `{FRONTEND_URL}/goods-library/{id}`（即打样员表单，已做手机端适配）；无前端地址时退化为 text。
 4. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
+
+公开未登录表单本阶段不做。打样员须先登录（401 会跳转 `/login`），与全站会话一致。
+
+### 手机端（钉钉内打开）
+
+工作通知打开的是商品详情编辑页 `src/app/goods-library/[id]/page.tsx`（非公开表单）。约 **375px** 宽下应满足：
+
+- 顶栏不横向溢出（删除为图标，长路径隐藏）
+- 商品信息单列、输入框 ≥44px、字号 16px（避免 iOS 聚焦放大）
+- 保存按钮全宽、图片操作按钮常显（不依赖 hover）
+- 新建弹层为底部抽屉、单列表单
+
+验证：浏览器开发者工具 iPhone SE / 375×667，打开 `/goods-library/{id}`；再对照桌面宽度确认布局未挤乱。
 
 ### 额外环境变量
 
