@@ -15,7 +15,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
- * 商品库打样员工作通知：仅在 sampler 新设或变更为他人时投递。
+ * 商品库打样员工作通知：仅在 sampler 新设或变更为他人时投递指派卡；
+ * 打样表单补全货号/品名后补发摘要卡（钉钉 ActionCard 发出后不能改正文）。
  * AgentId 未配置时功能关闭（记日志、不抛异常、不影响商品保存）。
  * <p>固定顺序：按钉钉已同步通讯录姓名开户（{@link OrgRegistrationService#ensureAccountByName}）
  * → 再解析 userid / 签发 ticket / 发送工作通知。开户未成功（同名、无匹配、异常）则取消推送。
@@ -29,6 +30,7 @@ public class GoodsSamplerNoticeService {
     private final OrgRegistrationService orgRegistrationService;
     private final DingTalkProperties properties;
     private final DingTalkSamplerTicketService ticketService;
+    private final GoodsSamplerNoticeStore noticeStore;
     private final String frontendUrl;
 
     public GoodsSamplerNoticeService(DingTalkClient dingTalkClient,
@@ -36,12 +38,14 @@ public class GoodsSamplerNoticeService {
                                      @Nullable OrgRegistrationService orgRegistrationService,
                                      DingTalkProperties properties,
                                      DingTalkSamplerTicketService ticketService,
+                                     GoodsSamplerNoticeStore noticeStore,
                                      @Value("${app.frontend.url:http://localhost:5000}") String frontendUrl) {
         this.dingTalkClient = dingTalkClient;
         this.useridResolver = useridResolver;
         this.orgRegistrationService = orgRegistrationService;
         this.properties = properties;
         this.ticketService = ticketService;
+        this.noticeStore = noticeStore;
         this.frontendUrl = frontendUrl;
     }
 
@@ -50,6 +54,12 @@ public class GoodsSamplerNoticeService {
     public void notifySamplerAssignedAsync(String previousSampler, String newSampler,
                                            GoodsSamplerNotice goods) {
         notifyIfSamplerChanged(previousSampler, newSampler, goods);
+    }
+
+    /** 异步入口：打样表单保存成功后，尝试按已发出的指派卡补发回填摘要。 */
+    @Async("taskExecutor")
+    public void notifySamplerFormFilledAsync(GoodsSamplerNotice goods, String samplerName) {
+        notifyFormFilled(goods, samplerName);
     }
 
     /**
@@ -62,6 +72,19 @@ public class GoodsSamplerNoticeService {
         } catch (Exception e) {
             log.warn("钉钉工作通知发送失败（不影响商品保存）: goodsId={}, sampler={}, err={}",
                     goods == null ? null : goods.getGoodsId(), newSampler, e.getMessage());
+            return SamplerNoticeResult.failed(null, e.getMessage());
+        }
+    }
+
+    /**
+     * 表单保存后补发。钉钉不能改已发出 ActionCard 的货号/品名，故发一封「打样信息已更新」。
+     */
+    public SamplerNoticeResult notifyFormFilled(GoodsSamplerNotice goods, String samplerName) {
+        try {
+            return doNotifyFormFilled(goods, samplerName);
+        } catch (Exception e) {
+            log.warn("钉钉打样回填通知发送失败（不影响商品保存）: goodsId={}, err={}",
+                    goods == null ? null : goods.getGoodsId(), e.getMessage());
             return SamplerNoticeResult.failed(null, e.getMessage());
         }
     }
@@ -79,14 +102,7 @@ public class GoodsSamplerNoticeService {
         }
 
         if (!properties.isWorkNoticeEnabled()) {
-            if (!properties.isConfigured()) {
-                log.info("钉钉工作通知未启用：缺少 DINGTALK_APP_KEY / DINGTALK_APP_SECRET，跳过发送");
-            } else if (properties.getAgentId() == null || properties.getAgentId().isBlank()) {
-                log.info("钉钉工作通知未启用：未配置 DINGTALK_AGENT_ID，跳过发送");
-            } else {
-                log.info("钉钉工作通知未启用：DINGTALK_AGENT_ID={} 不是有效数字，跳过发送",
-                        properties.getAgentId());
-            }
+            logWorkNoticeDisabled();
             return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_DISABLED,
                     "工作通知未启用（缺少 AgentId 或 AppKey/Secret）");
         }
@@ -109,14 +125,9 @@ public class GoodsSamplerNoticeService {
         }
 
         DingTalkWorkNotice notice = buildNotice(next, goods, resolved.getUserid());
-        if (notice.hasLink()) {
-            String clickUrl = notice.getSingleUrl();
-            log.info("打样工作通知 single_url: goodsId={}, wrap={}, prefix={}",
-                    goods == null ? null : goods.getGoodsId(),
-                    properties.shouldWrapWorkNoticeProtocolLinks(),
-                    DingTalkLinks.logSafePrefix(clickUrl));
-        }
+        logClickUrl(goods, notice);
         long taskId = dingTalkClient.sendWorkNotice(resolved.getUserid(), notice);
+        persistAssignment(next, goods, resolved.getUserid(), taskId);
         log.info("已向打样员发送钉钉工作通知: goodsId={}, sampler={}, userid={}, source={}, taskId={}",
                 goods == null ? null : goods.getGoodsId(), next, resolved.getUserid(),
                 resolved.getSource(), taskId);
@@ -167,35 +178,70 @@ public class GoodsSamplerNoticeService {
         return SamplerNoticeResult.failed(null, detail == null ? "自动开户失败，取消工作通知" : detail);
     }
 
+    private SamplerNoticeResult doNotifyFormFilled(GoodsSamplerNotice goods, String samplerName) {
+        if (goods == null) {
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_ASSIGNMENT, "商品为空");
+        }
+        if (!properties.isWorkNoticeEnabled()) {
+            logWorkNoticeDisabled();
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_DISABLED,
+                    "工作通知未启用（缺少 AgentId 或 AppKey/Secret）");
+        }
+        if (noticeStore == null) {
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_ASSIGNMENT, "无投递记录存储");
+        }
+        GoodsSamplerNoticeRecord previous = noticeStore.findByGoodsId(goods.getGoodsId()).orElse(null);
+        if (previous == null || previous.getDingUserId().isBlank()) {
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_ASSIGNMENT,
+                    "没有可回填的打样指派通知");
+        }
+        if (previous.hasFollowup()) {
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_ALREADY_FOLLOWED_UP,
+                    "该指派通知已补发过回填卡");
+        }
+        if (!SamplerWorkNoticeCards.needsBackfill(previous.toSentGoods(), goods)) {
+            return SamplerNoticeResult.skipped(SamplerNoticeResult.Status.SKIPPED_NO_BACKFILL,
+                    "原通知已含货号/品名，无需补发");
+        }
+
+        String displaySampler = (samplerName == null || samplerName.isBlank())
+                ? previous.getSamplerName() : samplerName.trim();
+        DingTalkWorkNotice notice = buildFollowupNotice(displaySampler, goods, previous.getDingUserId());
+        logClickUrl(goods, notice);
+        long followupTaskId = dingTalkClient.sendWorkNotice(previous.getDingUserId(), notice);
+        try {
+            noticeStore.markFollowupSent(goods.getGoodsId(), previous.getTaskId(), followupTaskId);
+        } catch (Exception e) {
+            log.warn("打样回填通知已发出但未能记下 followup_task_id: goodsId={}, taskId={}, err={}",
+                    goods.getGoodsId(), followupTaskId, e.getMessage());
+        }
+        log.info("已向打样员补发打样信息回填通知: goodsId={}, userid={}, assignmentTaskId={}, followupTaskId={}",
+                goods.getGoodsId(), previous.getDingUserId(), previous.getTaskId(), followupTaskId);
+        return SamplerNoticeResult.sent(previous.getDingUserId(), followupTaskId);
+    }
+
     DingTalkWorkNotice buildNotice(String samplerName, GoodsSamplerNotice goods, String dingUserId) {
-        String display = goods == null ? "未命名商品" : goods.displayName();
-        String goodsNo = goods == null || goods.getGoodsNo() == null || goods.getGoodsNo().isBlank()
-                ? "未填写" : goods.getGoodsNo().trim();
-        String productName = goods == null || goods.getProductName() == null || goods.getProductName().isBlank()
-                ? "未填写" : goods.getProductName().trim();
-        String initiator = goods == null || goods.getInitiator() == null || goods.getInitiator().isBlank()
-                ? "未填写" : goods.getInitiator().trim();
-        String title = "您被指定为打样员";
+        String title = SamplerWorkNoticeCards.assignmentSessionTitle(goods);
         String formHttp = goods == null ? "" : formUrl(goods.getGoodsId(), dingUserId);
-        String markdown = "### 打样任务\n\n"
-                + "您被指定为商品 **" + display + "** 的打样员。\n\n"
-                + "- 货号：" + goodsNo + "\n"
-                + "- 品名：" + productName + "\n"
-                + "- 发起人：" + initiator + "\n"
-                + "- 打样员：" + samplerName + "\n\n"
-                + "请及时填写打样信息。";
-        if (!formHttp.isBlank()) {
-            markdown += "\n\n[填写打样表单](" + formHttp + ")";
+        String markdown = SamplerWorkNoticeCards.assignmentMarkdown(samplerName, goods, formHttp);
+        return toWorkNotice(title, markdown, SamplerWorkNoticeCards.CTA_ASSIGN, formHttp);
+    }
+
+    DingTalkWorkNotice buildFollowupNotice(String samplerName, GoodsSamplerNotice goods, String dingUserId) {
+        String title = SamplerWorkNoticeCards.followupSessionTitle(goods);
+        String formHttp = goods == null ? "" : formUrl(goods.getGoodsId(), dingUserId);
+        String markdown = SamplerWorkNoticeCards.followupMarkdown(samplerName, goods, formHttp);
+        return toWorkNotice(title, markdown, SamplerWorkNoticeCards.CTA_FOLLOWUP, formHttp);
+    }
+
+    private DingTalkWorkNotice toWorkNotice(String title, String markdown, String cta, String formHttp) {
+        if (formHttp == null || formHttp.isBlank()) {
+            return DingTalkWorkNotice.text(title, SamplerWorkNoticeCards.toPlainText(markdown));
         }
-        if (formHttp.isBlank()) {
-            return DingTalkWorkNotice.text(title, markdown.replace("**", "").replace("### ", ""));
-        }
-        // 默认 wrap=true + corpId → dingtalk://openapp（H5 免登域名绑定）。
-        // DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false 时保持裸 HTTP(S)。
         String clickUrl = DingTalkLinks.workNoticeUrl(
                 formHttp, properties.getCorpId(), properties.resolveAgentId(),
                 properties.shouldWrapWorkNoticeProtocolLinks());
-        return DingTalkWorkNotice.actionCard(title, markdown, "填写打样表单", clickUrl);
+        return DingTalkWorkNotice.actionCard(title, markdown, cta, clickUrl);
     }
 
     /**
@@ -221,5 +267,42 @@ public class GoodsSamplerNoticeService {
         return ticketService.mint(dingUserId, goodsId)
                 .map(ticket -> url + "?ticket=" + DingTalkLinks.encode(ticket))
                 .orElse(url);
+    }
+
+    private void persistAssignment(String samplerName, GoodsSamplerNotice goods, String dingUserId, long taskId) {
+        if (noticeStore == null || goods == null) {
+            return;
+        }
+        try {
+            noticeStore.saveAssignment(new GoodsSamplerNoticeRecord(
+                    goods.getGoodsId(), dingUserId, samplerName, taskId,
+                    goods.getFolderName(), goods.getGoodsNo(), goods.getProductName(),
+                    goods.getInitiator(), null));
+        } catch (Exception e) {
+            log.warn("打样工作通知已发出但未能记下 task_id（后续无法补发回填卡）: goodsId={}, taskId={}, err={}",
+                    goods.getGoodsId(), taskId, e.getMessage());
+        }
+    }
+
+    private void logClickUrl(GoodsSamplerNotice goods, DingTalkWorkNotice notice) {
+        if (notice == null || !notice.hasLink()) {
+            return;
+        }
+        String clickUrl = notice.getSingleUrl();
+        log.info("打样工作通知 single_url: goodsId={}, wrap={}, prefix={}",
+                goods == null ? null : goods.getGoodsId(),
+                properties.shouldWrapWorkNoticeProtocolLinks(),
+                DingTalkLinks.logSafePrefix(clickUrl));
+    }
+
+    private void logWorkNoticeDisabled() {
+        if (!properties.isConfigured()) {
+            log.info("钉钉工作通知未启用：缺少 DINGTALK_APP_KEY / DINGTALK_APP_SECRET，跳过发送");
+        } else if (properties.getAgentId() == null || properties.getAgentId().isBlank()) {
+            log.info("钉钉工作通知未启用：未配置 DINGTALK_AGENT_ID，跳过发送");
+        } else {
+            log.info("钉钉工作通知未启用：DINGTALK_AGENT_ID={} 不是有效数字，跳过发送",
+                    properties.getAgentId());
+        }
     }
 }

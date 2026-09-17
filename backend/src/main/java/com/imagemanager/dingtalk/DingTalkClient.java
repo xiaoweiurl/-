@@ -141,6 +141,9 @@ public class DingTalkClient {
     /**
      * 发送企业内部应用工作通知。
      * API：POST /topapi/message/corpconversation/asyncsend_v2
+     * <p>
+     * 钉钉<strong>不能</strong>按 task_id 修改已发出 ActionCard 的 markdown/按钮。
+     * OA 类型仅支持 7 天内改 status_bar，不能回填货号/品名等正文。互动卡片可改内容但需控制台模板，本链路不采用。
      *
      * @return 钉钉 task_id
      */

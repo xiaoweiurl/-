@@ -6,6 +6,8 @@ import java.util.Map;
 /**
  * 钉钉工作通知消息体（企业内部应用 asyncsend_v2 的 {@code msg} 字段）。
  * 有落地链接时使用 action_card，否则退化为 text。
+ * <p>
+ * 发出后无法按 task_id 更新 markdown 字段；回填请另发一封工作通知。
  */
 public final class DingTalkWorkNotice {
 

@@ -1,5 +1,6 @@
 package com.imagemanager.service.impl;
 
+import com.imagemanager.org.OrgNameMatcher;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.GoodsLibraryService;
 import com.imagemanager.service.GoodsSamplerNotice;
@@ -147,6 +148,9 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         Map<String, String> noticeFields = new LinkedHashMap<>(merged);
         noticeFields.put("folder_name", folderName);
         notifySamplerIfChanged(previousSampler, merged.get("sampler"), noticeFields, id);
+        if (OrgNameMatcher.namesEqual(previousSampler, merged.get("sampler"))) {
+            notifySamplerFormFilled(noticeFields, id, merged.get("sampler"));
+        }
         return getGoods(id);
     }
 
@@ -233,16 +237,37 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         }
         try {
             samplerNoticeService.notifySamplerAssignedAsync(previousSampler, newSampler,
-                    new GoodsSamplerNotice(
-                            id,
-                            str(fields, "folder_name"),
-                            str(fields, "goods_no"),
-                            str(fields, "product_name"),
-                            str(fields, "initiator")));
+                    toSamplerNotice(id, fields));
         } catch (Exception e) {
             log.warn("[GoodsLibrary] 打样员工作通知调度失败（不影响保存）: id={}, err={}",
                     id, e.getMessage());
         }
+    }
+
+    /**
+     * 打样员未变的保存：若指派卡发出时货号/品名为空，补发一封已填写摘要（钉钉不能改原卡正文）。
+     */
+    private void notifySamplerFormFilled(Map<String, ?> fields, long id, String samplerName) {
+        if (samplerNoticeService == null) {
+            return;
+        }
+        try {
+            samplerNoticeService.notifySamplerFormFilledAsync(toSamplerNotice(id, fields), samplerName);
+        } catch (Exception e) {
+            log.warn("[GoodsLibrary] 打样回填通知调度失败（不影响保存）: id={}, err={}",
+                    id, e.getMessage());
+        }
+    }
+
+    private GoodsSamplerNotice toSamplerNotice(long id, Map<String, ?> fields) {
+        return new GoodsSamplerNotice(
+                id,
+                str(fields, "folder_name"),
+                str(fields, "goods_no"),
+                str(fields, "product_name"),
+                str(fields, "initiator"),
+                str(fields, "customer"),
+                str(fields, "order_no"));
     }
 
     private String str(Map<String, ?> fields, String key) {
