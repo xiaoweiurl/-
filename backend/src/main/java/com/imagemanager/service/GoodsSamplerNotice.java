@@ -10,14 +10,24 @@ public final class GoodsSamplerNotice {
     private final String goodsNo;
     private final String productName;
     private final String initiator;
+    private final String customer;
+    private final String orderNo;
 
     public GoodsSamplerNotice(long goodsId, String folderName, String goodsNo,
                               String productName, String initiator) {
+        this(goodsId, folderName, goodsNo, productName, initiator, "", "");
+    }
+
+    public GoodsSamplerNotice(long goodsId, String folderName, String goodsNo,
+                              String productName, String initiator,
+                              String customer, String orderNo) {
         this.goodsId = goodsId;
         this.folderName = folderName;
         this.goodsNo = goodsNo;
         this.productName = productName;
         this.initiator = initiator;
+        this.customer = customer;
+        this.orderNo = orderNo;
     }
 
     public long getGoodsId() {
@@ -40,14 +50,16 @@ public final class GoodsSamplerNotice {
         return initiator;
     }
 
-    /** 展示名：优先文件夹名（货号+品名），否则拼货号/品名。 */
+    public String getCustomer() {
+        return customer;
+    }
+
+    public String getOrderNo() {
+        return orderNo;
+    }
+
+    /** 展示名：优先货号+品名，其次文件夹名；都空时不使用「未命名商品」占位（通知文案另有待完善标题）。 */
     public String displayName() {
-        if (folderName != null && !folderName.isBlank()) {
-            return folderName.trim();
-        }
-        String no = goodsNo == null ? "" : goodsNo.trim();
-        String name = productName == null ? "" : productName.trim();
-        String combined = no + name;
-        return combined.isEmpty() ? "未命名商品" : combined;
+        return SamplerWorkNoticeCards.productHeadline(this);
     }
 }

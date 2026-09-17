@@ -272,7 +272,7 @@ pnpm start
 
 ## 钉钉工作通知（Phase 2，商品库打样员）
 
-商品库创建或更新时，若 **打样员（sampler）新填写或变更为另一人**，向该打样员推送钉钉企业内部应用**工作通知**。sampler 未变的普通保存不重复通知。
+商品库创建或更新时，若 **打样员（sampler）新填写或变更为另一人**，向该打样员推送钉钉企业内部应用**工作通知**。sampler 未变时不重复发指派卡；若打样表单补全了原卡缺失的货号/品名，会另发一封「打样信息已更新」（钉钉不能改已发出 ActionCard 正文）。
 
 公开未登录表单链接（工位填报等）**不做**；打样员在钉钉内打开工作通知后走 **H5 免登**（无需中台用户名密码）。
 
@@ -283,8 +283,9 @@ pnpm start
    - 优先 `org_users`（已同步通讯录）
    - 其次 `users.dingtalk_userid`（已注册办公账号的 username / nickname）
    - 0 人、同名多人、userid 为空：记 warn 日志并跳过，不硬失败
-3. 消息为中文 action_card（标题「您被指定为打样员」），markdown 仍用 HTTP(S) 表单地址 `{FRONTEND_URL}/sampler/{id}`。按钮 `single_url` **默认在已配 corpId 时包一层 `dingtalk://openapp`**（H5 免登需微应用域名绑定；可用 `DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false` 强制裸链）；无前端地址时退化为 text。
-4. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
+3. 消息为中文 action_card。会话列表标题为「打样任务 · {货号 品名}」（无货号品名时为「待完善货号与品名」）。正文用标题 + 加粗品名 + 加粗字段列表（货号/品名/发起人/打样员），按钮文案「立即填写打样表单」。markdown 内的表单地址仍是 HTTP(S) `{FRONTEND_URL}/sampler/{id}`（可带 HMAC ticket）。按钮 `single_url` **默认在已配 corpId 时包一层 `dingtalk://openapp`**（H5 免登需微应用域名绑定；可用 `DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false` 强制裸链）；无前端地址时退化为 text。指派时若商品已有货号/品名，卡片直接展示真实值，不会写「待填写」。
+4. 钉钉 **不能** 按 task_id 修改已发出 ActionCard 的 markdown（OA 仅能改 7 天内 status_bar，不能回填字段）。因此：指派成功后把 task_id 与当时的货号/品名写入 `goods_sampler_notice`；打样表单保存且货号/品名相对原卡有补全时，向同一 userid 再发一封「打样信息已更新」摘要卡（每条指派最多一次）。重新指定打样员会覆盖记录并清空补发标记。
+5. 未配置 AgentId / AppKey / Secret：功能关闭，INFO 日志说明原因，应用不崩溃。
 
 钉钉内打开表单后由 Phase 3 免登建会话（无需中台用户名密码）；浏览器里打开则仍跳转 `/login?returnUrl=/sampler/{id}`。
 

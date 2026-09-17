@@ -12,6 +12,9 @@ public final class SamplerNoticeResult {
         SKIPPED_DISABLED,
         SKIPPED_NO_USERID,
         SKIPPED_AMBIGUOUS,
+        SKIPPED_NO_ASSIGNMENT,
+        SKIPPED_ALREADY_FOLLOWED_UP,
+        SKIPPED_NO_BACKFILL,
         FAILED
     }
 
