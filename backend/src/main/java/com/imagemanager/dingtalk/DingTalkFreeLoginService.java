@@ -54,6 +54,10 @@ public class DingTalkFreeLoginService {
         if (authCode == null || authCode.isBlank()) {
             throw new IllegalArgumentException("缺少钉钉授权码");
         }
+        if (!properties.hasCorpId()) {
+            log.warn("钉钉免登时 DINGTALK_CORP_ID 为空：H5 requestAuthCode 需要 corpId"
+                    + "（errcode 40078 常见原因）。工作通知 HTTP 链接不受影响。");
+        }
         DingTalkAuthUser dingUser = dingTalkClient.getUserByAuthCode(authCode.trim());
         String userid = dingUser.getUserid();
         if (userid == null || userid.isBlank()) {

@@ -7,8 +7,13 @@ import com.imagemanager.org.OrgContact;
 import com.imagemanager.org.OrgDirectory;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuthService;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,7 @@ class DingTalkFreeLoginServiceTest {
     private UserRepository userRepository;
     private OrgDirectory orgDirectory;
     private AuthService authService;
+    private DingTalkProperties properties;
     private DingTalkFreeLoginService service;
 
     @BeforeEach
@@ -40,7 +46,7 @@ class DingTalkFreeLoginServiceTest {
         userRepository = mock(UserRepository.class);
         orgDirectory = mock(OrgDirectory.class);
         authService = mock(AuthService.class);
-        DingTalkProperties properties = new DingTalkProperties();
+        properties = new DingTalkProperties();
         properties.setCompany("宝娜斯集团");
         service = new DingTalkFreeLoginService(
                 dingTalkClient, userRepository, orgDirectory, authService, properties);
@@ -190,5 +196,54 @@ class DingTalkFreeLoginServiceTest {
         assertEquals("sess-sampler", response.getSessionId());
         verify(authService).issueSamplerSession("u-new", "张三", "宝娜斯集团", 12L);
         verify(userRepository, never()).save(other);
+    }
+
+    @Test
+    void loginWarnsWhenCorpIdBlankButStillExchangesAuthCode() {
+        Logger logger = (Logger) LoggerFactory.getLogger(DingTalkFreeLoginService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            when(dingTalkClient.getUserByAuthCode("code-1")).thenReturn(
+                    DingTalkAuthUser.builder().userid("u-zhang").name("张三").build());
+            User user = User.builder().id("id-1").username("张三").dingtalkUserid("u-zhang").role("user").build();
+            when(userRepository.findByDingtalkUserid("u-zhang")).thenReturn(Optional.of(user));
+
+            assertTrue(properties.getCorpId() == null || properties.getCorpId().isBlank());
+            LoginResponse response = service.login("code-1", 9L);
+
+            assertEquals("sess-full", response.getSessionId());
+            verify(dingTalkClient).getUserByAuthCode("code-1");
+            assertTrue(appender.list.stream().anyMatch(e ->
+                    e.getLevel() == Level.WARN
+                            && e.getFormattedMessage().contains("DINGTALK_CORP_ID")
+                            && e.getFormattedMessage().contains("40078")));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void loginDoesNotWarnWhenCorpIdConfigured() {
+        properties.setCorpId("dingcorp");
+        Logger logger = (Logger) LoggerFactory.getLogger(DingTalkFreeLoginService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            when(dingTalkClient.getUserByAuthCode("code-1")).thenReturn(
+                    DingTalkAuthUser.builder().userid("u-zhang").name("张三").build());
+            User user = User.builder().id("id-1").username("张三").dingtalkUserid("u-zhang").role("user").build();
+            when(userRepository.findByDingtalkUserid("u-zhang")).thenReturn(Optional.of(user));
+
+            service.login("code-1", 9L);
+
+            assertTrue(appender.list.stream().noneMatch(e ->
+                    e.getLevel() == Level.WARN
+                            && e.getFormattedMessage().contains("DINGTALK_CORP_ID")));
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

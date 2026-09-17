@@ -41,6 +41,16 @@ class DingTalkPropertiesTest {
     }
 
     @Test
+    void hasCorpIdIsFalseWhenBlank() {
+        DingTalkProperties properties = new DingTalkProperties();
+        assertFalse(properties.hasCorpId());
+        properties.setCorpId("  ");
+        assertFalse(properties.hasCorpId());
+        properties.setCorpId("dingabc");
+        assertTrue(properties.hasCorpId());
+    }
+
+    @Test
     void protocolLinkWrapRequiresFlagAndCorpId() {
         DingTalkProperties properties = new DingTalkProperties();
         assertFalse(properties.isWorkNoticeProtocolLinks());

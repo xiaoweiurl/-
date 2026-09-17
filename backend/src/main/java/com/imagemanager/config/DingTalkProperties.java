@@ -28,7 +28,10 @@ public class DingTalkProperties {
     /** 应用 AgentId（DINGTALK_AGENT_ID），工作通知必填；未配置则工作通知功能关闭 */
     private String agentId = "";
 
-    /** 企业 corpId，可选 */
+    /**
+     * 企业 corpId（DINGTALK_CORP_ID）。
+     * 组织同步与工作通知 HTTP 直链不依赖此项；H5 免登 {@code requestAuthCode} 必填。
+     */
     private String corpId = "";
 
     /**
@@ -52,6 +55,11 @@ public class DingTalkProperties {
     /** AgentId 已配置（非空且可解析为数字）。 */
     public boolean hasAgentId() {
         return resolveAgentId() != null;
+    }
+
+    /** H5 免登 JSAPI 需要 corpId；工作通知 HTTP 直链不依赖此项。 */
+    public boolean hasCorpId() {
+        return corpId != null && !corpId.isBlank();
     }
 
     /**
