@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 /**
  * 全局异常处理器
@@ -60,6 +62,21 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(401, e.getMessage());
     }
     
+    /**
+     * 静态资源 / 对象存储缺失：404，禁止落到 500。
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoSuchKeyException.class})
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleMissingResource(Exception e, HttpServletRequest request, HttpServletResponse response) {
+        String message = e.getMessage() != null ? e.getMessage() : "文件不存在";
+        log.info("资源不存在：{}", message);
+        if (isSSERequest(request)) {
+            writeSSEError(response, 404, "文件不存在");
+            return null;
+        }
+        return ApiResponse.error(404, "文件不存在");
+    }
+
     /**
      * 处理运行时异常
      */

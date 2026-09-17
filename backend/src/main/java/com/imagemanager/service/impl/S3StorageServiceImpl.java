@@ -2,6 +2,7 @@ package com.imagemanager.service.impl;
 
 import com.imagemanager.config.StorageProperties;
 import com.imagemanager.service.FileStorageService;
+import com.imagemanager.util.UploadStorageKeys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -400,16 +401,16 @@ public class S3StorageServiceImpl implements FileStorageService {
                 String bucketPrefix = "/" + bucket + "/";
                 if (path.startsWith(bucketPrefix)) {
                     // 路径风格，去掉bucket前缀
-                    return path.substring(bucketPrefix.length());
+                    return UploadStorageKeys.stripLocalUploadPrefix(path.substring(bucketPrefix.length()));
                 }
-                // 虚拟托管风格或直接路径，去掉开头的 /
-                return path.startsWith("/") ? path.substring(1) : path;
+                // 虚拟托管风格或直接路径；顺带去掉误存的 /api/uploads 前缀
+                return UploadStorageKeys.stripLocalUploadPrefix(path);
             } catch (@SuppressWarnings("unused") Exception e) {
                 log.warn("[Storage] URL解析失败，直接作为key使用: {}", fileKey);
-                return fileKey;
+                return UploadStorageKeys.stripLocalUploadPrefix(fileKey);
             }
         }
-        return fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
+        return UploadStorageKeys.stripLocalUploadPrefix(fileKey);
     }
 
     /**

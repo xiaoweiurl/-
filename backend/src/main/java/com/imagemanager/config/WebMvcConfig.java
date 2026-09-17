@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Objects;
@@ -55,17 +54,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
     }
     
     /**
-     * 配置静态资源映射
-     * 将 /uploads/** 路径映射到本地 ./uploads 目录
+     * /uploads/** 改由 {@link com.imagemanager.controller.UploadsController} 提供：
+     * 本地磁盘命中则直接输出；否则按存储 key 回源主存储（S3/OSS）；均未命中返回 404。
+     * 不再注册静态资源映射，避免缺文件时 NoResourceFoundException 被全局处理成 500。
      */
-    @Override
-    public void addResourceHandlers(@NonNull ResourceHandlerRegistry registry) {
-        // 获取当前工作目录
-        String userDir = System.getProperty("user.dir");
-        String localPath = userDir + "/uploads";
-        
-        // 添加 uploads 路径映射
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + localPath + "/");
-    }
 }
