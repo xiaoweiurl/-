@@ -6,9 +6,13 @@ import java.nio.charset.StandardCharsets;
 /**
  * 钉钉工作通知跳转链接。
  * <p>
- * 裸 HTTP URL 在 PC 钉钉里常被工作台拦截成<strong>应用首页</strong>
- * （本项目里就是商品库列表 {@code /goods-library}），丢掉路径上的商品 id。
- * 按官方「消息链接说明」包一层协议，强制打开<strong>指定</strong> H5 地址。
+ * 默认使用裸 HTTP(S) 表单地址：官方 action_card {@code single_url} 支持
+ * {@code https://open.dingtalk.com} 这类直链，手机钉钉可直接打开 H5，
+ * 无需 {@code openapp}/{@code page/link} 白名单体操。
+ * <p>
+ * 仅当同时配置了 corpId 且打开 {@code dingtalk.work-notice-protocol-links}
+ * 时才包一层 {@code dingtalk://}。那时必须把 FRONTEND_URL 主机写入企业内部应用
+ * 「H5 可信域名 / 安全域名」，否则会出现「后续页面非钉钉提供」。
  */
 public final class DingTalkLinks {
 
@@ -18,17 +22,23 @@ public final class DingTalkLinks {
     /**
      * 工作通知按钮 URL。
      * <ul>
-     *   <li>已配置 corpId + agentId：工作台打开微应用并 {@code redirect_url} 到表单</li>
-     *   <li>否则：侧边栏 / 内置浏览器打开该 HTTP 地址（{@code page/link}）</li>
+     *   <li>默认（{@code protocolLinks=false} 或缺 corpId）：原样返回 HTTP(S) 表单地址</li>
+     *   <li>{@code protocolLinks=true} + corpId + agentId：工作台 {@code openapp} 并
+     *       {@code redirect_url} 到表单</li>
+     *   <li>{@code protocolLinks=true} + corpId、无 agentId：{@code page/link} 侧边栏打开</li>
      * </ul>
      */
-    public static String workNoticeUrl(String httpUrl, String corpId, Long agentId) {
+    public static String workNoticeUrl(String httpUrl, String corpId, Long agentId,
+                                       boolean protocolLinks) {
         if (httpUrl == null || httpUrl.isBlank()) {
             return "";
         }
         String target = httpUrl.trim();
+        if (!protocolLinks || corpId == null || corpId.isBlank()) {
+            return target;
+        }
         String encodedTarget = encode(target);
-        if (corpId != null && !corpId.isBlank() && agentId != null) {
+        if (agentId != null) {
             return "dingtalk://dingtalkclient/action/openapp"
                     + "?corpid=" + encode(corpId.trim())
                     + "&container_type=work_platform"

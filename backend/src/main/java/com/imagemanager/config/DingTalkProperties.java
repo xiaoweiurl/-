@@ -31,6 +31,13 @@ public class DingTalkProperties {
     /** 企业 corpId，可选 */
     private String corpId = "";
 
+    /**
+     * 工作通知按钮是否包一层 {@code dingtalk://}（openapp / page/link）。
+     * 默认 false：{@code single_url} 直接用 HTTP(S) 表单地址，避免未配安全域名时
+     * 「后续页面非钉钉提供」。仅当同时配置了 corpId 时包装才生效。
+     */
+    private boolean workNoticeProtocolLinks = false;
+
     /** 请求超时（毫秒） */
     private int timeout = 10000;
 
@@ -45,6 +52,14 @@ public class DingTalkProperties {
     /** AgentId 已配置（非空且可解析为数字）。 */
     public boolean hasAgentId() {
         return resolveAgentId() != null;
+    }
+
+    /**
+     * 是否用 {@code dingtalk://} 包装工作通知链接：开关打开且 corpId 非空。
+     * 打开后须把 FRONTEND_URL 主机写入该应用的 H5 可信域名 / 安全域名。
+     */
+    public boolean shouldWrapWorkNoticeProtocolLinks() {
+        return workNoticeProtocolLinks && corpId != null && !corpId.isBlank();
     }
 
     /**
