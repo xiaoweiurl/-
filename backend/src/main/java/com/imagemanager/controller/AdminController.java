@@ -1,5 +1,6 @@
 package com.imagemanager.controller;
 
+import com.imagemanager.config.SessionAuthorities;
 import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.dto.CreateUserRequest;
 import com.imagemanager.dto.UpdateUserRequest;
@@ -122,7 +123,7 @@ public class AdminController {
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
         log.info("管理员重置用户密码：{}", id);
 
-        // 三级权限校验：管理员不能修改其他管理员/超级管理员的密码（本人除外），超级管理员不受限
+        // 三级权限校验：仅 admin/superadmin 可重置他人密码；管理员不能改其他管理员/超管（本人除外）
         com.imagemanager.dto.LoginResponse.UserInfo operator;
         try {
             operator = authService.validateSession(sessionId);
@@ -131,6 +132,9 @@ public class AdminController {
         }
         if (operator == null) {
             return ApiResponse.error(401, "会话已过期，请重新登录");
+        }
+        if (!SessionAuthorities.isAdminRole(operator.getRole())) {
+            return ApiResponse.error(403, "仅管理员和超级管理员可重置其他用户密码");
         }
         User target = userService.getUserById(id);
         if (target == null) {

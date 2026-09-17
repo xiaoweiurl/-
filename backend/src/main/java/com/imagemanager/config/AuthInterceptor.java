@@ -57,6 +57,10 @@ public class AuthInterceptor implements HandlerInterceptor {
                 forbidSampler(response);
                 return false;
             }
+            if (requiresAdmin(path) && !isAdminUser(userInfo, authentication)) {
+                forbidAdmin(response);
+                return false;
+            }
             return true;
         }
         
@@ -83,17 +87,35 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
         
-        // 检查管理员权限
-        boolean isAdmin = SessionAuthorities.isAdminRole(userInfo.getRole());
-        if ((path.startsWith("/admin/") || path.equals("/admin")) && !isAdmin) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("application/json");
-            response.setCharacterEncoding("UTF-8");
-            response.getWriter().write("{\"success\":false,\"error\":\"您没有权限执行此操作\"}");
+        if (requiresAdmin(path) && !SessionAuthorities.isAdminRole(userInfo.getRole())) {
+            forbidAdmin(response);
             return false;
         }
         
         return true;
+    }
+
+    private static boolean requiresAdmin(String path) {
+        return path.startsWith("/admin/") || path.equals("/admin");
+    }
+
+    private static boolean isAdminUser(LoginResponse.UserInfo userInfo,
+                                       Authentication authentication) {
+        if (userInfo != null) {
+            return SessionAuthorities.isAdminRole(userInfo.getRole());
+        }
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    private static void forbidAdmin(HttpServletResponse response) throws java.io.IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write("{\"success\":false,\"error\":\"您没有权限执行此操作\"}");
     }
 
     private static void forbidSampler(HttpServletResponse response) throws java.io.IOException {

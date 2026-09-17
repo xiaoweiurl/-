@@ -28,6 +28,7 @@ import { Loader2 } from 'lucide-react';
 import type { ImageItem } from '@/components/ImageCard';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { isAdminOrAbove } from '@/lib/auth';
 
 // 后端 API 基础 URL - 统一走 Next.js 代理
 const BACKEND_API_URL = '/api';
@@ -1013,7 +1014,7 @@ export default function Home() {
   };
 
   // 检查权限
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = isAdminOrAbove(currentUser?.role);
 
   const handleSelectImage = (id: string) => {
     setSelectedImages((prev) =>
