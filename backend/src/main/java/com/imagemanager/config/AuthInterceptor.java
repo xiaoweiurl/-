@@ -2,10 +2,12 @@ package com.imagemanager.config;
 
 import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.service.AuthService;
+import com.imagemanager.util.ApplicationPath;
 import com.imagemanager.util.SessionIdExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -32,14 +34,14 @@ public class AuthInterceptor implements HandlerInterceptor {
                              @NonNull HttpServletResponse response,
                              @NonNull Object handler) throws Exception {
         // 公开端点不需要认证
-        String path = request.getRequestURI();
+        String path = ApplicationPath.of(request);
         if (isPublicEndpoint(path)) {
             return true;
         }
         
         // 优先检查 Spring Security 的 SecurityContext（SessionIdAuthFilter 已设置）
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated() && authentication.getPrincipal() != null) {
+        if (isRealUser(authentication)) {
             return true;
         }
         
@@ -63,8 +65,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         request.setAttribute(USER_INFO_ATTRIBUTE, userInfo);
         
         // 检查管理员权限
-        boolean isAdmin = "ADMIN".equalsIgnoreCase(userInfo.getRole());
-        if (path.startsWith("/admin/") && !isAdmin) {
+        boolean isAdmin = SessionAuthorities.isAdminRole(userInfo.getRole());
+        if ((path.startsWith("/admin/") || path.equals("/admin")) && !isAdmin) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
@@ -74,9 +76,17 @@ public class AuthInterceptor implements HandlerInterceptor {
         
         return true;
     }
+
+    private static boolean isRealUser(Authentication authentication) {
+        return authentication != null
+                && authentication.isAuthenticated()
+                && authentication.getPrincipal() != null
+                && !(authentication instanceof AnonymousAuthenticationToken)
+                && !"anonymousUser".equals(authentication.getPrincipal());
+    }
     
     /**
-     * 判断是否为公开端点
+     * 判断是否为公开端点（路径不含 context-path /api）
      */
     private boolean isPublicEndpoint(String path) {
         return path.startsWith("/auth/login") ||

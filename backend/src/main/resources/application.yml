@@ -103,6 +103,8 @@ app:
     url: ${FRONTEND_URL:http://localhost:5000}
 
   # CORS 允许的前端来源白名单（逗号分隔；禁止通配符 * 与 allowCredentials 同用）
+  # 生产 FRP 公网（如 http://ai.bonasoma.com）请写入 CORS_ALLOWED_ORIGINS 或 FRONTEND_URL。
+  # 同 Host 的 Origin 也会放行（浏览器直打 Java）；BFF 不得转发浏览器 Origin。
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5000}
 
