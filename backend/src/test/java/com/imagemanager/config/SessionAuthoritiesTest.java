@@ -34,4 +34,10 @@ class SessionAuthoritiesTest {
         assertFalse(SessionAuthorities.isAdminRole("user"),
                 "钉钉注册办公用户必须能访问商品库，不能因非 ADMIN 被 403");
     }
+
+    @Test
+    void samplerRoleIsNotAdmin() {
+        assertEquals("ROLE_USER", SessionAuthorities.fromRole("sampler").get(0).getAuthority());
+        assertFalse(SessionAuthorities.isAdminRole("sampler"));
+    }
 }

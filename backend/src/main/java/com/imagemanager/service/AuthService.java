@@ -5,6 +5,7 @@ import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.dto.RegisterRequest;
 import com.imagemanager.dto.UpdateProfileRequest;
 import com.imagemanager.dto.UserSettings;
+import com.imagemanager.entity.User;
 
 /**
  * 认证服务接口
@@ -18,6 +19,16 @@ public interface AuthService {
      * 用户登录
      */
     LoginResponse login(LoginRequest request);
+
+    /**
+     * 为已存在的本地用户签发会话（钉钉免登等）。{@code forceKick=true} 时踢掉旧会话，避免 409。
+     */
+    LoginResponse issueSession(User user, boolean rememberMe, boolean forceKick);
+
+    /**
+     * 通讯录成员尚未注册中台账号时，签发仅能填写指定商品打样表单的短会话。
+     */
+    LoginResponse issueSamplerSession(String dingUserId, String displayName, String company, long goodsId);
     
     /**
      * 用户注册

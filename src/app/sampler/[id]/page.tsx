@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { Camera, Loader2, X } from 'lucide-react';
 import { loginHref, samplerFormPath } from '@/lib/auth-redirect';
+import { isDingTalkEnv } from '@/lib/dingtalk-env';
+import { dingTalkFreeLogin } from '@/lib/dingtalk-sso';
 
 interface GoodsDetail {
   id: number;
@@ -68,6 +70,8 @@ export default function SamplerFormPage() {
   const [loadError, setLoadError] = useState<string | null>(
     isGoodsId(id) ? null : '无效的商品编号',
   );
+  const [needPasswordLogin, setNeedPasswordLogin] = useState(false);
+  const [ssoHint, setSsoHint] = useState<string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState<SlotKey | null>(null);
@@ -86,7 +90,27 @@ export default function SamplerFormPage() {
     setLoadError(null);
   }, []);
 
-  const fetchDetail = useCallback(async () => {
+  const redirectToPasswordLogin = useCallback(() => {
+    if (!isGoodsId(id)) return;
+    window.location.href = loginHref(samplerFormPath(id));
+  }, [id]);
+
+  const recoverAuth = useCallback(async (): Promise<boolean> => {
+    if (!isGoodsId(id)) return false;
+    if (!isDingTalkEnv()) {
+      redirectToPasswordLogin();
+      return false;
+    }
+    setSsoHint('正在通过钉钉身份进入表单');
+    const result = await dingTalkFreeLogin(id);
+    setSsoHint(null);
+    if (result.ok) return true;
+    setNeedPasswordLogin(true);
+    setLoadError(result.error || '钉钉免登失败。请确认应用已发布，或使用中台账号登录。');
+    return false;
+  }, [id, redirectToPasswordLogin]);
+
+  const fetchDetail = useCallback(async (allowSso = true) => {
     if (!isGoodsId(id)) {
       setLoading(false);
       setLoadError('无效的商品编号');
@@ -94,10 +118,20 @@ export default function SamplerFormPage() {
     }
     setLoading(true);
     setLoadError(null);
+    setNeedPasswordLogin(false);
     try {
       const res = await api(`/api/goods-library/${id}`);
       if (res.status === 401) {
-        window.location.href = loginHref(samplerFormPath(id));
+        if (allowSso) {
+          const recovered = await recoverAuth();
+          if (recovered) {
+            await fetchDetail(false);
+            return;
+          }
+          return;
+        }
+        setNeedPasswordLogin(true);
+        setLoadError('登录已失效，请重新打开钉钉通知或使用账号登录');
         return;
       }
       const data = await res.json().catch(() => ({}));
@@ -113,13 +147,13 @@ export default function SamplerFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, applyDetail]);
+  }, [id, applyDetail, recoverAuth]);
 
   useEffect(() => {
     void fetchDetail();
   }, [fetchDetail]);
 
-  const handleSave = async () => {
+  const handleSave = async (retried = false) => {
     if (!isGoodsId(id) || !detail) return;
     const initiator = (detail.initiator || '').trim();
     if (!initiator) {
@@ -143,13 +177,17 @@ export default function SamplerFormPage() {
         body: JSON.stringify(body),
       });
       if (res.status === 401) {
-        window.location.href = loginHref(samplerFormPath(id));
+        if (!retried && (await recoverAuth())) {
+          await handleSave(true);
+          return;
+        }
+        toast.error('登录已失效');
         return;
       }
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         if (data.data) applyDetail(data.data as GoodsDetail);
-        else await fetchDetail();
+        else await fetchDetail(false);
         toast.success('已保存');
       } else {
         toast.error(data.message || '保存失败');
@@ -161,7 +199,7 @@ export default function SamplerFormPage() {
     }
   };
 
-  const handleUpload = async (slot: SlotKey, file: File) => {
+  const handleUpload = async (slot: SlotKey, file: File, retried = false) => {
     if (!isGoodsId(id)) return;
     setUploadingSlot(slot);
     try {
@@ -173,12 +211,16 @@ export default function SamplerFormPage() {
         body: formData,
       });
       if (res.status === 401) {
-        window.location.href = loginHref(samplerFormPath(id));
+        if (!retried && (await recoverAuth())) {
+          await handleUpload(slot, file, true);
+          return;
+        }
+        toast.error('登录已失效');
         return;
       }
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
-        await fetchDetail();
+        await fetchDetail(false);
       } else {
         toast.error(data.message || '上传失败');
       }
@@ -191,18 +233,23 @@ export default function SamplerFormPage() {
     }
   };
 
-  const handleRemoveImage = async (slot: SlotKey) => {
-    if (!isGoodsId(id) || !confirm('删除这张图片？')) return;
+  const handleRemoveImage = async (slot: SlotKey, retried = false) => {
+    if (!isGoodsId(id)) return;
+    if (!retried && !confirm('删除这张图片？')) return;
     setUploadingSlot(slot);
     try {
       const res = await api(`/api/goods-library/${id}/images?slot=${slot}`, { method: 'DELETE' });
       if (res.status === 401) {
-        window.location.href = loginHref(samplerFormPath(id));
+        if (!retried && (await recoverAuth())) {
+          await handleRemoveImage(slot, true);
+          return;
+        }
+        toast.error('登录已失效');
         return;
       }
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
-        await fetchDetail();
+        await fetchDetail(false);
       } else {
         toast.error(data.message || '删除失败');
       }
@@ -245,7 +292,7 @@ export default function SamplerFormPage() {
       {loading && (
         <div className="flex items-center justify-center gap-2 py-28 text-[#8E8E93]">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-[15px]">加载中</span>
+          <span className="text-[15px]">{ssoHint || '加载中'}</span>
         </div>
       )}
 
@@ -253,13 +300,24 @@ export default function SamplerFormPage() {
         <div className={`${col} py-24 text-center`}>
           <p className="text-[15px] text-[#3A3A3C] mb-5">{loadError}</p>
           {isGoodsId(id) && (
-            <button
-              type="button"
-              onClick={() => void fetchDetail()}
-              className="min-h-12 px-6 rounded-xl bg-[#007AFF] text-white text-[17px] font-medium active:scale-[0.98] transition-transform"
-            >
-              重新加载
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void fetchDetail(true)}
+                className="min-h-12 px-6 rounded-xl bg-[#007AFF] text-white text-[17px] font-medium active:scale-[0.98] transition-transform"
+              >
+                重新加载
+              </button>
+              {needPasswordLogin && (
+                <button
+                  type="button"
+                  onClick={redirectToPasswordLogin}
+                  className="min-h-12 px-6 rounded-xl bg-white text-[#007AFF] text-[17px] font-medium active:scale-[0.98] transition-transform"
+                >
+                  使用账号登录
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

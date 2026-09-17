@@ -121,6 +121,8 @@ public class GoodsSamplerNoticeService {
         if (formHttp.isBlank()) {
             return DingTalkWorkNotice.text(title, markdown.replace("**", "").replace("### ", ""));
         }
+        // 默认裸 HTTP（#19）：应用未发布时 dingtalk:// 会提示「非钉钉页面」。
+        // 钉钉内打开 /sampler/{id} 后走 H5 免登，无需中台密码。
         String clickUrl = DingTalkLinks.workNoticeUrl(
                 formHttp, properties.getCorpId(), properties.resolveAgentId(),
                 properties.shouldWrapWorkNoticeProtocolLinks());
@@ -128,7 +130,7 @@ public class GoodsSamplerNoticeService {
     }
 
     /**
-     * 打样员专用表单（手机优先），需登录；不是商品库列表或桌面编辑页。
+     * 打样员专用表单（手机优先）。钉钉内打开后走 H5 免登，无需中台密码。
      * 路径：{@code {FRONTEND_URL}/sampler/{goodsId}}
      */
     String formUrl(long goodsId) {

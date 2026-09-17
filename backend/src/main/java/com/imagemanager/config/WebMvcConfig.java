@@ -42,6 +42,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 "/auth/session",
                 "/auth/register",
                 "/auth/forgot-password/**",
+                "/auth/dingtalk",
+                "/auth/dingtalk/**",
                 "/share/access/**",  // 分享链接公开访问（context-path 已去掉 /api 前缀）
                 "/api-docs/**",
                 "/swagger-ui/**",

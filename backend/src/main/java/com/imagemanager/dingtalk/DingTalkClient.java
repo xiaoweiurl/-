@@ -38,6 +38,9 @@ import java.util.Set;
  *   <li>部门成员：POST https://oapi.dingtalk.com/topapi/v2/user/list（分页 cursor）</li>
  *   <li>工作通知：POST https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2
  *       （需 AgentId；未配置时上层跳过发送）</li>
+ *   <li>H5 免登：POST https://oapi.dingtalk.com/topapi/v2/user/getuserinfo
+ *       （body: code = JSAPI authCode）</li>
+ *   <li>JSAPI ticket：GET https://oapi.dingtalk.com/get_jsapi_ticket</li>
  * </ul>
  * 权限：通讯录部门信息读权限、成员信息读权限（手机号可选）、企业内工作通知发送权限。
  */
@@ -55,6 +58,8 @@ public class DingTalkClient {
 
     private volatile String cachedToken;
     private volatile long tokenExpiresAtMs;
+    private volatile String cachedJsapiTicket;
+    private volatile long jsapiTicketExpiresAtMs;
 
     /**
      * Spring injection constructor. Required {@code @Autowired}: a package-private
@@ -162,6 +167,62 @@ public class DingTalkClient {
     }
 
     /**
+     * 企业内部应用 H5 免登：用 JSAPI authCode 换钉钉 userid。
+     * API：POST /topapi/v2/user/getuserinfo {@code {"code": authCode}}
+     */
+    public DingTalkAuthUser getUserByAuthCode(String authCode) {
+        ensureConfigured();
+        if (authCode == null || authCode.isBlank()) {
+            throw new DingTalkException("缺少钉钉 authCode");
+        }
+        String token = getAccessToken();
+        JsonNode root = postOapi(token, "/topapi/v2/user/getuserinfo",
+                Map.of("code", authCode.trim()));
+        JsonNode result = root.path("result");
+        String userid = firstNonBlank(text(result, "userid"), text(result, "userId"));
+        if (userid == null || userid.isBlank()) {
+            throw new DingTalkException("钉钉免登失败: 未返回 userid");
+        }
+        return DingTalkAuthUser.builder()
+                .userid(userid)
+                .unionid(firstNonBlank(text(result, "unionid"), text(result, "unionId"),
+                        text(result, "associated_unionid")))
+                .name(text(result, "name"))
+                .deviceId(firstNonBlank(text(result, "device_id"), text(result, "deviceId")))
+                .build();
+    }
+
+    /**
+     * H5 {@code dd.config} 所需 jsapi_ticket（缓存至过期前 2 分钟）。
+     */
+    public String getJsapiTicket() {
+        ensureConfigured();
+        long now = System.currentTimeMillis();
+        String ticket = cachedJsapiTicket;
+        if (ticket != null && now < jsapiTicketExpiresAtMs) {
+            return ticket;
+        }
+        synchronized (this) {
+            if (cachedJsapiTicket != null && System.currentTimeMillis() < jsapiTicketExpiresAtMs) {
+                return cachedJsapiTicket;
+            }
+            String token = getAccessToken();
+            JsonNode root = getOapi(token, "/get_jsapi_ticket");
+            String fetched = firstNonBlank(text(root, "ticket"), text(root.path("result"), "ticket"));
+            if (fetched == null || fetched.isBlank()) {
+                throw new DingTalkException("获取钉钉 jsapi_ticket 失败: "
+                        + firstNonBlank(text(root, "errmsg"), text(root, "message"), "empty ticket"));
+            }
+            int expireIn = root.path("expires_in").asInt(7200);
+            jsapiTicketExpiresAtMs = System.currentTimeMillis()
+                    + Math.max(60, expireIn) * 1000L - TOKEN_SKEW_MS;
+            cachedJsapiTicket = fetched;
+            log.info("钉钉 jsapi_ticket 已刷新，有效期约 {} 秒", expireIn);
+            return fetched;
+        }
+    }
+
+    /**
      * 按部门拉取成员（同一 userid 可能出现在多部门，调用方需去重）。
      */
     public List<DingUser> fetchUsersInDepartments(Collection<Long> deptIds) {
@@ -262,6 +323,25 @@ public class DingTalkClient {
             throw e;
         } catch (Exception e) {
             throw new DingTalkException("获取钉钉 accessToken 失败: " + e.getMessage(), e);
+        }
+    }
+
+    private JsonNode getOapi(String token, String path) {
+        String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
+        String url = properties.resolveOapiBaseUrl() + path + "?access_token=" + encoded;
+        try {
+            String response = transport.execute("GET", url, null, Map.of());
+            JsonNode root = objectMapper.readTree(response);
+            int errcode = root.path("errcode").asInt(0);
+            if (errcode != 0) {
+                throw new DingTalkException("钉钉接口 " + path + " 失败: errcode=" + errcode
+                        + " errmsg=" + root.path("errmsg").asText(""));
+            }
+            return root;
+        } catch (DingTalkException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new DingTalkException("调用钉钉接口 " + path + " 失败: " + e.getMessage(), e);
         }
     }
 

@@ -58,5 +58,11 @@ public class LoginResponse {
         private String membership;
         private String company;
         private Boolean mustChangePassword;
+        /**
+         * 会话作用域：{@code full}（默认完整中台）或 {@code sampler}（仅指定商品打样表单）。
+         */
+        private String scope;
+        /** sampler 作用域绑定的商品 id（仅 scope=sampler） */
+        private String samplerGoodsId;
     }
 }

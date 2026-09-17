@@ -41,14 +41,28 @@ public class AuthInterceptor implements HandlerInterceptor {
         
         // 优先检查 Spring Security 的 SecurityContext（SessionIdAuthFilter 已设置）
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        LoginResponse.UserInfo userInfo = (LoginResponse.UserInfo) request.getAttribute(USER_INFO_ATTRIBUTE);
+
         if (isRealUser(authentication)) {
+            if (userInfo == null) {
+                String sessionId = SessionIdExtractor.extract(request);
+                if (sessionId != null) {
+                    userInfo = authService.validateSession(sessionId);
+                    if (userInfo != null) {
+                        request.setAttribute(USER_INFO_ATTRIBUTE, userInfo);
+                    }
+                }
+            }
+            if (userInfo != null && !SamplerSessionGuard.allows(path, request.getMethod(), userInfo)) {
+                forbidSampler(response);
+                return false;
+            }
             return true;
         }
         
         // SecurityContext 无认证信息，尝试从请求中提取 sessionId 验证
         String sessionId = SessionIdExtractor.extract(request);
         
-        LoginResponse.UserInfo userInfo = null;
         if (sessionId != null) {
             userInfo = authService.validateSession(sessionId);
         }
@@ -63,6 +77,11 @@ public class AuthInterceptor implements HandlerInterceptor {
         
         // 将用户信息存储到请求属性中
         request.setAttribute(USER_INFO_ATTRIBUTE, userInfo);
+
+        if (!SamplerSessionGuard.allows(path, request.getMethod(), userInfo)) {
+            forbidSampler(response);
+            return false;
+        }
         
         // 检查管理员权限
         boolean isAdmin = SessionAuthorities.isAdminRole(userInfo.getRole());
@@ -75,6 +94,13 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         
         return true;
+    }
+
+    private static void forbidSampler(HttpServletResponse response) throws java.io.IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write("{\"success\":false,\"error\":\"打样会话仅能填写指定商品表单\"}");
     }
 
     private static boolean isRealUser(Authentication authentication) {
@@ -93,6 +119,7 @@ public class AuthInterceptor implements HandlerInterceptor {
                path.startsWith("/auth/session") ||
                path.startsWith("/auth/forgot-password") ||
                path.startsWith("/auth/register") ||
+               path.startsWith("/auth/dingtalk") ||
                path.startsWith("/share/access") ||  // 分享链接公开访问（context-path 已去掉 /api 前缀）
                path.startsWith("/api-docs") ||
                path.startsWith("/swagger-ui") ||
