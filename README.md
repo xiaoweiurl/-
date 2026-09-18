@@ -1,169 +1,177 @@
-# 宝娜斯集团 · 图片 / 知识 / 商品库中台
+# 宝娜斯集团 · 产品智能中台
 
-宝娜斯集团（Bonasoma）内部业务系统，Maven 工程名为 **Image Manager Backend**（包名 `com.imagemanager`）。
+宝娜斯（Bonasoma）内部系统，工程名 Image Manager（`com.imagemanager`）。登录后分三个门户：**设计师**、**工厂 / 供应链**、**市场营销**。
 
-本仓库是图库、知识文档、商品库与打样协同的中台，**不是**字节跳动 / 豆包 / 扣子（Coze）/ 火山引擎的智能体模板或对话 Demo。启动脚本里若出现 `COZE_PROJECT_ENV`，只是历史遗留的环境变量名，与产品定位无关。
+**核心能力是本地 LLM 问答**：用 Ollama 上的对话模型（默认 `qwen3.6:35b`）+ 向量模型（`bge-m3`），对知识库、岗位卡片、业务员资料和供应链结构化数据做 **RAG**，SSE 流式回答。向量侧是 **PostgreSQL pgvector + Milvus** 双存储，不是豆包 / 扣子 / 火山引擎产品。启动脚本里的 `COZE_PROJECT_ENV` 只是环境变量名。
 
-生产环境常通过 FRP 暴露为 `http://ai.bonasoma.com`（以实际部署为准）。
+生产 FRP 常见地址：`http://ai.bonasoma.com`。
 
-## 系统做什么
+---
 
-| 模块 | 说明 |
+## 1. 核心：本地 LLM + RAG + 向量检索
+
+编排在 `SmartChatServiceImpl`，入口 `GET /api/chat/smart`（SSE）。`mode=designer`（默认，`/chat`）与 `mode=factory`（`/supply-chain`）走不同检索与系统提示。
+
+### 模型与服务
+
+| 用途 | 实现 |
 |------|------|
-| 图库 | 图片上传、相册分类、网格/预览、收藏、回收站、批量操作；独立编辑页 `/edit/[id]` |
-| 知识库 | 文档上传与分类、向量化状态、语义检索（与记忆库表物理隔离） |
-| 文档中心 | 主页侧栏入口：PDF / Word / Excel / PPT / 压缩包等 |
-| 商品库 | 文件夹式商品（货号 + 品名）；主图 / 侧面 / 细节 / 产品图 |
-| 打样表单 | 移动端页 `/sampler/{id}`：钉钉内免登填报，桌面编辑仍走 `/goods-library/{id}` |
-| 组织与账号 | 钉钉通讯录同步、按姓名注册、用户管理 |
-| 权限 | `user` / `admin` / `superadmin`；打样短会话仅能操作指定商品 |
-| ERP 同步 | 管理员从外部 ERP HTTP 接口增量拉取订单 / 工艺 / BOM 等到本地库（见下文） |
+| 主对话 / 查询改写 | Ollama `app.ollama.chat-model`（默认 qwen3.6:35b），`/api/chat` 流式 |
+| 文本向量 | Ollama `bge-m3`，1024 维 |
+| 导入 OCR | 同一套多模态模型 `app.ollama.vision-model` |
+| 重排序 | 独立 HTTP 服务，默认 `localhost:8001`（bge-reranker-v2-m3） |
+| 企划联网 | 仅工厂 `subMode=planning` 调 MiniMax web_search；设计师模式**不联网** |
 
-侧栏还有数据驾驶舱、AI 对话、AI 生图、供应链单据概览、运维中心等页面，以后端已实现的 Controller 为准。后端不可用时接口返回 **503**，**没有** Mock 登录或假数据兜底。
+### 向量存哪里
 
-## 技术栈
+| 存储 | 内容 |
+|------|------|
+| **pgvector** `knowledge_embeddings` | 知识库切片 `KNOWLEDGE_BASE`；岗位卡片 `POSITION_CARD`；对话 Q&A `SMART_CHAT` |
+| **Milvus** | 业务员资料批量导入（zip/目录流式解析 → 切片 → 向量 → 直写，不落 pgvector）。Java `MilvusService` 绑定 `milvus.collection`（代码默认 `salesperson_docs`）；`application.yml` 另有 `collection-name: salesperson_chunks`，以实际部署与该 `@Value` 为准 |
 
-- **前端**：Next.js 16（App Router）+ React 19 + TypeScript + shadcn/ui + Tailwind CSS 4
-- **前端进程**：自定义 `src/server.ts`，始终以 **production Next** 启动（无 Fast Refresh / HMR / `tsx watch`）
-- **后端**：Spring Boot 3.2、Java 17，目录 `backend/`
-- **数据库**：PostgreSQL（库名默认 `image_management`）；增量 SQL 在 `backend/src/main/resources/db/migration/`（Flyway 风格文件名，当前 **未** 接入 Flyway 插件，按环境执行）
-- **会话**：Redis（`AuthServiceImpl` 读写 Session）
-- **对象存储**：阿里云 OSS（S3 兼容）。图片存储优先 S3，凭据缺失或连接失败则降级本地目录；文档/知识库文件走本地存储
-- **鉴权**：Java 侧 Session（`X-Session-Id` / Cookie / `Authorization: Bearer`）+ Spring Security；前端 `/api/*` 经 BFF 转发
+知识库**上传**会双写 pgvector + Milvus（若 Milvus 启用）。`KnowledgeBaseServiceImpl.search` 先试 Milvus，再做 pgvector 关键词 + 向量混合检索。
 
-可选本地模型（Ollama 等）用于对话、向量化、图片 OCR，属于部署能力，不是本产品的品牌。
+代码里没有仍在写入的 `MEMORY` 记忆库服务；旧注释里的「双库检索」已过时。
 
-## 仓库结构（高层）
+### 检索顺序（代码里的降级，不是宣传口径）
+
+**知识库路径**（`searchKnowledgeBase`）
+
+1. 关键词直查 SQL（货号等精确命中，绕开 Ollama 超时）
+2. `RagPipeline`：Ollama 生成查询变体 → 多路向量召回 → 去重 → reranker
+3. 再降级：直接 `KnowledgeBaseService.search`（Milvus → pgvector）
+
+**工厂模式额外层**
+
+1. 报价单实体检索（`order_bjd_query` / `QuotationCalcService`，可出 `quotation_list` 表）
+2. 结构化 ERP SQL（`DecisionDataService`：工艺、BOM、工序工价、销售订单、产能、商品库等）
+3. 供应链宽检索：RagPipeline → LangChain4j Text-to-SQL / `@Tool` → 业务表关键词 SQL
+4. Milvus 业务员资料（已有货号结构化命中时可跳过）
+5. 与设计师共用的知识库 RAG
+
+无命中时提示词要求回答「当前数据库中暂无此数据」，禁止编造。对话结束后非闲聊回合会异步把 Q+A 写入 `SMART_CHAT` 向量。
+
+大规模导入：`POST /api/knowledge/import/path` 或 `/upload`，进度 `/progress/{taskId}`。
+
+---
+
+## 2. 门户
+
+登录页三入口（`portal_type`）。
+
+### 设计师（`/`、`/chat`）
+
+图库（相册、上传、预览、收藏、回收站、`/edit/[id]`）、知识库与**岗位卡片**、文档中心、商品库、**AI 生图**、设计师对话。
+
+设计师 RAG 优先岗位卡片 + 知识库 + 历史 Q&A 向量 + 图库检索，**不注入** ERP / 报价单 / Milvus 业务员库。供应链类问题提示走工厂门户。
+
+**AIGC（`/ai-image`）**：文生图 / 图生图（参考图 base64）→ 外部生成 API 异步任务 → 前端轮询 → 可选 `save-to-gallery` 写入「二创中心」（`source=creative`）。生图链路本身不做 RAG。上传图可走关键词分类；可选外部 Vision HTTP（`app.ai.*`，默认 URL 是历史残留，不是产品名）。
+
+### 工厂 / 供应链（`/supply-chain`）
+
+这是一等公民，不是附录。页内两个 Tab：
+
+| Tab | 内容 |
+|-----|------|
+| **AI 对话** | `mode=factory`。子模式：通用助手 / **商品企划** `planning` / **决策辅助** `decision` |
+| **单据概览** | 报价金额、销售**数量**（`sl_sum` 不是金额）、工艺单、合格率、趋势与最近单据 |
+
+另有 **历史订单** `/supply-chain/history-orders`（只读，已审核销售单），管理员 **ERP 同步** `/erp-sync`。
+
+ERP 同步：外部 HTTP 增量拉取，**只插入本地没有的行，不覆盖已有数据**。七个模块：销售订单、内衣/丝袜工艺单、工艺部件、工序、工价、原料 BOM。报价表 `order_bjd_query` **不在**这七个接口里。本仓库**不是**工厂 MES，没有车间报工/考勤。
+
+后端仍保留 `/supply-chain` 下产品报价、原料、生产计划等 REST（含智能报价计算），**当前前端 Tab 已去掉这些 CRUD 页**；工厂问答主要打 `order_bjd_query`、ERP 同步表、知识库和 Milvus。
+
+默认 `ERP_BASE_URL` 历史上是义乌网纺 Unitive 风格路径，可用环境变量改。
+
+### 市场营销（`/marketing`）
+
+独立 SSE 对话（`MarketingChatController`），Ollama 流式，**不做 RAG / 向量检索**。
+
+### 其它页面
+
+数据驾驶舱、AI 能力中心、数据资产、数据模型、运维中心（管理员）；商品库桌面编辑 `/goods-library/{id}`。
+
+**影刀 RPA**：Java/TS 业务代码中**没有**影刀 SDK、定时采集或飞书机器人。仓库里的「影刀入库」只出现在面试题文档（`PDF-README.md`）。中台提供已登录的图片上传 / 批量 URL 入库接口，任何外部 RPA 都可以调，但闭环不在本仓库里实现。
+
+---
+
+## 3. 商品库打样与钉钉（配套）
+
+商品库：文件夹 = 货号 + 品名；四槽图（主图/侧面/细节/产品图）上 OSS。
+
+打样员变更且保存成功后，异步发钉钉 ActionCard 到 `/sampler/{id}`。钉钉**不能改已发出卡片正文**；表单补全原卡缺失的货号/品名时会再发一封「打样信息已更新」。
+
+- 办公端：`/org` 同步通讯录（不同步批量开户）→ `/register` 按姓名开户，初始密码 **123456**，强制改密。指派打样员发通知前会按通讯录尝试确保本地账号存在。
+- 钉钉内打开表单：H5 免登 + HMAC ticket；未注册通讯录成员只有 **sampler** 短会话（12 小时）。普通浏览器走登录页。
+- 未配 AppKey/Secret 应用仍启动；未配 AgentId 则保存成功但不发通知。H5 可信域名（如 `ai.bonasoma.com`）改完必须**发布应用**。
+
+---
+
+## 4. 技术栈与目录
+
+- **前端**：Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind 4；自定义 `src/server.ts`，**始终 production Next**（无 HMR）
+- **后端**：Spring Boot 3.2 / Java 17，`backend/`
+- **库**：PostgreSQL（默认库 `image_management`）；增量 SQL 在 `db/migration/`（Flyway 文件名，**未**接 Flyway 插件）
+- **会话**：Redis
+- **对象存储**：阿里云 OSS（S3 兼容）；图片优先 S3，失败降级 `./uploads`；文档/知识库文件走本地盘
 
 ```
-.
-├── src/                          # Next.js 前端
-│   ├── app/                      # 页面与少量专属 API 路由
-│   │   ├── api/[[...path]]/      # 统一 BFF：其余 /api/* → Java :8080/api/*
-│   │   ├── sampler/[id]/         # 打样员表单
-│   │   ├── goods-library/        # 商品库
-│   │   ├── knowledge/            # 知识库
-│   │   ├── org/                  # 钉钉组织（管理员）
-│   │   └── ...
-│   ├── components/               # Sidebar、图库、UI
-│   ├── lib/                      # 权限辅助、BFF 代理
-│   └── server.ts                 # 自定义 HTTP 入口（PORT 默认 5000）
-├── backend/                      # Spring Boot
-│   ├── src/main/java/com/imagemanager/
-│   └── src/main/resources/application.yml
-├── package.json                  # pnpm 脚本
-└── README.md
+src/app/          门户页面；api/[[...path]] 统一 BFF → Java :8080/api
+src/server.ts     前端入口 PORT=5000
+backend/          SmartChat / RagPipeline / Milvus / ERP / 钉钉 / 商品库
 ```
 
-新增 Java 接口一般不必再写 Next 代理：浏览器请求同源 `/api/<java路径>` 即可。
+浏览器打同源 `/api/<java路径>` 即可，一般不用再写 Next 代理。后端不可用返回 **503**，无 Mock 登录。
 
-## 本地运行
+### 角色
 
-依赖：**Node.js + pnpm ≥ 9**、**JDK 17**、**PostgreSQL**、**Redis**。未启动 Redis 时登录会话无法工作。
+| 角色 | 摘要 |
+|------|------|
+| `user` | 业务页；不能管用户、不能 ERP 同步 |
+| `admin` | 管理 + ERP；不能重置其他 admin/superadmin 密码（本人除外） |
+| `superadmin` | 最高权限 |
+| `sampler` | 仅打样表单 |
 
-### 1. 后端
+种子账号 `superadmin` / `admin` / `user` 仅 local/dev，密码来自 `SEED_*`，文档不写明文。
+
+---
+
+## 5. 本地启动
+
+需要：Node + pnpm ≥ 9、JDK 17、PostgreSQL、**Redis**（没 Redis 登不上）、可选 Ollama / reranker / Milvus。
 
 ```bash
+# 后端
 cd backend
-# 配置 application-local.yml 或环境变量：DATABASE_*、REDIS_*、SEED_* 等
-# application-local.yml 已被 .gitignore，不要提交
-./mvnw spring-boot:run
-```
+# application-local.yml 或 DATABASE_*、REDIS_*、SEED_*（该 yml 已 gitignore）
+./mvnw spring-boot:run          # http://localhost:8080/api
 
-默认 `http://localhost:8080/api`。Swagger：`http://localhost:8080/api/swagger-ui.html`。前端也可打开 `/api-docs`。
-
-生产打包：`./mvnw package` 后 `java -jar target/*.jar`。
-
-### 2. 前端
-
-自定义服务**不会**热更新。改代码后必须重新构建并手动重启。
-
-```bash
-pnpm install
-pnpm run build
-
-# Linux / macOS（监听 0.0.0.0:5000，便于本机或 FRP）
+# 前端：无热更新。改代码 → 停进程 → build → 再 start
+pnpm install && pnpm run build
 NEXT_HOSTNAME=0.0.0.0 PORT=5000 pnpm start
-
-# Windows：pnpm start 与 pnpm start:win 等价
-pnpm start
+# Windows：pnpm start 与 start:win 相同
 ```
 
-`pnpm dev` 与 `pnpm start` 相同：都是 `NODE_ENV=production COZE_PROJECT_ENV=PROD PORT=5000 npx tsx src/server.ts`。没有 `.next` 构建产物会直接退出。
-
-启动日志应出现 `as production` 以及 `HMR / Fast Refresh / tsx watch: OFF`。
+`pnpm dev` 与 `pnpm start` 都是 `NODE_ENV=production COZE_PROJECT_ENV=PROD PORT=5000 npx tsx src/server.ts`。日志应有 `as production` 和 `HMR ... OFF`。
 
 | 变量 | 说明 |
 |------|------|
-| `BACKEND_API_URL` / `NEXT_PUBLIC_BACKEND_API_URL` | BFF 直连 Java，默认 `http://localhost:8080/api` |
-| `PORT` | 前端端口，默认 `5000` |
-| `NEXT_HOSTNAME` / `HOST` | 传给 Next 的 hostname；不要把 Linux 机器名 `HOSTNAME` 当公网域名 |
-| `COOKIE_SECURE` | HTTP 内网不要设为 `true` |
-| `COZE_PROJECT_ENV` | 启动脚本固定为 `PROD`，仅作运行环境开关，不是产品名 |
+| `BACKEND_API_URL` / `NEXT_PUBLIC_BACKEND_API_URL` | 默认 `http://localhost:8080/api` |
+| `OLLAMA_BASE_URL` | 默认 `http://localhost:11434` |
+| `MILVUS_HOST` / `MILVUS_PORT` / `MILVUS_ENABLED` | 业务员库；关掉则工厂模式跳过该路 |
+| `RERANKER_BASE_URL` / `RERANKER_ENABLED` | 关掉则跳过重排 |
+| `S3_*` / `STORAGE_TYPE` | OSS；配不齐则本地盘 |
+| `FRONTEND_URL` | 钉钉跳转，默认 `http://localhost:5000` |
+| `CORS_ALLOWED_ORIGINS` | 生产加上公网 Origin |
+| `DINGTALK_*` | 组织同步与打样通知 |
+| `ERP_*` | 管理员同步 |
+| `COOKIE_SECURE` | HTTP 内网不要 `true` |
 
-## 关键配置（不要把密钥写进 Git）
+Swagger：`http://localhost:8080/api/swagger-ui.html` 或前端 `/api-docs`。
 
-后端主配置：`backend/src/main/resources/application.yml`。生产用环境变量注入；本地默认值放 `application-local.yml`。
-
-| 用途 | 变量（节选） |
-|------|----------------|
-| 数据库 | `DATABASE_URL_JDBC` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` |
-| Redis | `REDIS_HOST` `REDIS_PORT` `REDIS_PASSWORD` |
-| 前端对外地址 | `FRONTEND_URL`（钉钉跳转基址，默认 `http://localhost:5000`） |
-| CORS | `CORS_ALLOWED_ORIGINS`（生产把 `http://ai.bonasoma.com` 配上） |
-| OSS | `STORAGE_TYPE`（默认 `s3`）、`S3_ENDPOINT` `S3_REGION` `S3_BUCKET_NAME` `S3_ACCESS_KEY` `S3_SECRET_KEY` |
-| 种子账号 | 仅 `local`/`dev`：`SEED_SUPERADMIN_PASSWORD` `SEED_ADMIN_PASSWORD` `SEED_USER_PASSWORD`；未配置则跳过创建；首次登录强制改密 |
-| 钉钉 | `DINGTALK_APP_KEY` `DINGTALK_APP_SECRET` `DINGTALK_AGENT_ID` `DINGTALK_CORP_ID` 等 |
-| ERP | `ERP_BASE_URL` `ERP_UID` `ERP_PASSWORD` `ERP_CUSTOM_ID` |
-
-OSS：图片走 S3 兼容接口（阿里云需关闭 chunked encoding）。未配齐凭据或探测失败则写入 `./uploads`（可用 `UPLOAD_PATH` 改）。`/uploads/**` **不**匿名公开，同站 `<img>` 带 Cookie 访问。本地文件缺失时会按 key 回源 OSS。
-
-### ERP 同步（管理员）
-
-页面 `/erp-sync`。应用做的是：**按模块增量拉取外部 ERP 接口，仅插入本地尚不存在的记录**（幂等，不覆盖已有行）。默认 `ERP_BASE_URL` 历史上指向义乌网纺 Unitive 风格路径，可用环境变量改掉。
-
-本仓库**不是**工厂 MES，也不描述车间报工/考勤。同步模块以 `ErpSyncController` 与配置为准（订单、内衣/丝袜工艺单、部件、工序、工价、原料 BOM 等）。
-
-## 钉钉与打样
-
-未配置 AppKey/Secret 时应用仍可启动；调用「同步钉钉组织」会返回明确错误，不做 Mock。未配置 `DINGTALK_AGENT_ID` 时商品仍能保存，只是不发工作通知。
-
-**组织同步 + 姓名注册（办公端）**
-
-1. 管理员打开 `/org`，同步部门树与通讯录（`org_departments` / `org_users`）。同步本身不批量开户。
-2. 员工在 `/register` 填**姓名**（公司默认宝娜斯集团），精确匹配已同步通讯录。
-3. 命中一人则创建本地账号并绑定 `dingtalk_userid`；重名则 409 候选人。
-4. 初始密码固定 **123456**，`must_change_password=true`，登录后走 `/settings?tab=security&forceChange=1`。
-5. 指派打样员发工作通知前，会按通讯录姓名尝试确保本地账号存在（与第 1 步的「只缓存通讯录」互补）。
-
-**打样工作通知**
-
-商品库填写/变更**打样员**且事务成功后异步发企业内部应用 ActionCard。按姓名解析 userid（通讯录优先，其次已注册用户）。找不到人或同名多人则打日志跳过，不让保存失败。
-
-钉钉**不能**改已发出 ActionCard 正文。表单补全了原卡缺失的货号/品名时，会再发一封「打样信息已更新」（每条指派最多一次）。
-
-**钉钉内打开 `/sampler/{id}`**
-
-- 钉钉 UA：JSAPI 免登（`GET /api/auth/dingtalk/config` + `POST /api/auth/dingtalk`）；可用 HMAC ticket。未注册通讯录成员只拿 **sampler 作用域**短会话（约 12 小时），不能进图库/知识库/组织/ERP/管理端。
-- 普通浏览器：跳转 `/login?returnUrl=/sampler/{id}`。
-- 开放平台需配置 **H5 可信域名**（如 `ai.bonasoma.com`，不要带路径），改完必须 **发布应用**。发布后请重新指定打样员以发出新通知。
-
-`DINGTALK_WORK_NOTICE_PROTOCOL_LINKS=false` 可强制工作通知按钮用裸 HTTP(S) 链接。
-
-## 角色
-
-| 角色 | 能力（摘要） |
-|------|----------------|
-| `user` | 使用图库/知识库/商品库等业务页；不能管用户、不能 ERP 同步 |
-| `admin` | 管理功能 + ERP 同步；不能重置其他 admin/superadmin 的密码（本人除外） |
-| `superadmin` | 最高权限 |
-| `sampler`（作用域） | 仅打样表单，不是完整中台账号 |
-
-种子账号用户名：`superadmin` / `admin` / `user`。密码只来自环境变量，文档不写明文。钉钉姓名注册账号的初始密码见上一节。
+---
 
 ## 开发约定
 
-- 不要提交密钥、`.env.local`、`application-local.yml`。
-- 前端：`pnpm ts-check`、`pnpm lint`。后端：`./mvnw test`。
-- 基于 `main` 开短分支；PR 写清改动与验证方式。
-- 鉴权、上传、会话相关改动不要引入 Mock 兜底或把 session 放到 URL 查询参数。
+不要提交密钥、`.env.local`、`application-local.yml`。前端 `pnpm ts-check` / `pnpm lint`；后端 `./mvnw test`。基于 `main` 开短分支。不要把 session 放进 URL，也不要加 Mock 鉴权兜底。
