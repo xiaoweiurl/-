@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * 安全解析响应
  */
-async function safeParseResponse(response: Response): Promise<{ result?: Record<string, unknown>; ok: boolean; status: number }> {
+async function _safeParseResponse(response: Response): Promise<{ result?: Record<string, unknown>; ok: boolean; status: number }> {
   const ok = response.ok;
   const status = response.status;
 
@@ -118,8 +118,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const cookieHeader = request.headers.get('cookie') || '';
+    const { id: _id } = await params;
+    const _cookieHeader = request.headers.get('cookie') || '';
 
     // TODO: 后端实现后，转发到后端 API
     // const response = await backendFetch(`/smart-albums/${id}`, {
@@ -147,7 +147,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const cookieHeader = request.headers.get('cookie') || '';
+    const _cookieHeader = request.headers.get('cookie') || '';
     const body = await request.json();
     const { name, description, matchingConfig } = body;
 
@@ -194,7 +194,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const cookieHeader = request.headers.get('cookie') || '';
+    const _cookieHeader = request.headers.get('cookie') || '';
 
     // 检查是否为系统相册
     if (id.startsWith('smart-') && !id.startsWith('smart-user-')) {

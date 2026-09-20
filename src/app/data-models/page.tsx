@@ -137,7 +137,10 @@ export default function DataModelsPage() {
     } catch { setRecords([]); }
   }, []);
 
-  useEffect(() => { fetchModels(); }, [fetchModels]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount data fetch
+    void fetchModels();
+  }, [fetchModels]);
 
   const selectModel = async (m: DataModel) => {
     // 从列表模型构建基础模型（含 recordCount）
@@ -373,29 +376,28 @@ function CreateModelModal({ onCreate, onClose }: { onCreate: (n: string, d: stri
 
 /* ===== 字段编辑器 ===== */
 function FieldsEditor({ model, onSave }: { model: DataModel; onSave: (m: DataModel) => void; }) {
-  const [fields, setFields] = useState<FieldDef[]>(model.fields ?? []);
+  const serverFields = model.fields ?? [];
+  const [localEdits, setLocalEdits] = useState<{ base: FieldDef[]; value: FieldDef[] } | null>(null);
+  const fields = localEdits && localEdits.base === serverFields ? localEdits.value : serverFields;
   const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // 当 model.fields 从后端加载完成后同步到本地 state
-  useEffect(() => {
-    setFields(model.fields ?? []);
-  }, [model.fields]);
+  const commitFields = (next: FieldDef[]) => setLocalEdits({ base: serverFields, value: next });
 
   const addField = () => {
     const f: FieldDef = {
       id: `field_${Date.now()}`, name: `field_${fields.length + 1}`, label: `字段${fields.length + 1}`,
       type: 'text', required: false, orderNum: fields.length + 1, visible: true, searchable: false
     };
-    setFields([...fields, f]);
+    commitFields([...fields, f]);
     setEditing(f.id!);
   };
 
   const updateField = (id: string, patch: Partial<FieldDef>) => {
-    setFields(fields.map(f => f.id === id ? { ...f, ...patch } : f));
+    commitFields(fields.map(f => f.id === id ? { ...f, ...patch } : f));
   };
 
-  const removeField = (id: string) => setFields(fields.filter(f => f.id !== id));
+  const removeField = (id: string) => commitFields(fields.filter(f => f.id !== id));
 
   const moveField = (idx: number, dir: -1 | 1) => {
     const target = idx + dir;
@@ -403,7 +405,7 @@ function FieldsEditor({ model, onSave }: { model: DataModel; onSave: (m: DataMod
     const arr = [...fields];
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
     arr.forEach((f, i) => f.orderNum = i + 1);
-    setFields(arr);
+    commitFields(arr);
   };
 
   const save = async () => {

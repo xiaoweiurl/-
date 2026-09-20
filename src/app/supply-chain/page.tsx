@@ -85,7 +85,7 @@ export default function SupplyChainPage() {
   useEffect(() => {
     const sessionId = localStorage.getItem('session_id');
     if (!sessionId) {
-      backendFetch('/albums?pageSize=1').then(res => {
+      backendFetch('/auth/session').then(res => {
         if (res.status === 502) {
           return;
         } else {
@@ -322,7 +322,7 @@ export default function SupplyChainPage() {
         }
         return updated;
       });
-    } catch (err) {
+    } catch {
       setChatMessages(prev => {
         const updated = [...prev];
         const last = updated[updated.length - 1];

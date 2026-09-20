@@ -42,9 +42,9 @@ const KnowledgeCardListInner = forwardRef<KnowledgeCardListHandle, Props>(functi
       if (data.success) {
         const rawCards = data.cards || data.data || [];
         // Normalize: support both embeddingStatus and embedding_status
-        const normalized = rawCards.map((c: any) => ({
+        const normalized = (rawCards as Array<KnowledgeCard & { embedding_status?: string }>).map((c) => ({
           ...c,
-          embeddingStatus: c.embeddingStatus ?? c.embedding_status ?? null,
+          embeddingStatus: c.embeddingStatus ?? c.embedding_status ?? undefined,
         }));
         setCards(normalized);
       }

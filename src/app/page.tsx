@@ -43,13 +43,6 @@ function getSessionId(): string | null {
   return localStorage.getItem('session_id');
 }
 
-// 从 cookie 中读取值（SSR 安全）
-function getCookieValue(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? match[2] : null;
-}
-
 // 判断 API 响应是否成功（兼容 { success: true } 和 { code: 200 } 格式）
 function isApiSuccess(result: Record<string, unknown>): boolean {
   return result.success === true || result.code === 200 || result.code === 201;
@@ -72,17 +65,9 @@ async function backendFetch(endpoint: string, options: RequestInit = {}): Promis
   
   return fetch(url, {
     ...options,
+    credentials: options.credentials ?? 'include',
     headers,
   });
-}
-
-// 用户信息类型
-interface UserInfo {
-  id: string;
-  username: string;
-  email: string;
-  role: 'admin' | 'user';
-  avatar?: string;
 }
 
 // 模拟相册数据 - 根据服装类型细分
@@ -124,99 +109,6 @@ const mockAlbums: Album[] = [
   },
 ];
 
-// 相册名称与标签的映射关系
-const albumTagMapping: Record<string, string[]> = {
-  'T恤': ['T恤', '短袖', '长袖', '速干'],
-  '内衣': ['内衣', '打底', '美利奴羊毛', '贴身'],
-  '抓绒衣': ['抓绒', '抓绒衣', '保暖', '中层'],
-  '冲锋衣': ['冲锋衣', '防风', '防雨', '硬壳', '登山'],
-  '软壳': ['软壳', '防泼水', 'softshell'],
-};
-
-// 模拟图片数据 - 户外服装产品图（根据名称自动分类）
-const mockImages: ImageItem[] = [
-  // 抓绒衣
-  {
-    id: '1',
-    url: '/assets/「折扣」patagonia巴塔R1AIR抓绒衣男女户外透气排汗保暖速干圆领_619.png',
-    title: 'Patagonia R1 AIR 抓绒衣',
-    size: '2.4 MB',
-    resolution: '800×800',
-    date: '2024-01-15',
-    favorite: true,
-    tags: ['抓绒衣', '保暖', '户外', '透气', '速干'],
-    albumId: 'album-fleece',
-    albumName: '抓绒衣',
-    fileType: 'png',
-    isMainImage: true,
-    productId: 'product-1',
-  },
-  // 内衣/打底
-  {
-    id: '2',
-    url: '/assets/【单依纯同款】icebreaker美利奴羊毛女200 Oasis吸湿长袖T恤徒步_4.png',
-    title: 'Icebreaker 美利奴羊毛内衣',
-    size: '3.1 MB',
-    resolution: '800×800',
-    date: '2024-01-14',
-    favorite: false,
-    tags: ['内衣', '美利奴羊毛', '保暖'],
-    albumId: 'album-underwear',
-    albumName: '内衣',
-    fileType: 'png',
-    isMainImage: true,
-    productId: 'product-2',
-  },
-  // 软壳外套
-  {
-    id: '3',
-    url: '/assets/【经典CREW】 HELLY HANSEN_HH男款户外软壳防泼水保暖登山服抓绒_98.png',
-    title: 'HELLY HANSEN 软壳外套',
-    size: '2.8 MB',
-    resolution: '800×800',
-    date: '2024-01-13',
-    favorite: true,
-    tags: ['软壳', '防泼水', '保暖', '户外'],
-    albumId: 'album-softshell',
-    albumName: '软壳',
-    fileType: 'png',
-    isMainImage: true,
-    productId: 'product-3',
-  },
-  // T恤
-  {
-    id: '4',
-    url: '/assets/【经典款】HELLYHANSEN_HH 男款吸湿速干轻户外都市休闲长袖T恤_372.png',
-    title: 'HELLY HANSEN 长袖T恤',
-    size: '1.9 MB',
-    resolution: '800×800',
-    date: '2024-01-12',
-    favorite: false,
-    tags: ['T恤', '速干', '休闲', '户外'],
-    albumId: 'album-tshirt',
-    albumName: 'T恤',
-    fileType: 'png',
-    isMainImage: true,
-    productId: 'product-4',
-  },
-  // 冲锋衣
-  {
-    id: '5',
-    url: '/assets/【王一博同款】HELLY HANSEN_HH 专业Ⅰ级登山3L防风防雨冲锋衣_371.png',
-    title: 'HELLY HANSEN 专业冲锋衣',
-    size: '4.2 MB',
-    resolution: '800×800',
-    date: '2024-01-11',
-    favorite: true,
-    tags: ['冲锋衣', '防风', '防雨', '专业', '登山'],
-    albumId: 'album-jacket',
-    albumName: '冲锋衣',
-    fileType: 'png',
-    isMainImage: true,
-    productId: 'product-5',
-  },
-];
-
 export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
@@ -226,7 +118,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
   const [mounted, setMounted] = React.useState(false);
   const authCheckedRef = React.useRef(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [sidebarCollapsed] = React.useState(false);
   const [activeMenuItem, setActiveMenuItem] = React.useState('all');
   const [searchQuery, setSearchQuery] = React.useState('');
 
@@ -239,10 +131,10 @@ export default function Home() {
   const [smartAlbums, setSmartAlbums] = React.useState<SmartAlbumInfo[]>([]);
   const [isSmartAlbumEditorOpen, setIsSmartAlbumEditorOpen] = React.useState(false);
   const [editingSmartAlbum, setEditingSmartAlbum] = React.useState<SmartAlbumInfo | null>(null);
-  const [isLoadingSmartAlbums, setIsLoadingSmartAlbums] = React.useState(false);
+  const [, setIsLoadingSmartAlbums] = React.useState(false);
   const [trashCount, setTrashCount] = React.useState(0); // 回收站主图数量（从后端获取）
   const [dynamicTableCount, setDynamicTableCount] = React.useState(0); // 动态表图片数量（我的知识库/二创中心）
-  const [selectedAlbumIds, setSelectedAlbumIds] = React.useState<string[]>([]); // 当前选中的相册及其子相册 ID
+  const [, setSelectedAlbumIds] = React.useState<string[]>([]); // 当前选中的相册及其子相册 ID
   const [showBatchReplaceDialog, setShowBatchReplaceDialog] = React.useState(false); // 批量替换主图弹窗
 
   // 获取智能相册列表
@@ -256,7 +148,7 @@ export default function Home() {
 
       if (result.success) {
         // 合并后端返回的相册（包含预置的）
-        const albums: SmartAlbumInfo[] = result.data.map((album: any) => ({
+        const albums: SmartAlbumInfo[] = result.data.map((album: SmartAlbumInfo) => ({
           ...album,
           type: 'smart' as const,
           count: 0, // 稍后更新
@@ -278,8 +170,9 @@ export default function Home() {
   }, []);
 
   React.useEffect(() => {
+    if (!currentUser) return;
     fetchSmartAlbums();
-  }, [fetchSmartAlbums]);
+  }, [fetchSmartAlbums, currentUser]);
 
   // 文档统计状态
   const [documentStats, setDocumentStats] = React.useState<Record<string, number>>({
@@ -316,10 +209,11 @@ export default function Home() {
     }
   }, []);
 
-  // 页面加载时获取文档统计
+  // 登录后再拉文档统计，避免未认证请求打到后端
   React.useEffect(() => {
+    if (!currentUser) return;
     fetchDocumentStats();
-  }, [fetchDocumentStats]);
+  }, [fetchDocumentStats, currentUser]);
 
   // 更新智能相册的统计数量
   React.useEffect(() => {
@@ -391,7 +285,7 @@ export default function Home() {
   }, [editingSmartAlbum, fetchSmartAlbums]);
 
   // 删除智能相册
-  const handleDeleteSmartAlbum = React.useCallback(async (albumId: string) => {
+  const _handleDeleteSmartAlbum = React.useCallback(async (albumId: string) => {
     try {
       const response = await fetch(`/api/smart-albums/${albumId}`, {
         method: 'DELETE',
@@ -574,7 +468,7 @@ export default function Home() {
     } catch (error) {
       console.error('获取回收站数量失败:', error);
       // 降级：从前端 allImages 计算
-      const count = allImages.filter((img: any) => img.deleted && img.isMainImage).length;
+      const count = allImages.filter((img: ImageItem) => img.deleted && img.isMainImage).length;
       setTrashCount(count);
     }
   }, [allImages]);
@@ -660,7 +554,7 @@ export default function Home() {
         // 优先从筛选面板获取
         if (filterState.albumFilter && filterState.albumFilter !== 'all') {
           // 筛选面板的 ID 可能带或不带 album- 前缀，统一处理
-          let filterAlbumId = filterState.albumFilter;
+          const filterAlbumId = filterState.albumFilter;
           if (filterAlbumId.startsWith('album-')) {
             // 已经是带前缀格式，直接使用
             albumId = filterAlbumId;
@@ -745,7 +639,7 @@ export default function Home() {
       } else {
         console.error('[Home] API 返回失败:', result);
       }
-    } catch (error) {
+    } catch {
       // 后端不可用时静默降级，不打印错误到控制台
       if (!append) {
         // 降级：显示空数据
@@ -789,13 +683,14 @@ export default function Home() {
         const tagList = Array.isArray(result.data) ? result.data : [];
         setTags(tagList);
       }
-    } catch (error) {
+    } catch {
       // 后端不可用时静默降级
     }
   }, []);
 
-  // 监听筛选条件变化，自动重新加载数据
+  // 监听筛选条件变化，自动重新加载数据（须已登录，避免首页挂载即打未认证 /images）
   React.useEffect(() => {
+    if (!currentUser) return;
     if (activeMenuItem !== 'trash' && activeMenuItem !== 'recent' && activeMenuItem !== 'favorites') {
       fetchImages(1, false);
     }
@@ -815,22 +710,19 @@ export default function Home() {
 
     const checkAuth = async () => {
       try {
-        // 第一步：检测后端是否可用
-        let backendUp = false;
+        // 用公开的 /auth/session 同时探活 + 校验会话（Cookie / X-Session-Id），
+        // 不再打受保护的 /albums，避免未登录刷 401
+        const sessionId = localStorage.getItem('session_id');
+        let response: Response;
         try {
-          const probeRes = await backendFetch('/albums?pageSize=1', {
-            headers: { 'X-Session-Id': localStorage.getItem('session_id') || '' },
+          response = await backendFetch('/auth/session', {
+            credentials: 'include',
+            headers: sessionId ? { 'X-Session-Id': sessionId } : {},
           });
-          backendUp = probeRes.status !== 502;
         } catch {
-          backendUp = false;
-        }
-
-        if (!backendUp) {
           if (!cancelled) {
             const localUser = localStorage.getItem('user_id');
             const localUsername = localStorage.getItem('user_name');
-            // 优先从 localStorage 取，fallback 从 cookie 取
             const cookieRole = document.cookie.split('; ').find(c => c.startsWith('user_role='))?.split('=')[1];
             const localRole = localStorage.getItem('user_role') || cookieRole;
             setCurrentUser({
@@ -844,31 +736,24 @@ export default function Home() {
           return;
         }
 
-        // 第二步：后端可用，验证 session
-        const sessionId = localStorage.getItem('session_id');
-        const expires = localStorage.getItem('session_expires');
-
-        if (!sessionId) {
-          if (!cancelled) window.location.href = '/login';
-          return;
-        }
-
-        if (!expires || Date.now() > parseInt(expires, 10)) {
+        if (response.status === 502 || response.status === 503) {
           if (!cancelled) {
-            localStorage.removeItem('session_id');
-            localStorage.removeItem('session_expires');
-            localStorage.removeItem('portal_type');
-            window.location.href = '/login';
+            const localUser = localStorage.getItem('user_id');
+            const localUsername = localStorage.getItem('user_name');
+            const cookieRole = document.cookie.split('; ').find(c => c.startsWith('user_role='))?.split('=')[1];
+            const localRole = localStorage.getItem('user_role') || cookieRole;
+            setCurrentUser({
+              id: localUser || 'local',
+              username: localUsername || '本地用户',
+              email: '',
+              role: (localRole || 'user') as 'admin' | 'user',
+            });
+            authCheckedRef.current = true;
           }
           return;
         }
 
-        // 验证后端 session
         try {
-          const response = await backendFetch('/auth/session', {
-            headers: { 'X-Session-Id': sessionId },
-          });
-
           if (!response.ok) {
             if (!cancelled) {
               localStorage.removeItem('session_id');
@@ -881,9 +766,8 @@ export default function Home() {
 
           const result = await response.json();
 
-          if (result.code === 200 && result.data) {
+          if ((result.code === 200 || result.success === true) && result.data) {
             if (!cancelled) {
-              // 同步 role 到 localStorage，确保降级模式也能获取
               if (result.data.role) {
                 localStorage.setItem('user_role', result.data.role);
               }
@@ -905,7 +789,6 @@ export default function Home() {
           }
         } catch (error) {
           console.error('[Home] 检查登录状态失败:', error);
-          // 网络错误时进入降级模式，不强制跳转登录页
           if (!cancelled) {
             const cookieRole = document.cookie.split('; ').find(c => c.startsWith('user_role='))?.split('=')[1];
             const fallbackRole = (localStorage.getItem('user_role') || cookieRole || 'user') as 'admin' | 'user';
@@ -1078,7 +961,7 @@ export default function Home() {
   };
 
   // 更新图片标签
-  const handleUpdateTags = async (id: string, newTags: string[]) => {
+  const _handleUpdateTags = async (id: string, newTags: string[]) => {
     const image = images.find(img => img.id === id);
     if (!image) return;
     
@@ -1387,7 +1270,7 @@ export default function Home() {
     }
   };
 
-  const handleSortChange = (newSortBy: 'date' | 'name' | 'size', newSortOrder: 'asc' | 'desc') => {
+  const _handleSortChange = (newSortBy: 'date' | 'name' | 'size', newSortOrder: 'asc' | 'desc') => {
     setSortBy(newSortBy);
     setSortOrder(newSortOrder);
   };

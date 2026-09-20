@@ -5,6 +5,18 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['warn', {
+        args: 'after-used',
+        argsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        ignoreRestSiblings: true,
+      }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

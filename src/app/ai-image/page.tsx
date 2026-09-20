@@ -80,7 +80,7 @@ const GPT_RES_VIP: Record<string, Record<string, string>> = {
 
 type ModelType = 'nano' | 'gpt';
 
-function getModelType(modelId: string): ModelType {
+function _getModelType(modelId: string): ModelType {
   return modelId.startsWith('gpt-image') ? 'gpt' : 'nano';
 }
 
@@ -430,7 +430,7 @@ export default function AiImagePage() {
     : GPT_MODELS.find((m) => m.id === activeModel)?.name || activeModel;
 
   const isBaonasi = brand.name === '宝娜斯';
-  const accent = isBaonasi ? 'rose' : 'violet';
+  const _accent = isBaonasi ? 'rose' : 'violet';
   const accentBg = isBaonasi ? 'bg-[#007AFF]' : 'bg-[#007AFF]';
   const accentText = isBaonasi ? 'text-[#007aff]' : 'text-[#007aff]';
   const accentBgLight = isBaonasi ? 'bg-[rgba(0,122,255,0.1)]' : 'bg-[rgba(0,122,255,0.1)]';

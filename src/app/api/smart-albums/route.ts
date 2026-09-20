@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * 安全解析响应
  */
-async function safeParseResponse(response: Response): Promise<{ result?: Record<string, unknown>; ok: boolean; status: number }> {
+async function _safeParseResponse(response: Response): Promise<{ result?: Record<string, unknown>; ok: boolean; status: number }> {
   const ok = response.ok;
   const status = response.status;
 
@@ -152,7 +152,7 @@ const PRESET_SMART_ALBUMS = [
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieHeader = request.headers.get('cookie') || '';
+    const _cookieHeader = request.headers.get('cookie') || '';
 
     // TODO: 后端实现后，转发到后端 API
     // const response = await backendFetch('/smart-albums', {
@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieHeader = request.headers.get('cookie') || '';
+    const _cookieHeader = request.headers.get('cookie') || '';
     const body = await request.json();
     const { name, description, matchingConfig } = body;
 

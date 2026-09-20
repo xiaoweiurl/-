@@ -88,7 +88,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               {children}
             </ol>
           ),
-          li: ({ children, node }) => {
+          li: ({ children, node: _node }) => {
             const childArray = React.Children.toArray(children);
             const hasSubList = childArray.some(
               (c) => React.isValidElement(c) && (c.type === 'ul' || c.type === 'ol')

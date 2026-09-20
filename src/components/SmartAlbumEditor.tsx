@@ -229,9 +229,9 @@ export default function SmartAlbumEditor({
                 <Info className="w-4 h-4 text-[#ff9500] mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-[#ff9500]">
                   <p className="font-medium mb-1">正则表达式示例：</p>
-                  <p>• <code>.*T恤.*</code> - 包含"T恤"的任意文件名</p>
-                  <p>• <code>^T恤.*</code> - 以"T恤"开头的文件名</p>
-                  <p>• <code>.*T恤$</code> - 以"T恤"结尾的文件名</p>
+                  <p>• <code>.*T恤.*</code>{` - 包含"T恤"的任意文件名`}</p>
+                  <p>• <code>^T恤.*</code>{` - 以"T恤"开头的文件名`}</p>
+                  <p>• <code>.*T恤$</code>{` - 以"T恤"结尾的文件名`}</p>
                 </div>
               </div>
             </div>

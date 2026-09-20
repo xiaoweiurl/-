@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
+import java.net.URI;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -97,7 +97,7 @@ public class WatermarkRemoveServiceImpl implements WatermarkRemoveService {
      * 下载图片
      */
     private byte[] downloadImage(String imageUrl) throws IOException {
-        try (InputStream in = new URL(imageUrl).openStream();
+        try (InputStream in = URI.create(imageUrl).toURL().openStream();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             
             byte[] buffer = new byte[8192];

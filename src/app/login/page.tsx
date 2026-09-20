@@ -38,7 +38,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>('login');
   const [selectedBrand, setSelectedBrand] = React.useState<BrandKey>('yingyun');
-  const [portal, setPortal] = React.useState<PortalType>(null);
+  const [, setPortal] = React.useState<PortalType>(null);
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);

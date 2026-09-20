@@ -33,8 +33,17 @@ const TuiImageEditor = dynamic(
   }
 );
 
+type TuiEditorInstance = {
+  toDataURL: (options: { format: string; quality: number }) => string;
+  rotate: (angle: number) => void;
+  flipX: () => void;
+  flipY: () => void;
+  loadImageFromURL: (url: string, name: string) => void;
+  setZoomRatio: (ratio: number) => void;
+};
+
 // 全局编辑器实例
-let editorInstance: any = null;
+const editorInstance: TuiEditorInstance | null = null;
 
 export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps) {
   const [isLoading, setIsLoading] = useState(true);
@@ -282,7 +291,6 @@ export default function ImageEditor({ image, onClose, onSave }: ImageEditorProps
       {/* 编辑器区域 */}
       <div className="flex-1 relative overflow-hidden">
         {typeof window !== 'undefined' && (
-          // @ts-ignore - 类型声明不完美，但功能正常
           <TuiImageEditor
             {...editorOptions}
           />

@@ -66,7 +66,7 @@ export default function AdvancedSearch({
   onSearch,
   availableTags = [],
   availableAlbums = [],
-  availableFileTypes,
+  availableFileTypes: _availableFileTypes,
   className,
 }: AdvancedSearchProps) {
   const [searchHistory, setSearchHistory] = useState<AdvancedSearchFilters[]>([]);
@@ -83,14 +83,20 @@ export default function AdvancedSearch({
     try {
       const saved = localStorage.getItem(SEARCH_HISTORY_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        setSearchHistory(parsed.map((item: any) => ({
+        const parsed = JSON.parse(saved) as Array<
+          AdvancedSearchFilters & {
+            dateRange?: { start?: string | Date | null; end?: string | Date | null };
+          }
+        >;
+        const history = parsed.map((item) => ({
           ...item,
           dateRange: {
             start: item.dateRange?.start ? new Date(item.dateRange.start) : null,
             end: item.dateRange?.end ? new Date(item.dateRange.end) : null,
           },
-        })));
+        }));
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate search history from localStorage
+        setSearchHistory(history);
       }
     } catch (e) {
       console.error('加载搜索历史失败:', e);

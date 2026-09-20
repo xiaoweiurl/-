@@ -5,6 +5,28 @@ import { useRouter } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import { backendFetch } from '@/lib/backend-proxy';
 
+interface SwaggerRequest {
+  headers: Record<string, string>;
+}
+
+interface SwaggerUIBundleFn {
+  (options: {
+    url: string;
+    dom_id: string;
+    deepLinking: boolean;
+    presets: unknown[];
+    layout: string;
+    withCredentials: boolean;
+    requestInterceptor: (req: SwaggerRequest) => SwaggerRequest;
+  }): unknown;
+  presets: { apis: unknown };
+}
+
+interface SwaggerGlobals {
+  SwaggerUIBundle?: SwaggerUIBundleFn;
+  SwaggerUIStandalonePreset?: unknown;
+}
+
 export default function SwaggerPage() {
   const router = useRouter();
   const [accessDenied, setAccessDenied] = useState(false);
@@ -51,20 +73,21 @@ export default function SwaggerPage() {
         script2.src = 'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js';
         script2.onload = () => {
           // 初始化 Swagger UI
-          if (typeof window !== 'undefined' && (window as any).SwaggerUIBundle) {
-            (window as any).SwaggerUIBundle({
+          const swaggerWindow = window as unknown as SwaggerGlobals;
+          if (typeof window !== 'undefined' && swaggerWindow.SwaggerUIBundle) {
+            swaggerWindow.SwaggerUIBundle({
               url: '/api/swagger',
               dom_id: '#swagger-ui',
               deepLinking: true,
               presets: [
-                (window as any).SwaggerUIBundle.presets.apis,
-                (window as any).SwaggerUIStandalonePreset
+                swaggerWindow.SwaggerUIBundle.presets.apis,
+                swaggerWindow.SwaggerUIStandalonePreset
               ],
               layout: 'StandaloneLayout',
               // 启用 credentials 以发送 cookies
               withCredentials: true,
               // 请求拦截器：在每个请求中添加 sessionId
-              requestInterceptor: (req: any) => {
+              requestInterceptor: (req: SwaggerRequest) => {
                 // 从 localStorage 获取 sessionId
                 const sessionId = localStorage.getItem('session_id');
                 if (sessionId) {

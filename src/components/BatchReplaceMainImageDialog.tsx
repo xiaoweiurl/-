@@ -67,7 +67,7 @@ export function BatchReplaceMainImageDialog({
       const result = await response.json();
       
       if (result.success || result.code === 200) {
-        const groups: ProductGroup[] = result.data?.map((group: any) => ({
+        const groups: ProductGroup[] = result.data?.map((group: ProductGroup) => ({
           productId: group.productId,
           mainImage: group.mainImage,
           detailImages: group.detailImages || [],
@@ -136,7 +136,7 @@ export function BatchReplaceMainImageDialog({
 
       if (result.success || result.code === 200) {
         let message = `成功替换 ${imageIdsToReplace.length} 个商品的主图`;
-        const manualCount = productGroups.filter((g) => g.selectedImageId).length;
+        const _manualCount = productGroups.filter((g) => g.selectedImageId).length;
         const defaultCount = defaultReplacedCount.length;
         if (defaultCount > 0) {
           message += `（其中 ${defaultCount} 个使用默认顺序1详情图）`;

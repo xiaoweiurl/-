@@ -129,7 +129,7 @@ export default function GoodsLibraryPage() {
       } else {
         toast.error(data.message || '创建失败');
       }
-    } catch (e) {
+    } catch {
       toast.error('创建失败，请重试');
     } finally {
       setCreating(false);
@@ -230,7 +230,6 @@ export default function GoodsLibraryPage() {
                 {/* 文件夹封面 = 主图 */}
                 <div className="aspect-[4/3] bg-[rgba(242,242,247,0.6)] flex items-center justify-center overflow-hidden">
                   {folder.main_image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={folder.main_image_url}
                       alt={folder.folder_name}
@@ -321,7 +320,6 @@ export default function GoodsLibraryPage() {
                     />
                     {slotFiles[key] && slotPreviews[key] ? (
                       <div className="relative group aspect-square rounded-lg overflow-hidden border border-[rgba(0,122,255,0.3)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={slotPreviews[key]} alt={label} className="w-full h-full object-cover" />
                         <button
                           onClick={() => setSlotFiles(prev => ({ ...prev, [key]: null }))}

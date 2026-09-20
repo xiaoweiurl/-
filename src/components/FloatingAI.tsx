@@ -61,7 +61,7 @@ export default function FloatingAI() {
   const [thinkingExpanded, setThinkingExpanded] = useState(true);
   const [searchExpanded, setSearchExpanded] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [, setIsLoadingHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isUserScrollingRef = useRef(false);

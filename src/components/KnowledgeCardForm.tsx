@@ -7,7 +7,7 @@ import {
   TrendingUp, MessageSquare
 } from 'lucide-react';
 
-interface KnowledgeCard {
+export interface KnowledgeCard {
   id?: string;
   cardCode?: string;
   submitDate?: string;
@@ -214,7 +214,7 @@ export default function KnowledgeCardForm({ onClose, onSaved, editCard }: Props)
             </div>
             <div>
               <h2 className="text-base font-bold text-[#1c1c1e]">{editCard ? '编辑岗位知识卡片' : '新建岗位知识卡片'}</h2>
-              <p className="text-xs text-[#8e8e93]">所有字段均为必填，没有可填"无"</p>
+              <p className="text-xs text-[#8e8e93]">{`所有字段均为必填，没有可填"无"`}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-[#ffffff] rounded-lg transition-colors">

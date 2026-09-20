@@ -7,6 +7,7 @@ import com.imagemanager.exception.AuthException;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.UserService;
+import com.imagemanager.util.SessionIdExtractor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -279,31 +280,21 @@ public class UserController {
     }
     
     /**
-     * 从请求中获取当前用户ID
+     * 从请求中获取当前用户ID。
+     * 与 BFF / SessionIdAuthFilter 一致：session_id Cookie 优先于 X-Session-Id。
      */
     private String getCurrentUserId(HttpServletRequest request) {
-        // 优先从 X-Session-Id header 获取会话（前端传递方式）
-        String sessionId = request.getHeader("X-Session-Id");
-        
-        // 如果 header 没有，再从 Cookie 获取
-        if (sessionId == null && request.getCookies() != null) {
-            for (var cookie : request.getCookies()) {
-                if ("session_id".equals(cookie.getName())) {
-                    sessionId = cookie.getValue();
-                    break;
-                }
-            }
-        }
-        
+        String sessionId = SessionIdExtractor.extract(request);
+
         if (sessionId == null) {
             throw new AuthException("未登录");
         }
-        
+
         LoginResponse.UserInfo user = authService.validateSession(sessionId);
         if (user == null) {
             throw new AuthException("会话已过期");
         }
-        
+
         return user.getId();
     }
 }

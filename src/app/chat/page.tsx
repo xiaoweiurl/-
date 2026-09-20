@@ -82,7 +82,7 @@ function formatTime(ts: number): string {
   }
 }
 
-function generateId(): string {
+function _generateId(): string {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
@@ -167,7 +167,7 @@ export default function ChatPage() {
 
         if (!sid) {
           try {
-            const probeRes = await backendFetch('/albums?pageSize=1');
+            const probeRes = await backendFetch('/auth/session');
             if (probeRes.status === 502) {
               setAuthChecked(true);
               return;
@@ -182,7 +182,7 @@ export default function ChatPage() {
 
         if (expires && Date.now() > parseInt(expires, 10)) {
           try {
-            const probeRes = await backendFetch('/albums?pageSize=1');
+            const probeRes = await backendFetch('/auth/session');
             if (probeRes.status === 502) {
               setAuthChecked(true);
               return;
@@ -970,7 +970,6 @@ export default function ChatPage() {
                                   className="group block rounded-lg overflow-hidden border border-[rgba(229,229,234,0.6)] bg-white relative"
                                 >
                                   <div className="aspect-[4/3] relative">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                       src={product.mainImage.thumbnailUrl || product.mainImage.url}
                                       alt={product.mainImage.title || '主图'}
@@ -1006,7 +1005,6 @@ export default function ChatPage() {
                                       title={img.title || '详情图'}
                                     >
                                       <div className="aspect-square relative">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                           src={img.thumbnailUrl || img.url}
                                           alt={img.title || '详情图'}

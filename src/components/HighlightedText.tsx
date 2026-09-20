@@ -9,50 +9,52 @@ interface HighlightedTextProps {
   highlightClassName?: string;
 }
 
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function splitHighlightedParts(text: string, query: string): string[] | null {
+  try {
+    const regex = new RegExp(`(${escapeRegExp(query.trim())})`, 'gi');
+    return text.split(regex);
+  } catch (error) {
+    console.error('高亮文本失败:', error);
+    return null;
+  }
+}
+
 export default function HighlightedText({
   text,
   query,
   className = '',
   highlightClassName = 'bg-[#ff9500] text-[#ff9500] px-0.5 rounded',
 }: HighlightedTextProps) {
-  // 如果没有查询或查询为空，直接返回原文
   if (!query || query.trim() === '') {
     return <span className={className}>{text}</span>;
   }
 
-  // 转义正则特殊字符
-  const escapeRegExp = (string: string) => {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  };
-
-  try {
-    // 创建正则表达式，不区分大小写
-    const regex = new RegExp(`(${escapeRegExp(query.trim())})`, 'gi');
-    const parts = text.split(regex);
-
-    return (
-      <span className={className}>
-        {parts.map((part, index) => {
-          // 检查这部分是否匹配查询（不区分大小写）
-          if (part.toLowerCase() === query.trim().toLowerCase()) {
-            return (
-              <mark key={index} className={highlightClassName}>
-                {part}
-              </mark>
-            );
-          }
-          return part;
-        })}
-      </span>
-    );
-  } catch (error) {
-    // 如果正则表达式创建失败（例如用户输入特殊字符），返回原文
-    console.error('高亮文本失败:', error);
+  const parts = splitHighlightedParts(text, query);
+  if (!parts) {
     return <span className={className}>{text}</span>;
   }
+
+  const needle = query.trim().toLowerCase();
+  return (
+    <span className={className}>
+      {parts.map((part, index) => {
+        if (part.toLowerCase() === needle) {
+          return (
+            <mark key={index} className={highlightClassName}>
+              {part}
+            </mark>
+          );
+        }
+        return part;
+      })}
+    </span>
+  );
 }
 
-// 多关键词高亮组件
 interface MultiHighlightedTextProps {
   text: string;
   queries: string[];
@@ -60,51 +62,37 @@ interface MultiHighlightedTextProps {
   highlightClassName?: string;
 }
 
-export function MultiHighlightedText({
-  text,
-  queries,
-  className = '',
-  highlightClassName = 'bg-[#ff9500] text-[#ff9500] px-0.5 rounded',
-}: MultiHighlightedTextProps) {
-  // 过滤掉空查询
-  const validQueries = queries.filter(q => q && q.trim() !== '');
-  
-  if (validQueries.length === 0) {
-    return <span className={className}>{text}</span>;
-  }
-
+function collectMultiHighlightParts(
+  text: string,
+  validQueries: string[],
+  highlightClassName: string,
+): React.ReactNode[] | null {
   try {
-    // 为每个查询创建正则
     const regexParts = validQueries.map(q => `(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`);
     const regex = new RegExp(regexParts.join('|'), 'gi');
-    
-    // 找到所有匹配的位置
+
     const matches: { start: number; end: number; text: string }[] = [];
-    let match;
-    
-    while ((match = regex.exec(text)) !== null) {
+    let match = regex.exec(text);
+    while (match !== null) {
       matches.push({
         start: match.index,
         end: match.index + match[0].length,
         text: match[0],
       });
+      match = regex.exec(text);
     }
 
-    // 如果没有匹配，返回原文
     if (matches.length === 0) {
-      return <span className={className}>{text}</span>;
+      return [text];
     }
 
-    // 构建结果
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
 
     matches.forEach((m, i) => {
-      // 添加匹配前的文本
       if (m.start > lastIndex) {
         parts.push(text.slice(lastIndex, m.start));
       }
-      // 添加高亮匹配
       parts.push(
         <mark key={i} className={highlightClassName}>
           {m.text}
@@ -113,19 +101,36 @@ export function MultiHighlightedText({
       lastIndex = m.end;
     });
 
-    // 添加最后一部分文本
     if (lastIndex < text.length) {
       parts.push(text.slice(lastIndex));
     }
-
-    return <span className={className}>{parts}</span>;
+    return parts;
   } catch (error) {
     console.error('多关键词高亮失败:', error);
-    return <span className={className}>{text}</span>;
+    return null;
   }
 }
 
-// 高亮标签中的关键词
+export function MultiHighlightedText({
+  text,
+  queries,
+  className = '',
+  highlightClassName = 'bg-[#ff9500] text-[#ff9500] px-0.5 rounded',
+}: MultiHighlightedTextProps) {
+  const validQueries = queries.filter(q => q && q.trim() !== '');
+
+  if (validQueries.length === 0) {
+    return <span className={className}>{text}</span>;
+  }
+
+  const parts = collectMultiHighlightParts(text, validQueries, highlightClassName);
+  if (!parts) {
+    return <span className={className}>{text}</span>;
+  }
+
+  return <span className={className}>{parts}</span>;
+}
+
 interface HighlightedTagsProps {
   tags: string[];
   query: string;

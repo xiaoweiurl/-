@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  User, Lock, Bell, Palette, Image, Camera, Loader2, Save, Eye, EyeOff,
+  User, Lock, Bell, Palette, Image as ImageIcon, Camera, Loader2, Save, Eye, EyeOff,
   HardDrive, FileText, Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -290,7 +290,7 @@ export default function SettingsPage() {
     { id: 'security', label: '账号安全', icon: <Lock className="w-5 h-5" /> },
     { id: 'notifications', label: '通知设置', icon: <Bell className="w-5 h-5" /> },
     { id: 'appearance', label: '外观设置', icon: <Palette className="w-5 h-5" /> },
-    { id: 'display', label: '显示设置', icon: <Image className="w-5 h-5" /> },
+    { id: 'display', label: '显示设置', icon: <ImageIcon className="w-5 h-5" /> },
     ...(isAdmin ? [
       { id: 'storage' as const, label: '存储管理', icon: <HardDrive className="w-5 h-5" /> },
       { id: 'audit' as const, label: '操作日志', icon: <FileText className="w-5 h-5" /> },

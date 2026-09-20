@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { backendFetch } from '@/lib/backend-proxy';
+import type { ImageItem } from '@/components/ImageCard';
+import type { MatchingConfig } from '@/lib/api/types';
 
 /**
  * 安全解析响应
@@ -97,7 +99,12 @@ async function safeParseResponse(response: Response): Promise<{ result?: Record<
 export async function POST(request: NextRequest) {
   try {
     const cookieHeader = request.headers.get('cookie') || '';
-    const body = await request.json();
+    const body = await request.json() as {
+      albumId?: string;
+      matchingConfig?: MatchingConfig;
+      page?: number;
+      pageSize?: number;
+    };
     const { albumId, matchingConfig, page = 1, pageSize = 20 } = body;
 
     if (!albumId && !matchingConfig) {
@@ -113,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     if (albumId && !matchingConfig) {
       // 从预置相册中查找配置
-      const presetAlbums: Record<string, { name: string; matchingConfig: Record<string, unknown>; isSystem?: boolean }> = {
+      const presetAlbums: Record<string, { name: string; matchingConfig: MatchingConfig; isSystem?: boolean }> = {
         'smart-recent': {
           name: '最近添加',
           isSystem: true,
@@ -154,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     const { result } = await safeParseResponse(response);
 
-    if (!result || (!result.success && (result as any).code !== 200)) {
+    if (!result || (!result.success && result.code !== 200)) {
       return NextResponse.json(
         { success: false, message: '获取图片列表失败' },
         { status: 500 }
@@ -162,30 +169,34 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取图片列表
-    const resultData = (result.result || result) as any;
-    const images = (resultData?.list || resultData?.data || []) as any[];
+    const nested = result.result;
+    const resultData = (typeof nested === 'object' && nested !== null
+      ? nested
+      : result) as Record<string, unknown>;
+    const rawImages = resultData.list || resultData.data || [];
+    const images = (Array.isArray(rawImages) ? rawImages : []) as ImageItem[];
 
     // 导入匹配引擎并执行筛选
-    const { filterImagesBySmartAlbum, matchesAlbumConfig } = await import('@/lib/smart-album-engine');
+    const { filterImagesBySmartAlbum: _filterImagesBySmartAlbum, matchesAlbumConfig } = await import('@/lib/smart-album-engine');
 
-    let filteredImages: any[] = [];
+    let filteredImages: ImageItem[] = [];
 
     if (albumId === 'smart-recent') {
       // 最近30天
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      filteredImages = images.filter((img: any) => {
-        const imgDate = new Date(img.createdAt);
+      filteredImages = images.filter((img) => {
+        const imgDate = new Date(img.createdAt || '');
         return imgDate >= thirtyDaysAgo;
       });
     } else if (albumId === 'smart-favorites') {
       // 收藏的图片
-      filteredImages = images.filter((img: any) => img.favorite);
+      filteredImages = images.filter((img) => img.favorite);
     } else {
       // 基于 matchingConfig 匹配
-      filteredImages = images.filter((img: any) => {
+      filteredImages = images.filter((img) => {
         const textToMatch = img.title || '';
-        return matchesAlbumConfig(textToMatch, albumName, executeConfig);
+        return matchesAlbumConfig(textToMatch, albumName, executeConfig as MatchingConfig);
       });
     }
 

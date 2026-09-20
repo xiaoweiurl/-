@@ -48,7 +48,7 @@ export default function ImagePreview({
   const [zoom, setZoom] = React.useState(1);
   const [rotation, setRotation] = React.useState(0);
   const [productImages, setProductImages] = React.useState<ImageItem[]>([]); // 该商品的所有图片
-  const [loading, setLoading] = React.useState(false);
+  const [, setLoading] = React.useState(false);
 
   // 记录预览次数
   React.useEffect(() => {
@@ -184,13 +184,13 @@ export default function ImagePreview({
 
       if (result.success && result.data) {
         // 转换为 ImageItem 格式
-        const items: ImageItem[] = result.data.map((img: any) => ({
+        const items: ImageItem[] = (result.data as Array<ImageItem & { sizeFormatted?: string }>).map((img) => ({
           id: img.id,
           url: img.url,
           title: img.title,
-          size: img.sizeFormatted,
-          resolution: img.resolution,
-          date: img.createdAt,
+          size: img.sizeFormatted || img.size || '',
+          resolution: img.resolution || '',
+          date: img.date || img.createdAt || '',
           favorite: img.favorite,
           tags: img.tags || [],
           albumId: img.albumId,

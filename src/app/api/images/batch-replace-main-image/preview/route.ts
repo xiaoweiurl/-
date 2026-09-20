@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
         // 获取所有 cookies 并构建 cookie header
         const cookieStore = request.cookies;
         const sessionId = cookieStore.get('session_id')?.value;
-        const cookieHeader = sessionId ? `session_id=${sessionId}` : '';
+        const _cookieHeader = sessionId ? `session_id=${sessionId}` : '';
         
         
         const body = await request.json();
@@ -35,10 +35,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(imageDetailsResult, { status: imageDetailsResponse.status });
         }
 
-        const images = imageDetailsResult.data || [];
+        interface ProductImageRecord {
+            id?: string | number;
+            productId?: string;
+            isMainImage?: boolean;
+            displayOrder?: number;
+            url?: string;
+            title?: string;
+        }
+        interface ProductImageView {
+            imgId?: string | number;
+            url?: string;
+            title?: string;
+            isMainImage?: boolean;
+            displayOrder?: number;
+            productId?: string;
+        }
+
+        const images = (imageDetailsResult.data || []) as ProductImageRecord[];
         
         // 提取商品ID（去重）
-        const productIds = [...new Set(images.map((img: any) => img.productId).filter(Boolean))];
+        const productIds = [...new Set(images.map((img) => img.productId).filter((id): id is string => Boolean(id)))];
 
         if (productIds.length === 0) {
             return NextResponse.json({
@@ -49,7 +66,11 @@ export async function POST(request: NextRequest) {
         }
 
         // 获取每个商品的所有图片
-        const productGroups: any[] = [];
+        const productGroups: Array<{
+            productId: string;
+            mainImage: ProductImageView | null;
+            detailImages: ProductImageView[];
+        }> = [];
         
         for (const productId of productIds) {
             // 获取该商品的所有图片
@@ -60,14 +81,14 @@ export async function POST(request: NextRequest) {
             const productImagesResult = await productImagesResponse.json();
 
             if (productImagesResult.success || productImagesResult.code === 200) {
-                const productImages = productImagesResult.data || [];
+                const productImages = (productImagesResult.data || []) as ProductImageRecord[];
                 
                 // 分离主图和详情图，并映射字段名
-                const mainImage = productImages.find((img: any) => img.isMainImage === true) || null;
+                const mainImage = productImages.find((img) => img.isMainImage === true) || null;
                 const detailImages = productImages
-                    .filter((img: any) => img.isMainImage !== true)
-                    .sort((a: any, b: any) => (a.displayOrder || 999) - (b.displayOrder || 999))
-                    .map((img: any) => ({
+                    .filter((img) => img.isMainImage !== true)
+                    .sort((a, b) => (a.displayOrder || 999) - (b.displayOrder || 999))
+                    .map((img) => ({
                         imgId: img.id,  // 后端返回 id，映射为 imgId
                         url: img.url,
                         title: img.title,

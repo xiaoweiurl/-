@@ -28,7 +28,14 @@ function backendUnavailable() {
 }
 
 function cookieHeaders(request: NextRequest) {
-  return { cookie: request.headers.get('cookie') || '' };
+  const headers: Record<string, string | null> = {
+    cookie: request.headers.get('cookie') || '',
+  };
+  const sessionId = request.headers.get('x-session-id');
+  if (sessionId) {
+    headers['x-session-id'] = sessionId;
+  }
+  return headers;
 }
 
 /**

@@ -342,7 +342,7 @@ export async function withRequestLog<T>(
   }
 }
 
-export default {
+const logger = {
   debug,
   info,
   warn,
@@ -352,3 +352,5 @@ export default {
   withRequestLog,
   filterSensitiveData,
 };
+
+export default logger;

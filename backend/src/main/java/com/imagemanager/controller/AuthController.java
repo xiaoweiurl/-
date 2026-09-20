@@ -317,13 +317,13 @@ public class AuthController {
         String sessionId = SessionIdExtractor.extract(request);
         
         if (sessionId == null) {
-            log.warn("验证会话失败：没有 session_id");
+            log.debug("验证会话失败：没有 session_id");
             return ApiResponse.error(401, "未登录");
         }
         
         LoginResponse.UserInfo user = authService.validateSession(sessionId);
         if (user == null) {
-            log.warn("验证会话失败：session 无效");
+            log.debug("验证会话失败：session 无效");
             return ApiResponse.error(401, "会话已过期");
         }
         

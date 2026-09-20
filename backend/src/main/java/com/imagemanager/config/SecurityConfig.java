@@ -50,7 +50,8 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
-            log.warn("未认证请求被拒绝: {} {}", request.getMethod(), request.getRequestURI());
+            // 未登录访问受保护接口是预期情况（登录页/会话过期/探活），不打 warn 以免刷屏
+            log.debug("未认证请求: {} {}", request.getMethod(), request.getRequestURI());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");

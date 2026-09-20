@@ -37,7 +37,7 @@ interface UploadedFile {
 // 图片类型
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
 // 文档类型
-const DOCUMENT_TYPES = [
+const _DOCUMENT_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -235,14 +235,15 @@ export default function FileUpload({
         controller.signal.addEventListener('abort', () => xhr.abort());
       });
 
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      const err = error as { name?: string; message?: string };
+      if (err.name === 'AbortError') {
         setUploadingFiles(prev => prev.map(f => 
           f.id === fileId ? { ...f, status: 'failed', error: '上传已取消' } : f
         ));
       } else {
         setUploadingFiles(prev => prev.map(f => 
-          f.id === fileId ? { ...f, status: 'failed', error: error.message || '上传失败' } : f
+          f.id === fileId ? { ...f, status: 'failed', error: err.message || '上传失败' } : f
         ));
       }
     } finally {
@@ -334,14 +335,15 @@ export default function FileUpload({
         controller.signal.addEventListener('abort', () => xhr.abort());
       });
 
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      const err = error as { name?: string; message?: string };
+      if (err.name === 'AbortError') {
         setUploadingFiles(prev => prev.map(f => 
           f.id === fileId ? { ...f, status: 'failed', error: '上传已取消' } : f
         ));
       } else {
         setUploadingFiles(prev => prev.map(f => 
-          f.id === fileId ? { ...f, status: 'failed', error: error.message || '上传失败' } : f
+          f.id === fileId ? { ...f, status: 'failed', error: err.message || '上传失败' } : f
         ));
       }
     } finally {
@@ -610,7 +612,7 @@ export default function FileUpload({
                   onChange={(e) => e.target.files && handleFiles(e.target.files)}
                   className="hidden"
                 />
-                <Image className={cn(
+                <ImageIcon className={cn(
                   'w-10 h-10 mx-auto mb-3 transition-colors',
                   isDraggingImage ? 'text-[#007aff]' : 'text-[#8e8e93]'
                 )} />

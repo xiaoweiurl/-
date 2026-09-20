@@ -89,7 +89,7 @@ export async function isBackendAvailable(): Promise<boolean> {
       // 服务端：直接请求 Java 后端
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${BACKEND_INTERNAL_URL}/albums`, {
+      const response = await fetch(`${BACKEND_INTERNAL_URL}/auth/session`, {
         method: 'GET',
         signal: controller.signal,
       });
@@ -99,9 +99,10 @@ export async function isBackendAvailable(): Promise<boolean> {
       lastCheckTime = now;
       return backendAvailableCache;
     } else {
-      // 客户端：通过统一 BFF 代理检测
-      const response = await fetch('/api/albums', {
+      // 客户端：通过公开会话接口检测，避免未登录探活打到 /albums 产生 401
+      const response = await fetch('/api/auth/session', {
         method: 'GET',
+        credentials: 'include',
         signal: AbortSignal.timeout(20000),
       });
       
@@ -160,6 +161,7 @@ export async function backendFetch(
   const fetchOptions: RequestInit = {
     method: options.method || 'GET',
     signal: AbortSignal.timeout(options.timeout || 30000),
+    credentials: options.credentials || 'include',
   };
 
   const inputHeaders = options.headers || {};
@@ -226,6 +228,7 @@ export async function backendFetchFormData(
   const fetchOptions: RequestInit = {
     method: 'POST',
     body: formData,
+    credentials: 'include',
   };
   
   const headers: Record<string, string> = {};

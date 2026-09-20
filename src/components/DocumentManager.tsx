@@ -101,7 +101,7 @@ interface DocumentManagerProps {
   onStatsUpdate?: (stats: Record<string, number>) => void;
 }
 
-export default function DocumentManager({ onClose, initialCategory, onStatsUpdate }: DocumentManagerProps) {
+export default function DocumentManager({ onClose: _onClose, initialCategory, onStatsUpdate }: DocumentManagerProps) {
   const [documents, setDocuments] = React.useState<Document[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedCategory, setSelectedCategory] = React.useState<DocumentCategory>(initialCategory || 'all');
@@ -237,7 +237,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
               // 从旧 URL 中提取 file_path 参数
               const urlMatch = doc.url.match(/file_path=([^&]+)/);
               if (urlMatch) {
-                const filePath = decodeURIComponent(urlMatch[1]);
+                const _filePath = decodeURIComponent(urlMatch[1]);
                 // 使用前端代理格式
                 correctUrl = `${window.location.origin}/api/documents/${doc.id}/file`;
               }
@@ -544,7 +544,7 @@ export default function DocumentManager({ onClose, initialCategory, onStatsUpdat
           <div className="flex flex-col items-center justify-center h-64 text-[#8e8e93]">
             <FolderOpen className="w-16 h-16 mb-4 text-[#3a3a3c]" />
             <p className="text-lg font-medium">暂无文档</p>
-            <p className="text-sm">点击上方"上传文档"按钮开始上传</p>
+            <p className="text-sm">{`点击上方"上传文档"按钮开始上传`}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { getClientSessionHeaders, isPublicAuthPage } from '@/lib/auth-client';
 
 export interface Notification {
   id: string;
@@ -29,13 +30,16 @@ const NotificationContext = createContext<NotificationContextType | null>(null);
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
   const previousIdsRef = useRef<Set<string>>(new Set());
   const lastFetchTimeRef = useRef<number>(0);
   const inFlightRef = useRef<boolean>(false);
 
   // 获取通知 - 带节流去重，防止短时间内重复请求
   const fetchNotifications = useCallback(async () => {
+    if (isPublicAuthPage()) {
+      return;
+    }
     const now = Date.now();
     // 3秒内不重复请求（去重 StrictMode 双调用 / 快速重复触发）
     if (inFlightRef.current || now - lastFetchTimeRef.current < 3000) {
@@ -45,7 +49,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     lastFetchTimeRef.current = now;
     try {
       const res = await fetch('/api/notifications?limit=20', {
-        credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
+        credentials: 'include',
+        headers: getClientSessionHeaders(),
       });
       
       if (!res.ok) {
@@ -106,7 +111,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/notifications', {
         method: 'PATCH',
         credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getClientSessionHeaders() },
         body: JSON.stringify({ action: 'markRead', notificationId: id }),
       });
       const data = await res.json();
@@ -128,7 +133,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/notifications', {
         method: 'PATCH',
         credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getClientSessionHeaders() },
         body: JSON.stringify({ action: 'markAllRead' }),
       });
       const data = await res.json();
@@ -147,7 +152,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       const res = await fetch(`/api/notifications?id=${id}`, {
         method: 'DELETE',
-        credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
+        credentials: 'include',
+        headers: getClientSessionHeaders(),
       });
       const data = await res.json();
       
@@ -173,7 +179,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       const res = await fetch('/api/notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...getClientSessionHeaders() },
         body: JSON.stringify({
           notification: {
             type: notification.type,

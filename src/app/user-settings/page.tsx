@@ -175,7 +175,7 @@ export default function UserManagementPage() {
       } else {
         toast.error(data.error || '创建失败');
       }
-    } catch (error) {
+    } catch {
       toast.error('创建失败');
     } finally {
       setIsSaving(false);
@@ -210,7 +210,7 @@ export default function UserManagementPage() {
       } else {
         toast.error(data.error || '更新失败');
       }
-    } catch (error) {
+    } catch {
       toast.error('更新失败');
     } finally {
       setIsSaving(false);
@@ -237,7 +237,7 @@ export default function UserManagementPage() {
       } else {
         toast.error(data.error || '删除失败');
       }
-    } catch (error) {
+    } catch {
       toast.error('删除失败');
     } finally {
       setIsSaving(false);
@@ -276,7 +276,7 @@ export default function UserManagementPage() {
       } else {
         toast.error(data.error || '重置失败');
       }
-    } catch (error) {
+    } catch {
       toast.error('重置失败');
     } finally {
       setIsSaving(false);
@@ -410,7 +410,7 @@ export default function UserManagementPage() {
               <User className="w-10 h-10 text-[#8e8e93]" />
             </div>
             <h3 className="text-lg font-medium text-[#3a3a3c] mb-2">暂无用户</h3>
-            <p className="text-sm text-[#8e8e93]">点击上方"新增用户"添加第一个用户</p>
+            <p className="text-sm text-[#8e8e93]">{`点击上方"新增用户"添加第一个用户`}</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
@@ -735,7 +735,7 @@ export default function UserManagementPage() {
           <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full max-w-md p-6">
             <h2 className="text-xl font-semibold text-[#1c1c1e] mb-4">确认删除</h2>
             <p className="text-[#3a3a3c] mb-6">
-              确定要删除用户 <span className="font-medium text-[#1c1c1e]">"{selectedUser.nickname || selectedUser.username}"</span> 吗？此操作不可恢复。
+              确定要删除用户 <span className="font-medium text-[#1c1c1e]">{`"${selectedUser.nickname || selectedUser.username}"`}</span> 吗？此操作不可恢复。
             </p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="border-[#e5e5ea] text-[#3a3a3c] hover:bg-[rgba(118,118,128,0.16)] hover:text-[#1c1c1e]">
@@ -761,7 +761,7 @@ export default function UserManagementPage() {
           <div className="bg-white rounded-xl border border-[rgba(0,122,255,0.15)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full max-w-md p-6">
             <h2 className="text-xl font-semibold text-[#1c1c1e] mb-4">重置密码</h2>
             <p className="text-[#3a3a3c] mb-4">
-              为用户 <span className="font-medium text-[#1c1c1e]">"{selectedUser.nickname || selectedUser.username}"</span> 设置新密码
+              为用户 <span className="font-medium text-[#1c1c1e]">{`"${selectedUser.nickname || selectedUser.username}"`}</span> 设置新密码
             </p>
             <Input
               type="password"

@@ -15,7 +15,7 @@ import { getSessionId } from '@/lib/auth-client';
 import ExcelBatchUpload from '@/components/ExcelBatchUpload';
 
 // 后端 API 基础 URL
-const BACKEND_API_URL = '/api';
+const _BACKEND_API_URL = '/api';
 
 interface UploadDialogProps {
   open: boolean;
@@ -175,7 +175,7 @@ export default function UploadDialog({
             )
           );
         }
-      } catch (error) {
+      } catch {
         setUploadingFiles(prev =>
           prev.map(f =>
             f.id === uploadingFile.id

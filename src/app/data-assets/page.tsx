@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Database, Search, Filter, Star, Eye,
   ArrowRight, ChevronRight, ChevronDown, FileText,
-  Image, FolderOpen, RefreshCw, AlertTriangle,
+  Image as ImageIcon, FolderOpen, RefreshCw, AlertTriangle,
   CheckCircle2, XCircle, BarChart3, Network, Shield, Activity,
   Zap, CircleDot, Boxes,
 } from 'lucide-react';
@@ -25,7 +25,7 @@ interface DataAsset {
 const TYPE_CONFIG: Record<AssetType, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
   knowledge: { label: '知识库', icon: <BookOpen className="w-4 h-4" />, color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
   document: { label: '文档', icon: <FileText className="w-4 h-4" />, color: 'text-[#34c759]', bgColor: 'bg-[rgba(52,199,89,0.1)]' },
-  image: { label: '图片', icon: <Image className="w-4 h-4" />, color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
+  image: { label: '图片', icon: <ImageIcon className="w-4 h-4" />, color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
   model: { label: 'AI模型', icon: <Zap className="w-4 h-4" />, color: 'text-[#007aff]', bgColor: 'bg-[rgba(0,122,255,0.1)]' },
 };
 
@@ -87,7 +87,7 @@ export default function DataAssetsPage() {
       } else {
         setError(json.error || '加载失败');
       }
-    } catch (e) {
+    } catch {
       setError('网络错误，无法加载数据资产');
     } finally {
       setLoading(false);
@@ -144,7 +144,12 @@ export default function DataAssetsPage() {
   const avgQuality = useMemo(() => assets.length ? Math.round(assets.reduce((s, a) => s + a.qualityScore, 0) / assets.length) : 0, [assets]);
 
   const toggleCategory = useCallback((cat: string) => {
-    setExpandedCategories(prev => { const next = new Set(prev); next.has(cat) ? next.delete(cat) : next.add(cat); return next; });
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
   }, []);
 
   if (loading) {
@@ -366,7 +371,7 @@ export default function DataAssetsPage() {
               </div>
               {filteredAssets.map(asset => {
                 const cfg = TYPE_CONFIG[asset.type];
-                const qCfg = QUALITY_CONFIG[asset.quality];
+                const _qCfg = QUALITY_CONFIG[asset.quality];
                 return (
                   <div key={asset.id} onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
                     className={`bg-white border rounded-xl p-4 cursor-pointer transition-all hover:shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${selectedAsset?.id === asset.id ? 'border-[rgba(0,122,255,0.5)] bg-white' : 'border-[rgba(229,229,234,0.5)]'}`}>

@@ -96,7 +96,7 @@ export default function ExportDialog({ albums, trigger, open, onOpenChange }: Ex
     });
   };
 
-  const handleSelectAll = () => {
+  const _handleSelectAll = () => {
     if (selectedAlbums.length === albums.length) {
       setSelectedAlbums([]);
     } else {

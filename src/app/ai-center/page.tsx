@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Sparkles, MessageSquare, Image, Globe, Search,
+  Sparkles, MessageSquare, Image as ImageIcon, Globe, Search,
   BarChart3, Zap, Clock, ArrowRight, Activity,
   BookOpen, Eye, Cpu, ChevronRight,
   CheckCircle, XCircle, AlertTriangle, Server,
@@ -43,6 +43,74 @@ interface ModelUsage {
   successRate?: number;
 }
 
+interface DashboardAiStats {
+  todayChatCalls?: number;
+  totalChatCalls?: number;
+  knowledgeDocs?: number;
+  embeddingCompleted?: number;
+}
+
+interface DashboardPayload {
+  aiStats?: DashboardAiStats;
+}
+
+interface TodayUsageRow {
+  capability?: string;
+  today?: number;
+  total?: number;
+}
+
+interface HealthRow {
+  model?: string;
+  level?: string;
+  calls?: number;
+  success_rate?: number;
+  avg_latency?: number;
+}
+
+interface ModelUsageRow {
+  model: string;
+  calls?: number;
+  tokens?: number;
+  capability?: string;
+  today_calls?: number;
+  avg_latency?: number;
+  success_rate?: number;
+}
+
+interface TrendRow {
+  date: string;
+  calls?: number;
+  success?: number;
+  fail?: number;
+}
+
+interface RecentLog {
+  time?: string;
+  capability?: string;
+  model?: string;
+  status?: string;
+  latency_ms?: number;
+  tokens?: number;
+  detail?: string;
+}
+
+interface RateLimitRow {
+  name?: string;
+  current?: number;
+  rejected?: number;
+  limit?: number | string;
+}
+
+interface UsageOverview {
+  todayUsage?: TodayUsageRow[];
+  health?: HealthRow[];
+  modelUsage?: ModelUsageRow[];
+  trend?: TrendRow[];
+  recent?: RecentLog[];
+  rateLimits?: RateLimitRow[];
+}
+
 // ===== 能力标识 → 中文名映射（与后端 AiCallLogService 的能力常量一致） =====
 const CAPABILITY_NAMES: Record<string, string> = {
   'smart-chat': 'AI 智能对话',
@@ -75,7 +143,7 @@ const AI_CAPABILITIES: AICapability[] = [
     id: 'ai-image',
     name: 'AI 智能生图',
     description: '支持文字生图和图生图，多种模型可选，高分辨率输出，支持批量生成和风格控制',
-    icon: <Image className="w-6 h-6" />,
+    icon: <ImageIcon className="w-6 h-6" />,
     color: 'text-[#007aff]',
     bgColor: 'bg-[rgba(0,122,255,0.1)]',
     borderColor: 'border-[rgba(0,122,255,0.2)]',
@@ -164,9 +232,9 @@ export default function AICenterPage() {
     onlineCount: 0,
     totalCount: 0,
   });
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [usageData, setUsageData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
+  const [usageData, setUsageData] = useState<UsageOverview | null>(null);
+  const [, setLoading] = useState(true);
 
   // 前端能力ID → 后端调用日志 capability 标识的映射
   const CAP_ID_TO_LOG_KEY: Record<string, string> = {
@@ -182,7 +250,7 @@ export default function AICenterPage() {
   // 根据能力ID获取真实统计数据（优先 ai_call_log 真实调用记录，兜底 dashboard 统计）
   const getCapStats = (capId: string) => {
     const logKey = CAP_ID_TO_LOG_KEY[capId];
-    const row = (usageData?.todayUsage ?? []).find((r: any) => r.capability === logKey);
+    const row = (usageData?.todayUsage ?? []).find((r) => r.capability === logKey);
     if (row) {
       return { callsToday: Number(row.today ?? 0), callsTotal: Number(row.total ?? 0) };
     }
@@ -206,7 +274,7 @@ export default function AICenterPage() {
   };
 
   // 模型用量数据（全部来自后端 ai_call_log 真实调用记录）
-  const modelUsage: ModelUsage[] = usageData?.modelUsage ? usageData.modelUsage.map((m: any) => ({
+  const modelUsage: ModelUsage[] = usageData?.modelUsage ? usageData.modelUsage.map((m) => ({
     model: m.model,
     calls: Number(m.calls ?? 0),
     tokens: Number(m.tokens ?? 0),
@@ -226,14 +294,14 @@ export default function AICenterPage() {
           fetch('/api/ai-usage/overview').catch(() => null),
         ]);
 
-        let payload: any = null;
+        let payload: DashboardPayload | null = null;
         if (dashRes && dashRes.ok) {
           const data = await dashRes.json();
           payload = data?.data || data;
           setDashboardData(payload);
         }
 
-        let usage: any = null;
+        let usage: UsageOverview | null = null;
         if (usageRes && usageRes.ok) {
           const u = await usageRes.json();
           usage = u?.data || null;
@@ -243,15 +311,15 @@ export default function AICenterPage() {
         const onlineCount = AI_CAPABILITIES.filter(c => c.status === 'online').length;
 
         // 核心指标全部用真实调用记录计算
-        const todayUsage: any[] = usage?.todayUsage ?? [];
-        const todayTotal = todayUsage.reduce((s: number, r: any) => s + Number(r.today ?? 0), 0);
-        const allTotal = todayUsage.reduce((s: number, r: any) => s + Number(r.total ?? 0), 0);
-        const health: any[] = usage?.health ?? [];
-        const healthCalls = health.reduce((s: number, h: any) => s + Number(h.calls ?? 0), 0);
+        const todayUsage: TodayUsageRow[] = usage?.todayUsage ?? [];
+        const todayTotal = todayUsage.reduce((s, r) => s + Number(r.today ?? 0), 0);
+        const allTotal = todayUsage.reduce((s, r) => s + Number(r.total ?? 0), 0);
+        const health: HealthRow[] = usage?.health ?? [];
+        const healthCalls = health.reduce((s, h) => s + Number(h.calls ?? 0), 0);
         const avgRate = health.length > 0
-          ? health.reduce((s: number, h: any) => s + Number(h.success_rate ?? 0), 0) / health.length : 0;
+          ? health.reduce((s, h) => s + Number(h.success_rate ?? 0), 0) / health.length : 0;
         const avgLat = healthCalls > 0
-          ? Math.round(health.reduce((s: number, h: any) => s + Number(h.avg_latency ?? 0) * Number(h.calls ?? 0), 0) / healthCalls) : 0;
+          ? Math.round(health.reduce((s, h) => s + Number(h.avg_latency ?? 0) * Number(h.calls ?? 0), 0) / healthCalls) : 0;
 
         setStats({
           totalCallsToday: todayTotal,
@@ -264,7 +332,7 @@ export default function AICenterPage() {
 
         // 7日真实调用趋势
         if (usage?.trend) {
-          setTrendData(usage.trend.map((t: any) => ({
+          setTrendData(usage.trend.map((t) => ({
             date: t.date,
             calls: Number(t.calls ?? 0),
             success: Number(t.success ?? 0),
@@ -516,13 +584,13 @@ export default function AICenterPage() {
 
   // ===== 渲染：用量监控 =====
   const renderMonitor = () => {
-    const health: any[] = usageData?.health ?? [];
-    const recent: any[] = usageData?.recent ?? [];
-    const todayUsage: any[] = usageData?.todayUsage ?? [];
-    const rateLimits: any[] = usageData?.rateLimits ?? [];
-    const allNormal = health.length > 0 && health.every((h: any) => h.level === 'normal');
-    const hasError = health.some((h: any) => h.level === 'error');
-    const todayTotal = todayUsage.reduce((s: number, r: any) => s + Number(r.today ?? 0), 0);
+    const health: HealthRow[] = usageData?.health ?? [];
+    const recent: RecentLog[] = usageData?.recent ?? [];
+    const todayUsage: TodayUsageRow[] = usageData?.todayUsage ?? [];
+    const rateLimits: RateLimitRow[] = usageData?.rateLimits ?? [];
+    const allNormal = health.length > 0 && health.every((h) => h.level === 'normal');
+    const hasError = health.some((h) => h.level === 'error');
+    const todayTotal = todayUsage.reduce((s, r) => s + Number(r.today ?? 0), 0);
     const emptyHint = (
       <div className="py-8 text-center text-xs text-[#8e8e93]">
         暂无调用记录 —— 数据来自系统真实调用日志，产生 AI 调用后将自动展示
@@ -547,7 +615,7 @@ export default function AICenterPage() {
         </div>
         {health.length === 0 ? emptyHint : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {health.map((s: any, i: number) => {
+            {health.map((s, i) => {
               const rate = Number(s.success_rate ?? 0);
               const level = s.level ?? 'normal';
               return (
@@ -630,7 +698,7 @@ export default function AICenterPage() {
         </h3>
         {recent.length === 0 ? emptyHint : (
           <div className="space-y-2">
-            {recent.map((log: any, i: number) => (
+            {recent.map((log, i) => (
               <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-[rgba(0,0,0,0.01)] transition-colors text-xs">
                 <span className="text-[#8e8e93] font-mono w-16 shrink-0">{log.time}</span>
                 <span className="text-[#1c1c1e] w-32 truncate">{capName(log.capability ?? '')}</span>
@@ -657,8 +725,8 @@ export default function AICenterPage() {
           </h3>
           {todayUsage.length === 0 ? emptyHint : (
             <div className="space-y-3">
-              {todayUsage.map((q: any, i: number) => {
-                const maxToday = Math.max(...todayUsage.map((x: any) => Number(x.today ?? 0)), 1);
+              {todayUsage.map((q, i) => {
+                const maxToday = Math.max(...todayUsage.map((x) => Number(x.today ?? 0)), 1);
                 return (
                   <div key={i}>
                     <div className="flex items-center justify-between text-xs mb-1">
@@ -684,7 +752,7 @@ export default function AICenterPage() {
             <span className="text-[10px] font-normal text-[#8e8e93]">系统真实限流配置</span>
           </h3>
           <div className="space-y-2.5">
-            {rateLimits.map((r: any, i: number) => (
+            {rateLimits.map((r, i) => (
               <div key={i} className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg bg-[rgba(242,242,247,0.3)]">
                 <span className="text-[#3a3a3c]">{r.name}</span>
                 <div className="flex items-center gap-3">

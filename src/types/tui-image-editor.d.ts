@@ -44,6 +44,17 @@ declare module '@toast-ui/react-image-editor' {
 }
 
 declare module 'tui-image-editor' {
-  const ImageEditor: any;
+  class ImageEditor {
+    constructor(element: string | HTMLElement, options?: Record<string, unknown>);
+    toDataURL(options?: { format?: string; quality?: number }): string;
+    loadImageFromURL(url: string, name: string): void;
+    rotate(angle: number): void;
+    flipX(): void;
+    flipY(): void;
+    setZoomRatio(ratio: number): void;
+    undo(): void;
+    redo(): void;
+    destroy(): void;
+  }
   export = ImageEditor;
 }

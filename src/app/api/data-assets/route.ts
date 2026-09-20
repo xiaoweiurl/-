@@ -44,16 +44,71 @@ export async function GET(request: NextRequest) {
   ]);
 
   // 通用：提取数组，兼容 { data: { content: [...] } }, { data: [...] }, { content: [...] }, 直接数组
-  function extractList(res: any): any[] {
+  type NamedString = string & { name?: string };
+  interface BackendAssetItem {
+    id?: string | number;
+    name?: string;
+    originalName?: string;
+    title?: string;
+    category?: NamedString;
+    categoryName?: string;
+    extension?: string;
+    size?: number;
+    fileSize?: number;
+    createdAt?: string;
+    created_at?: string;
+    updatedAt?: string;
+    updated_at?: string;
+    userId?: string | number;
+    deleted?: boolean;
+    url?: string;
+    tags?: string[];
+    qualityScore?: number;
+    accessCount?: number;
+    createdBy?: string;
+    embeddingStatus?: string;
+    fileType?: string;
+    format?: string;
+    sourceUrl?: string;
+    albumName?: string;
+    album?: { name?: string };
+    viewCount?: number;
+  }
+  interface DataAssetItem {
+    id: string;
+    name: string;
+    type: string;
+    category: string;
+    tags: string[];
+    quality: string;
+    qualityScore: number;
+    size: number;
+    createdAt: string;
+    updatedAt: string;
+    lastAccessedAt: string;
+    accessCount: number;
+    lineage: { sources: string[]; targets: string[] };
+    owner: string;
+    status: string;
+    format: string;
+    vectorized: boolean;
+    embeddingStatus: string;
+    sourceUrl?: string;
+  }
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+  }
+  function extractList(res: unknown): BackendAssetItem[] {
     if (!res) return [];
+    if (!isRecord(res)) return [];
     if (res.success === false) return [];
     const d = res.data ?? res;
-    if (Array.isArray(d)) return d;
-    if (d && typeof d === 'object') {
-      if (Array.isArray(d.content)) return d.content;
-      if (Array.isArray(d.documents)) return d.documents;
-      if (Array.isArray(d.images)) return d.images;
-      if (Array.isArray(d.list)) return d.list;
+    if (Array.isArray(d)) return d as BackendAssetItem[];
+    if (isRecord(d)) {
+      if (Array.isArray(d.content)) return d.content as BackendAssetItem[];
+      if (Array.isArray(d.documents)) return d.documents as BackendAssetItem[];
+      if (Array.isArray(d.images)) return d.images as BackendAssetItem[];
+      if (Array.isArray(d.list)) return d.list as BackendAssetItem[];
     }
     return [];
   }
@@ -61,18 +116,18 @@ export async function GET(request: NextRequest) {
   const knowledgeDocs = extractList(knowledgeRes);
   const images = extractList(imagesRes);
 
-  const assets: any[] = [];
+  const assets: DataAssetItem[] = [];
 
   // 文档中心 -> document
-  documents.forEach((d: any) => {
+  documents.forEach((d) => {
     assets.push({
       id: `doc-${d.id}`,
       name: d.name || d.originalName || '未命名文档',
       type: 'document',
       category: d.category === 'pdf' ? 'PDF文档' : d.category === 'word' ? 'Word文档' : d.category === 'excel' ? 'Excel表格' : d.category === 'ppt' ? 'PPT演示' : d.category === 'zip' ? '压缩包' : '其他文档',
-      tags: [...new Set([d.extension, d.category].filter(Boolean))],
-      quality: d.size > 0 ? 'high' : 'medium',
-      qualityScore: d.size > 5 * 1024 * 1024 ? 85 : d.size > 1024 * 1024 ? 78 : 65,
+      tags: [...new Set([d.extension, typeof d.category === 'string' ? d.category : undefined].filter((v): v is string => Boolean(v)))],
+      quality: (d.size ?? 0) > 0 ? 'high' : 'medium',
+      qualityScore: (d.size ?? 0) > 5 * 1024 * 1024 ? 85 : (d.size ?? 0) > 1024 * 1024 ? 78 : 65,
       size: d.size || 0,
       createdAt: d.createdAt || d.created_at || new Date().toISOString(),
       updatedAt: d.updatedAt || d.updated_at || new Date().toISOString(),
@@ -89,14 +144,14 @@ export async function GET(request: NextRequest) {
   });
 
   // 知识库 -> knowledge
-  knowledgeDocs.forEach((d: any) => {
+  knowledgeDocs.forEach((d) => {
     assets.push({
       id: `kb-${d.id}`,
       name: d.title || d.name || '未命名知识',
       type: 'knowledge',
       category: d.categoryName || d.category?.name || '知识库',
       tags: [...new Set(d.tags || [])],
-      quality: d.qualityScore > 80 ? 'high' : d.qualityScore > 50 ? 'medium' : 'low',
+      quality: (d.qualityScore ?? 0) > 80 ? 'high' : (d.qualityScore ?? 0) > 50 ? 'medium' : 'low',
       qualityScore: d.qualityScore || 75,
       size: d.fileSize || d.size || 0,
       createdAt: d.createdAt || d.created_at || new Date().toISOString(),
@@ -114,15 +169,15 @@ export async function GET(request: NextRequest) {
   });
 
   // 图片/知识 -> image
-  images.forEach((img: any) => {
+  images.forEach((img) => {
     assets.push({
       id: `img-${img.id}`,
       name: img.title || img.name || img.originalName || '未命名图片',
       type: 'image',
       category: img.albumName || img.album?.name || '图片库',
       tags: [...new Set(img.tags || [])],
-      quality: img.size > 2 * 1024 * 1024 ? 'high' : 'medium',
-      qualityScore: img.size > 5 * 1024 * 1024 ? 90 : img.size > 1024 * 1024 ? 80 : 70,
+      quality: (img.size ?? 0) > 2 * 1024 * 1024 ? 'high' : 'medium',
+      qualityScore: (img.size ?? 0) > 5 * 1024 * 1024 ? 90 : (img.size ?? 0) > 1024 * 1024 ? 80 : 70,
       size: img.size || img.fileSize || 0,
       createdAt: img.createdAt || img.created_at || new Date().toISOString(),
       updatedAt: img.updatedAt || img.updated_at || new Date().toISOString(),

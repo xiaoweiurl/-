@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getClientSessionHeaders, isPublicAuthPage } from '@/lib/auth-client';
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -116,10 +117,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 然后从服务器获取最新设置
+    // 登录/分享页不打受保护接口；已登录页带上 Cookie + X-Session-Id
+    if (isPublicAuthPage()) {
+      if (!cached) {
+        setSettings(DEFAULT_SETTINGS);
+      }
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/user/settings', {
-        credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
+        credentials: 'include',
+        headers: getClientSessionHeaders(),
       });
       const data = await res.json();
       if (data.success && data.data) {
@@ -155,8 +165,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch('/api/user/settings', {
         method: 'PATCH',
-        credentials: 'include',  // 发送 Cookie 以便 API route 获取 sessionId
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...getClientSessionHeaders() },
         body: JSON.stringify({ [key]: value }),
       });
       const data = await res.json();

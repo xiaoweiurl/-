@@ -123,14 +123,14 @@ export const imageApi = {
         }
       });
     }
-    return request<{ success: boolean; data: any; total: number }>(`/images?${searchParams}`);
+    return request<{ success: boolean; data: unknown; total: number }>(`/images?${searchParams}`);
   },
   
   /**
    * 获取图片详情
    */
   getImage: (id: string) => {
-    return request<{ success: boolean; data: any }>(`/images/${id}`);
+    return request<{ success: boolean; data: unknown }>(`/images/${id}`);
   },
   
   /**
@@ -170,7 +170,7 @@ export const imageApi = {
     tags?: string[];
     description?: string;
   }) => {
-    return request<{ success: boolean; data: any }>(`/images/${id}`, {
+    return request<{ success: boolean; data: unknown }>(`/images/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -207,7 +207,7 @@ export const imageApi = {
    * 切换收藏状态
    */
   toggleFavorite: (id: string) => {
-    return request<{ success: boolean; data: any }>(`/images/${id}/favorite`, {
+    return request<{ success: boolean; data: unknown }>(`/images/${id}/favorite`, {
       method: 'POST',
     });
   },
@@ -230,14 +230,14 @@ export const imageApi = {
    * 获取收藏图片
    */
   getFavorites: (page: number = 1, pageSize: number = 20) => {
-    return request<{ success: boolean; data: any }>(`/images/favorites?page=${page}&pageSize=${pageSize}`);
+    return request<{ success: boolean; data: unknown }>(`/images/favorites?page=${page}&pageSize=${pageSize}`);
   },
   
   /**
    * 获取回收站图片
    */
   getTrash: (page: number = 1, pageSize: number = 20) => {
-    return request<{ success: boolean; data: any }>(`/images/trash?page=${page}&pageSize=${pageSize}`);
+    return request<{ success: boolean; data: unknown }>(`/images/trash?page=${page}&pageSize=${pageSize}`);
   },
   
   /**
@@ -258,21 +258,21 @@ export const albumApi = {
    * 获取所有相册
    */
   getAlbums: () => {
-    return request<{ success: boolean; data: any[] }>('/albums');
+    return request<{ success: boolean; data: unknown[] }>('/albums');
   },
   
   /**
    * 获取相册详情
    */
   getAlbum: (id: string) => {
-    return request<{ success: boolean; data: any }>(`/albums/${id}`);
+    return request<{ success: boolean; data: unknown }>(`/albums/${id}`);
   },
   
   /**
    * 创建相册
    */
   createAlbum: (name: string, description?: string) => {
-    return request<{ success: boolean; data: any }>('/albums', {
+    return request<{ success: boolean; data: unknown }>('/albums', {
       method: 'POST',
       body: JSON.stringify({ name, description }),
     });
@@ -282,7 +282,7 @@ export const albumApi = {
    * 更新相册
    */
   updateAlbum: (id: string, name?: string, description?: string) => {
-    return request<{ success: boolean; data: any }>(`/albums/${id}`, {
+    return request<{ success: boolean; data: unknown }>(`/albums/${id}`, {
       method: 'PUT',
       body: JSON.stringify({ name, description }),
     });
@@ -306,7 +306,7 @@ export const userApi = {
    * 登录
    */
   login: (username: string, password: string) => {
-    return request<{ success: boolean; data: { user: any; token: string } }>('/auth/login', {
+    return request<{ success: boolean; data: { user: unknown; token: string } }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
@@ -325,19 +325,21 @@ export const userApi = {
    * 获取当前用户信息
    */
   getCurrentUser: () => {
-    return request<{ success: boolean; data: any }>('/users/me');
+    return request<{ success: boolean; data: unknown }>('/users/me');
   },
   
   /**
    * 获取用户统计
    */
   getStats: () => {
-    return request<{ success: boolean; data: any }>('/users/stats');
+    return request<{ success: boolean; data: unknown }>('/users/stats');
   },
 };
 
-export default {
+const apiClient = {
   image: imageApi,
   album: albumApi,
   user: userApi,
 };
+
+export default apiClient;

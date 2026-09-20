@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { FolderOpen, Check, Image } from 'lucide-react';
+import { FolderOpen, Check, Image as ImageIcon } from 'lucide-react';
 
 export interface Album {
   id: string;
@@ -91,7 +91,7 @@ export default function MoveToAlbumDialog({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Image className="w-6 h-6 text-[#007aff]" />
+                    <ImageIcon className="w-6 h-6 text-[#007aff]" />
                   )}
                 </div>
 

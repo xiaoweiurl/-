@@ -65,7 +65,7 @@ export interface AlbumInfo {
 interface MenuItem {
   id: string;
   label: string;
-  icon: any;
+  icon: React.ElementType;
   count?: number;
   children?: MenuItem[];
   showAddButton?: boolean;
@@ -281,7 +281,7 @@ export default function Sidebar({
   onItemClick,
   collapsed = false,
   albums = [],
-  smartAlbums = [],
+  smartAlbums: _smartAlbums = [],
   allImagesCount = 0,
   myImagesCount = 0,
   recentCount = 0,
@@ -301,7 +301,7 @@ export default function Sidebar({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [albumToDelete, setAlbumToDelete] = React.useState<AlbumInfo | null>(null);
-  const [albumToEdit, setAlbumToEdit] = React.useState<{ id: string; name: string; description?: string; matchingConfig?: any } | null>(null);
+  const [albumToEdit, setAlbumToEdit] = React.useState<{ id: string; name: string; description?: string; matchingConfig?: import('@/lib/api/types').MatchingConfig } | null>(null);
   const [albumName, setAlbumName] = React.useState('');
   const [albumDescription, setAlbumDescription] = React.useState('');
   const [matchMode, setMatchMode] = React.useState<'contains' | 'exact' | 'startsWith' | 'endsWith' | 'regex' | 'fuzzy'>('contains');
@@ -396,7 +396,7 @@ export default function Sidebar({
       let result;
       try {
         result = JSON.parse(text);
-      } catch (e) {
+      } catch {
         toast.error(`响应解析失败: ${text.substring(0, 100)}`);
         return;
       }
@@ -415,7 +415,7 @@ export default function Sidebar({
         
         if (failCount > 0) {
           const failedItems = result.data?.failedItems || [];
-          const reasons = failedItems.slice(0, 3).map((item: any) => `${item.name || item.id}: ${item.reason}`).join('；');
+          const reasons = failedItems.slice(0, 3).map((item: { name?: string; id?: string; reason?: string }) => `${item.name || item.id}: ${item.reason}`).join('；');
           toast.error(`有 ${failCount} 个相册删除失败：${reasons}${failCount > 3 ? '...' : ''}`);
         }
         
@@ -618,7 +618,7 @@ export default function Sidebar({
     setIsDeleteDialogOpen(true);
   };
 
-  const openEditDialog = (albumId: string, e: React.MouseEvent) => {
+  const _openEditDialog = (albumId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const album = albums.find(a => a.id === albumId);
     if (!album) return;
@@ -1009,16 +1009,16 @@ export default function Sidebar({
                                   maxLength={500}
                                 />
                                 <p className="text-xs text-[#8E8E93]">
-                                  配置同义词后，如设置"T恤"同义词为"tshirt,T-shirt"，则包含这些词的文件名也会匹配
+                                  {`配置同义词后，如设置"T恤"同义词为"tshirt,T-shirt"，则包含这些词的文件名也会匹配`}
                                 </p>
                               </div>
                             )}
                             {matchMode === 'regex' && (
                               <div className="p-3 bg-[#FF9500]/[0.08] rounded-xl text-xs text-[#B25000]">
                                 <p><strong>正则示例：</strong></p>
-                                <p>• <code>.*T恤.*</code> - 包含"T恤"的任意文件名</p>
-                                <p>• <code>^T恤.*</code> - 以"T恤"开头的文件名</p>
-                                <p>• <code>.*T恤$</code> - 以"T恤"结尾的文件名</p>
+                                <p>• <code>.*T恤.*</code>{` - 包含"T恤"的任意文件名`}</p>
+                                <p>• <code>^T恤.*</code>{` - 以"T恤"开头的文件名`}</p>
+                                <p>• <code>.*T恤$</code>{` - 以"T恤"结尾的文件名`}</p>
                               </div>
                             )}
                             <div className="space-y-2">
@@ -1293,7 +1293,7 @@ export default function Sidebar({
           <DialogHeader>
             <DialogTitle>删除相册</DialogTitle>
             <DialogDescription>
-              确定要删除相册 "{albumToDelete?.name}" 吗？
+              {`确定要删除相册 "${albumToDelete?.name}" 吗？`}
               {albumToDelete && albumToDelete.count > 0 && (
                 <span className="block mt-2 text-[#FF9500]">
                   此相册下还有 {albumToDelete.count} 张图片，请先删除图片后再删除相册。
@@ -1365,7 +1365,7 @@ export default function Sidebar({
           <DialogHeader>
             <DialogTitle>编辑相册配置</DialogTitle>
             <DialogDescription>
-              修改相册 "{albumToEdit?.name}" 的匹配规则和描述
+              {`修改相册 "${albumToEdit?.name}" 的匹配规则和描述`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1412,16 +1412,16 @@ export default function Sidebar({
                   maxLength={500}
                 />
                 <p className="text-xs text-[#8E8E93]">
-                  配置同义词后，如设置"T恤"同义词为"tshirt,T-shirt"，则包含这些词的文件名也会匹配
+                  {`配置同义词后，如设置"T恤"同义词为"tshirt,T-shirt"，则包含这些词的文件名也会匹配`}
                 </p>
               </div>
             )}
             {matchMode === 'regex' && (
               <div className="p-3 bg-[rgba(255,149,0,0.1)] rounded-lg text-xs text-[#ff9500]">
                 <p><strong>正则示例：</strong></p>
-                <p>• <code>.*T恤.*</code> - 包含"T恤"的任意文件名</p>
-                <p>• <code>^T恤.*</code> - 以"T恤"开头的文件名</p>
-                <p>• <code>.*T恤$</code> - 以"T恤"结尾的文件名</p>
+                <p>• <code>.*T恤.*</code>{` - 包含"T恤"的任意文件名`}</p>
+                <p>• <code>^T恤.*</code>{` - 以"T恤"开头的文件名`}</p>
+                <p>• <code>.*T恤$</code>{` - 以"T恤"结尾的文件名`}</p>
               </div>
             )}
             <div className="space-y-2">

@@ -73,10 +73,14 @@ export async function POST(request: NextRequest) {
         type: file.type,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[文件上传] 失败:', error);
+    const message =
+      (typeof error === 'object' && error !== null
+        ? (error as Record<string, unknown>).message
+        : undefined) || '上传失败';
     return NextResponse.json(
-      { success: false, message: error.message || '上传失败' },
+      { success: false, message },
       { status: 500 }
     );
   }

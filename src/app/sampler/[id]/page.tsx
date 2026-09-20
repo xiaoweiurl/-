@@ -395,7 +395,6 @@ export default function SamplerFormPage() {
                       className="relative w-full aspect-[4/3] rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden active:scale-[0.99] transition-transform"
                     >
                       {url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={url} alt={label} className="w-full h-full object-cover" />
                       ) : (
                         <span className="flex flex-col items-center justify-center gap-1.5 h-full text-[#8E8E93]">
@@ -465,7 +464,6 @@ export default function SamplerFormPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-5"
           onClick={() => setPreviewUrl(null)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={previewUrl} alt="" className="max-w-full max-h-full object-contain rounded-2xl" />
           <button
             type="button"

@@ -15,20 +15,6 @@ interface Message {
   timestamp: Date;
 }
 
-const SYSTEM_PROMPT = `你是一位深耕无缝针织行业的市场营销专家AI助手。你具备以下专业能力：
-
-1. **行业洞察**：熟悉无缝针织行业的上下游产业链，包括原材料（棉、莫代尔、锦纶、氨纶、涤纶等）、设备（以意大利圣东尼电子无缝针织机为代表）、工艺技术等。
-
-2. **市场分析**：擅长无缝针织产品的市场趋势分析，涵盖内衣、运动服饰、泳装、塑身衣、医疗绷带、瑜伽服等细分领域。
-
-3. **品牌策略**：能够为无缝针织品牌提供定位、差异化、渠道策略等品牌营销建议。
-
-4. **产品推广**：熟悉线上线下营销渠道，擅长社交媒体营销、内容营销、KOL合作等推广方式。
-
-5. **数据分析**：能基于市场数据提供销售预测、定价策略、库存优化等数据驱动的建议。
-
-请用专业、务实、有洞察力的方式回答用户的问题，优先给出可落地的行动建议。`;
-
 export default function MarketingChatPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -44,7 +30,7 @@ export default function MarketingChatPage() {
     const storedUserId = localStorage.getItem('user_id') || '';
     if (!storedCompany || !storedUserId) {
       // 后端不可用时降级，不强制跳转
-      backendFetch('/albums?pageSize=1').then(res => {
+      backendFetch('/auth/session').then(res => {
         if (res.status === 502) {
           setCompany('宝娜斯集团');
           setUserId('local');
@@ -205,7 +191,7 @@ export default function MarketingChatPage() {
           return updated;
         });
       }
-    } catch (err) {
+    } catch {
       setMessages(prev => {
         const updated = [...prev];
         updated[updated.length - 1] = {
@@ -237,14 +223,6 @@ export default function MarketingChatPage() {
       // silent
     }
     setMessages([]);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('user_company');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('session_id');
-    localStorage.removeItem('portal_type');
-    window.location.href = '/login';
   };
 
   const [brand, setBrand] = useState(BRANDS.yingyun);

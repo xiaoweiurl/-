@@ -47,7 +47,7 @@ export default function ShareDialog({
   resourceName,
   resourceType,
 }: ShareDialogProps) {
-  const [internalOpen, setInternalOpen] = useState(false);
+  const [internalOpen] = useState(false);
   const open = externalOpen ?? internalOpen;
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -165,7 +165,7 @@ export default function ShareDialog({
     alert('分享链接已复制到剪贴板');
   };
 
-  const formatDate = (dateStr: string | null) => {
+  const _formatDate = (dateStr: string | null) => {
     if (!dateStr) return '永久有效';
     return new Date(dateStr).toLocaleString('zh-CN');
   };

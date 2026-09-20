@@ -24,7 +24,7 @@ export async function GET() {
         pid: process.pid,
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to get Node.js metrics' },
       { status: 500 }

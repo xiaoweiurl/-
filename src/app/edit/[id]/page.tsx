@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useSyncExternalStore } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Loader2, ChevronLeft, AlertCircle, Download, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { ImageEditorInstance } from '@toast-ui/react-image-editor';
 
 // 导入 TUI Image Editor 样式
 import 'tui-image-editor/dist/tui-image-editor.css';
@@ -32,18 +33,13 @@ export default function EditPage() {
   
   const [image, setImage] = useState<{ url: string; title: string; originalUrl?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
-  const [editorInstance, setEditorInstance] = useState<any>(null);
+  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const [editorInstance, setEditorInstance] = useState<ImageEditorInstance | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   // AI 去水印相关状态
   const [isRemovingWatermark, setIsRemovingWatermark] = useState(false);
-  const [watermarkStatus, setWatermarkStatus] = useState<string | null>(null);
-
-  // 确保只在客户端渲染
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const [, setWatermarkStatus] = useState<string | null>(null);
 
   // 加载图片信息
   useEffect(() => {
@@ -123,7 +119,7 @@ export default function EditPage() {
   }, [editorInstance]);
 
   // AI 一键去水印
-  const handleRemoveWatermark = useCallback(async () => {
+  const _handleRemoveWatermark = useCallback(async () => {
     if (!image || isRemovingWatermark) return;
     
     setIsRemovingWatermark(true);
@@ -314,9 +310,8 @@ export default function EditPage() {
       {/* 编辑器区域 */}
       <div className="flex-1 relative" style={{ minHeight: 0 }}>
         {isMounted && (
-          // @ts-ignore
           <TuiImageEditor
-            ref={(ref: any) => {
+            ref={(ref: { getInstance(): ImageEditorInstance } | null) => {
               if (ref && !editorInstance) {
                 setEditorInstance(ref.getInstance());
               }

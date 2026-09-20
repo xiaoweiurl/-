@@ -15,7 +15,7 @@ import {
 // ============================================================
 
 // 颜色常量
-const COLORS = {
+const _COLORS = {
   blue: '#3b82f6',
   cyan: '#06b6d4',
   green: '#10b981',
@@ -194,8 +194,39 @@ function ActivityItem({ icon: Icon, text, time, color = 'text-[#007aff]' }: {
 // ============================================================
 // 主页面
 // ============================================================
+interface AlbumDistributionItem {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+interface UploadTrendItem {
+  date: string;
+  count: number;
+}
+
+interface DashboardStats {
+  overview?: {
+    totalImages: number;
+    totalSize: number;
+    totalAlbums: number;
+    recentUploads30d: number;
+  };
+  albumDistribution?: AlbumDistributionItem[];
+  uploadTrend?: UploadTrendItem[];
+  supplyChain?: {
+    totalProducts: number; pendingQuotations: number; activeSuppliers: number;
+    monthlyPurchases: number; totalRawMaterials: number; productionPlans: number;
+  };
+  aiStats?: {
+    totalChatCalls: number; todayChatCalls: number; knowledgeDocs: number;
+    knowledgeCards: number; memoryDocs: number; embeddingCompleted: number;
+    embeddingProcessing: number; imageGenerationCalls: number;
+  };
+}
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [supplyChainStats, setSupplyChainStats] = useState<{
     totalProducts: number; pendingQuotations: number; activeSuppliers: number;
@@ -367,7 +398,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                {stats?.albumDistribution?.slice(0, 4).map((item: any, i: number) => (
+                {stats?.albumDistribution?.slice(0, 4).map((item, i) => (
                   <div key={i} className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${
                       ['bg-[#007AFF]', 'bg-[#34C759]',
@@ -395,8 +426,8 @@ export default function DashboardPage() {
             <div className="space-y-3">
               {/* 简化版趋势图 - 用CSS柱状图代替Recharts */}
               <div className="flex items-end gap-1 h-40">
-                {stats?.uploadTrend?.map((item: any, i: number) => {
-                  const maxCount = Math.max(...(stats?.uploadTrend?.map((d: any) => d.count) || [1]));
+                {stats?.uploadTrend?.map((item, i) => {
+                  const maxCount = Math.max(...(stats?.uploadTrend?.map((d) => d.count) || [1]));
                   const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
                   return (
                     <motion.div
@@ -415,7 +446,7 @@ export default function DashboardPage() {
                   <motion.div
                     key={i}
                     initial={{ height: 0 }}
-                    animate={{ height: `${Math.random() * 80 + 20}%` }}
+                    animate={{ height: `${((i * 37) % 80) + 20}%` }}
                     transition={{ duration: 0.5, delay: i * 0.02 }}
                     className="flex-1 bg-[#007AFF] rounded-t-sm min-w-0"
                   />

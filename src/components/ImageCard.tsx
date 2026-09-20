@@ -79,7 +79,7 @@ export default function ImageCard({
   onPreview,
   onToggleFavorite,
   onDelete,
-  onMove,
+  onMove: _onMove,
   onMoveToAlbum,
   albums = [],
   onRestore,

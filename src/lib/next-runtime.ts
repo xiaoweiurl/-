@@ -26,7 +26,7 @@ function envFlag(value: string | undefined): boolean | undefined {
  * Always `false`: Next must never enable Fast Refresh / webpack-hmr.
  * Env flags cannot turn HMR back on (including NODE_ENV=development).
  */
-export function isNextDevMode(_env: NodeJS.ProcessEnv = process.env): boolean {
+export function isNextDevMode(_env?: NodeJS.ProcessEnv): boolean {
   return false;
 }
 

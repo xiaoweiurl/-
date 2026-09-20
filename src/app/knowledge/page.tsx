@@ -30,7 +30,7 @@ import {
   Briefcase,
   Info,
 } from 'lucide-react';
-import KnowledgeCardForm from '@/components/KnowledgeCardForm';
+import KnowledgeCardForm, { type KnowledgeCard } from '@/components/KnowledgeCardForm';
 import KnowledgeCardList, { KnowledgeCardListHandle } from '@/components/KnowledgeCardList';
 
 // 文件类型图标
@@ -76,6 +76,27 @@ interface Category {
   name: string;
   description?: string;
   docCount?: number;
+}
+
+interface ImportProgress {
+  status: string;
+  processedFiles: number;
+  totalFiles: number;
+  totalChunks: number;
+  failedFiles?: number;
+  recentErrors?: string[];
+  errorMsg?: string;
+}
+
+interface ImportTask {
+  taskId: number;
+  source: string;
+  status: string;
+  processedFiles: number;
+  totalFiles: number;
+  totalChunks: number;
+  failedFiles: number;
+  startTime: string;
 }
 
 // 统一 API 调用
@@ -198,8 +219,8 @@ export default function KnowledgePage() {
   const [importDragOver, setImportDragOver] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [currentImportTaskId, setCurrentImportTaskId] = useState<number | null>(null);
-  const [importProgress, setImportProgress] = useState<any>(null);
-  const [importTasks, setImportTasks] = useState<any[]>([]);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [importTasks, setImportTasks] = useState<ImportTask[]>([]);
   const [showTaskHistory, setShowTaskHistory] = useState(false);
   // 导入弹窗内嵌提示条（替代原生 alert，符合项目深色科技风格）
   const [importNotice, setImportNotice] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
@@ -215,7 +236,7 @@ export default function KnowledgePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'docs' | 'cards'>('docs');
   const [showCardForm, setShowCardForm] = useState(false);
-  const [editingCard, setEditingCard] = useState<any>(null);
+  const [editingCard, setEditingCard] = useState<KnowledgeCard | null>(null);
   const cardListRef = useRef<KnowledgeCardListHandle>(null);
 
   // 新建文本文档
@@ -235,7 +256,7 @@ export default function KnowledgePage() {
     const sessionId = localStorage.getItem('session_id');
     if (!sessionId) {
       // 先检测后端是否可用，不可用则留在页面（降级模式）
-      backendFetch('/albums?pageSize=1').then(res => {
+      backendFetch('/auth/session').then(res => {
         if (res.status === 502) {
           return;
         } else {
@@ -728,7 +749,7 @@ export default function KnowledgePage() {
             <KnowledgeCardList
               ref={cardListRef}
               onCreateNew={() => { setEditingCard(null); setShowCardForm(true); }}
-              onEdit={(card: any) => { setEditingCard(card); setShowCardForm(true); }}
+              onEdit={(card) => { setEditingCard(card); setShowCardForm(true); }}
             />
           )}
         </div>
@@ -1295,7 +1316,7 @@ export default function KnowledgePage() {
                   <span className="text-[#1c1c1e]">{importProgress.totalChunks || 0}</span>
                 </div>
 
-                {importProgress.failedFiles > 0 && (
+                {(importProgress.failedFiles ?? 0) > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[#8e8e93]">失败文件</span>
                     <span className="text-[#ff3b30]">{importProgress.failedFiles}</span>
@@ -1374,7 +1395,7 @@ export default function KnowledgePage() {
                   <p>暂无导入任务</p>
                 </div>
               ) : (
-                importTasks.map((task: any) => (
+                importTasks.map((task) => (
                   <div key={task.taskId} className="bg-[#ffffff] rounded-lg p-4 border border-[rgba(229,229,234,0.5)]">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-[#1c1c1e] truncate flex-1">{task.source}</span>

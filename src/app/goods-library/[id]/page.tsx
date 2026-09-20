@@ -250,7 +250,6 @@ export default function GoodsDetailPage() {
                 <div key={slot} className="group relative">
                   <div className="aspect-square rounded-xl border-2 border-dashed border-[rgba(229,229,234,0.6)] bg-[rgba(242,242,247,0.5)] overflow-hidden hover:border-[rgba(0,122,255,0.4)] transition-colors">
                     {url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={url}
                         alt={label}
@@ -393,7 +392,6 @@ export default function GoodsDetailPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-8"
           onClick={() => setPreviewUrl(null)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={previewUrl} alt="预览" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
           <button
             className="absolute top-4 right-4 min-w-11 min-h-11 flex items-center justify-center rounded-lg bg-[rgba(242,242,247,0.92)] text-[#3a3a3c] hover:text-[#1C1C1E] transition-colors"

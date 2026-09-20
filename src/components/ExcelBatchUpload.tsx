@@ -51,7 +51,7 @@ interface UploadedImage {
  * 安全解码 URL 编码的字符串
  * 支持 UTF-8、GBK、GB2312 等编码的 URL 编码
  */
-function decodeURIComponentSafe(str: string): string {
+function _decodeURIComponentSafe(str: string): string {
   if (!str || str.length === 0) {
     return str;
   }
@@ -68,7 +68,7 @@ function decodeURIComponentSafe(str: string): string {
       if (/[\u4e00-\u9fa5]/.test(decoded)) {
         return decoded;
       }
-    } catch (e) {
+    } catch {
       // 解码失败，尝试其他方式
     }
     
@@ -102,7 +102,7 @@ function decodeURIComponentSafe(str: string): string {
       if (/[\u4e00-\u9fa5]/.test(result)) {
         return result;
       }
-    } catch (e) {
+    } catch {
       // 替换失败
     }
   }
@@ -154,7 +154,7 @@ export default function ExcelBatchUpload({
   const [isDragging, setIsDragging] = React.useState(false);
   const [excelData, setExcelData] = React.useState<ExcelRow[]>([]);
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [excelFileName, setExcelFileName] = React.useState<string>(''); // 保存Excel文件名
+  const [, setExcelFileName] = React.useState<string>(''); // 保存Excel文件名
   const excelFileNameRef = React.useRef<string>(''); // 使用 ref 保存文件名（同步访问）
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const pendingRowsRef = React.useRef<typeof excelData>([]); // 保存待处理行用于轮询
@@ -162,14 +162,14 @@ export default function ExcelBatchUpload({
   const { addNotification } = useNotifications();
 
   // 可选的回调函数，用于保存轮询 intervalId（用于清理）
-  const setTaskIntervalId = (intervalId: NodeJS.Timeout | null) => {
+  const _setTaskIntervalId = (intervalId: NodeJS.Timeout | null) => {
     taskIntervalRef.current = intervalId;
   };
 
   // 异步任务状态
-  const [taskId, setTaskId] = React.useState<string | null>(null);
-  const [downloadStatus, setDownloadStatus] = React.useState<'idle' | 'pending' | 'processing' | 'completed' | 'failed'>('idle');
-  const [progress, setProgress] = React.useState({ total: 0, processed: 0, success: 0, fail: 0, skip: 0 });
+  const [_taskId, _setTaskId] = React.useState<string | null>(null);
+  const [_downloadStatus, _setDownloadStatus] = React.useState<'idle' | 'pending' | 'processing' | 'completed' | 'failed'>('idle');
+  const [_progress, _setProgress] = React.useState({ total: 0, processed: 0, success: 0, fail: 0, skip: 0 });
   const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
   const isUnmountedRef = React.useRef(false); // 防止组件卸载后更新状态
 
@@ -210,7 +210,7 @@ export default function ExcelBatchUpload({
       
 
       // 提取列名
-      const headers = rawData[0] as string[];
+      const _headers = rawData[0] as string[];
       
       // 转换数据格式
       const rows: ExcelRow[] = [];
@@ -353,7 +353,7 @@ export default function ExcelBatchUpload({
   }>>({});
 
   // 轮询任务进度的函数
-  const pollTaskProgress = async (taskId: string) => {
+  const _pollTaskProgress = async (taskId: string) => {
     
     const poll = async () => {
       try {
@@ -374,7 +374,7 @@ export default function ExcelBatchUpload({
           if (isUnmountedRef.current) return;
 
           // 更新任务状态
-          setTaskProgress((prev: Record<string, any>) => {
+          setTaskProgress((prev) => {
             if (isUnmountedRef.current) return prev;
             return {
               ...prev,
@@ -507,9 +507,9 @@ export default function ExcelBatchUpload({
     if (excelData.length === 0) return;
 
     setIsProcessing(true);
-    let successCount = 0;
-    let failCount = 0;
-    let skipCount = 0;
+    const _successCount = 0;
+    const _failCount = 0;
+    const _skipCount = 0;
 
     // 过滤出待处理的行
     const pendingRows = excelData.filter(row => row.status === 'pending');
@@ -591,7 +591,7 @@ export default function ExcelBatchUpload({
       });
 
       // 逐批提交任务（不等待结果，后台处理）
-      let submittedCount = 0;
+      let _submittedCount = 0;
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         
@@ -608,7 +608,7 @@ export default function ExcelBatchUpload({
           }),
         }).then(response => {
           if (response.ok) {
-            submittedCount++;
+            _submittedCount++;
           } else {
             console.error(`[ExcelUpload] 第 ${i + 1} 批次提交失败`);
           }

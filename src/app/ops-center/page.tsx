@@ -238,7 +238,7 @@ function MonitorTab({ metrics }: { metrics: ApiMetrics | null }) {
   );
   const { summary: rawSummary = { totalRequests: 0, errorRate: 0, avgResponseTime: 0, successRate: 0, requestsPerMinute: 0, errorCount: 0, activeUsers: 0, uptime: 0 }, hourlyRequests = [], endpoints = [], systemResources: sys = { cpu: { current: 0, peak: 0, cores: 0 }, memory: { usedMb: 0, totalMb: 0, peakMb: 0, percentage: 0 }, disk: { usedGb: 0, totalGb: 0, percentage: 0 }, network: { inboundKbps: 0, outboundKbps: 0, totalRequests: 0 } } } = metrics || {};
   const summary = Object.assign({ totalRequests: 0, errorRate: 0, avgResponseTime: 0, successRate: 0, requestsPerMinute: 0, errorCount: 0, activeUsers: 0, uptime: 0 }, rawSummary);
-  const maxRequests = hourlyRequests.length > 0 ? Math.max(...hourlyRequests.map((h: any) => h.total)) : 1;
+  const maxRequests = hourlyRequests.length > 0 ? Math.max(...hourlyRequests.map((h) => h.total)) : 1;
 
   return (
     <div className="space-y-6">
@@ -506,11 +506,12 @@ function PerformanceTab({ perf }: { perf: PerformanceData | null }) {
     </div>
   );
   const rawPerf = perf || {};
-  const services = (rawPerf.services || []).map((s: any) => ({ responseTime: { p50: 0, p99: 0 }, errorRate: 0, throughput: 0, activeConnections: 0, ...s }));
-  const slowQueries = (rawPerf.slowQueries || []).map((q: any) => ({ duration: 0, ...q }));
+  const serviceDefaults = { responseTime: { p50: 0, p99: 0 }, errorRate: 0, throughput: 0, activeConnections: 0 };
+  const services = (rawPerf.services || []).map((s: PerformanceData['services'][number]) => ({ ...serviceDefaults, ...s }));
+  const slowQueries = (rawPerf.slowQueries || []).map((q: PerformanceData['slowQueries'][number]) => ({ ...{ duration: 0 }, ...q }));
   const defaultRuntime = { jvm: { heapUsedMb: 0, heapMaxMb: 0, gcPauseMs: 0, threadCount: 0, peakThreadCount: 0 }, node: { rssMb: 0, heapUsedMb: 0, heapTotalMb: 0, externalMb: 0, arrayBuffersMb: 0 }, database: { activeConnections: 0, maxConnections: 0, waitingConnections: 0, avgQueryMs: 0, slowQueryCount: 0 } };
   const runtime = { ...defaultRuntime, ...rawPerf.runtime, node: nodeMetrics || rawPerf.runtime?.node || defaultRuntime.node };
-  const lastUpdated = rawPerf.lastUpdated || '';
+  const _lastUpdated = rawPerf.lastUpdated || '';
 
   return (
     <div className="space-y-6">
@@ -870,7 +871,7 @@ function UsersTab() {
 
 // ============ 存储测试 Tab ============
 function StorageTestTab() {
-  const [result, setResult] = useState<Record<string, any> | null>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -911,7 +912,6 @@ function StorageTestTab() {
 
       {result && (
         <div className="space-y-4">
-          {/* 连接状态 */}
           <div className={`p-4 rounded-lg border ${
             result.success
               ? 'bg-[rgba(52,199,89,0.1)] border-[rgba(52,199,89,0.2)]'
@@ -930,7 +930,6 @@ function StorageTestTab() {
             </div>
           </div>
 
-          {/* 详细信息 */}
           <div className="p-4 rounded-lg bg-white border border-[rgba(229,229,234,0.5)]">
             <h4 className="text-xs font-medium text-[#8e8e93] mb-3">连接详情</h4>
             <div className="space-y-2">
@@ -940,8 +939,8 @@ function StorageTestTab() {
                   <span className="text-xs text-[#3a3a3c] font-mono max-w-md truncate">
                     {typeof value === 'boolean'
                       ? (value ? '✓' : '✗')
-                      : typeof value === 'string'
-                        ? value
+                      : typeof value === 'string' || typeof value === 'number'
+                        ? String(value)
                         : JSON.stringify(value)
                     }
                   </span>
@@ -950,8 +949,7 @@ function StorageTestTab() {
             </div>
           </div>
 
-          {/* 预签名URL访问测试 */}
-          {result.presignedUrl && (
+          {typeof result.presignedUrl === 'string' && result.presignedUrl && (
             <div className="p-4 rounded-lg bg-white border border-[rgba(229,229,234,0.5)]">
               <h4 className="text-xs font-medium text-[#8e8e93] mb-2">预签名 URL</h4>
               <div className="p-2 rounded bg-[rgba(242,242,247,0.5)] text-xs text-[#007aff] font-mono break-all">
@@ -974,7 +972,7 @@ function StorageTestTab() {
       {!result && !error && !loading && (
         <div className="p-8 rounded-lg bg-white border border-[rgba(229,229,234,0.3)] text-center">
           <HardDrive className="w-8 h-8 text-[#8e8e93] mx-auto mb-3" />
-          <p className="text-sm text-[#8e8e93]">点击"开始测试"按钮验证 S3/OSS 存储连接</p>
+          <p className="text-sm text-[#8e8e93]">{`点击"开始测试"按钮验证 S3/OSS 存储连接`}</p>
           <p className="text-xs text-[#8e8e93] mt-1">测试流程：上传 → 获取URL → 预签名 → 删除</p>
         </div>
       )}
