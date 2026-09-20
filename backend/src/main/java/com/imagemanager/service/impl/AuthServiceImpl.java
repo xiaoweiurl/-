@@ -9,7 +9,6 @@ import com.imagemanager.entity.User;
 import com.imagemanager.repository.UserRepository;
 import com.imagemanager.service.AuthService;
 import com.imagemanager.util.PasswordValidator;
-import com.imagemanager.util.RateLimiter;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -174,13 +173,13 @@ public class AuthServiceImpl implements AuthService {
         log.info("用户登录：{}", request.getUsername());
 
         // 速率限制检查
-        if (request.getUsername() != null && !request.getUsername().isEmpty()) {
-            String clientId = request.getUsername().toLowerCase();
-            if (!RateLimiter.allow(clientId, RateLimiter.LimitType.LOGIN)) {
-                long resetTime = RateLimiter.getResetTime(clientId, RateLimiter.LimitType.LOGIN);
-                throw new RateLimitException("登录尝试次数过多，请在 " + resetTime + " 秒后重试");
-            }
-        }
+        // if (request.getUsername() != null && !request.getUsername().isEmpty()) {
+        // String clientId = request.getUsername().toLowerCase();
+        // if (!RateLimiter.allow(clientId, RateLimiter.LimitType.LOGIN)) {
+        // long resetTime = RateLimiter.getResetTime(clientId, RateLimiter.LimitType.LOGIN);
+        // throw new RateLimitException("登录尝试次数过多，请在 " + resetTime + " 秒后重试");
+        // }
+        // }
 
         // 查找用户
         User user = userRepository.findByUsername(request.getUsername())
@@ -341,7 +340,6 @@ public class AuthServiceImpl implements AuthService {
 
         if (!sessionData.isEmpty()) {
             String userId = (String) sessionData.get("userId");
-            String username = (String) sessionData.get("username");
 
             // 删除 session
             redisTemplate.delete(sessionKey);
@@ -470,10 +468,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void changePassword(String userId, String currentPassword, String newPassword) {
 
-        if (!RateLimiter.allow(userId, RateLimiter.LimitType.PASSWORD_CHANGE)) {
-            long resetTime = RateLimiter.getResetTime(userId, RateLimiter.LimitType.PASSWORD_CHANGE);
-            throw new RateLimitException("密码修改尝试次数过多，请在 " + resetTime + " 秒后重试");
-        }
+        // if (!RateLimiter.allow(userId, RateLimiter.LimitType.PASSWORD_CHANGE)) {
+        // long resetTime = RateLimiter.getResetTime(userId, RateLimiter.LimitType.PASSWORD_CHANGE);
+        // throw new RateLimitException("密码修改尝试次数过多，请在 " + resetTime + " 秒后重试");
+        // }
 
         User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -539,7 +537,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             currentCompany = jdbcTemplate.queryForObject(
                 "SELECT company FROM users WHERE id = ?::uuid", String.class, userId);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             try {
                 currentCompany = jdbcTemplate.queryForObject(
                     "SELECT company FROM users WHERE id = ?", String.class, userId);
@@ -559,7 +557,7 @@ public class AuthServiceImpl implements AuthService {
             updated = jdbcTemplate.update(
                 "UPDATE users SET company = ? WHERE id = ?::uuid AND (company IS NULL OR company = '')",
                 company, userId);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             try {
                 updated = jdbcTemplate.update(
                     "UPDATE users SET company = ? WHERE id = ? AND (company IS NULL OR company = '')",
