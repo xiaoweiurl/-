@@ -250,7 +250,7 @@ public class DataModelService {
             }
             if (jsonStr == null || jsonStr.trim().isEmpty()) return new LinkedHashMap<>();
             return objectMapper.readValue(jsonStr, Map.class);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return new LinkedHashMap<>();
         }
     }
@@ -267,7 +267,7 @@ public class DataModelService {
                 }
                 try {
                     entry.setValue(objectMapper.readValue(jsonStr, Object.class));
-                } catch (@SuppressWarnings("unused") Exception e) {
+                } catch (Exception ignored) {
                     entry.setValue(jsonStr);
                 }
             }
@@ -328,7 +328,7 @@ public class DataModelService {
     public Map<String, Object> createRecord(UUID modelId, Map<String, Object> body) {
         Object dataObj = body.getOrDefault("data", new LinkedHashMap<>());
         String dataJson;
-        try { dataJson = objectMapper.writeValueAsString(dataObj); } catch (@SuppressWarnings("unused") Exception e) { dataJson = "{}"; }
+        try { dataJson = objectMapper.writeValueAsString(dataObj); } catch (Exception ignored) { dataJson = "{}"; }
         String createdBy = (String) body.getOrDefault("createdBy", "admin");
         String status = (String) body.getOrDefault("status", "active");
 
@@ -347,7 +347,7 @@ public class DataModelService {
 
         if (body.containsKey("data")) {
             sql.append(", data = ?::jsonb");
-            try { params.add(objectMapper.writeValueAsString(body.get("data"))); } catch (@SuppressWarnings("unused") Exception e) { params.add("{}"); }
+            try { params.add(objectMapper.writeValueAsString(body.get("data"))); } catch (Exception ignored) { params.add("{}"); }
         }
         if (body.containsKey("status")) { sql.append(", status = ?"); params.add(body.get("status")); }
         if (body.containsKey("updatedBy")) { sql.append(", updated_by = ?"); params.add(body.get("updatedBy")); }

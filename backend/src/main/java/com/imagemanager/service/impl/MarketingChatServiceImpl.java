@@ -119,7 +119,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                     emitter.send(SseEmitter.event().name("message").data(
                         Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "error", "content", "对话失败: " + e.getMessage())))
                     ));
-                } catch (@SuppressWarnings("unused") Exception ignored) {}
+                } catch (Exception ignored) {}
                 emitter.completeWithError(e);
             }
         }).start();
@@ -193,7 +193,7 @@ public class MarketingChatServiceImpl implements MarketingChatService {
                             ));
                             return;
                         }
-                    } catch (@SuppressWarnings("unused") Exception parseEx) {
+                    } catch (Exception ignored) {
                     }
                 }
             }

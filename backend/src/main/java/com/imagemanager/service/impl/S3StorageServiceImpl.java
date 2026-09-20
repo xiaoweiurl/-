@@ -364,7 +364,7 @@ public class S3StorageServiceImpl implements FileStorageService {
 
             s3Client.headObject(headRequest);
             return true;
-        } catch (@SuppressWarnings("unused") NoSuchKeyException e) {
+        } catch (NoSuchKeyException ignored) {
             return false;
         } catch (Exception e) {
             log.error("[Storage] 检查文件存在性失败: {}", fileKey, e);
@@ -405,7 +405,7 @@ public class S3StorageServiceImpl implements FileStorageService {
                 }
                 // 虚拟托管风格或直接路径；顺带去掉误存的 /api/uploads 前缀
                 return UploadStorageKeys.stripLocalUploadPrefix(path);
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
                 log.warn("[Storage] URL解析失败，直接作为key使用: {}", fileKey);
                 return UploadStorageKeys.stripLocalUploadPrefix(fileKey);
             }

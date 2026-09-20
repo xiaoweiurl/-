@@ -398,7 +398,7 @@ public class ErpDataPersister {
         }
         try {
             return new BigDecimal(s.replace(",", ""));
-        } catch (@SuppressWarnings("unused") NumberFormatException e) {
+        } catch (NumberFormatException ignored) {
             return null;
         }
     }
@@ -410,7 +410,7 @@ public class ErpDataPersister {
         }
         try {
             return new BigDecimal(s.replace(",", "")).intValue();
-        } catch (@SuppressWarnings("unused") NumberFormatException e) {
+        } catch (NumberFormatException ignored) {
             return null;
         }
     }
@@ -437,7 +437,7 @@ public class ErpDataPersister {
             }
             return Timestamp.valueOf(LocalDateTime.parse(normalized,
                     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return null;
         }
     }

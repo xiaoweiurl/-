@@ -61,7 +61,7 @@ public class OpsService {
             summary.put("requestsPerMinute", minutes > 0 ? totalCalls / minutes : totalCalls);
             summary.put("activeUsers", 0);
             summary.put("uptime", java.time.Duration.between(LocalDateTime.now().minusDays(7), LocalDateTime.now()).toString());
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             summary.put("totalRequests", 0); summary.put("errorCount", 0);
             summary.put("avgResponseTime", 0); summary.put("successRate", 0);
             summary.put("errorRate", 0); summary.put("requestsPerMinute", 0);
@@ -92,7 +92,7 @@ public class OpsService {
                 h.put("avgResponseTime", Math.round(toDouble(row.get("avg_response_time"))));
                 hourlyRequests.add(h);
             }
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
         }
         result.put("hourlyRequests", hourlyRequests);
 
@@ -123,7 +123,7 @@ public class OpsService {
                 mapped.add(m);
             }
             endpoints = mapped;
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
         }
         result.put("endpoints", endpoints);
 
@@ -145,7 +145,7 @@ public class OpsService {
                     cpuUsage = sunOsBean.getProcessCpuLoad() * 100.0;
                     if (cpuUsage < 0) cpuUsage = 0;
                 }
-            } catch (@SuppressWarnings("unused") Exception ignored) {}
+            } catch (Exception ignored) {}
 
             Map<String, Object> cpu = new HashMap<>();
             cpu.put("current", Math.round(cpuUsage * 10.0) / 10.0);
@@ -169,7 +169,7 @@ public class OpsService {
                 disk.put("usedGb", Math.round(usedGb * 10.0) / 10.0);
                 disk.put("totalGb", Math.round(totalGb * 10.0) / 10.0);
                 disk.put("percentage", totalBytes > 0 ? Math.round((double) usedBytes / totalBytes * 1000.0) / 10.0 : 0);
-            } catch (@SuppressWarnings("unused") Exception ex) {
+            } catch (Exception ignored) {
                 disk.put("usedGb", 0.0);
                 disk.put("totalGb", 0.0);
                 disk.put("percentage", 0);
@@ -184,7 +184,7 @@ public class OpsService {
                         (company != null ? " AND company = ?" : "");
                 long reqCount = toLong(jdbcTemplate.queryForMap(reqCountSql, statsParams).get("cnt"));
                 network.put("totalRequests", reqCount);
-            } catch (@SuppressWarnings("unused") Exception ex) {
+            } catch (Exception ignored) {
                 network.put("totalRequests", 0);
             }
 
@@ -192,7 +192,7 @@ public class OpsService {
             sysRes.put("memory", memory);
             sysRes.put("disk", disk);
             sysRes.put("network", network);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             sysRes.put("cpu", Map.of("current", 0, "peak", 0, "cores", 0));
             sysRes.put("memory", Map.of("usedMb", 0, "totalMb", 0, "peakMb", 0, "percentage", 0));
             sysRes.put("disk", Map.of("usedGb", 0.0, "totalGb", 0.0, "percentage", 0));
@@ -310,7 +310,7 @@ public class OpsService {
                 svc.put("maxConnections", 100);
                 services.add(svc);
             }
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
         }
         result.put("services", services);
 
@@ -322,7 +322,7 @@ public class OpsService {
                     (company != null ? " AND company = ?" : "") +
                     " ORDER BY response_time_ms DESC LIMIT 10";
             slowQueries = new ArrayList<>(jdbcTemplate.queryForList(slowSql, params));
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
         }
         result.put("slowQueries", slowQueries);
 
@@ -341,13 +341,13 @@ public class OpsService {
                 for (var gcBean : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
                     gcPauseMs += gcBean.getCollectionTime();
                 }
-            } catch (@SuppressWarnings("unused") Exception ignored) {}
+            } catch (Exception ignored) {}
 
             // 峰值线程数（通过 ThreadMXBean）
             int peakThreadCount = threadCount;
             try {
                 peakThreadCount = java.lang.management.ManagementFactory.getThreadMXBean().getPeakThreadCount();
-            } catch (@SuppressWarnings("unused") Exception ignored) {}
+            } catch (Exception ignored) {}
 
             Map<String, Object> jvm = new HashMap<>();
             jvm.put("heapUsedMb", heapUsed);
@@ -369,7 +369,7 @@ public class OpsService {
                         waitingConns = pool.getThreadsAwaitingConnection();
                     }
                 }
-            } catch (@SuppressWarnings("unused") NoClassDefFoundError | Exception ignored) {}
+            } catch (NoClassDefFoundError | Exception ignored) {}
             database.put("activeConnections", activeConns);
             database.put("maxConnections", maxConns > 0 ? maxConns : 100);
             database.put("waitingConnections", waitingConns);
@@ -380,14 +380,14 @@ public class OpsService {
                         (company != null ? " AND company = ?" : "");
                 long slowCount = toLong(jdbcTemplate.queryForMap(slowCountSql, params).get("cnt"));
                 database.put("slowQueryCount", slowCount);
-            } catch (@SuppressWarnings("unused") Exception ex) {
+            } catch (Exception ignored) {
                 database.put("slowQueryCount", 0);
             }
             runtime.put("database", database);
 
             // Node.js 指标（本项目是 Java 后端，没有 Node.js 运行时，填 0）
             runtime.put("node", Map.of("rssMb", 0, "heapUsedMb", 0, "heapTotalMb", 0, "externalMb", 0, "arrayBuffersMb", 0));
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             runtime.put("jvm", Map.of("heapUsedMb", 0, "heapMaxMb", 0, "gcPauseMs", 0, "threadCount", 0, "peakThreadCount", 0));
             runtime.put("node", Map.of("rssMb", 0, "heapUsedMb", 0, "heapTotalMb", 0, "externalMb", 0, "arrayBuffersMb", 0));
             runtime.put("database", Map.of("activeConnections", 0, "maxConnections", 100, "waitingConnections", 0, "avgQueryMs", 0, "slowQueryCount", 0));
@@ -530,7 +530,7 @@ public class OpsService {
                             count, existingId);
                 });
                 return;
-            } catch (@SuppressWarnings("unused") Exception ignored) {
+            } catch (Exception ignored) {
                 // 没有找到已有错误，插入新记录
             }
 
@@ -592,12 +592,12 @@ public class OpsService {
     private long toLong(Object val) {
         if (val == null) return 0;
         if (val instanceof Number) return ((Number) val).longValue();
-        try { return Long.parseLong(val.toString()); } catch (@SuppressWarnings("unused") Exception e) { return 0; }
+        try { return Long.parseLong(val.toString()); } catch (Exception ignored) { return 0; }
     }
 
     private double toDouble(Object val) {
         if (val == null) return 0;
         if (val instanceof Number) return ((Number) val).doubleValue();
-        try { return Double.parseDouble(val.toString()); } catch (@SuppressWarnings("unused") Exception e) { return 0; }
+        try { return Double.parseDouble(val.toString()); } catch (Exception ignored) { return 0; }
     }
 }

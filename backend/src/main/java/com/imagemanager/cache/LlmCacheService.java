@@ -92,7 +92,7 @@ public class LlmCacheService {
         if (json == null) return null;
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             log.warn("[LlmCache] RAG结果反序列化失败, key={}", key);
             return null;
         }
@@ -129,7 +129,7 @@ public class LlmCacheService {
         if (json == null) return null;
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             log.warn("[LlmCache] DB结果反序列化失败, key={}", key);
             return null;
         }
@@ -177,6 +177,7 @@ public class LlmCacheService {
             int count = userCache.size();
             userCache.clear();
             localCache.remove(userId);
+            log.debug("[LlmCache] 已清理本地缓存: userId={}, entries={}", userId, count);
         }
     }
 
@@ -208,7 +209,7 @@ public class LlmCacheService {
                 sb.append(String.format("%02x", b));
             }
             return sb.toString();
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return String.valueOf(input.hashCode());
         }
     }

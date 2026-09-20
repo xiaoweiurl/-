@@ -46,7 +46,7 @@ public class DocumentParserServiceImpl implements DocumentParserService {
             String text;
             try {
                 text = stripper.getText(document);
-            } catch (@SuppressWarnings("unused") Exception fontError) {
+            } catch (Exception ignored) {
                 // 字体相关错误降级处理：尝试逐页提取
                 text = extractTextPageByPage(document);
             }
@@ -66,7 +66,7 @@ public class DocumentParserServiceImpl implements DocumentParserService {
                 if (pageText != null && !pageText.isBlank()) {
                     sb.append(pageText).append("\n");
                 }
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
                 // 跳过无法解析的页面
                 sb.append("[第").append(i + 1).append("页无法解析]\n");
             }

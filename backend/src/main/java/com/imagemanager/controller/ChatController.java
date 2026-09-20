@@ -82,7 +82,7 @@ public class ChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
                 emitter.complete();
-            } catch (@SuppressWarnings("unused") Exception ignored) {}
+            } catch (Exception ignored) {}
             return emitter;
         }
     }
@@ -109,7 +109,7 @@ public class ChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
                 emitter.complete();
-            } catch (@SuppressWarnings("unused") Exception ignored) {}
+            } catch (Exception ignored) {}
             return emitter;
         }
         try {
@@ -122,7 +122,7 @@ public class ChatController {
             try {
                 emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}"));
                 emitter.complete();
-            } catch (@SuppressWarnings("unused") Exception ignored) {}
+            } catch (Exception ignored) {}
             return emitter;
         }
     }

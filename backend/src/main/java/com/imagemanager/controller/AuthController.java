@@ -120,7 +120,7 @@ public class AuthController {
             // 登录成功后，确保用户图片表存在
             String username = loginResponse.getUser().getUsername();
             if (username != null && !username.isEmpty()) {
-                boolean tableCreated = imageTableService.ensureUserImageTable(username);
+                imageTableService.ensureUserImageTable(username);
             }
 
             // CORS 头由 SecurityConfig 的 CorsConfigurationSource 按白名单统一输出，此处不再硬编码

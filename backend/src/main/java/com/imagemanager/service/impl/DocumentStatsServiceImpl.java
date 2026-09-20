@@ -113,7 +113,7 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
             long prev = ((Number) r.get("prev")).longValue();
             if (prev == 0) return cur > 0 ? 100.0 : null;
             return Math.round((cur - prev) * 1000.0 / prev) / 10.0;
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return null;
         }
     }
@@ -221,7 +221,7 @@ public class DocumentStatsServiceImpl implements DocumentStatsService {
         try {
             double d = Double.parseDouble(String.valueOf(v));
             return Math.round(d * 100.0) / 100.0;
-        } catch (@SuppressWarnings("unused") NumberFormatException e) {
+        } catch (NumberFormatException ignored) {
             return v;
         }
     }

@@ -165,7 +165,7 @@ public class Reranker {
                 JsonNode root = mapper.readTree(response.body());
                 return root.path("loaded").asBoolean(false);
             }
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
         }
         return false;
     }

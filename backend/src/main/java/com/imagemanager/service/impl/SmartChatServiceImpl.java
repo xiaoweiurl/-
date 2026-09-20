@@ -394,6 +394,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 } else {
                     String reason = generalChatIntent ? "通用闲聊意图" : (skipVectorSearch ? "强供应链意图" : "岗位意图已命中岗位卡片");
+                    log.info("跳过知识库检索: {}", reason);
                 }
 
                 // 4c. 业务员资料库 Milvus 向量检索（工厂模式核心上下文，与供应链精确数据互补）
@@ -532,7 +533,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                                     o.put("shuijin", calc.get("shuijin_理论税金"));
                                     o.put("shuijinSg", calc.get("shuijin_sg_实际税金"));
                                     o.put("xscb", calc.get("xscb_销售成本"));
-                                } catch (@SuppressWarnings("unused") Exception ignore) {
+                                } catch (Exception ignored) {
                                 }
                                 orders.add(o);
                             }
@@ -1068,7 +1069,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     emitter.send(SseEmitter.event().name("message").data(
                             Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "error", "content", "AI对话失败: " + e.getMessage())))
                     ));
-                } catch (@SuppressWarnings("unused") Exception ignored) {}
+                } catch (Exception ignored) {}
                 emitter.completeWithError(e);
             }
         }).start();
@@ -2411,7 +2412,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         return base64;
                     }
                 }
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
             }
 
             // 方式2：回退到HTTP下载签名URL
@@ -3728,6 +3729,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (content instanceof String) totalChars += ((String) content).length();
                 else if (content != null) totalChars += content.toString().length();
             }
+            log.debug("Ollama 流式请求上下文: messages={}, chars={}", messages.size(), totalChars);
 
             Map<String, Object> body = new HashMap<>();
             body.put("model", ollamaChatModel);
@@ -3913,7 +3915,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (done) {
                     break;
                 }
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
             }
         }
         reader.close();

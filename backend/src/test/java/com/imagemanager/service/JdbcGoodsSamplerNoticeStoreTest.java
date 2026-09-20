@@ -3,6 +3,7 @@ package com.imagemanager.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -15,7 +16,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -66,7 +66,7 @@ class JdbcGoodsSamplerNoticeStoreTest {
     void findByGoodsIdMapsRow() {
         GoodsSamplerNoticeRecord stored = new GoodsSamplerNoticeRecord(
                 9L, "u-li", "李四", 42L, "BN-001真丝吊带", "BN-001", "真丝吊带", "张三", null);
-        when(jdbcTemplate.query(anyString(), any(RowMapper.class), eq(9L)))
+        when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<GoodsSamplerNoticeRecord>>any(), eq(9L)))
                 .thenReturn(List.of(stored));
 
         Optional<GoodsSamplerNoticeRecord> found = store.findByGoodsId(9L);

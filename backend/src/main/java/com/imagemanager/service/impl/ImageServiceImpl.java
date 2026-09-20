@@ -119,7 +119,7 @@ public class ImageServiceImpl implements ImageService {
                     return user.getUsername();
                 }
             }
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             log.warn("获取用户名失败，fallback 使用 userId: {}", image.getUserId());
         }
         return image.getUserId();
@@ -143,7 +143,7 @@ public class ImageServiceImpl implements ImageService {
                 if (user != null && user.getUsername() != null) {
                     return user.getUsername();
                 }
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
                 log.warn("通过 userId 查询用户名失败: {}", userId);
             }
         }
@@ -290,12 +290,6 @@ public class ImageServiceImpl implements ImageService {
         int pageSize = request.getPageSize() != null ? request.getPageSize() : 20;
         Pageable pageable = PageRequest.of(page, pageSize, sort);
 
-        // 先检查数据库中的数据
-        long totalProducts = productRepository.count();
-        long totalImages = imageRepository.count();
-        long totalImagesWithProduct = imageRepository.countByProductIdIsNotNull();
-        long totalMainImages = imageRepository.countByIsMainImageAndDeleted(true, false);
-
         // 查询图片
         Page<Image> imagePage;
         
@@ -322,7 +316,7 @@ public class ImageServiceImpl implements ImageService {
             if (request.getStartDate() != null && !request.getStartDate().isEmpty()) {
                 try {
                     startDate = LocalDateTime.parse(request.getStartDate() + "T00:00:00");
-                } catch (@SuppressWarnings("unused") Exception e) {
+                } catch (Exception ignored) {
                     log.warn("解析开始日期失败: {}", request.getStartDate());
                 }
             }
@@ -330,7 +324,7 @@ public class ImageServiceImpl implements ImageService {
             if (request.getEndDate() != null && !request.getEndDate().isEmpty()) {
                 try {
                     endDate = LocalDateTime.parse(request.getEndDate() + "T23:59:59");
-                } catch (@SuppressWarnings("unused") Exception e) {
+                } catch (Exception ignored) {
                     log.warn("解析结束日期失败: {}", request.getEndDate());
                 }
             }
@@ -371,9 +365,6 @@ public class ImageServiceImpl implements ImageService {
             final LocalDateTime finalEndDate = endDate;
             final String finalKeyword = request.getKeyword();
             final Boolean finalFavorite = request.getFavorite();
-            
-            // 数据隔离：使用方法开头已声明的 currentUserId
-            final Boolean finalOnlyMine = request.getOnlyMine();
             
             Specification<Image> spec = (root, query, cb) -> {
                 List<Predicate> predicates = new ArrayList<>();
@@ -592,7 +583,7 @@ public class ImageServiceImpl implements ImageService {
                 if (newUrl != null && !newUrl.isEmpty()) {
                     return newUrl;
                 }
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
             }
         }
 
@@ -609,7 +600,7 @@ public class ImageServiceImpl implements ImageService {
         }
         try {
             return fileStorageService.getStorageKey(url);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return null;
         }
     }
@@ -1074,6 +1065,7 @@ public class ImageServiceImpl implements ImageService {
             successCount++;
         }
         
+        log.info("批量设首张详情为主图: success={}, skip={}", successCount, skipCount);
         return successCount;
     }
     
@@ -1879,7 +1871,6 @@ public class ImageServiceImpl implements ImageService {
             // 结构示例：松野湃 → 儿童专区 → 户外速干衣
             // 父相册只创建一次，子相册按类别层级嵌套
             String albumId = null;
-            String albumName = null;
             String category = item.getCategory();
             String subCategory = item.getSubCategory();
 
@@ -1977,7 +1968,6 @@ public class ImageServiceImpl implements ImageService {
 
                     if (targetAlbum != null) {
                         albumId = targetAlbum.getId();
-                        albumName = targetAlbum.getFullName() != null ? targetAlbum.getFullName() : targetAlbum.getName();
                         // 不要每次都刷新整个相册列表，只在最后刷新一次
                     }
                 } catch (Exception e) {
@@ -1991,7 +1981,6 @@ public class ImageServiceImpl implements ImageService {
                     Album parentAlbum = albumService.getOrCreateAlbumByPath(cleanParentName);
                     if (parentAlbum != null) {
                         albumId = parentAlbum.getId();
-                        albumName = parentAlbum.getFullName() != null ? parentAlbum.getFullName() : parentAlbum.getName();
                         albums = albumService.getAllAlbums();
                     }
                 } catch (Exception e) {
@@ -2088,7 +2077,6 @@ public class ImageServiceImpl implements ImageService {
 
             int totalImages = allUrls.size();
             int successCount = 0;
-            int skippedCount = 0; // 统计跳过的图片数量
             String mainImageId = null; // 记录主图ID
 
             // 下载所有图片
@@ -2106,7 +2094,7 @@ public class ImageServiceImpl implements ImageService {
                     if (path != null && path.contains("/")) {
                         urlFileName = path.substring(path.lastIndexOf("/") + 1);
                     }
-                } catch (@SuppressWarnings("unused") Exception e) {
+                } catch (Exception ignored) {
                     log.warn("无法从URL提取文件名: {}", imageUrl);
                 }
                 
@@ -2134,7 +2122,6 @@ public class ImageServiceImpl implements ImageService {
                     
                     if (isDuplicate) {
                         successCount++;
-                        skippedCount++;
                         results.add(response);
                         continue;
                     }
@@ -2868,21 +2855,19 @@ public class ImageServiceImpl implements ImageService {
                 zos.putArchiveEntry(entry);
                 byte[] buffer = new byte[8192]; // 8KB buffer
                 int bytesRead;
-                long totalWritten = 0;
                 while ((bytesRead = imageStream.read(buffer)) != -1) {
                     zos.write(buffer, 0, bytesRead);
-                    totalWritten += bytesRead;
                 }
                 zos.closeArchiveEntry();
                 return true;
             } catch (Exception e) {
                 log.error("流式写入ZIP失败：{}", image.getId(), e);
-                try { zos.closeArchiveEntry(); } catch (@SuppressWarnings("unused") Exception ignored) {}
+                try { zos.closeArchiveEntry(); } catch (Exception ignored) {}
                 return false;
             }
         } finally {
             if (imageStream != null) {
-                try { imageStream.close(); } catch (@SuppressWarnings("unused") Exception ignored) {}
+                try { imageStream.close(); } catch (Exception ignored) {}
             }
         }
     }

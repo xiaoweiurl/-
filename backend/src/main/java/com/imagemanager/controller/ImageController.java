@@ -690,7 +690,7 @@ public class ImageController {
             if (zos != null) {
                 try {
                     zos.close();
-                } catch (@SuppressWarnings("unused") Exception ignored) {}
+                } catch (Exception ignored) {}
             }
         }
     }
@@ -742,7 +742,7 @@ public class ImageController {
             if (zos != null) {
                 try {
                     zos.close();
-                } catch (@SuppressWarnings("unused") Exception ignored) {}
+                } catch (Exception ignored) {}
             }
         }
     }

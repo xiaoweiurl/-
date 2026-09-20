@@ -83,6 +83,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                     PositionKnowledgeCard fresh = cardRepository.findById(Objects.requireNonNull(savedId)).orElse(null);
                     if (fresh != null) {
                         int successCount = vectorizeCard(fresh);
+                        log.info("岗位卡片向量化完成: cardId={}, chunks={}", savedId, successCount);
 
                         // 步骤3: 更新状态为 COMPLETED（独立事务提交）
                         txTemplate.execute(status -> {
@@ -169,6 +170,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
                     PositionKnowledgeCard fresh = cardRepository.findById(Objects.requireNonNull(savedId)).orElse(null);
                     if (fresh != null) {
                         int successCount = vectorizeCard(fresh);
+                        log.info("岗位卡片重新向量化完成: cardId={}, chunks={}", savedId, successCount);
 
                         txTemplate.execute(status -> {
                             jdbcTemplate.update("UPDATE position_knowledge_cards SET embedding_status = 'COMPLETED', updated_at = NOW() WHERE id = ?", savedId);
@@ -353,9 +355,11 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
 
 
         if (successCount == 0) {
-            throw new RuntimeException("所有切片向量化均失败: 切片数=" + chunks.size() + ", 首个错误=" + firstError
+            throw new RuntimeException("所有切片向量化均失败: 切片数=" + chunks.size() + ", 失败=" + failCount
+                + ", 首个错误=" + firstError
                 + ", embedding模型=" + ollamaEmbeddingModel + ", Ollama地址=" + ollamaBaseUrl);
         }
+        log.info("岗位卡片切片向量化: cardId={}, success={}, fail={}", card.getId(), successCount, failCount);
         return successCount;
     }
 
@@ -419,6 +423,7 @@ public class PositionKnowledgeCardServiceImpl implements PositionKnowledgeCardSe
             cardId
         ));
         int deleted = deletedObj != null ? deletedObj : 0;
+        log.debug("已删除岗位卡片向量: cardId={}, count={}", cardId, deleted);
     }
 
     // ========== 文本切片 ==========

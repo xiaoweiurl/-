@@ -127,7 +127,7 @@ public class AdminController {
         com.imagemanager.dto.LoginResponse.UserInfo operator;
         try {
             operator = authService.validateSession(sessionId);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return ApiResponse.error(401, "会话校验失败，请重新登录");
         }
         if (operator == null) {

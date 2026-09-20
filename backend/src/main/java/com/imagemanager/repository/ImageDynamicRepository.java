@@ -762,7 +762,7 @@ public class ImageDynamicRepository {
                     Query query = entityManager.createNativeQuery(countSQL);
                     long result = ((Number) query.getSingleResult()).longValue();
                     total += result;
-                } catch (@SuppressWarnings("unused") Exception e) {
+                } catch (Exception ignored) {
                     log.warn("统计表 {} 图片数量失败", tableName);
                 }
             }
@@ -790,7 +790,7 @@ public class ImageDynamicRepository {
                     Query query = entityManager.createNativeQuery(countSQL);
                     long result = ((Number) query.getSingleResult()).longValue();
                     total += result;
-                } catch (@SuppressWarnings("unused") Exception e) {
+                } catch (Exception ignored) {
                     log.warn("统计表 {} 主图数量失败", tableName);
                 }
             }

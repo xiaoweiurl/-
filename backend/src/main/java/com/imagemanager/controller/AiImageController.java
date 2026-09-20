@@ -110,7 +110,6 @@ public class AiImageController {
             }
 
             String apiRequestBodyStr = objectMapper.writeValueAsString(apiRequestBody);
-            int imagesCount = requestJson.has("images") && requestJson.get("images").isArray() ? requestJson.get("images").size() : 0;
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -255,7 +254,7 @@ public class AiImageController {
         for (int i = 0; i < maxRetries; i++) {
             try {
                 Thread.sleep(interval);
-            } catch (@SuppressWarnings("unused") InterruptedException e) {
+            } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
                 return null;
             }

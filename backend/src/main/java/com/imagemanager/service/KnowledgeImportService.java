@@ -475,7 +475,7 @@ public class KnowledgeImportService {
         } finally {
             parsePool.shutdownNow();
             // 等待仍在运行的解析任务退出，避免清理临时文件时它们还在读
-            try { parsePool.awaitTermination(60, TimeUnit.SECONDS); } catch (@SuppressWarnings("unused") InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            try { parsePool.awaitTermination(60, TimeUnit.SECONDS); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
             cleanTempDirs(ctx);
             runningContexts.remove(taskId);
         }
@@ -488,10 +488,10 @@ public class KnowledgeImportService {
         for (Path dir : ctx.tempDirs) {
             try (var leftovers = Files.list(dir)) {
                 leftovers.forEach(f -> {
-                    try { Files.deleteIfExists(f); } catch (@SuppressWarnings("unused") IOException ignored) {}
+                    try { Files.deleteIfExists(f); } catch (IOException ignored) {}
                 });
-            } catch (@SuppressWarnings("unused") IOException ignored) {}
-            try { Files.deleteIfExists(dir); } catch (@SuppressWarnings("unused") IOException ignored) {}
+            } catch (IOException ignored) {}
+            try { Files.deleteIfExists(dir); } catch (IOException ignored) {}
         }
         ctx.tempDirs.clear();
     }
@@ -627,7 +627,7 @@ public class KnowledgeImportService {
             return zf;
         } catch (Exception e) {
             if (zf != null) {
-                try { zf.close(); } catch (@SuppressWarnings("unused") IOException ignored) {}
+                try { zf.close(); } catch (IOException ignored) {}
             }
             return ZipFile.builder()
                     .setFile(zipPath.toFile())
@@ -660,7 +660,7 @@ public class KnowledgeImportService {
                 log.warn("文件解析失败: {} -> {}", virtualName, errorMsg, e);
             } finally {
                 if (deleteAfter) {
-                    try { Files.deleteIfExists(file); } catch (@SuppressWarnings("unused") IOException ignored) {}
+                    try { Files.deleteIfExists(file); } catch (IOException ignored) {}
                 }
                 inflight.release();
             }
@@ -881,7 +881,7 @@ public class KnowledgeImportService {
             try {
                 String text = stripper.getText(document);
                 return text != null ? text : "";
-            } catch (@SuppressWarnings("unused") Exception fontError) {
+            } catch (Exception ignored) {
                 return extractPdfPageByPage(document);
             }
         }
@@ -899,7 +899,7 @@ public class KnowledgeImportService {
                 if (pageText != null && !pageText.isBlank()) {
                     sb.append(pageText).append("\n");
                 }
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
                 sb.append("[第").append(i + 1).append("页无法解析]\n");
             }
         }
@@ -923,7 +923,7 @@ public class KnowledgeImportService {
                             text = text.replace('\u0007', ' ').replace('\r', ' ').trim();
                             if (!text.isBlank()) sb.append(text).append('\n');
                         }
-                    } catch (@SuppressWarnings("unused") Exception ignored) {
+                    } catch (Exception ignored) {
                         // 单段落损坏跳过，不影响其余段落
                     }
                 }
@@ -973,7 +973,7 @@ public class KnowledgeImportService {
                 // 无图副本打不开（POI 校验严格等情况）→ 回退解析原文件
                 if (effective != file) {
                     log.warn("无图副本解析失败，回退原文件: {} -> {}", file.getFileName(), openError.getMessage());
-                    try { Files.deleteIfExists(effective); } catch (@SuppressWarnings("unused") IOException ignored) {}
+                    try { Files.deleteIfExists(effective); } catch (IOException ignored) {}
                     effective = file;
                     workbook = WorkbookFactory.create(file.toFile());
                 } else {
@@ -984,7 +984,7 @@ public class KnowledgeImportService {
             FormulaEvaluator evaluator;
             try {
                 evaluator = workbook.getCreationHelper().createFormulaEvaluator();
-            } catch (@SuppressWarnings("unused") Exception e) {
+            } catch (Exception ignored) {
                 evaluator = null;
             }
             StringBuilder sb = new StringBuilder();
@@ -1007,7 +1007,7 @@ public class KnowledgeImportService {
                 }
             }
             if (stripMedia && effective != file) {
-                try { Files.deleteIfExists(effective); } catch (@SuppressWarnings("unused") IOException ignored) {}
+                try { Files.deleteIfExists(effective); } catch (IOException ignored) {}
             }
         }
     }
@@ -1045,7 +1045,7 @@ public class KnowledgeImportService {
         } catch (Exception e) {
             log.warn("xlsx 媒体剥离失败，回退解析原文件: {} -> {}", file.getFileName(), e.getMessage());
             if (stripped != null) {
-                try { Files.deleteIfExists(stripped); } catch (@SuppressWarnings("unused") IOException ignored) {}
+                try { Files.deleteIfExists(stripped); } catch (IOException ignored) {}
             }
             return null;
         }
@@ -1061,7 +1061,7 @@ public class KnowledgeImportService {
             for (int m = 0; m < sheet.getNumMergedRegions(); m++) {
                 merged.add(sheet.getMergedRegion(m));
             }
-        } catch (@SuppressWarnings("unused") Exception ignore) {
+        } catch (Exception ignored) {
             // 部分损坏文件合并区域读取失败，忽略后按普通表格处理
         }
 
@@ -1204,17 +1204,17 @@ public class KnowledgeImportService {
                         boolean hasTime = fmt != null && (fmt.contains("h") || fmt.contains("H"));
                         return new java.text.SimpleDateFormat(hasTime ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd").format(d);
                     }
-                } catch (@SuppressWarnings("unused") Exception ignore) {
+                } catch (Exception ignored) {
                     // 转换失败落到下方默认格式化
                 }
             }
             String v = formatter.formatCellValue(cell, evaluator);
             return v == null ? "" : v.trim();
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             try {
                 String v = formatter.formatCellValue(cell);
                 return v == null ? "" : v.trim();
-            } catch (@SuppressWarnings("unused") Exception e2) {
+            } catch (Exception ignoredFormat) {
                 return "";
             }
         }
@@ -1367,7 +1367,7 @@ public class KnowledgeImportService {
                 ctx.chunkCounter.addAndGet(pending.size());
                 ctx.progress.totalChunks = ctx.chunkCounter.get();
             }
-        } catch (@SuppressWarnings("unused") InterruptedException e) {
+        } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             ctx.writerError = e;
@@ -1523,7 +1523,7 @@ public class KnowledgeImportService {
             if (!rows.isEmpty()) {
                 return camelRow(rows.get(0));
             }
-        } catch (@SuppressWarnings("unused") Exception ignored) {}
+        } catch (Exception ignored) {}
         throw new IllegalArgumentException("任务不存在: " + taskId);
     }
 

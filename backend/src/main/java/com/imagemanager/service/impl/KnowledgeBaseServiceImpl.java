@@ -230,7 +230,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
             if (successCount == 0) {
-                log.error("文本文档向量化全部失败: docId={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
+                log.error("文本文档向量化全部失败: docId={}, fail={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, failCount, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
+            } else {
+                log.info("文本文档向量化完成: docId={}, success={}, fail={}", docId, successCount, failCount);
             }
         } catch (Exception e) {
             log.error("文本文档 {} 向量化失败: {}", docId, e.getMessage(), e);
@@ -321,7 +323,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
             updateDocEmbeddingStatus(docId, successCount, successCount > 0 ? "COMPLETED" : "FAILED");
             if (successCount == 0) {
-                log.error("知识库文档向量化全部失败: docId={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
+                log.error("知识库文档向量化全部失败: docId={}, fail={}, 首个错误={}, embedding模型={}, Ollama地址={}", docId, failCount, firstError, ollamaEmbeddingModel, ollamaBaseUrl);
+            } else {
+                log.info("知识库文档向量化完成: docId={}, success={}, fail={}", docId, successCount, failCount);
             }
         } catch (Exception e) {
             log.error("知识库文档 {} 向量化失败: {}", docId, e.getMessage(), e);
@@ -544,19 +548,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // Step 1: 从查询中提取关键词（去除停用词、保留核心名词）
             List<String> keywords = extractKeywords(query);
             
-            // Step 1.5: 关键词诊断 — 用 EXISTS 代替 COUNT(*)，避免全表扫描
-            try {
-                for (String kw : keywords) {
-                    if (kw.length() >= 2 && kw.length() <= 15) {
-                        Boolean embExists = jdbcTemplate.queryForObject(
-                            "SELECT EXISTS(SELECT 1 FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE' AND chunk_text ILIKE ? LIMIT 1)",
-                            Boolean.class, "%" + kw + "%");
-                    }
-                }
-            } catch (Exception diagEx) {
-                log.warn("知识库搜索关键词诊断失败: {}", diagEx.getMessage());
-            }
-            
             // ====== Step 1.6: 货号优先检索 ======
             // 当查询中包含货号/产品编码（字母+数字混合，如M1TT403）时，直接用关键词精确搜索
             // 这样即使向量相似度很低，也能通过货号关键词找到对应数据
@@ -607,14 +598,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
 
             String vectorStr = arrayToVectorString(queryEmbedding);
-
-            // Step 3: 诊断信息（轻量级，只查一次）
-            try {
-                Integer totalEmbeddings = jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM knowledge_embeddings WHERE source_type = 'KNOWLEDGE_BASE'", Integer.class);
-            } catch (Exception diagEx) {
-                log.warn("知识库搜索诊断查询失败: {}", diagEx.getMessage());
-            }
 
             // Step 4: 混合检索SQL — CTE先过滤关键词候选集，再计算向量距离
             // 【优化】使用CTE分两步：1) 关键词过滤缩小候选集 2) 只对候选集计算向量距离
@@ -732,7 +715,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         String t = s.trim();
         try {
             return UUID.fromString(t);
-        } catch (@SuppressWarnings("unused") IllegalArgumentException ignore) {
+        } catch (IllegalArgumentException ignored) {
             if (t.matches("[0-9a-fA-F]{32}")) {
                 return UUID.fromString(
                         t.substring(0, 8) + "-" + t.substring(8, 12) + "-" + t.substring(12, 16)

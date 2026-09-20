@@ -86,7 +86,7 @@ public class AuditServiceImpl implements AuditService {
             Map<String, String> payload = new HashMap<>();
             payload.put("message", details);
             return objectMapper.writeValueAsString(payload);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return "{\"message\":\"" + details.replace("\"", "\\\"") + "\"}";
         }
     }

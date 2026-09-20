@@ -368,7 +368,7 @@ public class SupplyChainController {
             } else {
                 stats.put("avgProfitRate", 0);
             }
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             stats.put("avgProfitRate", 0);
         }
         return ResponseEntity.ok(stats);
@@ -525,7 +525,7 @@ public class SupplyChainController {
         try {
             double d = cell.getNumericCellValue();
             return BigDecimal.valueOf(d);
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return null;
         }
     }
@@ -535,7 +535,7 @@ public class SupplyChainController {
         if (cell == null) return null;
         try {
             return (int) cell.getNumericCellValue();
-        } catch (@SuppressWarnings("unused") Exception e) {
+        } catch (Exception ignored) {
             return null;
         }
     }
