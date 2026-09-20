@@ -7,6 +7,7 @@ public final class SamplerNoticeResult {
 
     public enum Status {
         SENT,
+        PENDING,
         SKIPPED_BLANK,
         SKIPPED_UNCHANGED,
         SKIPPED_DISABLED,
@@ -17,6 +18,10 @@ public final class SamplerNoticeResult {
         SKIPPED_NO_BACKFILL,
         FAILED
     }
+
+    public static final String KIND_ASSIGNMENT = "ASSIGNMENT";
+    public static final String KIND_FOLLOWUP = "FOLLOWUP";
+    public static final String KIND_CANCEL = "CANCEL";
 
     private final Status status;
     private final String dingUserId;
@@ -32,6 +37,10 @@ public final class SamplerNoticeResult {
 
     public static SamplerNoticeResult sent(String dingUserId, long taskId) {
         return new SamplerNoticeResult(Status.SENT, dingUserId, taskId, "ok");
+    }
+
+    public static SamplerNoticeResult pending(String message) {
+        return new SamplerNoticeResult(Status.PENDING, null, null, message);
     }
 
     public static SamplerNoticeResult skipped(Status status, String message) {

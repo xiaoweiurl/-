@@ -116,6 +116,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     @Override
     public Map<String, Object> getGoods(long id) {
         Map<String, Object> row = mustGet(id);
+        attachSamplerNotice(row, id);
         toFrontendMap(row, true);
         return row;
     }
@@ -150,6 +151,29 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         notifySamplerIfChanged(previousSampler, merged.get("sampler"), noticeFields, id);
         if (OrgNameMatcher.namesEqual(previousSampler, merged.get("sampler"))) {
             notifySamplerFormFilled(noticeFields, id, merged.get("sampler"));
+        }
+        return getGoods(id);
+    }
+
+    @Override
+    public Map<String, Object> resendSamplerNotice(long id) {
+        Map<String, Object> row = mustGet(id);
+        String sampler = row.get("sampler") == null ? "" : String.valueOf(row.get("sampler")).trim();
+        if (sampler.isEmpty()) {
+            throw new IllegalArgumentException("打样员为空，无法补发通知");
+        }
+        Map<String, Object> fields = new LinkedHashMap<>();
+        for (String field : INFO_FIELDS) {
+            Object value = row.get(field);
+            fields.put(field, value == null ? "" : String.valueOf(value));
+        }
+        fields.put("folder_name", row.get("folder_name") == null ? "" : String.valueOf(row.get("folder_name")));
+        if (samplerNoticeService != null) {
+            try {
+                samplerNoticeService.resendAssignment(toSamplerNotice(id, fields), sampler);
+            } catch (Exception e) {
+                log.warn("[GoodsLibrary] 打样通知补发失败: id={}, err={}", id, e.getMessage());
+            }
         }
         return getGoods(id);
     }
@@ -256,6 +280,17 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         } catch (Exception e) {
             log.warn("[GoodsLibrary] 打样回填通知调度失败（不影响保存）: id={}, err={}",
                     id, e.getMessage());
+        }
+    }
+
+    private void attachSamplerNotice(Map<String, Object> row, long id) {
+        if (samplerNoticeService == null || row == null) {
+            return;
+        }
+        try {
+            row.put("sampler_notice", samplerNoticeService.statusView(id));
+        } catch (Exception e) {
+            log.debug("[GoodsLibrary] 读取打样通知状态失败: id={}, err={}", id, e.getMessage());
         }
     }
 

@@ -166,7 +166,18 @@ public class DingTalkClient {
         payload.put("to_all_user", false);
         payload.put("msg", notice.toMsgMap());
         JsonNode root = postOapi(token, "/topapi/message/corpconversation/asyncsend_v2", payload);
-        return root.path("task_id").asLong(0);
+        return requireTaskId(root);
+    }
+
+    static long requireTaskId(JsonNode root) {
+        if (root == null || !root.hasNonNull("task_id")) {
+            throw new DingTalkException("钉钉工作通知未返回有效 task_id");
+        }
+        long taskId = root.path("task_id").asLong(0);
+        if (taskId <= 0) {
+            throw new DingTalkException("钉钉工作通知未返回有效 task_id");
+        }
+        return taskId;
     }
 
     /**

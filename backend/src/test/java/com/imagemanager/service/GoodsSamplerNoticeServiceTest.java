@@ -55,7 +55,7 @@ class GoodsSamplerNoticeServiceTest {
         properties.setAppKey("key");
         properties.setAppSecret("secret");
         properties.setAgentId("123456");
-        when(ticketService.mint(anyString(), anyLong())).thenReturn(Optional.empty());
+        when(ticketService.mint(anyString(), anyLong())).thenReturn(Optional.of("v1.payload.sig"));
         when(orgRegistrationService.ensureAccountByName(anyString()))
                 .thenReturn(OrgRegistrationService.EnsureAccountResult.alreadyExists());
         service = newService("http://localhost:5000");
@@ -166,8 +166,8 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(notice.getBody().contains("- **品名：** 真丝吊带"));
         assertTrue(notice.getBody().contains("打样员"));
         assertTrue(notice.hasLink());
-        assertTrue(notice.getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/9)"));
-        assertEquals("http://localhost:5000/sampler/9", notice.getSingleUrl());
+        assertTrue(notice.getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/9?ticket=v1.payload.sig)"));
+        assertEquals("http://localhost:5000/sampler/9?ticket=v1.payload.sig", notice.getSingleUrl());
         assertEquals("立即填写打样表单", notice.getSingleTitle());
         assertTrue(noticeStore.findByGoodsId(9L).isPresent());
         assertEquals(42L, noticeStore.findByGoodsId(9L).get().getTaskId());
@@ -228,8 +228,8 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(notice.getBody().contains("- **品名：** 待填写"));
         assertFalse(notice.getBody().contains("未命名商品"));
         assertFalse(notice.getBody().contains("未填写"));
-        assertTrue(notice.getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/77)"));
-        assertEquals("http://localhost:5000/sampler/77", notice.getSingleUrl());
+        assertTrue(notice.getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/77?ticket=v1.payload.sig)"));
+        assertEquals("http://localhost:5000/sampler/77?ticket=v1.payload.sig", notice.getSingleUrl());
         assertTrue(!notice.getSingleUrl().contains("goods-library"));
         assertEquals("打样任务 · 待完善货号与品名", notice.getTitle());
     }
@@ -245,7 +245,7 @@ class GoodsSamplerNoticeServiceTest {
 
         ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
         verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
-        assertEquals("http://localhost:5000/sampler/9", captor.getValue().getSingleUrl());
+        assertEquals("http://localhost:5000/sampler/9?ticket=v1.payload.sig", captor.getValue().getSingleUrl());
     }
 
     @Test
@@ -262,7 +262,7 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(click.startsWith("dingtalk://dingtalkclient/action/openapp"));
         assertTrue(click.contains("redirect_url="));
         assertTrue(click.contains("sampler%2F9"));
-        assertTrue(captor.getValue().getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/9)"));
+        assertTrue(captor.getValue().getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/9?ticket=v1.payload.sig)"));
     }
 
     @Test
@@ -305,7 +305,7 @@ class GoodsSamplerNoticeServiceTest {
         assertTrue(click.contains("action/openapp"));
         assertTrue(click.contains("redirect_url="));
         assertTrue(click.contains("sampler%2F9"));
-        assertTrue(captor.getValue().getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/9)"));
+        assertTrue(captor.getValue().getBody().contains("[立即填写打样表单](http://localhost:5000/sampler/9?ticket=v1.payload.sig)"));
     }
 
     @Test
@@ -380,16 +380,17 @@ class GoodsSamplerNoticeServiceTest {
     }
 
     @Test
-    void mintEmptyKeepsPlainFormUrl() {
+    void mintEmptyCancelsNotice() {
         when(ticketService.mint("u-li", 9L)).thenReturn(Optional.empty());
         when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
-        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L);
 
-        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
 
-        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
-        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
-        assertEquals("http://localhost:5000/sampler/9", captor.getValue().getSingleUrl());
+        assertEquals(SamplerNoticeResult.Status.FAILED, result.getStatus());
+        assertTrue(result.getMessage().contains("ticket"));
+        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        assertEquals(SamplerNoticeResult.Status.FAILED.name(),
+                noticeStore.findByGoodsId(9L).get().getLastStatus());
     }
 
     @Test
@@ -440,43 +441,64 @@ class GoodsSamplerNoticeServiceTest {
     }
 
     @Test
-    void missingOrgContactDoesNotCreateAccountOrSend() {
+    void missingOrgContactFallsBackToLocalUserid() {
         when(orgRegistrationService.ensureAccountByName("赵六")).thenReturn(
                 OrgRegistrationService.EnsureAccountResult.skippedNoMatch("未在钉钉通讯录中找到该姓名"));
+        when(useridResolver.resolveByName("赵六")).thenReturn(found("u-zhao"));
+        when(dingTalkClient.sendWorkNotice(eq("u-zhao"), any())).thenReturn(5L);
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "赵六", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
+        assertEquals("u-zhao", result.getDingUserId());
+        verify(orgRegistrationService).ensureAccountByName("赵六");
+        verify(useridResolver).resolveByName("赵六");
+        verify(dingTalkClient).sendWorkNotice(eq("u-zhao"), any());
+    }
+
+    @Test
+    void missingOrgContactAndLocalUseridSkips() {
+        when(orgRegistrationService.ensureAccountByName("赵六")).thenReturn(
+                OrgRegistrationService.EnsureAccountResult.skippedNoMatch("未在钉钉通讯录中找到该姓名"));
+        when(useridResolver.resolveByName("赵六")).thenReturn(
+                DingTalkUseridResolver.ResolveResult.missing());
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "赵六", sampleGoods());
 
         assertEquals(SamplerNoticeResult.Status.SKIPPED_NO_USERID, result.getStatus());
         verify(orgRegistrationService).ensureAccountByName("赵六");
-        verify(useridResolver, never()).resolveByName(anyString());
+        verify(useridResolver).resolveByName("赵六");
         verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        assertEquals(SamplerNoticeResult.Status.SKIPPED_NO_USERID.name(),
+                noticeStore.findByGoodsId(9L).get().getLastStatus());
     }
 
     @Test
-    void createAccountFailureCancelsNotice() {
+    void createAccountFailureFallsBackToUserid() {
         when(orgRegistrationService.ensureAccountByName("李四"))
                 .thenReturn(OrgRegistrationService.EnsureAccountResult.failed("db down"));
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(3L);
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
 
-        assertEquals(SamplerNoticeResult.Status.FAILED, result.getStatus());
-        assertTrue(result.getMessage().contains("db down"));
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
         verify(orgRegistrationService).ensureAccountByName("李四");
-        verify(useridResolver, never()).resolveByName(anyString());
-        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
     }
 
     @Test
-    void createAccountThrowCancelsNotice() {
+    void createAccountThrowFallsBackToUserid() {
         when(orgRegistrationService.ensureAccountByName("李四"))
                 .thenThrow(new RuntimeException("unexpected"));
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(4L);
 
         SamplerNoticeResult result = service.notifyIfSamplerChanged(null, "李四", sampleGoods());
 
-        assertEquals(SamplerNoticeResult.Status.FAILED, result.getStatus());
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
         verify(orgRegistrationService).ensureAccountByName("李四");
-        verify(useridResolver, never()).resolveByName(anyString());
-        verify(dingTalkClient, never()).sendWorkNotice(anyString(), any());
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), any());
     }
 
     @Test
@@ -577,6 +599,52 @@ class GoodsSamplerNoticeServiceTest {
                 new GoodsSamplerNotice(77L, "A1吊带", "A1", "吊带", "肖伟"), "肖伟");
         assertEquals(SamplerNoticeResult.Status.SKIPPED_DISABLED, result.getStatus());
         verify(dingTalkClient, times(1)).sendWorkNotice(anyString(), any());
+    }
+
+    @Test
+    void reassignmentNotifiesPreviousSampler() {
+        when(useridResolver.resolveByName("王五")).thenReturn(found("u-wang"));
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-wang"), any())).thenReturn(7L);
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(8L);
+
+        SamplerNoticeResult result = service.notifyIfSamplerChanged("李四", "王五", sampleGoods());
+
+        assertEquals(SamplerNoticeResult.Status.SENT, result.getStatus());
+        ArgumentCaptor<DingTalkWorkNotice> captor = ArgumentCaptor.forClass(DingTalkWorkNotice.class);
+        verify(dingTalkClient).sendWorkNotice(eq("u-li"), captor.capture());
+        DingTalkWorkNotice cancel = captor.getValue();
+        assertTrue(cancel.getTitle().startsWith("打样任务已改派"));
+        assertTrue(cancel.getBody().contains("王五"));
+        assertTrue(cancel.getBody().contains("无需继续填写"));
+        assertFalse(cancel.hasLink());
+    }
+
+    @Test
+    void resendSendsAgainEvenWhenSamplerUnchanged() {
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(eq("u-li"), any())).thenReturn(1L, 2L);
+        assertEquals(SamplerNoticeResult.Status.SENT,
+                service.notifyIfSamplerChanged(null, "李四", sampleGoods()).getStatus());
+
+        SamplerNoticeResult again = service.resendAssignment(sampleGoods(), "李四");
+        assertEquals(SamplerNoticeResult.Status.SENT, again.getStatus());
+        assertEquals(2L, again.getTaskId());
+        verify(dingTalkClient, times(2)).sendWorkNotice(eq("u-li"), any());
+    }
+
+    @Test
+    void sendFailurePersistsFailedStatus() {
+        when(useridResolver.resolveByName("李四")).thenReturn(found("u-li"));
+        when(dingTalkClient.sendWorkNotice(anyString(), any()))
+                .thenThrow(new DingTalkException("网络超时"));
+
+        service.notifyIfSamplerChanged(null, "李四", sampleGoods());
+
+        GoodsSamplerNoticeRecord stored = noticeStore.findByGoodsId(9L).orElseThrow();
+        assertEquals(SamplerNoticeResult.Status.FAILED.name(), stored.getLastStatus());
+        assertTrue(stored.getLastMessage().contains("网络超时"));
+        assertTrue(GoodsSamplerNoticeService.canRetry(stored.getLastStatus()));
     }
 
     private void assertEnsureThenResolveThenSend(String samplerName, String userid) {

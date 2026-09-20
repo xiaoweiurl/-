@@ -11,6 +11,16 @@ import {
 } from 'lucide-react';
 import { loginHref } from '@/lib/auth-redirect';
 
+interface SamplerNotice {
+  status: string;
+  message: string;
+  kind?: string;
+  samplerName?: string | null;
+  persistOk?: boolean;
+  canRetry?: boolean;
+  sent?: boolean;
+}
+
 interface GoodsDetail {
   id: number;
   folder_name: string;
@@ -25,6 +35,24 @@ interface GoodsDetail {
   side_image_url: string | null;
   detail_image_url: string | null;
   product_image_url: string | null;
+  sampler_notice?: SamplerNotice | null;
+}
+
+function noticeHint(notice: SamplerNotice | null | undefined): { text: string; tone: 'ok' | 'warn' | 'err' | 'info' } | null {
+  if (!notice?.status) return null;
+  if (notice.status === 'SKIPPED_UNCHANGED' || notice.status === 'SKIPPED_BLANK') return null;
+  if (notice.status === 'SENT') {
+    if (notice.persistOk === false) {
+      return { text: notice.message || '通知可能已发出，但未能记下，可补发', tone: 'warn' };
+    }
+    return { text: '已向打样员发送钉钉通知', tone: 'ok' };
+  }
+  if (notice.status === 'PENDING') return { text: '正在发送钉钉通知…', tone: 'info' };
+  if (notice.status === 'FAILED') return { text: notice.message ? `钉钉通知失败：${notice.message}` : '钉钉通知发送失败', tone: 'err' };
+  if (notice.status === 'SKIPPED_NO_USERID') return { text: notice.message || '未找到打样员的钉钉账号', tone: 'err' };
+  if (notice.status === 'SKIPPED_AMBIGUOUS') return { text: notice.message || '同名多人，无法投递', tone: 'err' };
+  if (notice.status === 'SKIPPED_DISABLED') return { text: '钉钉工作通知未启用', tone: 'warn' };
+  return notice.message ? { text: notice.message, tone: 'info' } : null;
 }
 
 /** 第二层图片槽位（均可空） */
@@ -60,14 +88,15 @@ export default function GoodsDetailPage() {
   const [savingRemark, setSavingRemark] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState<SlotKey | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [resendingNotice, setResendingNotice] = useState(false);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async (): Promise<GoodsDetail | null> => {
     try {
       const res = await fetch(`/api/goods-library/${id}`);
       if (res.status === 401) {
         window.location.href = loginHref(`/goods-library/${id}`);
-        return;
+        return null;
       }
       const data = await res.json();
       if (data.success) {
@@ -79,6 +108,7 @@ export default function GoodsDetailPage() {
           customer: d.customer || '', order_no: d.order_no || '',
         });
         setRemarkForm({ remark: d.remark || '' });
+        return d;
       } else {
         toast.error(data.message || '商品不存在');
       }
@@ -87,6 +117,7 @@ export default function GoodsDetailPage() {
     } finally {
       setLoading(false);
     }
+    return null;
   }, [id]);
 
   useEffect(() => {
@@ -99,6 +130,8 @@ export default function GoodsDetailPage() {
       toast.error('发起人不能为空');
       return;
     }
+    const previousSampler = (detail?.sampler || '').trim();
+    const nextSampler = ('sampler' in fields ? fields.sampler : infoForm.sampler || '').trim();
     setSaving(true);
     try {
       const res = await fetch(`/api/goods-library/${id}`, {
@@ -108,8 +141,26 @@ export default function GoodsDetailPage() {
       });
       const data = await res.json();
       if (data.success) {
-        await fetchDetail();
         toast.success('保存成功');
+        let latest = await fetchDetail();
+        if (nextSampler && nextSampler !== previousSampler) {
+          for (let i = 0; i < 4; i++) {
+            const st = latest?.sampler_notice?.status;
+            if (st && st !== 'PENDING') break;
+            await new Promise(r => setTimeout(r, 450));
+            latest = await fetchDetail();
+          }
+          const notice = latest?.sampler_notice;
+          if (notice?.status === 'SENT') {
+            toast.success(notice.persistOk === false
+              ? (notice.message || '通知可能已发出，可补发确认')
+              : '已向打样员发送钉钉通知');
+          } else if (notice?.status === 'PENDING') {
+            toast.message('钉钉通知发送中，请稍后刷新');
+          } else if (notice?.status) {
+            toast.error(notice.message || '钉钉通知未发出');
+          }
+        }
       } else {
         toast.error(data.message || '保存失败');
       }
@@ -117,6 +168,31 @@ export default function GoodsDetailPage() {
       toast.error('保存失败，请重试');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resendSamplerNotice = async () => {
+    if (!(infoForm.sampler || '').trim()) {
+      toast.error('请先填写打样员');
+      return;
+    }
+    setResendingNotice(true);
+    try {
+      const res = await fetch(`/api/goods-library/${id}/sampler-notice/resend`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      const latest = await fetchDetail();
+      const notice = (latest?.sampler_notice || data?.data?.sampler_notice) as SamplerNotice | undefined;
+      if (!data.success) {
+        toast.error(data.message || '补发失败');
+      } else if (notice?.status === 'SENT') {
+        toast.success('已补发钉钉通知');
+      } else {
+        toast.error(notice?.message || data.message || '补发未成功');
+      }
+    } catch {
+      toast.error('补发失败，请重试');
+    } finally {
+      setResendingNotice(false);
     }
   };
 
@@ -355,6 +431,33 @@ export default function GoodsDetailPage() {
                   autoComplete="off"
                   className="w-full min-h-11 px-3 py-2.5 rounded-lg bg-[rgba(242,242,247,0.6)] border border-[rgba(229,229,234,0.5)] text-base sm:text-sm text-[#1c1c1e] placeholder:text-[#8e8e93] focus:outline-none focus:border-[rgba(0,122,255,0.5)] focus:ring-1 focus:ring-[rgba(0,122,255,0.3)] transition-all"
                 />
+                {key === 'sampler' && (() => {
+                  const hint = noticeHint(detail?.sampler_notice);
+                  const savedSampler = (detail?.sampler || '').trim();
+                  if (!hint && !savedSampler) return null;
+                  const toneClass = hint?.tone === 'ok'
+                    ? 'text-[#34c759]'
+                    : hint?.tone === 'err'
+                      ? 'text-[#ff3b30]'
+                      : hint?.tone === 'warn'
+                        ? 'text-[#ff9500]'
+                        : 'text-[#8e8e93]';
+                  return (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {hint && <p className={`text-[11px] leading-snug ${toneClass}`}>{hint.text}</p>}
+                      {savedSampler && (
+                        <button
+                          type="button"
+                          onClick={() => void resendSamplerNotice()}
+                          disabled={resendingNotice || savingInfo}
+                          className="text-[11px] font-medium text-[#007AFF] disabled:opacity-50"
+                        >
+                          {resendingNotice ? '补发中…' : '补发钉钉通知'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

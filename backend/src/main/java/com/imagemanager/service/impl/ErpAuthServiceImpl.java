@@ -44,6 +44,12 @@ public class ErpAuthServiceImpl implements ErpAuthService {
         String effectiveUid = (uid == null || uid.isBlank()) ? erpProperties.getUid() : uid.trim();
         String effectivePassword = (password == null || password.isBlank()) ? erpProperties.getPassword() : password;
         String effectiveCustomId = (customId == null || customId.isBlank()) ? erpProperties.getCustomId() : customId.trim();
+        if (effectiveUid == null || effectiveUid.isBlank()
+                || effectivePassword == null || effectivePassword.isBlank()
+                || effectiveCustomId == null || effectiveCustomId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "ERP 凭证不完整：账号、密码或账套码为空。请设置环境变量 ERP_PASSWORD（及 ERP_UID / ERP_CUSTOM_ID），或写入 application-local.yml 的 erp.password");
+        }
 
         String token;
         boolean demo = erpProperties.isDemoEnabled();

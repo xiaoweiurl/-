@@ -109,7 +109,8 @@ export default function SamplerFormPage() {
       if (!isGoodsId(id)) return false;
       const ticket = samplerTicket();
       if (!ticket && !isDingTalkEnv()) {
-        redirectToPasswordLogin();
+        setNeedPasswordLogin(true);
+        setLoadError('请在钉钉工作通知中打开本页。若在浏览器中打开，请使用中台账号登录。');
         return false;
       }
       setSsoHint(ticket ? '正在通过工作通知进入表单' : '正在通过钉钉身份进入表单');
@@ -129,7 +130,7 @@ export default function SamplerFormPage() {
       setLoadError(result.error || '钉钉免登失败。请确认应用已发布，或使用中台账号登录。');
       return false;
     });
-  }, [id, redirectToPasswordLogin, samplerTicket]);
+  }, [id, samplerTicket]);
 
   const fetchDetail = useCallback(async (allowSso = true) => {
     if (!isGoodsId(id)) {

@@ -115,6 +115,20 @@ class GoodsLibraryServiceImplSamplerNoticeTest {
         verify(samplerNoticeService, never()).notifySamplerFormFilledAsync(any(), any());
     }
 
+    @Test
+    void resendUsesCurrentSamplerAndDoesNotTreatAsFormFilled() {
+        Map<String, Object> row = existingRow("肖伟", "A1", "吊带");
+        row.put("id", 77L);
+        when(jdbcTemplate.queryForList(contains("FROM goods_library WHERE id=?"), eq(77L)))
+                .thenReturn(List.of(row));
+
+        service.resendSamplerNotice(77L);
+
+        verify(samplerNoticeService).resendAssignment(any(), eq("肖伟"));
+        verify(samplerNoticeService, never()).notifySamplerAssignedAsync(any(), any(), any());
+        verify(samplerNoticeService, never()).notifySamplerFormFilledAsync(any(), any());
+    }
+
     private static Map<String, Object> existingRow(String sampler, String goodsNo, String productName) {
         Map<String, Object> row = new HashMap<>();
         row.put("id", 77L);

@@ -75,6 +75,14 @@ public class GoodsLibraryController {
     }
 
     /**
+     * 手动补发当前打样员的钉钉工作通知
+     */
+    @PostMapping("/{id}/sampler-notice/resend")
+    public ApiResponse<Map<String, Object>> resendSamplerNotice(@PathVariable long id) {
+        return ApiResponse.success("已触发补发", goodsLibraryService.resendSamplerNotice(id));
+    }
+
+    /**
      * 删除商品（同步删除 OSS 图片）
      */
     @DeleteMapping("/{id}")

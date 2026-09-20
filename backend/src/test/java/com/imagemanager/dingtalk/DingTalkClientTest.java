@@ -204,4 +204,32 @@ class DingTalkClientTest {
                 () -> client.sendWorkNotice("u1", DingTalkWorkNotice.text("t", "b")));
         assertTrue(ex.getMessage().contains("不合法的agent_id"));
     }
+
+    @Test
+    void sendWorkNoticeMissingTaskIdThrows() {
+        properties.setAgentId("1");
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            return "{\"errcode\":0,\"errmsg\":\"ok\"}";
+        });
+        DingTalkException ex = assertThrows(DingTalkException.class,
+                () -> client.sendWorkNotice("u1", DingTalkWorkNotice.text("t", "b")));
+        assertTrue(ex.getMessage().contains("task_id"));
+    }
+
+    @Test
+    void sendWorkNoticeZeroTaskIdThrows() {
+        properties.setAgentId("1");
+        DingTalkClient client = new DingTalkClient(properties, objectMapper, (method, url, body, headers) -> {
+            if (url.contains("/v1.0/oauth2/accessToken")) {
+                return "{\"accessToken\":\"tok\",\"expireIn\":7200}";
+            }
+            return "{\"errcode\":0,\"task_id\":0}";
+        });
+        DingTalkException ex = assertThrows(DingTalkException.class,
+                () -> client.sendWorkNotice("u1", DingTalkWorkNotice.text("t", "b")));
+        assertTrue(ex.getMessage().contains("task_id"));
+    }
 }

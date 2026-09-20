@@ -25,6 +25,9 @@ public interface GoodsLibraryService {
     /** 更新商品信息/备注（货号或品名变更时文件夹自动重命名） */
     Map<String, Object> updateGoods(long id, Map<String, String> body);
 
+    /** 手动补发当前打样员的钉钉工作通知（同步，返回含 sampler_notice 的商品详情） */
+    Map<String, Object> resendSamplerNotice(long id);
+
     /** 删除商品（同步删除 OSS 图片） */
     void deleteGoods(long id);
 

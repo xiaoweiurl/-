@@ -29,6 +29,7 @@ class SamplerSessionGuardTest {
         assertTrue(SamplerSessionGuard.allows("/goods-library/9/images", "POST", sampler));
         assertTrue(SamplerSessionGuard.allows("/goods-library/9/images", "DELETE", sampler));
         assertFalse(SamplerSessionGuard.allows("/goods-library/9", "DELETE", sampler));
+        assertFalse(SamplerSessionGuard.allows("/goods-library/9/sampler-notice/resend", "POST", sampler));
         assertFalse(SamplerSessionGuard.allows("/goods-library/8", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/goods-library", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/goods-library", "POST", sampler));

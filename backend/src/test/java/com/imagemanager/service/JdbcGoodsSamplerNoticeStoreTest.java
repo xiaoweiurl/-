@@ -56,7 +56,8 @@ class JdbcGoodsSamplerNoticeStoreTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).update(sql.capture(),
                 eq(77L), eq("u-xiao"), eq("肖伟"), eq(11L),
-                eq("未命名商品"), eq(""), eq(""), eq("肖伟"));
+                eq("未命名商品"), eq(""), eq(""), eq("肖伟"),
+                eq("SENT"), eq("ok"), eq("ASSIGNMENT"), eq(true));
         String statement = sql.getValue();
         assertTrue(statement.contains("ON CONFLICT (goods_id) DO UPDATE"));
         assertTrue(statement.contains("followup_task_id = NULL"));
@@ -78,6 +79,18 @@ class JdbcGoodsSamplerNoticeStoreTest {
     @Test
     void markFollowupSentUpdatesMatchingAssignment() {
         store.markFollowupSent(77L, 11L, 22L);
-        verify(jdbcTemplate).update(anyString(), eq(22L), eq(77L), eq(11L));
+        verify(jdbcTemplate).update(anyString(), eq(22L), eq("SENT"), eq("ok"), eq("FOLLOWUP"), eq(77L), eq(11L));
+    }
+
+    @Test
+    void saveLastResultDoesNotOverwriteAssignmentIds() {
+        store.saveLastResult(9L, "李四", "FAILED", "网络超时", "ASSIGNMENT", true);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).update(sql.capture(),
+                eq(9L), eq("李四"), eq("FAILED"), eq("网络超时"), eq("ASSIGNMENT"), eq(true));
+        String statement = sql.getValue();
+        assertTrue(statement.contains("ON CONFLICT (goods_id) DO UPDATE"));
+        assertTrue(statement.contains("last_status = EXCLUDED.last_status"));
+        assertTrue(!statement.contains("ding_userid = EXCLUDED.ding_userid"));
     }
 }

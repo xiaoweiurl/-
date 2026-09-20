@@ -98,4 +98,16 @@ class SamplerWorkNoticeCardsTest {
         assertTrue(plain.contains("打样任务"));
         assertTrue(plain.contains("货号： BN-001"));
     }
+
+    @Test
+    void cancelMarkdownTellsPreviousSamplerToStop() {
+        GoodsSamplerNotice goods = new GoodsSamplerNotice(9L, "BN-001真丝吊带", "BN-001", "真丝吊带", "张三");
+        String md = SamplerWorkNoticeCards.cancelMarkdown("李四", "王五", goods);
+        assertTrue(md.startsWith("### 打样任务已改派\n"));
+        assertTrue(md.contains("已改派给「王五」"));
+        assertTrue(md.contains("无需继续填写"));
+        assertFalse(md.contains("立即填写打样表单"));
+        assertEquals("打样任务已改派 · BN-001 真丝吊带",
+                SamplerWorkNoticeCards.cancelSessionTitle(goods));
+    }
 }

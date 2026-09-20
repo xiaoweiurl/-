@@ -20,6 +20,33 @@ final class InMemoryGoodsSamplerNoticeStore implements GoodsSamplerNoticeStore {
     }
 
     @Override
+    public void saveLastResult(long goodsId, String samplerName, String status, String message,
+                               String kind, boolean persistOk) {
+        GoodsSamplerNoticeRecord current = byGoodsId.get(goodsId);
+        if (current == null) {
+            byGoodsId.put(goodsId, new GoodsSamplerNoticeRecord(
+                    goodsId, "", samplerName, 0L, "", "", "", "", null,
+                    status, message, kind, persistOk));
+            return;
+        }
+        String name = samplerName == null || samplerName.isBlank() ? current.getSamplerName() : samplerName;
+        byGoodsId.put(goodsId, new GoodsSamplerNoticeRecord(
+                current.getGoodsId(),
+                current.getDingUserId(),
+                name,
+                current.getTaskId(),
+                current.getSentFolderName(),
+                current.getSentGoodsNo(),
+                current.getSentProductName(),
+                current.getSentInitiator(),
+                current.getFollowupTaskId(),
+                status,
+                message,
+                kind,
+                persistOk));
+    }
+
+    @Override
     public Optional<GoodsSamplerNoticeRecord> findByGoodsId(long goodsId) {
         return Optional.ofNullable(byGoodsId.get(goodsId));
     }
@@ -30,16 +57,7 @@ final class InMemoryGoodsSamplerNoticeStore implements GoodsSamplerNoticeStore {
         if (current == null || current.getTaskId() != assignmentTaskId) {
             return;
         }
-        byGoodsId.put(goodsId, new GoodsSamplerNoticeRecord(
-                current.getGoodsId(),
-                current.getDingUserId(),
-                current.getSamplerName(),
-                current.getTaskId(),
-                current.getSentFolderName(),
-                current.getSentGoodsNo(),
-                current.getSentProductName(),
-                current.getSentInitiator(),
-                followupTaskId));
+        byGoodsId.put(goodsId, current.withFollowup(followupTaskId));
     }
 
     void clear() {

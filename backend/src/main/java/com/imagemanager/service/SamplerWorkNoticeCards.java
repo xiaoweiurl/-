@@ -8,6 +8,7 @@ public final class SamplerWorkNoticeCards {
 
     public static final String HEAD_ASSIGN = "打样任务";
     public static final String HEAD_FOLLOWUP = "打样信息已更新";
+    public static final String HEAD_CANCEL = "打样任务已改派";
     public static final String CTA_ASSIGN = "立即填写打样表单";
     public static final String CTA_FOLLOWUP = "查看打样表单";
     public static final String PENDING_VALUE = "待填写";
@@ -26,6 +27,10 @@ public final class SamplerWorkNoticeCards {
         return truncate(HEAD_FOLLOWUP + " · " + productHeadline(goods), TITLE_MAX);
     }
 
+    public static String cancelSessionTitle(GoodsSamplerNotice goods) {
+        return truncate(HEAD_CANCEL + " · " + productHeadline(goods), TITLE_MAX);
+    }
+
     public static String assignmentMarkdown(String samplerName, GoodsSamplerNotice goods, String formHttp) {
         String headline = productHeadline(goods);
         String lead = hasIdentity(goods)
@@ -39,6 +44,13 @@ public final class SamplerWorkNoticeCards {
         String headline = productHeadline(goods);
         return cardMarkdown(HEAD_FOLLOWUP, headline, "货号、品名等已填写，可打开表单核对或继续补充。",
                 samplerName, goods, formHttp, CTA_FOLLOWUP, "如需修改请再次打开表单。");
+    }
+
+    public static String cancelMarkdown(String previousSampler, String nextSampler, GoodsSamplerNotice goods) {
+        String next = fieldValue(nextSampler);
+        String lead = "该任务已改派给「" + next + "」，您无需继续填写。";
+        return cardMarkdown(HEAD_CANCEL, productHeadline(goods), lead,
+                previousSampler, goods, null, null, "如有疑问请联系发起人。");
     }
 
     public static String toPlainText(String markdown) {
