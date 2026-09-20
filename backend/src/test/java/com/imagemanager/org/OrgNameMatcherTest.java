@@ -36,7 +36,8 @@ class OrgNameMatcherTest {
                 new Person("张 三"),
                 new Person("李四"),
                 new Person("张三丰"));
-        List<Person> matched = OrgNameMatcher.matchExact("张三", people, Person::name);
+        List<Person> matched = OrgNameMatcher.matchExact(
+                "张三", people, person -> person == null ? null : person.name());
         assertEquals(2, matched.size());
     }
 

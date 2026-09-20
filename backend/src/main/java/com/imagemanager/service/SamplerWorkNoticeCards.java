@@ -85,7 +85,10 @@ public final class SamplerWorkNoticeCards {
      * 当前商品相对指派当时的卡片是否补全了货号/品名/发起人（原通知会显示「待填写」/未命名）。
      */
     public static boolean needsBackfill(GoodsSamplerNotice sent, GoodsSamplerNotice current) {
-        if (!hasIdentity(current) && !filled(current == null ? null : current.getInitiator())) {
+        if (current == null) {
+            return false;
+        }
+        if (!hasIdentity(current) && !filled(current.getInitiator())) {
             return false;
         }
         if (sent == null) {

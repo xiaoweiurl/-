@@ -82,7 +82,10 @@ public class DingTalkFreeLoginService {
     }
 
     LoginResponse loginByDingUser(DingTalkAuthUser dingUser, Long goodsId) {
-        String userid = dingUser == null ? null : dingUser.getUserid();
+        if (dingUser == null) {
+            throw DingTalkFreeLoginException.unmatched();
+        }
+        String userid = dingUser.getUserid();
         if (userid == null || userid.isBlank()) {
             throw DingTalkFreeLoginException.unmatched();
         }

@@ -263,10 +263,12 @@ public class OrgSyncService {
                 throw DingTalkException.notConfigured();
             }
             List<DingDepartment> departments = dingTalkClient.fetchAllDepartments();
-            List<Long> deptIds = departments.stream()
-                    .map(DingDepartment::getDeptId)
-                    .filter(Objects::nonNull)
-                    .toList();
+            List<Long> deptIds = new ArrayList<>();
+            for (DingDepartment dept : departments) {
+                if (dept != null && dept.getDeptId() != null) {
+                    deptIds.add(dept.getDeptId());
+                }
+            }
             List<DingUser> rawUsers = dingTalkClient.fetchUsersInDepartments(deptIds);
             Map<String, DingUser> uniqueUsers = mergeUsers(rawUsers);
 

@@ -75,8 +75,7 @@ public class ImageDynamicRepository {
         try {
             String querySQL = "SELECT tablename FROM pg_tables WHERE tablename LIKE 'images\\_%' AND schemaname = 'public' AND tablename != 'images'";
             Query query = entityManager.createNativeQuery(querySQL);
-            List<String> tables = query.getResultList();
-            return tables != null ? tables : new ArrayList<>();
+            return stringRows(query);
         } catch (Exception e) {
             log.error("获取所有用户图片表失败", e);
             return new ArrayList<>();
@@ -203,7 +202,7 @@ public class ImageDynamicRepository {
             Query query = entityManager.createNativeQuery(querySQL);
             query.setParameter(1, imageId);
 
-            List<Object[]> results = query.getResultList();
+            List<Object[]> results = objectRows(query);
             if (results.isEmpty()) {
                 return null;
             }
@@ -229,7 +228,7 @@ public class ImageDynamicRepository {
             Query query = entityManager.createNativeQuery(querySQL);
             query.setParameter(1, imageId);
 
-            List<Object[]> results = query.getResultList();
+            List<Object[]> results = objectRows(query);
             if (results.isEmpty()) {
                 return null;
             }
@@ -886,7 +885,7 @@ public class ImageDynamicRepository {
                 query.setParameter(entry.getKey(), entry.getValue());
             }
 
-            List<Object[]> results = query.getResultList();
+            List<Object[]> results = objectRows(query);
             List<Image> images = new ArrayList<>();
             for (Object[] row : results) {
                 images.add(mapToImage(row, tableName));
@@ -959,7 +958,7 @@ public class ImageDynamicRepository {
                 unionSQL, orderBy, pageSize, offset);
             Query query = entityManager.createNativeQuery(finalSQL);
 
-            List<Object[]> results = query.getResultList();
+            List<Object[]> results = objectRows(query);
             List<Image> images = new ArrayList<>();
             for (Object[] row : results) {
                 images.add(mapToImage(row, null));
@@ -1024,6 +1023,31 @@ public class ImageDynamicRepository {
         if (image.getDeletedAt() != null) pstmt.setTimestamp(16, Timestamp.valueOf(image.getDeletedAt())); else pstmt.setNull(16, java.sql.Types.TIMESTAMP);
         pstmt.setTimestamp(17, Timestamp.valueOf(LocalDateTime.now()));
         pstmt.setString(18, image.getId());
+    }
+
+    /**
+     * JPA Query.getResultList() 返回原始 List，逐条装箱避免未检查转换。
+     */
+    private static List<Object[]> objectRows(Query query) {
+        List<?> raw = query.getResultList();
+        List<Object[]> rows = new ArrayList<>(raw.size());
+        for (Object row : raw) {
+            rows.add(row instanceof Object[] arr ? arr : new Object[]{row});
+        }
+        return rows;
+    }
+
+    private static List<String> stringRows(Query query) {
+        List<?> raw = query.getResultList();
+        List<String> values = new ArrayList<>(raw.size());
+        for (Object row : raw) {
+            if (row instanceof Object[] arr) {
+                values.add(arr.length > 0 && arr[0] != null ? arr[0].toString() : null);
+            } else if (row != null) {
+                values.add(row.toString());
+            }
+        }
+        return values;
     }
 
     /**
