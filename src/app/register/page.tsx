@@ -98,7 +98,7 @@ export default function RegisterPage() {
         router.refresh();
       } else {
         toast.error('注册失败', {
-          description: result.error || result.message || '未找到匹配的钉钉通讯录成员',
+          description: result.error || result.message || '注册失败，请稍后重试',
         });
       }
     } catch (error) {
@@ -124,7 +124,7 @@ export default function RegisterPage() {
             <span className="text-3xl font-bold text-white">宝</span>
           </div>
           <h1 className="text-3xl font-bold text-[#1C1C1E]">创建账号</h1>
-          <p className="text-[#8E8E93] mt-2">使用钉钉通讯录姓名注册（办公/管理端）</p>
+          <p className="text-[#8E8E93] mt-2">使用钉钉通讯录姓名注册（含袜业分部）。对不上时也可开户，公司为宝娜斯集团。</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-[#E5E5EA] p-8">
@@ -159,7 +159,7 @@ export default function RegisterPage() {
                 />
               </div>
               <p className="mt-2 text-xs text-[#8E8E93]">
-                初始密码为 123456，登录后需按系统提示修改。无需填写邮箱。
+                公司固定为宝娜斯集团。初始密码为 123456，登录后需按系统提示修改。无需填写邮箱。
               </p>
             </div>
 

@@ -1,5 +1,6 @@
 package com.imagemanager.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -16,8 +17,9 @@ import lombok.AllArgsConstructor;
 public class ChangePasswordRequest {
     
     /**
-     * 当前密码
+     * 当前密码。设置页历史上传 {@code oldPassword}，两种字段名都认。
      */
+    @JsonAlias("oldPassword")
     private String currentPassword;
     
     /**

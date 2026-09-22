@@ -73,6 +73,7 @@ class OrgAffiliationTest {
         assertEquals("宝娜斯集团有限公司", OrgAffiliation.canonicalRootName("宝娜斯集团"));
         assertEquals("宝娜斯集团有限公司", OrgAffiliation.canonicalRootName("根部门"));
         assertEquals("宝娜斯集团有限公司", OrgAffiliation.canonicalRootName("宝娜斯集团有限公司"));
+        assertEquals("浙江宝娜斯袜业有限公司", OrgAffiliation.canonicalRootName("浙江宝娜斯袜业有限公司"));
     }
 
     @Test
@@ -81,6 +82,9 @@ class OrgAffiliationTest {
         assertEquals("/宝娜斯集团有限公司/财务人事", OrgAffiliation.canonicalPath("/宝娜斯集团/财务人事"));
         assertEquals("/宝娜斯集团有限公司/江苏宝娜斯针织有限公司/生产部",
                 OrgAffiliation.canonicalPath("/宝娜斯集团/江苏宝娜斯针织有限公司/生产部"));
+        assertEquals("/宝娜斯集团有限公司/浙江宝娜斯袜业有限公司/生产部",
+                OrgAffiliation.canonicalPath("/宝娜斯集团/浙江宝娜斯袜业有限公司/生产部"));
+        assertEquals("生产部", OrgAffiliation.leafName("/宝娜斯集团/浙江宝娜斯袜业有限公司/生产部"));
         assertEquals("财务人事", OrgAffiliation.leafName("/宝娜斯集团/财务人事"));
     }
 

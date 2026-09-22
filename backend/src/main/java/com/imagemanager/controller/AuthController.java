@@ -60,10 +60,10 @@ public class AuthController {
     private DingTalkSamplerTicketService dingTalkSamplerTicketService;
     
     /**
-     * 用户注册（钉钉姓名匹配）。初始密码固定 123456，首次登录强制改密。
+     * 用户注册。优先按钉钉通讯录姓名绑定（含袜业分部）；未命中则兜底开户，公司固定宝娜斯集团。
      */
     @PostMapping("/register")
-    @Operation(summary = "用户注册", description = "按钉钉通讯录姓名注册；同名多人返回 409 候选人；初始密码 123456 且必须改密")
+    @Operation(summary = "用户注册", description = "优先匹配钉钉通讯录（含袜业分部）；未命中可兜底开户，公司为宝娜斯集团。同名多人返回 409。初始密码 123456 且必须改密")
     public ResponseEntity<ApiResponse<?>> register(
             @RequestBody RegisterRequest request,
             HttpServletResponse response) {

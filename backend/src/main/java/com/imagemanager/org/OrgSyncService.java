@@ -30,7 +30,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
- * 钉钉组织同步：部门树 + 通讯录写入本地表。不创建本地登录账号（账号由姓名注册产生）。
+ * 钉钉组织同步：部门树 + 通讯录写入本地表。袜业等分部作为集团子部门一并拉取。
+ * 不创建本地登录账号（账号由姓名注册产生）。
  */
 @Slf4j
 @Service

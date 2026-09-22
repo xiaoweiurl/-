@@ -166,17 +166,26 @@ export default function SettingsPage() {
       return;
     }
     
-    if (passwordForm.newPassword.length < 6) {
-      toast.error('新密码长度至少6位');
+    if (passwordForm.newPassword.length < 8) {
+      toast.error('新密码至少8位，且需包含字母和数字');
       return;
     }
     
     setIsSaving(true);
     try {
+      const sessionId = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
       const res = await fetch('/api/user/password', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(passwordForm),
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.oldPassword,
+          newPassword: passwordForm.newPassword,
+          confirmPassword: passwordForm.confirmPassword,
+        }),
       });
       const data = await res.json();
       
@@ -199,7 +208,7 @@ export default function SettingsPage() {
           router.push('/login');
         }, 1500);
       } else {
-        toast.error(data.error || '修改失败');
+        toast.error(data.error || data.message || '修改失败');
       }
     } catch {
       toast.error('修改失败');
@@ -520,7 +529,7 @@ export default function SettingsPage() {
                 {forceChangePassword && (
                   <div className="mb-6 max-w-md rounded-xl border border-[#FF9500]/30 bg-[#FF9500]/10 px-4 py-3">
                     <p className="text-sm font-medium text-[#FF9500]">首次登录需修改初始密码</p>
-                    <p className="text-xs text-[#8e8e93] mt-1">为保障账号安全，请设置新密码后再继续使用系统。修改成功后需要重新登录。钉钉姓名注册的初始密码为 123456。</p>
+                    <p className="text-xs text-[#8e8e93] mt-1">为保障账号安全，请设置新密码后再继续使用系统。修改成功后需要重新登录。初始密码为 123456。新密码至少 8 位，需同时包含字母和数字。</p>
                   </div>
                 )}
 
@@ -553,7 +562,7 @@ export default function SettingsPage() {
                         type={showPasswords.new ? 'text' : 'password'}
                         value={passwordForm.newPassword}
                         onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
-                        placeholder="输入新密码（至少6位）"
+                        placeholder="输入新密码（至少8位，含字母和数字）"
                       />
                       <button
                         type="button"

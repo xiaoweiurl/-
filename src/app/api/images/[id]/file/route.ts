@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { backendFetch } from '@/lib/backend-proxy';
+import { attachmentContentDisposition } from '@/lib/content-disposition';
 
 // 后端静态资源 URL
 const BACKEND_STATIC_URL = process.env.NEXT_PUBLIC_BACKEND_STATIC_URL || 'http://localhost:8080';
@@ -103,12 +104,13 @@ export async function GET(
     // 获取图片数据并返回
     const imageBuffer = await imageResponse.arrayBuffer();
     const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
-    const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const safeType = /^[\x20-\x7E]+$/.test(contentType) ? contentType : 'image/jpeg';
+    const ext = safeType.includes('png') ? 'png' : safeType.includes('webp') ? 'webp' : 'jpg';
 
     return new NextResponse(imageBuffer, {
       headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${imageTitle}.${ext}"`,
+        'Content-Type': safeType,
+        'Content-Disposition': attachmentContentDisposition(`${imageTitle}.${ext}`, `image.${ext}`),
         'Cache-Control': 'public, max-age=3600',
       },
     });

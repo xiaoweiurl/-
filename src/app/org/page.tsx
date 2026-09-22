@@ -331,7 +331,7 @@ export default function OrgPage() {
         <section className="bg-white rounded-2xl border border-[#E5E5EA] p-5">
           <h2 className="text-base font-semibold text-[#1C1C1E]">部门树</h2>
           <p className="text-xs text-[#8E8E93] mt-1 mb-3">
-            根节点为宝娜斯集团有限公司。展开部门查看成员；人员挂在实际所属部门，不会全部归集到集团。
+            根节点为宝娜斯集团有限公司，浙江宝娜斯袜业有限公司等分部挂在其下。展开部门查看成员；人员挂在实际所属部门，不会全部归集到集团。
           </p>
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin text-[#8E8E93]" />

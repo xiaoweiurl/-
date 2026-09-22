@@ -24,7 +24,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 按钉钉通讯录姓名注册本地账号。
+ * 按钉钉通讯录姓名注册本地账号。集团与袜业等分部均在同一通讯录；
+ * 姓名未命中时仍可兜底开户。本地 {@code users.company} 固定为宝娜斯集团。
  * 默认密码固定为 {@link #DEFAULT_PASSWORD}，并标记 must_change_password，走现有首次改密流程。
  */
 @Slf4j
@@ -72,7 +73,7 @@ public class OrgRegistrationService {
         try {
             RegisterRequest request = new RegisterRequest();
             request.setName(name.trim());
-            ProvisionResult provisioned = provision(request);
+            ProvisionResult provisioned = provision(request, false);
             ensureImageTableQuietly(provisioned.user);
             if (provisioned.reusedByName) {
                 log.info("打样推送复用同名本地账号: name={}, userId={}, username={}, dingUserId={}",
@@ -103,48 +104,68 @@ public class OrgRegistrationService {
     }
 
     public User register(RegisterRequest request) {
-        return provision(request).user;
+        return provision(request, true).user;
     }
 
-    private ProvisionResult provision(RegisterRequest request) {
+    /**
+     * @param allowCustomWithoutOrg true=公开注册：通讯录没有该人仍可开户，公司固定宝娜斯集团。
+     *                              false=打样推送开户，未命中通讯录则失败。
+     */
+    private ProvisionResult provision(RegisterRequest request, boolean allowCustomWithoutOrg) {
         String company = resolveCompany(request == null ? null : request.getCompany());
         String name = OrgNameMatcher.requireName(request == null ? null
                 : OrgNameMatcher.firstNonBlank(request.getName(), request.getUsername()));
         String dingUserId = request == null ? null : request.getDingtalkUserid();
 
-        if (orgDirectory.countActiveContacts(company) == 0) {
+        int synced = orgDirectory.countActiveContacts(company);
+        if (synced == 0 && !allowCustomWithoutOrg) {
             throw RegisterMatchException.notSynced();
         }
 
-        OrgContact contact;
+        OrgContact contact = null;
         if (dingUserId != null && !dingUserId.isBlank()) {
             contact = orgDirectory.findByDingUserId(company, dingUserId)
                     .orElseThrow(RegisterMatchException::none);
             if (!OrgNameMatcher.namesEqual(name, contact.getName())) {
                 throw new RegisterMatchException(400, "所选成员与姓名不匹配");
             }
-        } else {
+        } else if (synced > 0) {
             List<OrgContact> matches = orgDirectory.findActiveByName(company, name);
-            if (matches.isEmpty()) {
-                throw RegisterMatchException.none();
-            }
             if (matches.size() > 1) {
                 throw RegisterMatchException.multiple(toCandidates(matches));
             }
-            contact = matches.get(0);
+            if (matches.size() == 1) {
+                contact = matches.get(0);
+            } else if (!allowCustomWithoutOrg) {
+                throw RegisterMatchException.none();
+            }
         }
 
-        if (contact.getLocalUserId() != null && !contact.getLocalUserId().isBlank()) {
-            throw RegisterMatchException.alreadyRegistered();
+        if (contact != null) {
+            if (contact.getLocalUserId() != null && !contact.getLocalUserId().isBlank()) {
+                throw RegisterMatchException.alreadyRegistered();
+            }
+            OrgContact matched = contact;
+            ProvisionResult created = txTemplate.execute(status -> createUser(company, name, matched));
+            if (created == null) {
+                throw new IllegalStateException("注册事务未提交");
+            }
+            log.info("钉钉姓名注册{}: name={}, dingUserId={}, username={}",
+                    created.reusedByName ? "复用同名账号" : "成功",
+                    name, matched.getDingUserId(), created.user.getUsername());
+            return created;
         }
 
-        ProvisionResult created = txTemplate.execute(status -> createUser(company, name, contact));
+        if (!allowCustomWithoutOrg) {
+            throw RegisterMatchException.notSynced();
+        }
+
+        ProvisionResult created = txTemplate.execute(status -> createCustomUser(company, name));
         if (created == null) {
             throw new IllegalStateException("注册事务未提交");
         }
-        log.info("钉钉姓名注册{}: name={}, dingUserId={}, username={}",
-                created.reusedByName ? "复用同名账号" : "成功",
-                name, contact.getDingUserId(), created.user.getUsername());
+        log.info("自定义注册成功（未匹配集团通讯录）: name={}, username={}, company={}",
+                name, created.user.getUsername(), company);
         return created;
     }
 
@@ -208,6 +229,38 @@ public class OrgRegistrationService {
         // Without flush, Postgres rejects org_users.local_user_id FK (user row not visible yet).
         userRepository.saveAndFlush(user);
         orgDirectory.bindLocalUser(contact.getId(), user.getId());
+        return ProvisionResult.created(user);
+    }
+
+    /**
+     * 通讯录未命中时的兜底开户（不绑钉钉）。袜业分部已纳入组织同步，能匹配到的人走 {@link #createUser}。
+     */
+    private ProvisionResult createCustomUser(String company, String displayName) {
+        List<User> nameMatches = findLocalUsersByDisplayName(displayName);
+        if (nameMatches.size() > 1) {
+            throw RegisterMatchException.multipleLocal(displayName);
+        }
+        if (nameMatches.size() == 1) {
+            throw RegisterMatchException.alreadyRegistered();
+        }
+
+        String username = allocateUsername(displayName, null);
+        String email = allocatePlaceholderEmail(null);
+        User user = User.builder()
+                .id(UUID.randomUUID().toString())
+                .username(username)
+                .password(passwordEncoder.encode(DEFAULT_PASSWORD))
+                .email(email)
+                .nickname(displayName)
+                .role("user")
+                .company(company)
+                .membership("free")
+                .storageUsed(0L)
+                .storageLimit(1024L * 1024 * 1024 * 10L)
+                .createdAt(LocalDateTime.now())
+                .mustChangePassword(true)
+                .build();
+        userRepository.saveAndFlush(user);
         return ProvisionResult.created(user);
     }
 
@@ -297,11 +350,18 @@ public class OrgRegistrationService {
     }
 
     String allocateEmail(OrgContact contact) {
-        String fromDing = contact.getEmail();
-        if (fromDing != null && !fromDing.isBlank() && userRepository.findByEmail(fromDing.trim()).isEmpty()) {
-            return fromDing.trim();
+        if (contact != null) {
+            String fromDing = contact.getEmail();
+            if (fromDing != null && !fromDing.isBlank() && userRepository.findByEmail(fromDing.trim()).isEmpty()) {
+                return fromDing.trim();
+            }
+            return allocatePlaceholderEmail(contact.getDingUserId());
         }
-        String userid = sanitize(contact.getDingUserId());
+        return allocatePlaceholderEmail(null);
+    }
+
+    String allocatePlaceholderEmail(String dingUserId) {
+        String userid = sanitize(dingUserId);
         if (userid.isEmpty()) {
             userid = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         }
@@ -353,15 +413,17 @@ public class OrgRegistrationService {
         }
     }
 
+    /**
+     * 袜业等分部与集团同一租户，本地账号一律归属宝娜斯集团。
+     */
     private String resolveCompany(String company) {
-        String value = company == null || company.isBlank() ? properties.getCompany() : company.trim();
-        if (value == null || value.isBlank()) {
-            value = DEFAULT_COMPANY;
+        if (company != null && !company.isBlank() && !DEFAULT_COMPANY.equals(company.trim())) {
+            log.debug("注册公司入参「{}」已归一为{}", company.trim(), DEFAULT_COMPANY);
+        } else if (properties.getCompany() != null && !properties.getCompany().isBlank()
+                && !DEFAULT_COMPANY.equals(properties.getCompany().trim())) {
+            log.debug("钉钉配置公司「{}」注册时仍写入{}", properties.getCompany().trim(), DEFAULT_COMPANY);
         }
-        if (!DEFAULT_COMPANY.equals(value)) {
-            throw new IllegalArgumentException("公司只能选择宝娜斯集团");
-        }
-        return value;
+        return DEFAULT_COMPANY;
     }
 
     /**

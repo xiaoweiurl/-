@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 注册请求。钉钉路径以姓名为主，不要求用户名/邮箱/密码。
+ * 注册请求。以姓名为主，优先匹配钉钉通讯录（含袜业分部）；未命中也可兜底开户。
  */
 @Data
 @NoArgsConstructor
@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 public class RegisterRequest {
 
     /**
-     * 姓名（钉钉通讯录匹配主键）
+     * 姓名（优先匹配钉钉通讯录，含袜业分部；未命中则兜底开户）
      */
     private String name;
 
@@ -33,7 +33,7 @@ public class RegisterRequest {
     private String email;
 
     /**
-     * 所属公司（默认宝娜斯集团）
+     * 所属公司（忽略入参，服务端固定为宝娜斯集团）
      */
     private String company;
 

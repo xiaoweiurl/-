@@ -315,7 +315,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse register(RegisterRequest request) {
-        log.info("用户注册（钉钉姓名）: name={}, company={}",
+        log.info("用户注册: name={}, requestedCompany={}",
                 request == null ? null : request.getName(),
                 request == null ? null : request.getCompany());
 
@@ -475,6 +475,10 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        if (currentPassword == null || currentPassword.isBlank()) {
+            throw new RuntimeException("请输入当前密码");
+        }
 
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             log.warn("修改密码失败，当前密码错误：{}", userId);

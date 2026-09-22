@@ -62,22 +62,76 @@ class OrgRegistrationServiceTest {
     }
 
     @Test
-    void zeroMatchesReturns404() {
+    void missingOrgContactCreatesCustomAccountUnderGroup() {
         when(directory.findActiveByName("宝娜斯集团", "张三")).thenReturn(List.of());
         RegisterRequest req = new RegisterRequest();
         req.setName("张三");
-        RegisterMatchException ex = assertThrows(RegisterMatchException.class, () -> service.register(req));
-        assertEquals(404, ex.getHttpStatus());
+        User user = service.register(req);
+
+        assertEquals("张三", user.getUsername());
+        assertEquals("张三", user.getNickname());
+        assertEquals("宝娜斯集团", user.getCompany());
+        assertEquals(Boolean.TRUE, user.getMustChangePassword());
+        assertEquals("ENC:123456", user.getPassword());
+        assertTrue(user.getDingtalkUserid() == null || user.getDingtalkUserid().isBlank());
+        verify(directory, never()).bindLocalUser(anyString(), anyString());
+        verify(userRepository).saveAndFlush(any(User.class));
     }
 
     @Test
-    void notSyncedReturns404() {
+    void notSyncedStillAllowsCustomRegister() {
         when(directory.countActiveContacts("宝娜斯集团")).thenReturn(0);
         RegisterRequest req = new RegisterRequest();
         req.setName("张三");
+        User user = service.register(req);
+
+        assertEquals("张三", user.getUsername());
+        assertEquals("宝娜斯集团", user.getCompany());
+        verify(directory, never()).findActiveByName(anyString(), anyString());
+        verify(directory, never()).bindLocalUser(anyString(), anyString());
+    }
+
+    @Test
+    void socksDivisionContactRegistersAsDingTalkUserUnderGroup() {
+        OrgContact contact = sample("u-sock", "王袜", "浙江宝娜斯袜业有限公司");
+        contact.setDeptPath("/宝娜斯集团有限公司/浙江宝娜斯袜业有限公司/生产部");
+        when(directory.findActiveByName("宝娜斯集团", "王袜")).thenReturn(List.of(contact));
+        RegisterRequest req = new RegisterRequest();
+        req.setName("王袜");
+        req.setCompany("浙江宝娜斯袜业有限公司");
+
+        User user = service.register(req);
+
+        assertEquals("宝娜斯集团", user.getCompany());
+        assertEquals("u-sock", user.getDingtalkUserid());
+        assertEquals("王袜", user.getNickname());
+        verify(directory).bindLocalUser("org-1", user.getId());
+        verify(userRepository).saveAndFlush(any(User.class));
+    }
+
+    @Test
+    void socksCompanyInputStillStoresBonasiGroup() {
+        when(directory.findActiveByName("宝娜斯集团", "李四")).thenReturn(List.of());
+        RegisterRequest req = new RegisterRequest();
+        req.setName("李四");
+        req.setCompany("浙江宝娜斯袜业有限公司");
+        User user = service.register(req);
+        assertEquals("宝娜斯集团", user.getCompany());
+        assertEquals("李四", user.getUsername());
+    }
+
+    @Test
+    void customRegisterWhenLocalNameExistsReturns409() {
+        when(directory.findActiveByName("宝娜斯集团", "张三")).thenReturn(List.of());
+        User existing = User.builder().id("local-1").username("张三").nickname("张三").build();
+        when(userRepository.findByUsername("张三")).thenReturn(Optional.of(existing));
+        when(userRepository.findByNickname("张三")).thenReturn(List.of(existing));
+        RegisterRequest req = new RegisterRequest();
+        req.setName("张三");
         RegisterMatchException ex = assertThrows(RegisterMatchException.class, () -> service.register(req));
-        assertEquals(404, ex.getHttpStatus());
-        assertTrue(ex.getMessage().contains("同步"));
+        assertEquals(409, ex.getHttpStatus());
+        assertEquals(RegisterMatchException.Kind.ALREADY_REGISTERED, ex.getKind());
+        verify(userRepository, never()).saveAndFlush(any(User.class));
     }
 
     @Test
