@@ -23,6 +23,8 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- 真实检索评测默认不跑，见 docs/rag-eval.md -->
+        <surefire.excludedGroups>rag-eval</surefire.excludedGroups>
     </properties>
 
     <dependencies>
@@ -191,6 +193,13 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
@@ -204,4 +213,29 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- JDK 21+ 默认不再跑注解处理器，Lombok 需要显式打开。JDK 17 构建不带这个参数。 -->
+        <profile>
+            <id>jdk21-annotation-processing</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <fork>true</fork>
+                            <compilerArgs>
+                                <arg>-parameters</arg>
+                                <arg>-proc:full</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

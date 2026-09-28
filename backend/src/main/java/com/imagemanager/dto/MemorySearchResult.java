@@ -28,5 +28,7 @@ public class MemorySearchResult {
     private String confidence;
     private String source;
     private UUID sourceDocId;
+    /** 原始记录键（文档 id、切片 id 或 Milvus doc_id），UUID 解析前后都保留原文 */
+    private String recordKey;
     private LocalDateTime createdAt;
 }

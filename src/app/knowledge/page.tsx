@@ -30,8 +30,10 @@ import {
   Briefcase,
   Info,
 } from 'lucide-react';
+import { isAdminOrAbove } from '@/lib/auth';
 import KnowledgeCardForm, { type KnowledgeCard } from '@/components/KnowledgeCardForm';
 import KnowledgeCardList, { KnowledgeCardListHandle } from '@/components/KnowledgeCardList';
+import KnowledgeGapList from '@/components/KnowledgeGapList';
 
 // 文件类型图标
 const FILE_ICONS: Record<string, React.ReactNode> = {
@@ -234,7 +236,8 @@ export default function KnowledgePage() {
 
   // 搜索
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'docs' | 'cards'>('docs');
+  const [activeTab, setActiveTab] = useState<'docs' | 'cards' | 'gaps'>('docs');
+  const [canSeeGaps, setCanSeeGaps] = useState(false);
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<KnowledgeCard | null>(null);
   const cardListRef = useRef<KnowledgeCardListHandle>(null);
@@ -250,6 +253,20 @@ export default function KnowledgePage() {
 
   // 视图模式
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  useEffect(() => {
+    const wantGaps = new URLSearchParams(window.location.search).get('tab') === 'gaps';
+    backendFetch('/auth/login')
+      .then(async res => {
+        const data = await res.json();
+        const admin = isAdminOrAbove(data?.data?.role);
+        setCanSeeGaps(admin);
+        if (wantGaps && admin) {
+          setActiveTab('gaps');
+        }
+      })
+      .catch(() => setCanSeeGaps(false));
+  }, []);
 
   // 登录检查 - 后端不可用时进入降级模式，不强制跳转
   useEffect(() => {
@@ -662,6 +679,18 @@ export default function KnowledgePage() {
             >
               <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" />岗位卡片</span>
             </button>
+            {canSeeGaps && (
+            <button
+              onClick={() => setActiveTab('gaps')}
+              className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-all ${
+                activeTab === 'gaps'
+                  ? 'bg-[rgba(255,149,0,0.15)] text-[#ff9500] shadow-sm'
+                  : 'text-[#8e8e93] hover:text-[#1c1c1e]'
+              }`}
+            >
+              待补充
+            </button>
+            )}
           </div>
         </div>
 
@@ -732,7 +761,9 @@ export default function KnowledgePage() {
       </header>
 
       {/* Main Content */}
-      {activeTab === 'cards' ? (
+      {activeTab === 'gaps' ? (
+        <KnowledgeGapList />
+      ) : activeTab === 'cards' ? (
         /* Knowledge Cards Tab */
         <div className="flex-1 flex flex-col min-h-0">
           {showCardForm ? (

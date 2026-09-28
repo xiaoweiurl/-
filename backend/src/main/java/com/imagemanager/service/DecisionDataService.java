@@ -144,7 +144,49 @@ public class DecisionDataService {
                 }
             }
         }
+        ensureRecordIds(out);
         return out;
+    }
+
+    /** 把 ERP 主键或货号写进 recordId，供回答引用来源使用。 */
+    private void ensureRecordIds(List<Map<String, Object>> entries) {
+        for (Map<String, Object> entry : entries) {
+            if (entry == null || hasText(entry.get("recordId"))) {
+                continue;
+            }
+            Object data = entry.get("data");
+            if (!(data instanceof Map<?, ?> map)) {
+                continue;
+            }
+            String single = firstDataText(map, "记录ID", "编号", "订单号", "报价单号", "id");
+            if (single != null) {
+                entry.put("recordId", single);
+                continue;
+            }
+            String huohao = firstDataText(map, "生产货号", "货号", "成品货号", "产品编码");
+            String part = firstDataText(map, "部件", "工序", "物料名称");
+            if (huohao != null) {
+                entry.put("recordId", part == null ? huohao : huohao + "|" + part);
+            }
+        }
+    }
+
+    private static boolean hasText(Object value) {
+        if (value == null) {
+            return false;
+        }
+        String s = String.valueOf(value).trim();
+        return !s.isEmpty() && !"null".equalsIgnoreCase(s);
+    }
+
+    private static String firstDataText(Map<?, ?> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (hasText(value)) {
+                return String.valueOf(value).trim();
+            }
+        }
+        return null;
     }
 
     /** 终稿/完整报告意图：用户要求整合多轮内容一次性输出 */
@@ -505,6 +547,7 @@ public class DecisionDataService {
             };
             for (Map<String, Object> row : rows) {
                 Map<String, Object> data = new LinkedHashMap<>();
+                putIfNonBlank(data, "记录ID", row.get("id"));
                 putIfNonBlank(data, "文件夹名称", row.get("folder_name"));
                 putIfNonBlank(data, "品名", row.get("product_name"));
                 putIfNonBlank(data, "货号", row.get("goods_no"));

@@ -6,7 +6,7 @@ import { backendFetch } from '@/lib/backend-proxy';
 import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
   Bot, User, BookOpen, Loader2, Sparkles,
-  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X
+  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
@@ -38,12 +38,16 @@ interface ChatMessage {
   reasoning?: string;
   searchResults?: string;
   sources?: Array<{
-    source: 'knowledge';
+    id?: string;
+    recordId?: string;
+    chunkId?: string;
+    source: string;
     title?: string;
-    domain?: string;
+    excerpt?: string;
     content?: string;
-    score: number;
+    score?: number;
   }>;
+  feedback?: 'useful' | 'wrong';
   images?: ChatImage[];
   userImages?: string[]; // 用户上传的base64图片（兼容旧逻辑）
   attachments?: UploadedAttachment[]; // 用户上传的附件
@@ -122,6 +126,8 @@ export default function ChatPage() {
   const [mounted, setMounted] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [openSource, setOpenSource] = useState<NonNullable<ChatMessage['sources']>[number] | null>(null);
+  const [wrongDraft, setWrongDraft] = useState<{ index: number; comment: string } | null>(null);
   const [input, setInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -134,6 +140,35 @@ export default function ChatPage() {
   const isUserScrollingRef = useRef(false);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [chatAttachments, setChatAttachments] = useState<UploadedAttachment[]>([]); // 上传的附件列表
+
+  const submitFeedback = async (index: number, verdict: 'useful' | 'wrong', comment?: string) => {
+    const answer = messages[index];
+    if (!answer || answer.feedback) return;
+    let question = '';
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        question = messages[i].content;
+        break;
+      }
+    }
+    try {
+      const res = await backendFetch('/chat/feedback', {
+        method: 'POST',
+        body: {
+          verdict,
+          question,
+          answer: answer.content,
+          conversationId: activeSessionId || '',
+          comment: comment || '',
+          sources: answer.sources || [],
+        },
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      setWrongDraft(null);
+      setMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: verdict } : m));
+    } catch { /* ignore */ }
+  };
 
   // 客户端挂载标记
   useEffect(() => {
@@ -243,13 +278,16 @@ export default function ChatPage() {
       });
       const data = await res.json();
       if (data.success && data.history?.length > 0) {
-        return data.history.map((m: { role: string; content: string; reasoning?: string }) => {
+        return data.history.map((m: { role: string; content: string; reasoning?: string; sources?: ChatMessage['sources'] }) => {
           const msg: ChatMessage = {
             role: m.role as ChatMessage['role'],
             content: m.content,
           };
           if (m.reasoning) {
             msg.reasoning = m.reasoning;
+          }
+          if (m.sources?.length) {
+            msg.sources = m.sources;
           }
           return msg;
         });
@@ -847,15 +885,15 @@ export default function ChatPage() {
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {msg.sources.map((s, j) => (
-                          <span
+                          <button
                             key={j}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border
-                              bg-[rgba(52,199,89,0.1)] text-[#34c759] border-[rgba(52,199,89,0.2)]`}
+                            type="button"
+                            onClick={() => setOpenSource(s)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border bg-[rgba(52,199,89,0.1)] text-[#34c759] border-[rgba(52,199,89,0.2)]"
                           >
                             <BookOpen className="w-2.5 h-2.5" />
-                            {s.title || '知识库'}
-                            <span className="opacity-50 ml-0.5">{(s.score * 100).toFixed(0)}%</span>
-                          </span>
+                            {s.id ? `${s.id} ` : ''}{s.title || '来源'}
+                          </button>
                         ))}
                       </div>
                     )}
@@ -924,7 +962,14 @@ export default function ChatPage() {
                           <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                         </div>
                       ) : (
-                        <MarkdownRenderer content={msg.content || ''} darkMode />
+                        <MarkdownRenderer
+                          content={msg.content || ''}
+                          darkMode
+                          onCite={(id) => {
+                            const hit = msg.sources?.find(s => s.id === id);
+                            setOpenSource(hit || { id, source: 'knowledge', title: id, excerpt: '这条引用没有对应的原文。' });
+                          }}
+                        />
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
@@ -938,6 +983,55 @@ export default function ChatPage() {
                         </div>
                       )}
                     </div>
+
+                    {msg.role === 'assistant' && !msg.isStreaming && msg.content && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={!!msg.feedback}
+                          onClick={() => submitFeedback(i, 'useful')}
+                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] border ${
+                            msg.feedback === 'useful'
+                              ? 'border-[rgba(52,199,89,0.4)] bg-[rgba(52,199,89,0.12)] text-[#34c759]'
+                              : 'border-[#e5e5ea] text-[#8e8e93] hover:text-[#1c1c1e]'
+                          }`}
+                        >
+                          <ThumbsUp className="w-3 h-3" /> 有用
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!!msg.feedback}
+                          onClick={() => setWrongDraft({ index: i, comment: '' })}
+                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] border ${
+                            msg.feedback === 'wrong'
+                              ? 'border-[rgba(255,59,48,0.35)] bg-[rgba(255,59,48,0.08)] text-[#ff3b30]'
+                              : 'border-[#e5e5ea] text-[#8e8e93] hover:text-[#1c1c1e]'
+                          }`}
+                        >
+                          <ThumbsDown className="w-3 h-3" /> 答错了
+                        </button>
+                        {wrongDraft?.index === i && !msg.feedback && (
+                          <span className="inline-flex items-center gap-1">
+                            <input
+                              value={wrongDraft.comment}
+                              onChange={(e) => setWrongDraft({ index: i, comment: e.target.value })}
+                              placeholder="备注（可选）"
+                              className="h-7 w-36 rounded-lg border border-[#e5e5ea] px-2 text-[11px] text-[#1c1c1e]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => submitFeedback(i, 'wrong', wrongDraft.comment)}
+                              className="rounded-lg bg-[#ff3b30] px-2 py-1 text-[11px] text-white"
+                            >
+                              提交
+                            </button>
+                          </span>
+                        )}
+                        {msg.feedback === 'wrong' && (
+                          <span className="text-[11px] text-[#8e8e93]">已提交，管理员会在待补充里看到</span>
+                        )}
+                      </div>
+                    )}
 
                     {/* 图片结果 */}
                     {msg.images && msg.images.length > 0 && (
@@ -1128,6 +1222,35 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+      {openSource && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={() => setOpenSource(null)}>
+          <aside
+            className="h-full w-full max-w-md bg-white shadow-xl p-5 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="text-[11px] text-[#007aff] font-medium">{openSource.id} · {citeKindLabel(openSource.source)}</div>
+                <h2 className="text-sm font-semibold text-[#1c1c1e] mt-1">{openSource.title || '原文'}</h2>
+                {openSource.recordId && (
+                  <p className="mt-1 text-[11px] text-[#8e8e93] break-all">记录 {openSource.recordId}</p>
+                )}
+              </div>
+              <button type="button" onClick={() => setOpenSource(null)} className="text-[#8e8e93]"><X className="w-4 h-4" /></button>
+            </div>
+            <pre className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#3a3a3c] font-sans">{openSource.excerpt || openSource.content || '没有可展示的原文。'}</pre>
+          </aside>
+        </div>
+      )}
     </div>
   );
+}
+
+function citeKindLabel(source: string) {
+  if (source === 'supply_chain') return 'ERP单据';
+  if (source === 'salesperson_kb') return '业务员资料';
+  if (source === 'position_card') return '岗位卡片';
+  if (source === 'knowledge') return '知识库';
+  if (source === 'chat_history') return '历史问答';
+  return '资料';
 }

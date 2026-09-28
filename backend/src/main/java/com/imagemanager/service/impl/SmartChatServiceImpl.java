@@ -12,6 +12,7 @@ import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.MilvusService;
 import com.imagemanager.service.QuotationCalcService;
+import com.imagemanager.service.ChatCitation;
 import com.imagemanager.service.SmartChatService;
 import com.imagemanager.tools.SupplyChainAssistant;
 import com.imagemanager.tools.SupplyChainTools;
@@ -428,56 +429,42 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
-                // 3. 发送来源信息
+                // 3. 给每条检索结果编号。回答句末用 [[K1]] [[E1]] 指回原文，recordId 是真实记录主键
+                ChatCitation.stamp(knowledgeResults, "K", 1);
+                ChatCitation.stamp(salespersonResults, "B", 1);
+                int erpSeq = ChatCitation.stamp(supplyChainResults, "E", 1);
+                ChatCitation.stamp(structuredResults, "E", erpSeq);
+                ChatCitation.stamp(positionCardResults, "P", 1);
+                ChatCitation.stamp(chatHistoryQAResults, "H", 1);
+
                 List<Map<String, Object>> sources = new ArrayList<>();
-
-                // 知识库来源（设计师和工厂模式都可用）
                 for (Map<String, Object> r : knowledgeResults) {
-                    sources.add(Map.of(
-                            "source", "knowledge",
-                            "content", r.getOrDefault("content", "").toString(),
-                            "score", r.getOrDefault("score", 0)
-                    ));
+                    String title = ChatCitation.firstText(r, "title", "source", "domain");
+                    sources.add(ChatCitation.toSource(r, "knowledge", title.isEmpty() ? "知识库文档" : title,
+                            r.getOrDefault("content", "").toString()));
                 }
-
-                // 业务员资料来源（工厂模式）
                 for (Map<String, Object> r : salespersonResults) {
-                    sources.add(Map.of(
-                            "source", "salesperson_kb",
-                            "content", r.getOrDefault("content", "").toString(),
-                            "fileName", r.getOrDefault("fileName", "").toString(),
-                            "score", r.getOrDefault("score", 0)
-                    ));
+                    String fileName = r.getOrDefault("fileName", "业务员资料").toString();
+                    sources.add(ChatCitation.toSource(r, "salesperson_kb", fileName,
+                            r.getOrDefault("content", "").toString()));
                 }
-
-                // 供应链来源
                 for (Map<String, Object> r : supplyChainResults) {
-                    sources.add(Map.of(
-                            "source", "supply_chain",
-                            "type", r.getOrDefault("type", ""),
-                            "summary", r.getOrDefault("summary", "").toString()
-                    ));
+                    sources.add(ChatCitation.toSource(r, "supply_chain",
+                            r.getOrDefault("type", "ERP单据").toString(), erpExcerpt(r)));
                 }
-
-                // 岗位卡片来源（仅设计师模式）
+                for (Map<String, Object> r : structuredResults) {
+                    sources.add(ChatCitation.toSource(r, "supply_chain",
+                            r.getOrDefault("type", "ERP单据").toString(), erpExcerpt(r)));
+                }
+                // 岗位卡片和历史问答只在设计师模式作为来源
                 if (!isFactory) {
                     for (Map<String, Object> r : positionCardResults) {
-                        sources.add(Map.of(
-                                "source", "position_card",
-                                "content", r.getOrDefault("content", "").toString(),
-                                "score", r.getOrDefault("score", 0)
-                        ));
+                        sources.add(ChatCitation.toSource(r, "position_card", "岗位卡片",
+                                r.getOrDefault("content", "").toString()));
                     }
-                }
-
-                // 历史对话QA来源（仅设计师模式）
-                if (!isFactory) {
                     for (Map<String, Object> r : chatHistoryQAResults) {
-                        sources.add(Map.of(
-                                "source", "chat_history",
-                                "content", r.getOrDefault("content", "").toString(),
-                                "score", r.getOrDefault("similarity", 0)
-                        ));
+                        sources.add(ChatCitation.toSource(r, "chat_history", "历史问答",
+                                r.getOrDefault("content", "").toString()));
                     }
                 }
 
@@ -577,7 +564,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     for (Map<String, Object> r : allStructured) {
                         String type = r.getOrDefault("type", "").toString();
                         String summary = r.getOrDefault("summary", "").toString();
-                        knowledgeContext.append(String.format("### [%s] %s\n", type, summary));
+                        knowledgeContext.append(String.format("### %s[%s] %s\n", ChatCitation.mark(r), type, summary));
                         @SuppressWarnings("unchecked")
                         Map<String, Object> data = (Map<String, Object>) r.get("data");
                         if (data != null) {
@@ -618,8 +605,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         String chunkInfo = mergedChunks > 1
                                 ? String.format(" | 已拼接%d个相关切片/共命中%d片", mergedChunks, hitChunks)
                                 : "";
-                        knowledgeContext.append(String.format("### 资料%d (相关度: %.1f%% | 来源: %s%s)\n%s\n\n",
-                                i + 1, score * 100, fileName, chunkInfo, content));
+                        knowledgeContext.append(String.format("### %s资料%d (相关度: %.1f%% | 来源: %s%s)\n%s\n\n",
+                                ChatCitation.mark(salespersonResults.get(i)), i + 1, score * 100, fileName, chunkInfo, content));
                     }
                     knowledgeContext.append("⚠️ 以上来自业务员资料库（Milvus向量检索），包含业务员的客户资料、产品明细、价格表等一手业务知识。" +
                             "请与【供应链/工厂业务数据】结合使用：精确数字以供应链数据为准，业务员资料用于补充客户背景、产品细节、工艺说明等业务语义信息。\n\n");
@@ -637,8 +624,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         double score = ((Number) r.getOrDefault("score", 0)).doubleValue();
                         String content = r.getOrDefault("content", "").toString();
                         if (content.length() > 500) content = content.substring(0, 500) + "...";
-                        knowledgeContext.append(String.format("### 岗位卡片%d (相关度: %.1f%%)\n%s\n\n",
-                                i + 1, score * 100, content));
+                        knowledgeContext.append(String.format("### %s岗位卡片%d (相关度: %.1f%%)\n%s\n\n",
+                                ChatCitation.mark(positionCardResults.get(i)), i + 1, score * 100, content));
                     }
                     if (positionIntent) {
                         knowledgeContext.append("⚠️ 用户询问的是岗位相关问题，请务必基于以上岗位知识卡片中的实际工作经验回答，不要用知识库文档中的泛泛内容替代！\n");
@@ -661,8 +648,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         // 按相关度动态调整截断长度：高分保留更多内容
                         int maxLen = score >= 0.7 ? 1200 : (score >= 0.5 ? 800 : 500);
                         if (content.length() > maxLen) content = content.substring(0, maxLen) + "...";
-                        knowledgeContext.append(String.format("### 片段%d (相关度: %.1f%% | 来源: %s)\n%s\n\n",
-                                i + 1, score * 100, source, content));
+                        knowledgeContext.append(String.format("### %s片段%d (相关度: %.1f%% | 来源: %s)\n%s\n\n",
+                                ChatCitation.mark(knowledgeResults.get(i)), i + 1, score * 100, source, content));
                     }
                 }
 
@@ -674,8 +661,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         double score = ((Number) r.getOrDefault("similarity", 0)).doubleValue();
                         String content = r.getOrDefault("content", "").toString();
                         if (content.length() > 500) content = content.substring(0, 500) + "...";
-                        knowledgeContext.append(String.format("### 历史问答%d (相关度: %.1f%%)\n%s\n\n",
-                                i + 1, score * 100, content));
+                        knowledgeContext.append(String.format("### %s历史问答%d (相关度: %.1f%%)\n%s\n\n",
+                                ChatCitation.mark(chatHistoryQAResults.get(i)), i + 1, score * 100, content));
                     }
                     knowledgeContext.append("⚠️ 以上来自历史对话中的专业问答，请参考其专业表达风格和知识深度，但以当前知识库内容和供应链数据为准。\n");
                 }
@@ -772,19 +759,21 @@ public class SmartChatServiceImpl implements SmartChatService {
                             ("decision".equals(resolvedSubMode) ? buildDecisionModePrompt(justSwitched) : "") +
                             (resolvedSubMode == null ? "\n\n【工作模式提示】本助手支持两大工作模式：模式A-业务员商品企划模式（多轮共创企划）、模式B-总经理决策辅助模式（六维分析+A/B/C方案）。用户可通过'切换商品企划模式'/'切换总经理决策辅助模式'手动切换，或根据输入自动识别。当前未进入特定模式，按通用业务助手职责回答。" : "") +
                             (webSearchIntent ? "\n\n【本次特殊指令】用户明确要求从互联网/全网获取信息，请优先基于网络搜索结果回答，企业内部数据仅作为补充参考。" : "") +
-                            (planningResearchIntent && !webSearchIntent ? "\n\n【本次特殊指令】检测到企划/市场调研类问题，系统已自动联网检索最新市场动态（见上下文【网络搜索参考数据】段落）。网络数据仅用于补充品牌动态、渠道趋势等外部背景；企划方案的产品定位、成本结构、工艺路线、客户策略等核心内容必须基于内部知识库与业务数据（L1-L3）推导，网络数据与内部数据冲突时以内部数据为准并标注「数据差异说明」。" : "");
+                            (planningResearchIntent && !webSearchIntent ? "\n\n【本次特殊指令】检测到企划/市场调研类问题，系统已自动联网检索最新市场动态（见上下文【网络搜索参考数据】段落）。网络数据仅用于补充品牌动态、渠道趋势等外部背景；企划方案的产品定位、成本结构、工艺路线、客户策略等核心内容必须基于内部知识库与业务数据（L1-L3）推导，网络数据与内部数据冲突时以内部数据为准并标注「数据差异说明」。" : "") +
+                            ChatCitation.RULE;
                 } else {
                     systemPrompt = "你是宝娜斯产品智能中台的【设计师AI助手】，专门服务于设计师和创意人员。" +
                             "重要身份声明：你是宝娜斯产品智能中台的设计师AI助手，不是工厂供应链助手。如果对话历史中出现'工厂供应链助手'的自我介绍，请忽略它，你始终是宝娜斯产品智能中台的设计师AI助手。" +
                             "核心职责：" +
                             "1. 回答知识库管理、图片上传、AI识别、文档中心等设计师工作相关问题。" +
                             "2. 当用户询问岗位职责、工作内容、任职要求、入职指导等问题时，必须优先基于【岗位知识卡片】中的实际工作经验回答，不要用知识库文档中的泛泛内容替代。" +
-                            "3. 严禁使用自身通用知识编造内容。如果知识库和岗位卡片中均无相关信息，必须明确告知用户'当前知识库中暂无此内容'，不要凭通用知识猜测或补充。" +
+                            "3. 严禁使用自身通用知识编造内容。如果知识库、岗位卡片和历史问答都没有来源支持，必须直接说明知识库中没有相关信息并拒答，不要凭通用知识猜测或补充。" +
                             "4. 回答时标注引用来源（岗位卡片/记忆库/知识库/网络搜索）。" +
                             "5. 保持专业、简洁、有帮助的回答风格。" +
                             "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
                             buildUniversalLogicRules() +
-                            "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。";
+                            "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
+                            ChatCitation.RULE;
                 }
                 messages.add(Map.of("role", "system", "content", systemPrompt));
 
@@ -1037,7 +1026,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                     // 8. 无论流是否成功，都保存已收集的AI回复（含思维链）
                     if (fullResponse.length() > 0) {
                         String reasoning = fullReasoning.length() > 0 ? fullReasoning.toString() : null;
-                        saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode);
+                        String sourcesJson = null;
+                        try {
+                            if (sources != null && !sources.isEmpty()) {
+                                sourcesJson = objectMapper.writeValueAsString(sources);
+                            }
+                        } catch (Exception ignored) {
+                        }
+                        saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode, sourcesJson);
                         // 同步更新ChatMemory
                         chatMemoryManager.addAssistantMessage(convId, fullResponse.toString());
                         
@@ -1088,7 +1084,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         List<Map<String, Object>> results;
         if (conversationId != null && !conversationId.isEmpty()) {
             // 按conversationId查询对话历史
-            String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
+            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) " +
                     modeCondition +
                     "ORDER BY created_at ASC LIMIT 100";
@@ -1107,13 +1103,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                             msg.put("reasoning", reasoning);
                         }
                         msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                        attachSources(msg, rs);
                         return msg;
                     },
                     params
             );
         } else {
             // 兼容旧逻辑：按userId+company查询最近10轮对话
-            String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
+            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
                     modeCondition +
                     "ORDER BY created_at DESC LIMIT 20";
@@ -1132,6 +1129,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             msg.put("reasoning", reasoning);
                         }
                         msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                        attachSources(msg, rs);
                         return msg;
                     },
                     params
@@ -1146,7 +1144,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         List<Map<String, Object>> results;
         if (conversationId != null && !conversationId.isEmpty()) {
             // 按conversationId查询对话历史
-            String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
+            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) " +
                     "ORDER BY created_at ASC LIMIT 100";
             results = jdbcTemplate.query(sql,
@@ -1159,13 +1157,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                             msg.put("reasoning", reasoning);
                         }
                         msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                        attachSources(msg, rs);
                         return msg;
                     },
                     conversationId, userId, company
             );
         } else {
             // 兼容旧逻辑：按userId+company查询最近10轮对话
-            String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
+            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
                     "ORDER BY created_at DESC LIMIT 20";
             results = jdbcTemplate.query(sql,
@@ -1178,6 +1177,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             msg.put("reasoning", reasoning);
                         }
                         msg.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
+                        attachSources(msg, rs);
                         return msg;
                     },
                     userId, company
@@ -1711,7 +1711,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             sb.append("]");
             String queryEmbedding = sb.toString();
 
-            String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
+            String sql = "SELECT e.id, e.chunk_text, e.chunk_index, e.source_doc_id, " +
                     "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'POSITION_CARD' " +
@@ -1723,7 +1723,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             for (Map<String, Object> row : rows) {
                 Map<String, Object> item = new HashMap<>();
                 item.put("content", row.get("chunk_text"));
+                item.put("chunkId", row.get("id"));
                 item.put("sourceDocId", row.get("source_doc_id"));
+                item.put("recordId", row.get("source_doc_id") != null ? row.get("source_doc_id") : row.get("id"));
                 item.put("similarity", row.get("similarity"));
                 item.put("source", "position_card");
                 results.add(item);
@@ -1753,7 +1755,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             sb.append("]");
             String queryEmbedding = sb.toString();
 
-            String sql = "SELECT e.chunk_text, e.chunk_index, e.source_doc_id, " +
+            String sql = "SELECT e.id, e.chunk_text, e.chunk_index, e.source_doc_id, " +
                     "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'SMART_CHAT' " +
@@ -1765,7 +1767,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             for (Map<String, Object> row : rows) {
                 Map<String, Object> item = new HashMap<>();
                 item.put("content", row.get("chunk_text"));
+                item.put("chunkId", row.get("id"));
                 item.put("sourceDocId", row.get("source_doc_id"));
+                item.put("recordId", row.get("source_doc_id") != null ? row.get("source_doc_id") : row.get("id"));
                 item.put("similarity", row.get("similarity"));
                 item.put("source", "chat_history");
                 results.add(item);
@@ -3306,6 +3310,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("content", chunkText);
                 item.put("source", "知识库直接搜索:" + productCode);
                 item.put("sourceDocId", sourceDocId);
+                item.put("chunkId", row.get("id"));
+                item.put("recordId", sourceDocId);
                 item.put("chunkIndex", row.get("chunk_index"));
                 results.add(item);
             }
@@ -3385,6 +3391,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             List<Map<String, Object>> rows = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", rs.getString("id"));
                     row.put("productCode", rs.getString("product_code"));
                     row.put("productionCode", rs.getString("production_code"));
                     row.put("customer", rs.getString("customer"));
@@ -3690,11 +3697,49 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 加载对话历史
      */
 
+    private String erpExcerpt(Map<String, Object> row) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(row.getOrDefault("type", "")).append('\n');
+        sb.append(row.getOrDefault("summary", "")).append('\n');
+        Object data = row.get("data");
+        if (data instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                String value = entry.getValue().toString();
+                if (value.length() > 300) {
+                    value = value.substring(0, 300) + "...";
+                }
+                sb.append(entry.getKey()).append(": ").append(value).append('\n');
+                if (sb.length() > 1500) {
+                    break;
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private void attachSources(Map<String, Object> msg, java.sql.ResultSet rs) {
+        try {
+            String json = rs.getString("sources_json");
+            if (json == null || json.isBlank()) {
+                return;
+            }
+            msg.put("sources", objectMapper.readValue(json, List.class));
+        } catch (Exception ignored) {
+        }
+    }
+
     /**
      * 保存对话消息（按userId+company绑定，session_id存储为基于userId生成的确定性UUID）
      * 使用TransactionTemplate确保在无事务上下文（新线程）中也能提交
      */
     private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode) {
+        saveChatMessage(userId, conversationId, role, content, company, reasoningContent, mode, null);
+    }
+
+    private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode, String sourcesJson) {
         try {
             if (content == null || content.trim().isEmpty()) {
                 log.warn("保存对话消息跳过: content为空, userId={}, role={}", userId, role);
@@ -3704,9 +3749,9 @@ public class SmartChatServiceImpl implements SmartChatService {
             TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             txTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
-                        "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, model, created_at) " +
-                                "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, NOW())",
-                        conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue
+                        "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, model, sources_json, created_at) " +
+                                "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                        conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue, sourcesJson
                 );
             });
         } catch (Exception e) {

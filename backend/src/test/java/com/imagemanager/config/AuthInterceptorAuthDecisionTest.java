@@ -204,6 +204,79 @@ class AuthInterceptorAuthDecisionTest {
         assertEquals(200, response.getStatus());
     }
 
+    @Test
+    void userCanSubmitFeedbackButCannotListOrExportGaps() throws Exception {
+        LoginResponse.UserInfo user = LoginResponse.UserInfo.builder()
+                .id("u1").username("xiaowei").role("user").company("EXAMPLE").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("u1", null, SessionAuthorities.fromRole("user")));
+
+        MockHttpServletRequest feedback = apiRequest("POST", "/chat/feedback");
+        feedback.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, user);
+        MockHttpServletResponse feedbackRes = new MockHttpServletResponse();
+        assertTrue(interceptor.preHandle(feedback, feedbackRes, new Object()));
+
+        MockHttpServletRequest gaps = apiRequest("GET", "/chat/knowledge-gaps");
+        gaps.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, user);
+        MockHttpServletResponse gapsRes = new MockHttpServletResponse();
+        assertTrue(!interceptor.preHandle(gaps, gapsRes, new Object()));
+        assertEquals(403, gapsRes.getStatus());
+
+        MockHttpServletRequest export = apiRequest("GET", "/chat/knowledge-gaps/export");
+        export.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, user);
+        MockHttpServletResponse exportRes = new MockHttpServletResponse();
+        assertTrue(!interceptor.preHandle(export, exportRes, new Object()));
+        assertEquals(403, exportRes.getStatus());
+    }
+
+    @Test
+    void adminCanListGapsAndTriggerEval() throws Exception {
+        LoginResponse.UserInfo admin = LoginResponse.UserInfo.builder()
+                .id("a1").username("admin").role("admin").company("EXAMPLE").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("a1", null, SessionAuthorities.fromRole("admin")));
+
+        MockHttpServletRequest gaps = apiRequest("GET", "/chat/knowledge-gaps");
+        gaps.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, admin);
+        assertTrue(interceptor.preHandle(gaps, new MockHttpServletResponse(), new Object()));
+
+        LoginResponse.UserInfo superadmin = LoginResponse.UserInfo.builder()
+                .id("s1").username("superadmin").role("superadmin").company("EXAMPLE").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("s1", null, SessionAuthorities.fromRole("superadmin")));
+        MockHttpServletRequest eval = apiRequest("POST", "/chat/rag-eval");
+        eval.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, superadmin);
+        assertTrue(interceptor.preHandle(eval, new MockHttpServletResponse(), new Object()));
+    }
+
+    @Test
+    void samplerCannotUseFeedbackManagement() throws Exception {
+        LoginResponse.UserInfo sampler = LoginResponse.UserInfo.builder()
+                .id("dt:u1").username("打样员").role("sampler").scope("sampler").samplerGoodsId("9").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("dt:u1", null, SessionAuthorities.fromRole("sampler")));
+
+        for (String[] call : new String[][]{
+                {"POST", "/chat/feedback"},
+                {"GET", "/chat/knowledge-gaps"},
+                {"GET", "/chat/knowledge-gaps/export"},
+                {"POST", "/chat/rag-eval"}
+        }) {
+            MockHttpServletRequest request = apiRequest(call[0], call[1]);
+            request.setAttribute(AuthInterceptor.USER_INFO_ATTRIBUTE, sampler);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            assertTrue(!interceptor.preHandle(request, response, new Object()));
+            assertEquals(403, response.getStatus());
+        }
+    }
+
+    private static MockHttpServletRequest apiRequest(String method, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.setContextPath("/api");
+        request.setRequestURI("/api" + path);
+        return request;
+    }
+
     private static MockHttpServletRequest goodsLibraryRequest() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/goods-library");
         request.setContextPath("/api");
