@@ -1,14 +1,84 @@
 'use client';
 
 import React from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
   darkMode?: boolean;
+  /** 当前回答里真实存在的引用编号。未出现在列表中的 [[E1]] 渲染为灰色不可点标记。 */
+  citeIds?: string[];
   onCite?: (id: string) => void;
+}
+
+const CITE_TOKEN = /\[\[([A-Za-z]\d+)\]\]/g;
+const CITE_LABEL = /^[A-Za-z]\d+$/;
+
+export function isCiteLabel(value: string | null | undefined): boolean {
+  return !!value && CITE_LABEL.test(value);
+}
+
+function CiteChip({
+  id,
+  known,
+  onCite,
+}: {
+  id: string;
+  known: boolean;
+  onCite?: (id: string) => void;
+}) {
+  if (!known) {
+    return (
+      <span
+        data-cite={id}
+        data-cite-missing="true"
+        className="mx-0.5 inline-flex items-center rounded-md border border-[#e5e5ea] bg-[#f2f2f7] px-1.5 py-0.5 text-[10px] font-medium text-[#8e8e93] align-baseline"
+      >
+        {id}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-cite={id}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onCite?.(id);
+      }}
+      className="mx-0.5 inline-flex items-center rounded-md border border-[rgba(0,122,255,0.25)] bg-[rgba(0,122,255,0.08)] px-1.5 py-0.5 text-[10px] font-medium text-[#007aff] align-baseline hover:bg-[rgba(0,122,255,0.16)]"
+    >
+      {id}
+    </button>
+  );
+}
+
+function mapCiteChildren(
+  children: React.ReactNode,
+  knownIds: Set<string> | null,
+  onCite?: (id: string) => void,
+): React.ReactNode {
+  return React.Children.map(children, (child, index) => {
+    if (typeof child !== 'string' || !child.includes('[[')) return child;
+    const nodes: React.ReactNode[] = [];
+    const re = new RegExp(CITE_TOKEN.source, 'g');
+    let last = 0;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(child))) {
+      if (match.index > last) nodes.push(child.slice(last, match.index));
+      const id = match[1];
+      const known = knownIds == null || knownIds.has(id);
+      nodes.push(<CiteChip key={`${id}-${match.index}`} id={id} known={known} onCite={onCite} />);
+      last = match.index + match[0].length;
+    }
+    if (last < child.length) nodes.push(child.slice(last));
+    if (nodes.length === 0) return child;
+    return <React.Fragment key={index}>{nodes}</React.Fragment>;
+  });
 }
 
 /**
@@ -41,27 +111,27 @@ function preprocessLlmHtml(content: string): string {
     .join('');
 }
 
-export default function MarkdownRenderer({ content, className = '', darkMode = false, onCite }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className = '', darkMode = false, citeIds, onCite }: MarkdownRendererProps) {
   // Color helpers
   const t = (light: string, dark: string) => darkMode ? dark : light;
-  const processedContent = React.useMemo(() => {
-    const htmlReady = preprocessLlmHtml(content);
-    return htmlReady.replace(/\[\[([A-Za-z]\d+)\]\]/g, '[$1](cite:$1)');
-  }, [content]);
+  const knownIds = React.useMemo(() => (citeIds ? new Set(citeIds) : null), [citeIds]);
+  const cite = (children: React.ReactNode) => mapCiteChildren(children, knownIds, onCite);
+  const processedContent = React.useMemo(() => preprocessLlmHtml(content), [content]);
 
   return (
     <div className={`markdown-body ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        urlTransform={(url) => (url.startsWith('cite:') ? url : defaultUrlTransform(url))}
         components={{
           // 段落
           p: ({ children }) => (
-            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>{children}</p>
+            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>{cite(children)}</p>
           ),
           // 标题 - 简洁装饰线
           h1: ({ children }) => (
             <div className="mb-3 mt-5 first:mt-0">
-              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{children}</h1>
+              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</h1>
               <div className={`h-[2px] w-10 rounded-full ${t('bg-[rgba(118,118,128,0.12)]', 'bg-[#007aff]')}`} />
             </div>
           ),
@@ -69,7 +139,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             <div className="mb-2.5 mt-4 first:mt-0">
               <div className="flex items-center gap-2.5 mb-1">
                 <div className={`w-[3px] h-4 rounded-full shrink-0 ${t('bg-[rgba(0,0,0,0.08)]', 'bg-[#007aff]')}`} />
-                <h2 className={`text-[14px] font-bold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{children}</h2>
+                <h2 className={`text-[14px] font-bold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</h2>
               </div>
             </div>
           ),
@@ -77,7 +147,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             <div className="mb-2 mt-3 first:mt-0">
               <h3 className={`text-[13px] font-semibold flex items-center gap-2 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
                 <span className={`inline-block w-1.5 h-1.5 rounded-sm shrink-0 ${t('bg-[rgba(0,0,0,0.1)]', 'bg-[#007aff]')}`} />
-                {children}
+                {cite(children)}
               </h3>
             </div>
           ),
@@ -105,7 +175,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               <li className={`text-[13px] leading-[1.8] flex items-start gap-2.5 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
                 <span className={`inline-block w-[5px] h-[5px] rounded-full shrink-0 mt-[8px] ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
                 <span className="flex-1 min-w-0">
-                  {textChildren}
+                  {cite(textChildren)}
                   {hasSubList && (
                     <div className="mt-1 ml-0">
                       {childArray.filter((c) => React.isValidElement(c) && (c.type === 'ul' || c.type === 'ol'))}
@@ -117,11 +187,11 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           },
           // 加粗
           strong: ({ children }) => (
-            <strong className={`font-semibold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{children}</strong>
+            <strong className={`font-semibold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</strong>
           ),
           // 斜体
           em: ({ children }) => (
-            <em className={`italic ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{children}</em>
+            <em className={`italic ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{cite(children)}</em>
           ),
           // 行内代码
           code: ({ className: codeClassName, children, ...props }) => {
@@ -158,7 +228,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           blockquote: ({ children }) => (
             <blockquote className={`my-3 pl-4 py-2 relative rounded-r-lg ${t('bg-[rgba(242,242,247,0.6)]', 'bg-[rgba(0,0,0,0.015)]')}`}>
               <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-full ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
-              <div className={`text-[12.5px] leading-[1.7] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{children}</div>
+              <div className={`text-[12.5px] leading-[1.7] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{cite(children)}</div>
             </blockquote>
           ),
           // 分割线
@@ -169,19 +239,18 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               <div className={`flex-1 h-px bg-gradient-to-r from-transparent ${t('via-[#ffffff]', 'via-[#ffffff]')} to-transparent`} />
             </div>
           ),
-          // 链接
+          // 链接。cite: 协议会被 react-markdown 默认清空成 href=""，点空链接会回到站点首页。
           a: ({ href, children }) => {
-            if (href?.startsWith('cite:')) {
-              const citeId = href.slice(5);
-              return (
-                <button
-                  type="button"
-                  onClick={() => onCite?.(citeId)}
-                  className="mx-0.5 inline-flex items-center rounded-md border border-[rgba(0,122,255,0.25)] bg-[rgba(0,122,255,0.08)] px-1.5 py-0.5 text-[10px] font-medium text-[#007aff] align-baseline hover:bg-[rgba(0,122,255,0.16)]"
-                >
-                  {citeId}
-                </button>
-              );
+            const rawLabel = typeof children === 'string'
+              ? children
+              : Array.isArray(children) && children.length === 1 && typeof children[0] === 'string'
+                ? children[0]
+                : '';
+            const fromHref = href?.startsWith('cite:') ? href.slice(5) : '';
+            const citeId = isCiteLabel(fromHref) ? fromHref : (isCiteLabel(rawLabel) && (!href || href === '/' || href.startsWith('cite:')) ? rawLabel : '');
+            if (citeId) {
+              const known = knownIds == null || knownIds.has(citeId);
+              return <CiteChip id={citeId} known={known} onCite={onCite} />;
             }
             return (
             <a
@@ -214,15 +283,15 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           ),
           th: ({ children }) => (
             <th className={`px-4 py-2 text-left font-semibold whitespace-nowrap text-[12px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
-              {children}
+              {cite(children)}
             </th>
           ),
           td: ({ children }) => (
-            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{children}</td>
+            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{cite(children)}</td>
           ),
           // 删除线
           del: ({ children }) => (
-            <del className={`line-through ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{children}</del>
+            <del className={`line-through ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{cite(children)}</del>
           ),
           // 图片
           img: ({ src, alt }) => (
