@@ -1,0 +1,9 @@
+# 以图搜图 embedding 服务
+# 生产安装见 README：CPU 与 GPU 的 torch 轮子不同，请先装 torch 再装本文件。
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0.0
+pillow>=10.0.0
+python-multipart>=0.0.9
+torch>=2.1.0
+transformers>=4.44.0,<5.0.0
