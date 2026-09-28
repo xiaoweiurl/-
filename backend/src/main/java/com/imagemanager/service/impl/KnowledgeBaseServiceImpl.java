@@ -527,6 +527,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                                     r.setContent(mr.content);
                                     r.setScore((double) mr.score);
                                     // doc_id 兼容两种格式：标准 UUID（常规知识文档）与 32 位 hex（业务员资料批量导入，SHA-256 前 32 位，直写 Milvus 不落 PG）
+                                    r.setRecordKey(mr.docId);
                                     r.setSourceDocId(tryParseUuid(mr.docId));
                                     r.setSource("KNOWLEDGE_BASE");
                                     r.setDomainCode("knowledge_base");
@@ -764,6 +765,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .createdAt(rs.getTimestamp("created_at") != null ?
                             rs.getTimestamp("created_at").toLocalDateTime() : null)
                     .chunkText(rs.getString("chunk_text"))
+                    .sourceDocId(tryParseUuid(rs.getString("source_doc_id")))
+                    .recordKey(rs.getString("source_doc_id"))
                     .score(rs.getDouble("score"))
                     .build()
             );
@@ -799,6 +802,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .createdAt(rs.getTimestamp("created_at") != null ?
                             rs.getTimestamp("created_at").toLocalDateTime() : null)
                     .chunkText(rs.getString("chunk_text"))
+                    .sourceDocId(tryParseUuid(rs.getString("source_doc_id")))
+                    .recordKey(rs.getString("source_doc_id"))
                     .score(rs.getDouble("score"))
                     .build()
             );
@@ -847,6 +852,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 r.setId(tryParseUuid(rs.getString("id")));
                 r.setContent(rs.getString("chunk_text"));
                 r.setChunkText(rs.getString("chunk_text"));
+                r.setRecordKey(rs.getString("source_doc_id"));
                 r.setSourceDocId(tryParseUuid(rs.getString("source_doc_id")));
                 r.setScore(0.8); // 关键词精确匹配，给高分
                 r.setSource("KNOWLEDGE_BASE");
@@ -909,6 +915,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     .domainCode("knowledge_base")
                     .domainName("知识库")
                     .source(rs.getString("file_name") + " [分类:" + rs.getString("category") + "]")
+                    .sourceDocId(tryParseUuid(rs.getString("source_doc_id")))
+                    .recordKey(rs.getString("source_doc_id"))
                     .confidence("medium")
                     .createdAt(rs.getTimestamp("created_at") != null ?
                             rs.getTimestamp("created_at").toLocalDateTime() : null)
@@ -965,6 +973,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         .domainCode("knowledge_base")
                         .domainName("知识库")
                         .source(rs.getString("file_name") + " [分类:" + rs.getString("category") + "]")
+                        .sourceDocId(tryParseUuid(rs.getString("id")))
+                        .recordKey(rs.getString("id"))
                         .confidence("low")
                         .createdAt(rs.getTimestamp("created_at") != null ?
                                 rs.getTimestamp("created_at").toLocalDateTime() : null)

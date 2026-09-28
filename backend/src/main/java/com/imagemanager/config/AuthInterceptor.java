@@ -95,8 +95,16 @@ public class AuthInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    private static boolean requiresAdmin(String path) {
-        return path.startsWith("/admin/") || path.equals("/admin");
+    /**
+     * 管理端，以及对话反馈的列表、导出、评测触发。
+     * 普通用户提交自己的反馈走 POST /chat/feedback，不在这里。
+     */
+    static boolean requiresAdmin(String path) {
+        return path.startsWith("/admin/") || path.equals("/admin")
+                || "/chat/knowledge-gaps".equals(path)
+                || path.startsWith("/chat/knowledge-gaps/")
+                || "/chat/rag-eval".equals(path)
+                || path.startsWith("/chat/rag-eval/");
     }
 
     private static boolean isAdminUser(LoginResponse.UserInfo userInfo,

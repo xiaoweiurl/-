@@ -1,11 +1,17 @@
 package com.imagemanager.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.imagemanager.config.SamplerSessionGuard;
+import com.imagemanager.config.SessionAuthorities;
 import com.imagemanager.dto.LoginResponse;
+import com.imagemanager.eval.RagEvalService;
 import com.imagemanager.exception.AuthException;
 import com.imagemanager.service.AuthService;
+import com.imagemanager.service.ChatFeedbackService;
 import com.imagemanager.service.SmartChatService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +32,15 @@ public class ChatController {
 
     @Autowired
     private SmartChatService smartChatService;
+
+    @Autowired
+    private ChatFeedbackService chatFeedbackService;
+
+    @Autowired
+    private RagEvalService ragEvalService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private AuthService authService;
@@ -240,6 +255,132 @@ public class ChatController {
             return ResponseEntity.ok(Map.of("success", true, "message", "对话历史已清空"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 回答反馈。普通用户可以提交自己的反馈；打样作用域会话不能访问。
+     */
+    @PostMapping("/feedback")
+    public ResponseEntity<?> feedback(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            ResponseEntity<?> denied = denySampler(user);
+            if (denied != null) {
+                return denied;
+            }
+            Map<String, Object> saved = chatFeedbackService.record(
+                    resolveUserId(user),
+                    resolveCompany(user),
+                    text(body.get("conversationId")),
+                    text(body.get("question")),
+                    text(body.get("answer")),
+                    sourcesJson(body.get("sources")),
+                    text(body.get("comment")),
+                    text(body.get("verdict"))
+            );
+            return ResponseEntity.ok(Map.of("success", true, "feedback", saved));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage() == null ? "反馈失败" : e.getMessage()));
+        }
+    }
+
+    /**
+     * 待补充知识。仅管理员，且只看本公司。
+     */
+    @GetMapping("/knowledge-gaps")
+    public ResponseEntity<?> knowledgeGaps(HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            ResponseEntity<?> denied = requireFeedbackAdmin(user);
+            if (denied != null) {
+                return denied;
+            }
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "items", chatFeedbackService.listPending(resolveCompany(user))
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage() == null ? "加载失败" : e.getMessage()));
+        }
+    }
+
+    /**
+     * 把答错的问题导出成评测 jsonl。仅管理员，按公司隔离。
+     */
+    @GetMapping(value = "/knowledge-gaps/export", produces = "application/x-ndjson")
+    public ResponseEntity<?> exportKnowledgeGaps(HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            ResponseEntity<?> denied = requireFeedbackAdmin(user);
+            if (denied != null) {
+                return denied;
+            }
+            String jsonl = chatFeedbackService.exportWrongAsJsonl(resolveCompany(user));
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"knowledge-gaps-eval.jsonl\"")
+                    .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"))
+                    .body(jsonl);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage() == null ? "导出失败" : e.getMessage()));
+        }
+    }
+
+    /**
+     * 用示例题或服务器上的 jsonl 跑真实检索评测。仅管理员。
+     */
+    @PostMapping("/rag-eval")
+    public ResponseEntity<?> ragEval(HttpServletRequest request) {
+        try {
+            LoginResponse.UserInfo user = getCurrentUser(request);
+            ResponseEntity<?> denied = requireFeedbackAdmin(user);
+            if (denied != null) {
+                return denied;
+            }
+            var summary = ragEvalService.runDefault();
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "markdown", ragEvalService.toMarkdown(summary),
+                    "report", objectMapper.readValue(ragEvalService.toJson(summary), Map.class)
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage() == null ? "评测失败" : e.getMessage()));
+        }
+    }
+
+    private ResponseEntity<?> denySampler(LoginResponse.UserInfo user) {
+        if (SamplerSessionGuard.isSamplerScope(user)) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "error", "打样会话仅能填写指定商品表单"));
+        }
+        return null;
+    }
+
+    private ResponseEntity<?> requireFeedbackAdmin(LoginResponse.UserInfo user) {
+        ResponseEntity<?> denied = denySampler(user);
+        if (denied != null) {
+            return denied;
+        }
+        if (!SessionAuthorities.isAdminRole(user.getRole())) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "error", "您没有权限执行此操作"));
+        }
+        return null;
+    }
+
+    private static String text(Object value) {
+        return value == null ? "" : value.toString();
+    }
+
+    private String sourcesJson(Object sources) {
+        if (sources == null) {
+            return null;
+        }
+        if (sources instanceof String s) {
+            return s.isBlank() ? null : s;
+        }
+        try {
+            return objectMapper.writeValueAsString(sources);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

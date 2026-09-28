@@ -159,6 +159,21 @@ public class RagPipeline {
             item.put("content", r.getContent());
             item.put("score", r.getScore());
             item.put("source", r.getSource() != null ? r.getSource() : "知识库");
+            if (r.getRecordKey() != null && !r.getRecordKey().isBlank()) {
+                item.put("recordId", r.getRecordKey());
+                item.put("sourceDocId", r.getRecordKey());
+            } else if (r.getSourceDocId() != null) {
+                item.put("recordId", r.getSourceDocId().toString());
+                item.put("sourceDocId", r.getSourceDocId().toString());
+            } else if (r.getId() != null) {
+                item.put("recordId", r.getId().toString());
+            }
+            if (r.getId() != null) {
+                item.put("chunkId", r.getId().toString());
+            }
+            if (r.getTitle() != null) {
+                item.put("title", r.getTitle());
+            }
             output.add(item);
         }
         return output;

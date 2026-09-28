@@ -1,0 +1,3 @@
+{"example":true,"question":"EXAMPLE 货号 EX0001 的工艺克重是多少？","expectedFacts":["EXAMPLE克重"],"keywords":["EXAMPLE","EX0001"],"expectedSourceIds":["example-doc-ex0001"],"huohao":"EX0001","shouldRefuse":false,"company":"EXAMPLE"}
+{"example":true,"question":"EXAMPLE 知识库里关于 EXAMPLE染色工艺说明 的标准是什么？","expectedFacts":["EXAMPLE染色标准"],"keywords":["EXAMPLE染色工艺说明"],"expectedSourceIds":["example-kb-dye"],"shouldRefuse":false,"company":"EXAMPLE"}
+{"example":true,"question":"EXAMPLE 公司并不存在的客户 EXAMPLE无此客户 去年采购额是多少？","expectedFacts":[],"keywords":["EXAMPLE无此客户"],"expectedSourceIds":[],"shouldRefuse":true,"company":"EXAMPLE"}

@@ -8,6 +8,7 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   darkMode?: boolean;
+  onCite?: (id: string) => void;
 }
 
 /**
@@ -40,10 +41,13 @@ function preprocessLlmHtml(content: string): string {
     .join('');
 }
 
-export default function MarkdownRenderer({ content, className = '', darkMode = false }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className = '', darkMode = false, onCite }: MarkdownRendererProps) {
   // Color helpers
   const t = (light: string, dark: string) => darkMode ? dark : light;
-  const processedContent = React.useMemo(() => preprocessLlmHtml(content), [content]);
+  const processedContent = React.useMemo(() => {
+    const htmlReady = preprocessLlmHtml(content);
+    return htmlReady.replace(/\[\[([A-Za-z]\d+)\]\]/g, '[$1](cite:$1)');
+  }, [content]);
 
   return (
     <div className={`markdown-body ${className}`}>
@@ -166,7 +170,20 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             </div>
           ),
           // 链接
-          a: ({ href, children }) => (
+          a: ({ href, children }) => {
+            if (href?.startsWith('cite:')) {
+              const citeId = href.slice(5);
+              return (
+                <button
+                  type="button"
+                  onClick={() => onCite?.(citeId)}
+                  className="mx-0.5 inline-flex items-center rounded-md border border-[rgba(0,122,255,0.25)] bg-[rgba(0,122,255,0.08)] px-1.5 py-0.5 text-[10px] font-medium text-[#007aff] align-baseline hover:bg-[rgba(0,122,255,0.16)]"
+                >
+                  {citeId}
+                </button>
+              );
+            }
+            return (
             <a
               href={href}
               target="_blank"
@@ -178,7 +195,8 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
-          ),
+            );
+          },
           // 表格
           table: ({ children }) => (
             <div className={`my-3 overflow-x-auto rounded-xl border shadow-sm ${t('border-[rgba(229,229,234,0.8)]', 'border-[rgba(229,229,234,0.5)]')}`}>

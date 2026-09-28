@@ -40,6 +40,10 @@ class SamplerSessionGuardTest {
         assertFalse(SamplerSessionGuard.allows("/user/settings", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/user/password", "PUT", sampler));
         assertFalse(SamplerSessionGuard.allows("/admin/users/u2/reset-password", "POST", sampler));
+        assertFalse(SamplerSessionGuard.allows("/chat/feedback", "POST", sampler));
+        assertFalse(SamplerSessionGuard.allows("/chat/knowledge-gaps", "GET", sampler));
+        assertFalse(SamplerSessionGuard.allows("/chat/knowledge-gaps/export", "GET", sampler));
+        assertFalse(SamplerSessionGuard.allows("/chat/rag-eval", "POST", sampler));
     }
 
     @Test
