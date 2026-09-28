@@ -20,7 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -96,6 +107,26 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Autowired(required = false)
     private AiCallLogService aiCallLogService;
 
+    @Autowired
+    @Qualifier("chatExecutor")
+    private Executor chatExecutor;
+
+    @Autowired
+    @Qualifier("embeddingExecutor")
+    private Executor embeddingExecutor;
+
+    /** 连续这么久没有任何新输出，视为卡住并断开。正在往外吐字的长回答不会触发。 */
+    private static final long CHAT_IDLE_TIMEOUT_MS = 120_000L;
+
+    /** 整段仍在输出的回复最长保留这么久，避免模型永不结束、一直占着线程。 */
+    private static final long CHAT_MAX_DURATION_MS = 30L * 60 * 1000;
+
+    private final ScheduledExecutorService chatWatchdog = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "smart-chat-watchdog");
+        t.setDaemon(true);
+        return t;
+    });
+
     @Value("${app.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
 
@@ -125,6 +156,11 @@ public class SmartChatServiceImpl implements SmartChatService {
     /** 业务子模式会话记忆：convId -> "planning"(模式A商品企划) / "decision"(模式B总经理决策辅助) */
     private final ConcurrentHashMap<String, String> businessSubModeMap = new ConcurrentHashMap<>();
 
+    @PreDestroy
+    public void shutdownChatWatchdog() {
+        chatWatchdog.shutdownNow();
+    }
+
     @Override
     public SseEmitter smartChat(String message, String userId, String company, String conversationId, String mode) {
         return smartChatWithImages(message, userId, company, conversationId, mode, null);
@@ -147,9 +183,20 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs, String subMode) {
-        SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
+        SseEmitter emitter = new SseEmitter(CHAT_MAX_DURATION_MS);
+        AtomicReference<HttpURLConnection> activeConn = new AtomicReference<>();
+        Runnable releaseConn = () -> {
+            HttpURLConnection conn = activeConn.getAndSet(null);
+            if (conn != null) {
+                conn.disconnect();
+            }
+        };
+        emitter.onCompletion(releaseConn);
+        emitter.onTimeout(releaseConn);
+        emitter.onError(ex -> releaseConn.run());
 
-        new Thread(() -> {
+        try {
+        chatExecutor.execute(() -> {
             try {
                 // 0. 确定对话ID：如果未传则获取或创建
                 String convId = conversationId;
@@ -998,7 +1045,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                         ? AiCallLogService.CAP_FACTORY_CHAT
                         : AiCallLogService.CAP_SMART_CHAT;
                 try {
-                    streamChat(emitter, messages, fullResponse, fullReasoning);
+                    streamChat(emitter, messages, fullResponse, fullReasoning, activeConn);
                     if (aiCallLogService != null) {
                         aiCallLogService.record(chatCapability, null, true,
                                 System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
@@ -1047,13 +1094,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                             final String finalMessage = message;
                             final String finalAnswer = fullResponse.toString();
                             final String finalCompany = company;
-                            new Thread(() -> {
-                                try {
-                                    vectorizeChatQA(userId, finalConvId, finalMessage, finalAnswer, finalCompany);
-                                } catch (Exception e) {
-                                    log.warn("Q&A向量化异步任务异常: {}", e.getMessage());
-                                }
-                            }).start();
+                            try {
+                                embeddingExecutor.execute(() -> {
+                                    try {
+                                        vectorizeChatQA(userId, finalConvId, finalMessage, finalAnswer, finalCompany);
+                                    } catch (Exception e) {
+                                        log.warn("Q&A向量化异步任务异常: {}", e.getMessage());
+                                    }
+                                });
+                            } catch (RejectedExecutionException rejected) {
+                                log.warn("Q&A向量化线程池已满，跳过本次向量化: {}", rejected.getMessage());
+                            }
                         }
                     }
                 }
@@ -1072,7 +1123,20 @@ public class SmartChatServiceImpl implements SmartChatService {
                 } catch (Exception ignored) {}
                 emitter.completeWithError(e);
             }
-        }).start();
+        });
+        } catch (RejectedExecutionException rejected) {
+            log.warn("智能对话线程池已满: {}", rejected.getMessage());
+            try {
+                emitter.send(SseEmitter.event().name("message").data(
+                        Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
+                                "type", "error",
+                                "content", "当前对话较多，请稍后再试"
+                        )))
+                ));
+            } catch (Exception ignored) {
+            }
+            emitter.complete();
+        }
 
         return emitter;
     }
@@ -1089,7 +1153,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         if (conversationId != null && !conversationId.isEmpty()) {
             // 按conversationId查询对话历史
             String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
-                    "WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) " +
+                    "WHERE conversation_id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     modeCondition +
                     "ORDER BY created_at ASC LIMIT 100";
             if (mode != null && !mode.isEmpty()) {
@@ -1114,7 +1178,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         } else {
             // 兼容旧逻辑：按userId+company查询最近10轮对话
             String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                    "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     modeCondition +
                     "ORDER BY created_at DESC LIMIT 20";
             if (mode != null && !mode.isEmpty()) {
@@ -1147,7 +1211,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         if (conversationId != null && !conversationId.isEmpty()) {
             // 按conversationId查询对话历史
             String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
-                    "WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL) " +
+                    "WHERE conversation_id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "ORDER BY created_at ASC LIMIT 100";
             results = jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
@@ -1166,7 +1230,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         } else {
             // 兼容旧逻辑：按userId+company查询最近10轮对话
             String sql = "SELECT role, content, reasoning_content, created_at FROM smart_chat_history " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) " +
+                    "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "ORDER BY created_at DESC LIMIT 20";
             results = jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
@@ -1192,7 +1256,7 @@ public class SmartChatServiceImpl implements SmartChatService {
     public void clearChatHistory(String userId, String company, String conversationId, String mode) {
         if (conversationId != null && !conversationId.isEmpty()) {
             jdbcTemplate.update(
-                    "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                    "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), ''))",
                     conversationId, userId, company
             );
         } else {
@@ -1200,12 +1264,12 @@ public class SmartChatServiceImpl implements SmartChatService {
             String modeCondition = (mode != null && !mode.isEmpty()) ? " AND conversation_id IN (SELECT id FROM smart_chat_conversations WHERE model = ?)" : "";
             if (mode != null && !mode.isEmpty()) {
                 jdbcTemplate.update(
-                        "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)" + modeCondition,
+                        "DELETE FROM smart_chat_history WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), ''))" + modeCondition,
                         userId, company, mode
                 );
             } else {
                 jdbcTemplate.update(
-                        "DELETE FROM smart_chat_history WHERE user_id = ? AND (company = ? OR company IS NULL)",
+                        "DELETE FROM smart_chat_history WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), ''))",
                         userId, company
                 );
             }
@@ -1241,13 +1305,13 @@ public class SmartChatServiceImpl implements SmartChatService {
         Object[] params;
         if (modeValue != null) {
             sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND model = ? " +
+                    "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) AND model = ? " +
                     "ORDER BY updated_at DESC";
             params = new Object[]{userId, company, modeValue};
         } else {
             // 兼容旧数据：mode IS NULL 视为 designer
             sql = "SELECT id, title, created_at, updated_at FROM smart_chat_conversations " +
-                    "WHERE user_id = ? AND (company = ? OR company IS NULL) AND (model = 'designer' OR model IS NULL) " +
+                    "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) AND (model = 'designer' OR model IS NULL) " +
                     "ORDER BY updated_at DESC";
             params = new Object[]{userId, company};
         }
@@ -1278,12 +1342,12 @@ public class SmartChatServiceImpl implements SmartChatService {
     public void deleteConversation(String conversationId, String userId, String company) {
         // 先删除消息
         jdbcTemplate.update(
-                "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                "DELETE FROM smart_chat_history WHERE conversation_id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), ''))",
                 conversationId, userId, company
         );
         // 再删除对话
         jdbcTemplate.update(
-                "DELETE FROM smart_chat_conversations WHERE id = ?::uuid AND user_id = ? AND (company = ? OR company IS NULL)",
+                "DELETE FROM smart_chat_conversations WHERE id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), ''))",
                 conversationId, userId, company
         );
         // 清理业务子模式记忆
@@ -1297,7 +1361,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         // 查找最近的对话（按mode筛选）
         String modeCondition = (mode != null && !mode.isEmpty()) ? "AND model = ?" : "AND model = 'designer'";
         String sql = "SELECT id FROM smart_chat_conversations " +
-                "WHERE user_id = ? AND (company = ? OR company IS NULL) " + modeCondition + " " +
+                "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " + modeCondition + " " +
                 "ORDER BY updated_at DESC LIMIT 1";
         List<String> existing;
         if (mode != null && !mode.isEmpty()) {
@@ -1715,7 +1779,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'POSITION_CARD' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (COALESCE(NULLIF(e.company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "AND 1 - (e.embedding <=> ?::vector) > 0.25 " +
                     "ORDER BY e.embedding <=> ?::vector " +
                     "LIMIT 5";
@@ -1757,7 +1821,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                     "1 - (e.embedding <=> ?::vector) AS similarity " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'SMART_CHAT' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (COALESCE(NULLIF(e.company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "AND 1 - (e.embedding <=> ?::vector) > 0.30 " +
                     "ORDER BY e.embedding <=> ?::vector " +
                     "LIMIT 3";
@@ -3283,7 +3347,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             String sql = "SELECT id, chunk_text, source_doc_id, chunk_index, company, created_at " +
                     "FROM knowledge_embeddings " +
                     "WHERE source_type = 'KNOWLEDGE_BASE' " +
-                    "AND (company = ? OR company IS NULL OR company = '') " +
+                    "AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "AND (search_vector @@ plainto_tsquery('simple', ?) OR chunk_text ILIKE ?) " +
                     "ORDER BY created_at DESC LIMIT 10";
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, company, productCode, "%" + productCode + "%");
@@ -3719,7 +3783,9 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 旧 OpenAI/Anthropic SSE 解析（parseOpenAISSEStream 等）已删除：主路径从未调用它们。
      */
     private void streamChat(SseEmitter emitter, List<Map<String, Object>> messages,
-                            StringBuilder fullResponse, StringBuilder reasoningContent) {
+                            StringBuilder fullResponse, StringBuilder reasoningContent,
+                            AtomicReference<HttpURLConnection> activeConn) {
+        ScheduledFuture<?> watchdog = null;
         try {
 
             // 计算发送给模型的上下文大小
@@ -3737,16 +3803,38 @@ public class SmartChatServiceImpl implements SmartChatService {
             body.put("messages", messages);
             Map<String, Object> options = new HashMap<>();
             options.put("temperature", 0.7);
-            options.put("num_predict", -1); // -1=无限输出，直到模型生成停止符
+            // -1：模型自己收尾，不按 token 截断。资源由空闲检测、总时长和客户端断开释放。
+            options.put("num_predict", -1);
             body.put("options", options);
 
             String endpointUrl = ollamaBaseUrl + "/api/chat";
             HttpURLConnection conn = (HttpURLConnection) URI.create(endpointUrl).toURL().openConnection();
+            activeConn.set(conn);
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setDoOutput(true);
             conn.setConnectTimeout(30000);
             conn.setReadTimeout(600000);
+
+            AtomicLong lastOutputAt = new AtomicLong(System.currentTimeMillis());
+            AtomicBoolean sawOutput = new AtomicBoolean(false);
+            long startedAt = lastOutputAt.get();
+            AtomicReference<String> stopReason = new AtomicReference<>();
+            watchdog = chatWatchdog.scheduleWithFixedDelay(() -> {
+                long now = System.currentTimeMillis();
+                String reason = null;
+                if (sawOutput.get() && now - lastOutputAt.get() >= CHAT_IDLE_TIMEOUT_MS) {
+                    reason = "idle";
+                } else if (now - startedAt >= CHAT_MAX_DURATION_MS) {
+                    reason = "max";
+                }
+                if (reason != null && stopReason.compareAndSet(null, reason)) {
+                    HttpURLConnection current = activeConn.get();
+                    if (current != null) {
+                        current.disconnect();
+                    }
+                }
+            }, 5, 5, TimeUnit.SECONDS);
 
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8));
@@ -3766,10 +3854,37 @@ public class SmartChatServiceImpl implements SmartChatService {
             }
 
             // Ollama使用NDJSON流式格式，每行一个JSON对象
-            parseOllamaSSEStream(emitter, conn, fullResponse, reasoningContent);
+            try {
+                parseOllamaSSEStream(emitter, conn, fullResponse, reasoningContent, lastOutputAt, sawOutput);
+            } catch (Exception streamEx) {
+                String reason = stopReason.get();
+                if ("idle".equals(reason)) {
+                    throw new RuntimeException("模型超过2分钟没有继续输出，已停止。已生成的内容会保留。");
+                }
+                if ("max".equals(reason)) {
+                    throw new RuntimeException("本次回复已持续30分钟，已停止。已生成的内容会保留。");
+                }
+                throw streamEx;
+            }
+        } catch (RuntimeException e) {
+            String message = e.getMessage();
+            if (message != null && (message.startsWith("模型超过") || message.startsWith("本次回复已持续"))) {
+                log.warn("智能对话提前结束: {}", message);
+                throw e;
+            }
+            log.error("Ollama流式对话失败: {}", message);
+            throw new RuntimeException("流式对话失败: " + message);
         } catch (Exception e) {
             log.error("Ollama流式对话失败: {}", e.getMessage());
             throw new RuntimeException("流式对话失败: " + e.getMessage());
+        } finally {
+            if (watchdog != null) {
+                watchdog.cancel(false);
+            }
+            HttpURLConnection conn = activeConn.getAndSet(null);
+            if (conn != null) {
+                conn.disconnect();
+            }
         }
     }
 
@@ -3866,12 +3981,15 @@ public class SmartChatServiceImpl implements SmartChatService {
      *   {"model":"qwen3.6","done":true}
      */
     private void parseOllamaSSEStream(SseEmitter emitter, HttpURLConnection conn,
-                                       StringBuilder fullResponse, StringBuilder reasoningContent) throws Exception {
-        BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                                       StringBuilder fullResponse, StringBuilder reasoningContent,
+                                       AtomicLong lastOutputAt, AtomicBoolean sawOutput) throws Exception {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
 
         String line;
         while ((line = reader.readLine()) != null) {
+            lastOutputAt.set(System.currentTimeMillis());
+            sawOutput.set(true);
             if (line.isEmpty()) {
                 continue;
             }
@@ -3915,10 +4033,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                 if (done) {
                     break;
                 }
+            } catch (IOException | IllegalStateException disconnected) {
+                throw disconnected;
             } catch (Exception ignored) {
             }
         }
-        reader.close();
+        }
 
         // 发送完整的reasoning和done事件
         if (reasoningContent.length() > 0) {

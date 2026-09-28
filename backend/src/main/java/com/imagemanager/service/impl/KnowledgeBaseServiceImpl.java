@@ -608,7 +608,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "e.embedding <=> CAST(? AS vector) AS distance " +
                     "FROM knowledge_embeddings e " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (COALESCE(NULLIF(e.company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     keywordFilter +
                     "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
                     "ORDER BY distance " +
@@ -632,7 +632,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         "e.embedding <=> CAST(? AS vector) AS distance " +
                         "FROM knowledge_embeddings e " +
                         "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                        "AND (e.company = ? OR e.company IS NULL) " +
+                        "AND (COALESCE(NULLIF(e.company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                         "AND 1 - (e.embedding <=> CAST(? AS vector)) >= ? " +
                         "ORDER BY distance " +
                         "LIMIT ?" +
@@ -825,11 +825,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             
             List<Object> params = new ArrayList<>();
             
-            // company过滤：有company就精确匹配+NULL兼容，无company就不过滤
-            if (company != null && !company.trim().isEmpty()) {
-                sql.append("AND (company = ? OR company IS NULL OR company = '') ");
-                params.add(company);
-            }
+            sql.append("AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) ");
+            params.add(company);
             
             // 关键词搜索：优先 tsvector 全文搜索（有GIN索引），fallback 到 ILIKE
             sql.append("AND (");
@@ -893,7 +890,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     "LEFT JOIN knowledge_base_docs d ON e.source_doc_id = d.id::text " +
                     "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
                     "WHERE e.source_type = 'KNOWLEDGE_BASE' " +
-                    "AND (e.company = ? OR e.company IS NULL) " +
+                    "AND (COALESCE(NULLIF(e.company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "AND (" + whereClause + ") " +
                     "ORDER BY e.created_at DESC LIMIT ?";
             
@@ -942,7 +939,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                         "d.file_name, COALESCE(c.name,'') AS category, d.created_at " +
                         "FROM knowledge_base_docs d " +
                         "LEFT JOIN knowledge_base_categories c ON d.category_id = c.id " +
-                        "WHERE (d.company = ? OR d.company IS NULL) " +
+                        "WHERE (COALESCE(NULLIF(d.company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                         "AND (" + docWhereClause + ") " +
                         "ORDER BY d.created_at DESC LIMIT ?";
                 

@@ -56,6 +56,26 @@ public class AsyncConfig {
     }
 
     /**
+     * 智能对话流式请求线程池。
+     * 单次对话可能持续数分钟，和通用异步池分开，避免占满其他任务。
+     * 队列满时拒绝，由调用方立刻返回繁忙，不把生成工作拖回请求线程。
+     */
+    @Bean("chatExecutor")
+    public Executor chatExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(16);
+        executor.setQueueCapacity(32);
+        executor.setKeepAliveSeconds(60);
+        executor.setThreadNamePrefix("smart-chat-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
      * 文件处理线程池
      * 用于图片压缩、格式转换等IO密集任务
      */
