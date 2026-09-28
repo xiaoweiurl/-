@@ -16,6 +16,7 @@ out/
 coverage/
 hybrid-eval-report.md
 hybrid-smoke-report.md
+backend/cp.txt
 *.lcov
 .nyc_output
 

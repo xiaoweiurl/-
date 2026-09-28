@@ -1,7 +1,16 @@
 # Compare dense search and hybrid search on the same sampled questions.
 # Do not call mvnw.cmd exec:java -Dexec.args. PowerShell and cmd both split that
 # argument, and Maven prints its usage instead of running the main class.
-# This script compiles, writes a classpath file, then runs java -cp.
+#
+# Build the classpath the way that works on Windows PowerShell 5.1:
+#   cmd /c 'mvnw.cmd -q ... -Dmdep.outputFile=cp.txt'
+#   $cp = "target\classes;" + (Get-Content cp.txt -Raw).Trim()
+# Do not pass -Dmdep.pathSeparator=;. Calling mvnw.cmd from PowerShell hands the
+# line to cmd.exe, and ";" ends the command, so Maven writes the jars with an
+# empty separator. java then loads the main class from target\classes and throws
+# NoClassDefFoundError for io.milvus. Also do not read cp.txt with
+# [IO.File]::ReadAllText: on PowerShell 5.1 that is UTF-8, while Maven writes
+# the system ANSI code page.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\hybrid-eval.ps1
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\hybrid-eval.ps1 -Demo
@@ -31,15 +40,19 @@ if (-not (Test-Path -LiteralPath $Mvnw)) {
 $exitCode = 1
 Push-Location $Backend
 try {
-    & $Mvnw -DskipTests compile dependency:build-classpath "-Dmdep.outputFile=target\hybrid-cp.txt" "-Dmdep.pathSeparator=;"
+    cmd /c 'mvnw.cmd -q -DskipTests compile dependency:build-classpath -Dmdep.outputFile=cp.txt'
     if ($LASTEXITCODE -ne 0) {
         $exitCode = $LASTEXITCODE
     } else {
-        $deps = [System.IO.File]::ReadAllText((Join-Path $Backend "target\hybrid-cp.txt")).Trim()
+        $deps = (Get-Content -LiteralPath "cp.txt" -Raw).Trim()
         if ([string]::IsNullOrWhiteSpace($deps)) {
-            Write-Error "Maven wrote an empty classpath."
+            Write-Error "Maven wrote an empty cp.txt."
         }
-        $classPath = "$(Join-Path $Backend 'target\classes');$deps"
+        $milvusJar = $deps.Split(';') | Where-Object { $_ -match '[\\/]milvus-sdk-java-[^\\/;]*\.jar$' } | Select-Object -First 1
+        if (-not $milvusJar) {
+            Write-Error "cp.txt is not a Windows ';' classpath containing milvus-sdk-java."
+        }
+        $classPath = "target\classes;" + $deps
         $appArgs = @(
             "--host=$MilvusHost",
             "--port=$Port",
