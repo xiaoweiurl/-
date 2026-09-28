@@ -7,6 +7,8 @@ import com.imagemanager.entity.KnowledgeBaseCategory;
 import com.imagemanager.entity.KnowledgeBaseDoc;
 import com.imagemanager.repository.KnowledgeBaseCategoryRepository;
 import com.imagemanager.repository.KnowledgeBaseDocRepository;
+import com.imagemanager.milvus.HybridRecallPolicy;
+import com.imagemanager.milvus.MilvusHitFilter;
 import com.imagemanager.service.DocumentParserService;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.KnowledgeBaseService;
@@ -517,27 +519,43 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             if (milvusService != null && milvusService.isEnabled()) {
                 try {
                     float[] queryEmbedding = getEmbedding(query);
-                    if (queryEmbedding != null && queryEmbedding.length > 0) {
-                        List<MilvusService.MilvusSearchResult> milvusResults = milvusService.search(queryEmbedding, limit);
+                    boolean hybrid = milvusService.isHybridSearchActive();
+                    if (hybrid || (queryEmbedding != null && queryEmbedding.length > 0)) {
+                        List<MilvusService.MilvusSearchResult> milvusResults = hybrid
+                                ? milvusService.hybridSearch(queryEmbedding, query, Math.max(limit, 10))
+                                : milvusService.search(queryEmbedding, limit);
+                        if (hybrid) {
+                            String productCode = KeywordExtractor.extractProductCode(query);
+                            milvusResults = HybridRecallPolicy.accept(milvusResults, productCode, hit -> hit.content);
+                        }
                         if (!milvusResults.isEmpty()) {
                             List<MemorySearchResult> results = new ArrayList<>();
                             for (MilvusService.MilvusSearchResult mr : milvusResults) {
-                                if (mr.score >= minScore) {
-                                    MemorySearchResult r = new MemorySearchResult();
-                                    r.setContent(mr.content);
-                                    r.setScore((double) mr.score);
-                                    // doc_id 兼容两种格式：标准 UUID（常规知识文档）与 32 位 hex（业务员资料批量导入，SHA-256 前 32 位，直写 Milvus 不落 PG）
-                                    r.setRecordKey(mr.docId);
-                                    r.setSourceDocId(tryParseUuid(mr.docId));
-                                    r.setSource("KNOWLEDGE_BASE");
-                                    r.setDomainCode("knowledge_base");
-                                    r.setDomainName("知识库");
-                                    r.setConfidence(mr.score >= 0.75f ? "high" : "medium");
-                                    results.add(r);
+                                if (mr.content == null || mr.content.isBlank()) {
+                                    continue;
                                 }
+                                if (!MilvusHitFilter.keep(mr.score, mr.scoreMetric, minScore)) {
+                                    continue;
+                                }
+                                MemorySearchResult r = new MemorySearchResult();
+                                r.setContent(mr.content);
+                                r.setScore((double) mr.score);
+                                // doc_id 兼容两种格式：标准 UUID（常规知识文档）与 32 位 hex（业务员资料批量导入，SHA-256 前 32 位，直写 Milvus 不落 PG）
+                                r.setRecordKey(mr.docId);
+                                r.setSourceDocId(tryParseUuid(mr.docId));
+                                r.setSource("KNOWLEDGE_BASE");
+                                r.setDomainCode("knowledge_base");
+                                r.setDomainName("知识库");
+                                r.setConfidence(MilvusHitFilter.isFusionMetric(mr.scoreMetric) || mr.score >= 0.75f ? "high" : "medium");
+                                results.add(r);
                             }
-                            log.info("知识库搜索: Milvus检索返回{}条结果", results.size());
-                            return results;
+                            if (!hybrid || !results.isEmpty()) {
+                                if (results.size() > limit) {
+                                    results = results.subList(0, limit);
+                                }
+                                log.info("知识库搜索: Milvus{}检索返回{}条结果", hybrid ? "混合" : "", results.size());
+                                return results;
+                            }
                         }
                     }
                 } catch (Exception milvusEx) {

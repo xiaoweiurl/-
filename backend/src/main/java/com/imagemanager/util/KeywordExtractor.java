@@ -1,6 +1,7 @@
 package com.imagemanager.util;
 
 import java.util.*;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -346,6 +347,24 @@ public class KeywordExtractor {
         return result;
     }
     
+    /**
+     * 索引用分词。不截断到 8 个词，供 Milvus 稀疏通道把行业词整段留下来。
+     */
+    public static List<String> segmentBusinessText(String text) {
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        return forwardMaxMatch(text);
+    }
+
+    /** 索引和查询共用的停用词判断，避免「的/什么」进 BM25。 */
+    public static boolean isIndexStopWord(String word) {
+        if (word == null || word.isBlank()) {
+            return true;
+        }
+        return STOP_WORDS.contains(word) || STOP_WORDS.contains(word.toLowerCase(Locale.ROOT));
+    }
+
     /**
      * 判断查询是否包含产品编码
      */

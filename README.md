@@ -36,6 +36,8 @@
 
 `KnowledgeBaseServiceImpl.search` 自己还有一层：Milvus 启用则先向量搜（同样用传入的 `minScore`）；落到 pgvector 时再次用 `KeywordExtractor` 分词，**货号关键词优先 ILIKE**，没有再走 tsvector + 余弦混合。行业复合词用正向最大匹配（「棉质面料」不拆成「棉质」「面料」），停用词去掉「帮我/最近/什么」，最多 8 个词，避免 SQL 膨胀。
 
+`milvus.hybrid.enabled` 默认 **false**。打开后，知识库和业务员资料先走 Milvus 混合检索（稠密 bge-m3 + 预先分好词的 BM25，RRF 融合）。问句里的货号必须出现在切片正文里，否则仍回退上面的 ILIKE / 稠密检索。ERP 结构化命中时继续跳过业务员文档。开关和回填步骤见 `docs/milvus-hybrid.md`。
+
 ### 1.3 RagPipeline：增强只做召回补面，不替代原句
 
 `RagPipeline.enhancedSearch`：
@@ -95,7 +97,7 @@
 ### 1.6 向量落在哪（服务检索，不是功能点）
 
 - pgvector `knowledge_embeddings`：`KNOWLEDGE_BASE` / `POSITION_CARD` / `SMART_CHAT`（非闲聊回合异步写入 Q+A）。
-- Milvus：业务员资料导入直写（`MilvusService`，`milvus.collection`，代码默认 `salesperson_docs`）。知识库上传可双写。
+- Milvus：业务员资料导入直写（`MilvusService`，`milvus.collection`，代码默认 `salesperson_docs`，这是线上正在用的集合）。`milvus.collection-name` 默认的 `salesperson_chunks` 没有被代码读取，是空集合。知识库上传可双写。历史问答只在 pgvector `SMART_CHAT`。商品库是 `goods_library` 表，不进向量库。混合检索默认关闭，打开后读旁边的 `salesperson_docs_hybrid`，不改 `salesperson_docs`。回填和对比命令见 `docs/milvus-hybrid.md`。
 
 对话用 Ollama `/api/chat`。没有仍在写入的 Memory 库服务。
 
