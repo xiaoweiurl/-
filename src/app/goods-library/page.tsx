@@ -9,6 +9,7 @@ import {
   FolderOpen, Plus, Search, Loader2, Trash2, ArrowLeft,
   User, PenTool, Hash, CreditCard, Building2, FileText, ImagePlus, X,
 } from 'lucide-react';
+import ImageSearchEntry from '@/components/ImageSearchEntry';
 
 interface GoodsFolder {
   id: number;
@@ -184,7 +185,8 @@ export default function GoodsLibraryPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 sm:flex-1 sm:justify-end">
+            <div className="flex items-center gap-2 sm:flex-1 sm:justify-end">
+            <ImageSearchEntry />
             <div className="relative flex-1 sm:flex-none">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" />
               <input
