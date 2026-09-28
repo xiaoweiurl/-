@@ -1,0 +1,11 @@
+# 以图搜图 embedding 服务
+# torch 不写在这里。RTX 5090（sm_120）必须先装 cu128 或更新的轮子，本机用：
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+# cu124 / cu126 没有 sm_120。CPU 回退用 https://download.pytorch.org/whl/cpu 。
+# 若把 torch 放进本文件，随后的 pip 可能改成 PyPI 上没有 sm_120 的轮子。
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0.0
+pillow>=10.0.0
+python-multipart>=0.0.9
+transformers>=4.44.0,<5.0.0
