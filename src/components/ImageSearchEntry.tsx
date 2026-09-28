@@ -44,8 +44,9 @@ function goodsLine(goods: GoodsBrief): string {
 }
 
 /**
- * 只挂在设计师素材页顶栏。供应链、供应链对话、商品库和打样表单不放入口。
- * 功能关闭时不渲染。结果里仍可带出关联的历史打样或商品，仅作参考。
+ * 设计师素材页顶栏和工厂页（/supply-chain，含 mode=factory 对话）共用。
+ * 商品库和打样表单 /sampler 不放入口。功能关闭时不渲染。
+ * 结果里仍可带出关联的历史打样或商品，仅作参考。
  */
 export default function ImageSearchEntry({ className = '' }: { className?: string }) {
   const [enabled, setEnabled] = useState(false);
