@@ -12,8 +12,10 @@ import io.milvus.v2.common.IndexParam;
 import io.milvus.v2.service.collection.request.AddFieldReq;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.DropCollectionReq;
+import io.milvus.v2.service.collection.request.GetCollectionStatsReq;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
 import io.milvus.v2.service.collection.request.LoadCollectionReq;
+import io.milvus.v2.service.utility.request.FlushReq;
 import io.milvus.v2.service.vector.request.AnnSearchReq;
 import io.milvus.v2.service.vector.request.HybridSearchReq;
 import io.milvus.v2.service.vector.request.InsertReq;
@@ -42,10 +44,9 @@ public final class MilvusHybridSchema {
     public static final String SPARSE_FIELD = "sparse";
     public static final String DENSE_FIELD = "embedding";
     public static final String REQUIREMENT =
-            "混合检索需要 Milvus Server 2.5.0 及以上（建议 2.5.6，与 Java SDK io.milvus:milvus-sdk-java:2.5.6 对齐），"
-                    + "支持 BM25 Function、whitespace analyzer 和 hybridSearch。"
-                    + "服务器更低时不要打开 milvus.hybrid.enabled，检索仍走原来的稠密 HNSW；"
-                    + "货号精确匹配和 ERP 工具路径保持不变。";
+            "混合检索需要 Milvus Server 2.5.0 及以上（线上 v2.6.20 standalone 已支持 BM25 Function 和 hybridSearch，"
+                    + "Java SDK 是 io.milvus:milvus-sdk-java:2.5.6）。"
+                    + "低于 2.5 时不要打开 milvus.hybrid.enabled，检索仍走原来的稠密 HNSW。";
 
     private static final List<String> OUTPUT_FIELDS = List.of(
             "doc_id", "file_name", "doc_type", "chunk_index", "content");
@@ -167,6 +168,28 @@ public final class MilvusHybridSchema {
         }
     }
 
+    /**
+     * 只删除影子集合。原集合（以及 salesperson_docs / salesperson_chunks）一律拒绝。
+     */
+    public static void dropShadow(MilvusClientV2 client, String sourceCollection, String shadowCollection) {
+        HybridCollectionGuard.assertShadowTarget(sourceCollection, shadowCollection);
+        dropIfExists(client, shadowCollection);
+    }
+
+    public static long rowCount(MilvusClientV2 client, String collectionName) {
+        Long count = client.getCollectionStats(GetCollectionStatsReq.builder()
+                .collectionName(collectionName)
+                .build()).getNumOfEntities();
+        return count == null ? 0L : count;
+    }
+
+    public static void flush(MilvusClientV2 client, String collectionName) {
+        client.flush(FlushReq.builder()
+                .collectionNames(List.of(collectionName))
+                .waitFlushedTimeoutMs(120_000L)
+                .build());
+    }
+
     public static JsonObject hybridRowFromDense(JsonObject denseRow) {
         JsonObject row = denseRow.deepCopy();
         row.remove(SPARSE_FIELD);
@@ -199,20 +222,38 @@ public final class MilvusHybridSchema {
                                         RebuildProgress progress) {
         int size = batchSize > 0 ? batchSize : 200;
         RebuildStats stats = new RebuildStats();
+        // chunk_id 必须出现在输出字段里，否则 Java SDK 的 QueryIterator 无法推进主键游标，会反复返回同一页。
         QueryIterator iterator = client.queryIterator(QueryIteratorReq.builder()
                 .collectionName(sourceCollection)
                 .expr("chunk_id >= 0")
-                .outputFields(List.of("doc_id", "file_name", "doc_type", "chunk_index", "content", DENSE_FIELD))
+                .outputFields(List.of("chunk_id", "doc_id", "file_name", "doc_type", "chunk_index", "content", DENSE_FIELD))
                 .batchSize(size)
-                .consistencyLevel(ConsistencyLevel.BOUNDED)
+                .consistencyLevel(ConsistencyLevel.STRONG)
                 .build());
         try {
             List<JsonObject> pending = new ArrayList<>();
+            long cursor = Long.MIN_VALUE;
             while (true) {
                 List<QueryResultsWrapper.RowRecord> page = iterator.next();
                 if (page == null || page.isEmpty()) {
                     break;
                 }
+                boolean advanced = false;
+                long pageMax = cursor;
+                for (QueryResultsWrapper.RowRecord record : page) {
+                    long pk = primaryKey(record.get("chunk_id"));
+                    if (pk > cursor) {
+                        advanced = true;
+                    }
+                    if (pk > pageMax) {
+                        pageMax = pk;
+                    }
+                }
+                if (!advanced) {
+                    stats.lastError = "查询迭代没有前进，已停止以避免重复写入";
+                    break;
+                }
+                cursor = pageMax;
                 for (QueryResultsWrapper.RowRecord record : page) {
                     stats.scanned++;
                     if (progress != null) {
@@ -332,9 +373,16 @@ public final class MilvusHybridSchema {
         try {
             insert(client, hybridCollection, pending);
             stats.inserted += pending.size();
-        } catch (RuntimeException e) {
-            stats.failed += pending.size();
-            stats.lastError = e.getMessage();
+        } catch (RuntimeException batchError) {
+            for (JsonObject row : pending) {
+                try {
+                    insert(client, hybridCollection, List.of(row));
+                    stats.inserted++;
+                } catch (RuntimeException one) {
+                    stats.failed++;
+                    stats.lastError = one.getMessage();
+                }
+            }
         }
         if (progress != null) {
             progress.inserted = stats.inserted;
@@ -342,6 +390,20 @@ public final class MilvusHybridSchema {
             progress.message = "已扫描 " + stats.scanned + "，写入 " + stats.inserted;
         }
         pending.clear();
+    }
+
+    private static long primaryKey(Object raw) {
+        if (raw instanceof Number number) {
+            return number.longValue();
+        }
+        if (raw == null) {
+            return Long.MIN_VALUE;
+        }
+        try {
+            return Long.parseLong(raw.toString());
+        } catch (NumberFormatException e) {
+            return Long.MIN_VALUE;
+        }
     }
 
     private static JsonObject rowFromRecord(QueryResultsWrapper.RowRecord record) {

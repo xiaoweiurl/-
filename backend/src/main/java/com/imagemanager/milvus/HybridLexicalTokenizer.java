@@ -148,6 +148,33 @@ public final class HybridLexicalTokenizer {
         }
     }
 
+    private static final Set<String> SURFACE_SKIP = Set.of(
+            "utf8", "utf16", "pdf", "docx", "xlsx", "pptx", "jpg", "jpeg", "png", "gif", "webp",
+            "mp4", "mp3", "html", "css", "xml", "json", "csv", "txt", "zip", "rar");
+
+    /**
+     * 正文里出现的货号/面料编号/型号，保留原文大小写，供评测出题。
+     * 同一编号只保留第一次出现。文件扩展名这类噪声不收。
+     */
+    public static List<String> surfaceCodes(String text) {
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        Matcher matcher = CODE.matcher(text);
+        while (matcher.find()) {
+            String raw = matcher.group();
+            if (!acceptCode(raw) || SURFACE_SKIP.contains(raw.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            if (seen.add(raw.toLowerCase(Locale.ROOT))) {
+                out.add(raw);
+            }
+        }
+        return List.copyOf(out);
+    }
+
     public static boolean acceptCode(String raw) {
         if (raw == null || raw.length() < 3 || raw.length() > MAX_CODE_LENGTH) {
             return false;

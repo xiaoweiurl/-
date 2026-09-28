@@ -1,6 +1,7 @@
 package com.imagemanager.service;
 
 import com.google.gson.JsonObject;
+import com.imagemanager.milvus.HybridCollectionGuard;
 import com.imagemanager.milvus.MilvusHybridSchema;
 import com.imagemanager.milvus.MilvusRetrievalPlan;
 import io.milvus.v2.client.ConnectConfig;
@@ -572,9 +573,11 @@ public class MilvusService {
             return;
         }
         String hybridName = hybridCollectionName();
-        if (hybridName.equals(collectionName)) {
+        try {
+            HybridCollectionGuard.assertShadowTarget(collectionName, hybridName);
+        } catch (IllegalArgumentException rejected) {
             hybridReady = false;
-            hybridStatusMessage = "混合集合名不能和稠密集合相同";
+            hybridStatusMessage = rejected.getMessage();
             log.error(hybridStatusMessage);
             return;
         }
@@ -605,14 +608,12 @@ public class MilvusService {
 
     private void runHybridRebuild() {
         String hybridName = hybridCollectionName();
-        if (hybridName.equals(collectionName)) {
-            throw new IllegalStateException("混合集合名不能和稠密集合相同: " + hybridName);
-        }
+        HybridCollectionGuard.assertShadowTarget(collectionName, hybridName);
         if (!MilvusHybridSchema.exists(client, collectionName)) {
             throw new IllegalStateException("稠密集合不存在，无法回填: " + collectionName);
         }
-        log.info("开始重建混合集合 {} <- {}", hybridName, collectionName);
-        MilvusHybridSchema.dropIfExists(client, hybridName);
+        log.info("开始重建混合集合 {} <- {}（只删影子集合）", hybridName, collectionName);
+        MilvusHybridSchema.dropShadow(client, collectionName, hybridName);
         MilvusHybridSchema.createCollection(client, hybridName, dimension);
         MilvusHybridSchema.RebuildStats stats = MilvusHybridSchema.backfill(
                 client, collectionName, hybridName, 200, rebuildProgress);

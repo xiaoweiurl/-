@@ -97,7 +97,7 @@
 ### 1.6 向量落在哪（服务检索，不是功能点）
 
 - pgvector `knowledge_embeddings`：`KNOWLEDGE_BASE` / `POSITION_CARD` / `SMART_CHAT`（非闲聊回合异步写入 Q+A）。
-- Milvus：业务员资料导入直写（`MilvusService`，`milvus.collection`，代码默认 `salesperson_docs`）。知识库上传可双写。历史问答只在 pgvector `SMART_CHAT`。商品库是 `goods_library` 表，不进向量库。混合检索默认关闭，打开后使用旁边的 `{collection}_hybrid`，稠密集合 schema 不变。
+- Milvus：业务员资料导入直写（`MilvusService`，`milvus.collection`，代码默认 `salesperson_docs`，这是线上正在用的集合）。`milvus.collection-name` 默认的 `salesperson_chunks` 没有被代码读取，是空集合。知识库上传可双写。历史问答只在 pgvector `SMART_CHAT`。商品库是 `goods_library` 表，不进向量库。混合检索默认关闭，打开后读旁边的 `salesperson_docs_hybrid`，不改 `salesperson_docs`。回填和对比命令见 `docs/milvus-hybrid.md`。
 
 对话用 Ollama `/api/chat`。没有仍在写入的 Memory 库服务。
 

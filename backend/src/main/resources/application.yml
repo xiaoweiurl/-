@@ -274,7 +274,8 @@ erp:
 
 # Milvus 向量数据库配置（200G 业务员数据）
 # Java MilvusService 读取 milvus.collection，未配置时默认 salesperson_docs。
-# 下面的 collection-name 是历史键，当前代码不读取，不要把它当成线上集合名。
+# 线上正在用的就是 salesperson_docs（稠密 HNSW，没有 BM25）。
+# 下面的 collection-name 是历史键，当前代码不读取。它的默认值 salesperson_chunks 是空集合，不要拿来检索。
 milvus:
   enabled: ${MILVUS_ENABLED:true}
   host: ${MILVUS_HOST:localhost}
