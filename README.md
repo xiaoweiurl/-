@@ -1,6 +1,6 @@
 # 宝娜斯集团 · 产品智能中台
 
-宝娜斯（Bonasoma）内部系统（`com.imagemanager`）。登录后三个门户：**设计师**、**工厂 / 供应链**、**市场营销**。不是豆包 / 扣子 / 火山引擎产品；`COZE_PROJECT_ENV` 只是启动脚本里的环境变量名。
+宝娜斯（Bonasoma）内部系统（`com.imagemanager`）。登录后三个门户：**设计师**、**工厂 / 供应链**、**市场营销**。
 
 主路径是 **本地 LLM 问答**（Ollama，默认 `qwen3.6:35b` 对话 + `bge-m3` 向量，SSE）。难点不在「接了 RAG」，而在：**向量对货号召回差、改写查询会弄丢编码、低分切片进上下文会瞎编**。下面按代码说明怎么防，而不是列功能清单。
 
@@ -11,6 +11,14 @@
 ## 1. RAG 怎么设计、幻觉从哪来、代码怎么挡
 
 编排在 `SmartChatServiceImpl.smartChat`（`GET /api/chat/smart`）。先意图，再检索，再拼上下文，最后才把 **带约束的 system + 检索块 + 用户问题** 交给 Ollama。模型看不到全库，只能看到这一轮注入的材料。
+
+**来源优先级（工厂问答必须按此采信，冲突时以上游为准、禁止静默覆盖）：**
+
+1. **ERP / 报价等业务表**（`order_bjd_query`、工艺/BOM/工序工价/销售订单等结构化 SQL）——数字与货号的唯一权威
+2. **知识库文档**（pgvector / Milvus 召回的原文切片）——流程、标准、说明类问题
+3. **历史问答**（`SMART_CHAT` 向量；设计师路径更常用）——仅作补充，不得盖过表数据和知识库原文
+
+三路都没有命中、或命中内容不含所问单号/货号/客户：**拒答**，明确说「当前数据库中暂无此数据」或「当前知识库中暂无此内容」，**不编造、不用模型通识填数字**。
 
 ### 1.1 为什么不能「一句问题直接向量检索」
 
@@ -59,7 +67,7 @@
 
 ### 1.5 上下文怎么拼、prompt 怎么把模型按死在证据上
 
-注入顺序（工厂 system 里的 L1–L5）：内部规则/岗位经验 → **报价与 ERP 表、业务员 Milvus** → 知识库原文 → 网络（仅企划）→ 用户口头数字。冲突必须写「数据差异说明」，禁止静默覆盖。
+注入时工厂 system 把业务数据标成 L2、知识库标成 L3；再往下才是联网（仅企划）和用户口头数字。对业务问题，采信顺序就是上面的 **ERP 表 > 知识库 > 历史问答**。冲突必须写「数据差异说明」，禁止静默覆盖。
 
 用户消息不是裸问题。有检索块时拼成「上下文 + `用户问题:`」，再追加约束，例如：
 
@@ -109,7 +117,15 @@ Tab：**AI 对话**（`mode=factory`，子模式通用 / 商品企划 `planning`
 
 Ollama 流式，**无检索、无向量**。
 
-**影刀**：业务代码无 RPA/飞书机器人；上传接口可供外部自动化调用，闭环不在本仓库。
+### 影刀 RPA 在链路里的位置
+
+影刀跑在**本仓库之外**：定时/人工在外部采集灵感图、表格或网页资料，再通过中台已有接口回灌。
+
+- 图片：已登录调用 `POST /api/images/upload`，或 `POST /api/images/batch-download` 按 URL 批量入库
+- 文档/知识：知识库上传、批量导入（写入 embeddings / Milvus）
+- 业务表：ERP 同步写入的订单/工艺/BOM 等；RPA 不直接改这些表，问答时仍按 **ERP 表 > 知识库 > 历史问答** 采信
+
+本仓库实现的是接收与检索侧，不内嵌 RPA 调度、不定时爬站、也不发采集机器人消息。采集策略、账号、失败重试在影刀侧。
 
 ---
 
@@ -128,10 +144,10 @@ Next.js 16 + 自定义 `src/server.ts`（**无 HMR**）+ Spring Boot 3.2 / Java 
 ```bash
 cd backend && ./mvnw spring-boot:run     # :8080/api
 pnpm install && pnpm run build
-NEXT_HOSTNAME=0.0.0.0 PORT=5000 pnpm start
+NODE_ENV=production NEXT_HOSTNAME=0.0.0.0 PORT=5000 pnpm start
 ```
 
-`pnpm dev` 与 `start` 都是 `NODE_ENV=production COZE_PROJECT_ENV=PROD PORT=5000 npx tsx src/server.ts`。
+`pnpm dev` 与 `pnpm start` 都是先构建再以生产模式起自定义服务（`src/server.ts`），无热更新。改代码后需要重新 `pnpm run build` 并重启进程。
 
 角色：`user` / `admin` / `superadmin` / `sampler`。种子账号密码只来自 `SEED_*`。
 
