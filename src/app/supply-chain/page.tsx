@@ -10,10 +10,12 @@ import {
 } from 'lucide-react';
 import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
-import { isAdminOrAbove } from '@/lib/auth';
+import { isAdminOrAbove, isSamplerSession } from '@/lib/auth';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import PdfExportButton from '@/components/PdfExportButton';
 import DocumentStatsDashboard from '@/components/DocumentStatsDashboard';
+import { mapHistoryChatMessage, takeSseEvents, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
 
 // ============ 类型定义 ============
 interface QuotationOrderRow {
@@ -69,6 +71,9 @@ export default function SupplyChainPage() {
     searchResults?: Array<{ title: string; url: string }>;
     attachments?: Array<{ name: string; type: string; base64: string; mimeType: string }>;
     quotationList?: { customer: string; total: number; orders: QuotationOrderRow[] };
+    sources?: ChatSource[];
+    historyId?: string;
+    feedback?: 'useful' | 'wrong';
   }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -80,6 +85,10 @@ export default function SupplyChainPage() {
 
   // 当前用户角色（用于 ERP 同步入口可见性：仅管理员以上）
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [samplerSession, setSamplerSession] = useState(false);
+  const [openSource, setOpenSource] = useState<ChatSource | null>(null);
+  const [wrongDraft, setWrongDraft] = useState<{ index: number; comment: string } | null>(null);
+  const factoryConvRef = useRef('');
 
   // 认证检查 - 后端不可用时进入降级模式；同时获取当前用户角色
   useEffect(() => {
@@ -97,7 +106,10 @@ export default function SupplyChainPage() {
     fetch('/api/auth/login', { credentials: 'include' })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        if (data?.success && data.data?.role) setCurrentUserRole(String(data.data.role).toLowerCase());
+        if (data?.success && data.data) {
+          if (data.data.role) setCurrentUserRole(String(data.data.role).toLowerCase());
+          setSamplerSession(isSamplerSession(data.data));
+        }
       })
       .catch(() => {});
   }, []);
@@ -113,11 +125,17 @@ export default function SupplyChainPage() {
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && data.success && Array.isArray(data.history) && data.history.length > 0) {
-          const history = data.history.map((msg: { role: string; content: string; reasoning_content?: string }) => ({
-            role: msg.role as 'user' | 'assistant',
-            content: msg.content,
-            reasoning: msg.reasoning_content || undefined,
-          }));
+          const history = data.history.map((msg: { id?: string; role: string; content: string; reasoning?: string; reasoning_content?: string; sources?: ChatSource[] }) => {
+            const mapped = mapHistoryChatMessage(msg);
+            return {
+              role: mapped.role,
+              content: mapped.content,
+              reasoning: mapped.reasoning,
+              historyId: mapped.historyId,
+              sources: mapped.sources,
+              isStreaming: false,
+            };
+          });
           setChatMessages(history);
         }
       })
@@ -227,97 +245,89 @@ export default function SupplyChainPage() {
       const decoder = new TextDecoder();
       let buffer = '';
 
+      const applyEvent = (parsed: ChatSseEvent) => {
+        if (parsed.type === 'conversation' && typeof parsed.conversationId === 'string') {
+          factoryConvRef.current = parsed.conversationId;
+          return;
+        }
+        if (parsed.type === 'sources' && Array.isArray(parsed.sources)) {
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, sources: parsed.sources };
+            return updated;
+          });
+        } else if (parsed.type === 'reasoning_delta' && typeof parsed.content === 'string' && parsed.content) {
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, reasoning: (last.reasoning || '') + parsed.content };
+            return updated;
+          });
+        } else if (parsed.type === 'content' && typeof parsed.content === 'string' && parsed.content) {
+          const piece = parsed.content;
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.isStreaming) {
+              updated[updated.length - 1] = { ...last, content: (last.content || '') + piece, isThinking: false };
+            }
+            return updated;
+          });
+        } else if (parsed.type === 'web_search_result' && parsed.results) {
+          const results = parsed.results as Array<{ title: string; url: string }>;
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, searchResults: results };
+            return updated;
+          });
+        } else if (parsed.type === 'quotation_list' && Array.isArray(parsed.orders)) {
+          const orders = parsed.orders as Array<Record<string, unknown>>;
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, quotationList: { customer: String(parsed.customer || ''), total: Number(parsed.total || orders.length), orders: orders.map((o) => ({ dh: String(o.dh ?? ''), chima: o.chima as string, huohao: o.huohao as string, sbdj: o.sbdj as number, lyl: o.lyl as number, zpl: o.zpl as number, rcl: o.rcl as number, jcb: o.jcb as number, xscb: o.xscb as number })) } };
+            return updated;
+          });
+        } else if (parsed.type === 'done') {
+          const historyId = typeof parsed.historyId === 'string' ? parsed.historyId : '';
+          if (typeof parsed.conversationId === 'string' && parsed.conversationId) factoryConvRef.current = parsed.conversationId;
+          const doneSources = Array.isArray(parsed.sources) ? parsed.sources : undefined;
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = {
+                ...last,
+                isThinking: false,
+                isStreaming: false,
+                ...(historyId ? { historyId } : {}),
+                ...(doneSources ? { sources: doneSources } : {}),
+              };
+            }
+            return updated;
+          });
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data:')) continue;
-          const data = line.substring(5).trim();
-          if (!data || data === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === 'reasoning_delta' && parsed.content) {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                updated[updated.length - 1] = { ...last, reasoning: (last.reasoning || '') + parsed.content };
-                return updated;
-              });
-            } else if (parsed.type === 'content' && parsed.content) {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                updated[updated.length - 1] = { ...last, content: (last.content || '') + parsed.content, isThinking: false };
-                return updated;
-              });
-            } else if (parsed.type === 'web_search_result' && parsed.results) {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                updated[updated.length - 1] = { ...last, searchResults: parsed.results };
-                return updated;
-              });
-            } else if (parsed.type === 'quotation_list' && Array.isArray(parsed.orders)) {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                updated[updated.length - 1] = { ...last, quotationList: { customer: String(parsed.customer || ''), total: Number(parsed.total || parsed.orders.length), orders: parsed.orders.map((o: Record<string, unknown>) => ({ dh: String(o.dh ?? ''), chima: o.chima as string, huohao: o.huohao as string, sbdj: o.sbdj as number, lyl: o.lyl as number, zpl: o.zpl as number, rcl: o.rcl as number, jcb: o.jcb as number, xscb: o.xscb as number })) } };
-                return updated;
-              });
-            } else if (parsed.type === 'done') {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                updated[updated.length - 1] = { ...last, isThinking: false, isStreaming: false };
-                return updated;
-              });
-            }
-          } catch { /* ignore parse errors */ }
-        }
+        const taken = takeSseEvents(buffer, false);
+        buffer = taken.rest;
+        for (const event of taken.events) applyEvent(event);
       }
-      // 处理buffer中残留的数据
-      if (buffer.trim()) {
-        const remainingLines = buffer.split('\n');
-        for (const line of remainingLines) {
-          if (!line.startsWith('data:')) continue;
-          const data = line.substring(5).trim();
-          if (!data || data === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === 'content' && parsed.content) {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === 'assistant') {
-                  updated[updated.length - 1] = { ...last, content: (last.content || '') + parsed.content, isThinking: false };
-                }
-                return updated;
-              });
-            } else if (parsed.type === 'done') {
-              setChatMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === 'assistant') {
-                  updated[updated.length - 1] = { ...last, isThinking: false, isStreaming: false };
-                }
-                return updated;
-              });
-            }
-          } catch { /* ignore */ }
-        }
-      }
+      buffer += decoder.decode();
+      const tail = takeSseEvents(buffer, true);
+      for (const event of tail.events) applyEvent(event);
 
-      // 确保最终状态正确（防止done事件丢失）
+      // 流结束即使没收到 done，也要结束 streaming，反馈按钮才能出现
       setChatMessages(prev => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
-        if (last.role === 'assistant' && last.isStreaming) {
+        if (last?.role === 'assistant' && last.isStreaming) {
           updated[updated.length - 1] = { ...last, isThinking: false, isStreaming: false };
         }
         return updated;
@@ -335,6 +345,36 @@ export default function SupplyChainPage() {
       setChatLoading(false);
     }
   }, [chatInput, chatLoading, chatAgent]);
+
+  const submitFactoryFeedback = async (index: number, verdict: 'useful' | 'wrong', comment?: string) => {
+    const answer = chatMessages[index];
+    if (!answer || answer.feedback) return;
+    let question = '';
+    for (let i = index - 1; i >= 0; i--) {
+      if (chatMessages[i].role === 'user') {
+        question = chatMessages[i].content;
+        break;
+      }
+    }
+    try {
+      const res = await backendFetch('/chat/feedback', {
+        method: 'POST',
+        body: {
+          verdict,
+          question,
+          answer: answer.content,
+          conversationId: factoryConvRef.current || '',
+          comment: comment || '',
+          sources: answer.sources || [],
+          historyId: answer.historyId || '',
+        },
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      setWrongDraft(null);
+      setChatMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: verdict } : m));
+    } catch { /* ignore */ }
+  };
 
   // 自动滚动到底部
   useEffect(() => {
@@ -589,7 +629,15 @@ export default function SupplyChainPage() {
                               <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                             </div>
                           ) : msg.content ? (
-                            <MarkdownRenderer content={msg.content || ''} darkMode />
+                            <MarkdownRenderer
+                              content={msg.content || ''}
+                              darkMode
+                              citeIds={(msg.sources || []).map(s => s.id).filter((id): id is string => !!id)}
+                              onCite={(id) => {
+                                const hit = msg.sources?.find(s => s.id === id);
+                                if (hit) setOpenSource(hit);
+                              }}
+                            />
                           ) : (
                             /* AI 思考中加载动画 */
                             <div className="flex items-center gap-3 py-1">
@@ -611,6 +659,17 @@ export default function SupplyChainPage() {
                               <PdfExportButton content={msg.content} />
                               <CopyButton text={msg.content} />
                             </div>
+                          )}
+                          {msg.role === 'assistant' && !msg.isStreaming && msg.content && !samplerSession && (
+                            <ChatFeedbackBar
+                              feedback={msg.feedback}
+                              showComment={wrongDraft?.index === idx}
+                              comment={wrongDraft?.index === idx ? wrongDraft.comment : ''}
+                              onCommentChange={(value) => setWrongDraft({ index: idx, comment: value })}
+                              onUseful={() => submitFactoryFeedback(idx, 'useful')}
+                              onWrong={() => setWrongDraft({ index: idx, comment: '' })}
+                              onSubmitWrong={() => submitFactoryFeedback(idx, 'wrong', wrongDraft?.comment || '')}
+                            />
                           )}
                         </div>
                       </div>
@@ -724,6 +783,35 @@ export default function SupplyChainPage() {
             {activeTab === 'dashboard' && <DocumentStatsDashboard />}
           </>
       </div>
+      {openSource && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={() => setOpenSource(null)}>
+          <div className="h-full w-full max-w-md bg-white shadow-2xl p-5 overflow-y-auto" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] text-[#007aff] font-medium">{openSource.id} · {citeKindLabel(openSource.source)}</div>
+                <h2 className="text-sm font-semibold text-[#1c1c1e] mt-1">{openSource.title || '原文'}</h2>
+                {openSource.recordId && (
+                  <p className="mt-1 text-[11px] text-[#8e8e93] break-all">记录 {openSource.recordId}</p>
+                )}
+                {openSource.score != null && (
+                  <p className="mt-1 text-[11px] text-[#8e8e93]">分数 {openSource.score}</p>
+                )}
+              </div>
+              <button type="button" onClick={() => setOpenSource(null)} className="text-[#8e8e93]"><X className="w-4 h-4" /></button>
+            </div>
+            <pre className="mt-4 whitespace-pre-wrap text-[13px] leading-relaxed text-[#3a3a3c] font-sans">{openSource.excerpt || openSource.content || '没有可展示的原文。'}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function citeKindLabel(source?: string) {
+  if (source === 'supply_chain') return 'ERP单据';
+  if (source === 'salesperson_kb') return '业务员资料';
+  if (source === 'position_card') return '岗位卡片';
+  if (source === 'knowledge') return '知识库';
+  if (source === 'chat_history') return '历史问答';
+  return '资料';
 }

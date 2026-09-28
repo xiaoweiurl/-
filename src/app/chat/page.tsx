@@ -11,6 +11,7 @@ import {
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import { isSamplerSession } from '@/lib/auth';
+import { mapHistoryChatMessage, takeSseEvents, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
 
 // ===== 类型定义 =====
 interface ChatImage {
@@ -291,17 +292,17 @@ export default function ChatPage() {
       });
       const data = await res.json();
       if (data.success && data.history?.length > 0) {
-        return data.history.map((m: { id?: string; role: string; content: string; reasoning?: string; sources?: ChatMessage['sources'] }) => {
+        return data.history.map((m: { id?: string; role: string; content: string; reasoning?: string; sources?: ChatSource[] }) => {
+          const mapped = mapHistoryChatMessage(m);
           const msg: ChatMessage = {
-            role: m.role as ChatMessage['role'],
-            content: m.content,
+            role: mapped.role,
+            content: mapped.content,
+            isStreaming: false,
           };
-          if (m.id) msg.historyId = m.id;
-          if (m.reasoning) {
-            msg.reasoning = m.reasoning;
-          }
-          if (m.sources?.length) {
-            msg.sources = m.sources;
+          if (mapped.historyId) msg.historyId = mapped.historyId;
+          if (mapped.reasoning) msg.reasoning = mapped.reasoning;
+          if (mapped.sources.length) {
+            msg.sources = mapped.sources.map(source => ({ ...source, source: source.source || 'knowledge' }));
           }
           return msg;
         });
@@ -436,167 +437,137 @@ export default function ChatPage() {
       const reader = res.body?.getReader();
       if (!reader) throw new Error('SSE流为空');
 
-      let sources: ChatMessage['sources'] = [];
-      let images: ChatImage[] = [];
       const decoder = new TextDecoder();
       let sseBuffer = '';
+
+      const applyEvent = (event: ChatSseEvent) => {
+        if (event.type === 'conversation' && typeof event.conversationId === 'string' && event.conversationId) {
+          setActiveSessionId(event.conversationId);
+          return;
+        }
+        const asSources = (value: unknown): ChatMessage['sources'] | undefined => {
+          if (!Array.isArray(value)) return undefined;
+          return value.map((item) => {
+            const source = item as ChatSource;
+            return { ...source, source: source.source || 'knowledge' };
+          });
+        };
+        if (event.type === 'sources') {
+          const nextSources = asSources(event.sources) || [];
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = { ...last, sources: nextSources };
+            }
+            return updated;
+          });
+        } else if (event.type === 'images') {
+          const images = (event.images || []) as ChatImage[];
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = { ...last, images };
+            }
+            return updated;
+          });
+        } else if (event.type === 'reasoning_delta') {
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.isStreaming) {
+              updated[updated.length - 1] = {
+                ...last,
+                reasoning: (last.reasoning || '') + (typeof event.content === 'string' ? event.content : ''),
+                isThinking: true,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === 'reasoning') {
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = {
+                ...last,
+                reasoning: (typeof event.content === 'string' ? event.content : '') || last.reasoning,
+                isThinking: false,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === 'web_search_result') {
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = {
+                ...last,
+                searchResults: typeof event.content === 'string' ? event.content : '',
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === 'content') {
+          const piece = typeof event.content === 'string' ? event.content : '';
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.isStreaming) {
+              updated[updated.length - 1] = {
+                ...last,
+                content: last.content + piece,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === 'done') {
+          const historyId = typeof event.historyId === 'string' ? event.historyId : '';
+          const doneSources = asSources(event.sources);
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = {
+                ...last,
+                isStreaming: false,
+                isThinking: false,
+                ...(historyId ? { historyId } : {}),
+                ...(doneSources ? { sources: doneSources } : {}),
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === 'error') {
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = {
+                ...last,
+                content: last.content || `错误: ${typeof event.content === 'string' ? event.content : ''}`,
+                isStreaming: false,
+                isThinking: false,
+              };
+            }
+            return updated;
+          });
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         sseBuffer += decoder.decode(value, { stream: true });
-        const parts = sseBuffer.split('\n');
-        sseBuffer = parts.pop() || '';
-
-        for (const line of parts) {
-          if (!line.startsWith('data:')) continue;
-          const data = line.substring(5).trim();
-          if (!data) continue;
-
-          try {
-            const event = JSON.parse(data);
-
-            if (event.type === 'sources') {
-              sources = event.sources || [];
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = { ...last, sources };
-                }
-                return updated;
-              });
-            } else if (event.type === 'images') {
-              images = event.images || [];
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = { ...last, images };
-                }
-                return updated;
-              });
-            } else if (event.type === 'reasoning_delta') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    reasoning: (last.reasoning || '') + event.content,
-                    isThinking: true,
-                  };
-                }
-                return updated;
-              });
-            } else if (event.type === 'reasoning') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    reasoning: event.content || last.reasoning,
-                    isThinking: false,
-                  };
-                }
-                return updated;
-              });
-            } else if (event.type === 'web_search_result') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    searchResults: event.content || '',
-                  };
-                }
-                return updated;
-              });
-            } else if (event.type === 'content') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: last.content + event.content,
-                  };
-                }
-                return updated;
-              });
-            } else if (event.type === 'done') {
-              const historyId = typeof event.historyId === 'string' ? event.historyId : '';
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    isStreaming: false,
-                    isThinking: false,
-                    ...(historyId ? { historyId } : {}),
-                  };
-                }
-                return updated;
-              });
-            } else if (event.type === 'error') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: `错误: ${event.content}`,
-                    isStreaming: false,
-                  };
-                }
-                return updated;
-              });
-            }
-          } catch { /* ignore parse errors */ }
-        }
+        const taken = takeSseEvents(sseBuffer, false);
+        sseBuffer = taken.rest;
+        for (const event of taken.events) applyEvent(event);
       }
-
-      // 连接结束时缓冲区里可能还剩没有换行的最后一帧（event + data）
-      for (const line of sseBuffer.split('\n')) {
-        if (!line.startsWith('data:')) continue;
-        const data = line.substring(5).trim();
-        if (!data) continue;
-        try {
-          const event = JSON.parse(data);
-          if (event.type === 'done') {
-            const historyId = typeof event.historyId === 'string' ? event.historyId : '';
-            setMessages(prev => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              if (last) {
-                updated[updated.length - 1] = {
-                  ...last,
-                  isStreaming: false,
-                  isThinking: false,
-                  ...(historyId ? { historyId } : {}),
-                };
-              }
-              return updated;
-            });
-          } else if (event.type === 'content') {
-            setMessages(prev => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              if (last?.isStreaming) {
-                updated[updated.length - 1] = {
-                  ...last,
-                  content: last.content + event.content,
-                };
-              }
-              return updated;
-            });
-          }
-        } catch { /* ignore */ }
-      }
+      sseBuffer += decoder.decode();
+      const tail = takeSseEvents(sseBuffer, true);
+      for (const event of tail.events) applyEvent(event);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '未知错误';
       setMessages(prev => {

@@ -123,6 +123,102 @@ public final class ChatCitation {
         return "";
     }
 
+    /**
+     * 货号精准查询未命中时，function-calling 兜底分析仍作为一条 E 类来源。
+     * 没有 ERP 主键，recordId 固定为工具分析标记，避免和真实单据号混淆。
+     */
+    public static Map<String, Object> toolAnalysisEntry(String analysis) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("type", "供应链AI工具分析");
+        entry.put("summary", "AI 通过 function-calling 调用统计/查询工具得出的分析");
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("分析结论", analysis == null ? "" : analysis);
+        entry.put("data", data);
+        entry.put("recordId", "erp-tool-analysis");
+        return entry;
+    }
+
+    /**
+     * 给检索结果盖引用编号，并生成发给前端的 sources。
+     * 工厂模式不把岗位卡片（P）和历史问答（H）放进 sources。
+     */
+    public static List<Map<String, Object>> collectSources(
+            List<Map<String, Object>> knowledgeResults,
+            List<Map<String, Object>> salespersonResults,
+            List<Map<String, Object>> supplyChainResults,
+            List<Map<String, Object>> structuredResults,
+            List<Map<String, Object>> positionCardResults,
+            List<Map<String, Object>> chatHistoryQAResults,
+            boolean includeDesignerSources) {
+        stamp(knowledgeResults, "K", 1);
+        stamp(salespersonResults, "B", 1);
+        int erpSeq = stamp(supplyChainResults, "E", 1);
+        stamp(structuredResults, "E", erpSeq);
+        stamp(positionCardResults, "P", 1);
+        stamp(chatHistoryQAResults, "H", 1);
+
+        List<Map<String, Object>> sources = new ArrayList<>();
+        if (knowledgeResults != null) {
+            for (Map<String, Object> row : knowledgeResults) {
+                if (row == null) {
+                    continue;
+                }
+                String title = firstText(row, "title", "source", "domain");
+                sources.add(toSource(row, "knowledge", title.isEmpty() ? "知识库文档" : title, textOf(row.get("content"))));
+            }
+        }
+        if (salespersonResults != null) {
+            for (Map<String, Object> row : salespersonResults) {
+                if (row == null) {
+                    continue;
+                }
+                String fileName = textOf(row.get("fileName"));
+                sources.add(toSource(row, "salesperson_kb", fileName.isEmpty() ? "业务员资料" : fileName, textOf(row.get("content"))));
+            }
+        }
+        appendErp(sources, supplyChainResults);
+        appendErp(sources, structuredResults);
+        if (includeDesignerSources) {
+            if (positionCardResults != null) {
+                for (Map<String, Object> row : positionCardResults) {
+                    if (row == null) {
+                        continue;
+                    }
+                    sources.add(toSource(row, "position_card", "岗位卡片", textOf(row.get("content"))));
+                }
+            }
+            if (chatHistoryQAResults != null) {
+                for (Map<String, Object> row : chatHistoryQAResults) {
+                    if (row == null) {
+                        continue;
+                    }
+                    sources.add(toSource(row, "chat_history", "历史问答", textOf(row.get("content"))));
+                }
+            }
+        }
+        return sources;
+    }
+
+    /** 告诉模型这次回答只能使用已经发给前端的编号，避免凭空写出 [[E1]]。 */
+    public static String allowedCiteClause(List<Map<String, Object>> sources) {
+        List<String> ids = new ArrayList<>();
+        if (sources != null) {
+            for (Map<String, Object> source : sources) {
+                if (source == null) {
+                    continue;
+                }
+                String id = text(source.get("id"));
+                if (CITE_TOKEN.matcher(id).matches()) {
+                    ids.add(id);
+                }
+            }
+        }
+        if (ids.isEmpty()) {
+            return "\n本次检索没有可引用编号。不要输出 [[K1]]、[[E1]] 这类标记。直接说明知识库或 ERP 中没有相关信息。";
+        }
+        return "\n本次只允许使用这些编号：" + String.join("、", ids) + "。上下文里没有的编号禁止出现。";
+    }
+
     public static List<String> parseMarkers(String answer) {
         List<String> ids = new ArrayList<>();
         if (answer == null || answer.isEmpty()) {
@@ -146,6 +242,46 @@ public final class ChatCitation {
             }
         }
         return "";
+    }
+
+    private static void appendErp(List<Map<String, Object>> sources, List<Map<String, Object>> rows) {
+        if (rows == null) {
+            return;
+        }
+        for (Map<String, Object> row : rows) {
+            if (row == null) {
+                continue;
+            }
+            String title = text(row.get("type"));
+            sources.add(toSource(row, "supply_chain", title.isEmpty() ? "ERP单据" : title, erpExcerpt(row)));
+        }
+    }
+
+    private static String erpExcerpt(Map<String, Object> row) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(textOf(row.get("type"))).append('\n');
+        sb.append(textOf(row.get("summary"))).append('\n');
+        Object data = row.get("data");
+        if (data instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                String value = entry.getValue().toString();
+                if (value.length() > 300) {
+                    value = value.substring(0, 300) + "...";
+                }
+                sb.append(entry.getKey()).append(": ").append(value).append('\n');
+                if (sb.length() > 1500) {
+                    break;
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String textOf(Object value) {
+        return value == null ? "" : value.toString();
     }
 
     private static String firstIn(Map<?, ?> row, String[] keys) {

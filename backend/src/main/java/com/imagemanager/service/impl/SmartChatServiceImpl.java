@@ -13,6 +13,7 @@ import com.imagemanager.service.KnowledgeBaseService;
 import com.imagemanager.service.MilvusService;
 import com.imagemanager.service.QuotationCalcService;
 import com.imagemanager.service.ChatCitation;
+import com.imagemanager.service.ChatSseFrames;
 import com.imagemanager.service.SmartChatService;
 import com.imagemanager.tools.SupplyChainAssistant;
 import com.imagemanager.tools.SupplyChainTools;
@@ -198,6 +199,9 @@ public class SmartChatServiceImpl implements SmartChatService {
 
         try {
         chatExecutor.execute(() -> {
+            List<Map<String, Object>> citedSources = new ArrayList<>();
+            String historyId = null;
+            String activeConvId = null;
             try {
                 // 0. 确定对话ID：如果未传则获取或创建
                 String convId = conversationId;
@@ -207,6 +211,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 1. 发送conversationId给前端
                 final String finalConvId = convId;
+                activeConvId = finalConvId;
                 emitter.send(SseEmitter.event().name("conversation").data(Objects.requireNonNull(finalConvId)));
 
                 // 1a. 显式 subMode（前端智能体按钮）优先级最高，直接写入会话记忆
@@ -326,12 +331,11 @@ public class SmartChatServiceImpl implements SmartChatService {
                             // 保存被拦截的用户消息与守卫提示到历史(供"开始新企划"裸指令接管时回溯新主题)
                             saveChatMessage(userId, finalConvId, "user", message, company, null, mode);
                             chatMemoryManager.addUserMessage(finalConvId, message);
-                            saveChatMessage(userId, finalConvId, "assistant", guardPrompt, company, null, mode);
+                            historyId = saveChatMessage(userId, finalConvId, "assistant", guardPrompt, company, null, mode);
                             chatMemoryManager.addAssistantMessage(finalConvId, guardPrompt);
                             emitter.send(SseEmitter.event().name("message").data(
                                     Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "content", "content", guardPrompt)))));
-                            emitter.send(SseEmitter.event().name("message").data(
-                                    Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "done")))));
+                            sendTerminal(emitter, historyId, finalConvId, List.of());
                             emitter.complete();
                             return;
                         }
@@ -374,14 +378,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                             try {
                                 String analysis = supplyChainAssistant.chat(message, company);
                                 if (analysis != null && !analysis.isBlank()) {
-                                    Map<String, Object> entry = new LinkedHashMap<>();
-                                    entry.put("type", "供应链AI工具分析");
-                                    entry.put("summary", "AI 通过 function-calling 调用统计/查询工具得出的分析");
-                                    Map<String, Object> data = new LinkedHashMap<>();
-                                    data.put("分析结论", analysis);
-                                    entry.put("data", data);
                                     supplyChainResults = new ArrayList<>();
-                                    supplyChainResults.add(entry);
+                                    supplyChainResults.add(ChatCitation.toolAnalysisEntry(analysis));
                                 }
                             } catch (Exception ex) {
                                 log.warn("function-calling 兜底分析异常: {}", ex.getMessage());
@@ -477,46 +475,14 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
 
                 // 3. 给每条检索结果编号。回答句末用 [[K1]] [[E1]] 指回原文，recordId 是真实记录主键
-                ChatCitation.stamp(knowledgeResults, "K", 1);
-                ChatCitation.stamp(salespersonResults, "B", 1);
-                int erpSeq = ChatCitation.stamp(supplyChainResults, "E", 1);
-                ChatCitation.stamp(structuredResults, "E", erpSeq);
-                ChatCitation.stamp(positionCardResults, "P", 1);
-                ChatCitation.stamp(chatHistoryQAResults, "H", 1);
-
-                List<Map<String, Object>> sources = new ArrayList<>();
-                for (Map<String, Object> r : knowledgeResults) {
-                    String title = ChatCitation.firstText(r, "title", "source", "domain");
-                    sources.add(ChatCitation.toSource(r, "knowledge", title.isEmpty() ? "知识库文档" : title,
-                            r.getOrDefault("content", "").toString()));
-                }
-                for (Map<String, Object> r : salespersonResults) {
-                    String fileName = r.getOrDefault("fileName", "业务员资料").toString();
-                    sources.add(ChatCitation.toSource(r, "salesperson_kb", fileName,
-                            r.getOrDefault("content", "").toString()));
-                }
-                for (Map<String, Object> r : supplyChainResults) {
-                    sources.add(ChatCitation.toSource(r, "supply_chain",
-                            r.getOrDefault("type", "ERP单据").toString(), erpExcerpt(r)));
-                }
-                for (Map<String, Object> r : structuredResults) {
-                    sources.add(ChatCitation.toSource(r, "supply_chain",
-                            r.getOrDefault("type", "ERP单据").toString(), erpExcerpt(r)));
-                }
-                // 岗位卡片和历史问答只在设计师模式作为来源
-                if (!isFactory) {
-                    for (Map<String, Object> r : positionCardResults) {
-                        sources.add(ChatCitation.toSource(r, "position_card", "岗位卡片",
-                                r.getOrDefault("content", "").toString()));
-                    }
-                    for (Map<String, Object> r : chatHistoryQAResults) {
-                        sources.add(ChatCitation.toSource(r, "chat_history", "历史问答",
-                                r.getOrDefault("content", "").toString()));
-                    }
-                }
+                // 岗位卡片和历史问答只在设计师模式作为来源；工厂模式的 E 类（含工具分析）始终进入 sources
+                List<Map<String, Object>> sources = ChatCitation.collectSources(
+                        knowledgeResults, salespersonResults, supplyChainResults, structuredResults,
+                        positionCardResults, chatHistoryQAResults, !isFactory);
+                citedSources = sources;
 
                 emitter.send(SseEmitter.event().name("message").data(
-                        Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "sources", "sources", sources)))
+                        Objects.requireNonNull(objectMapper.writeValueAsString(ChatSseFrames.sourcesEvent(sources)))
                 ));
 
                 // 3b. 发送图片结果(如果有)
@@ -822,7 +788,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
                             ChatCitation.RULE;
                 }
-                messages.add(Map.of("role", "system", "content", systemPrompt));
+                messages.add(Map.of("role", "system", "content", systemPrompt + ChatCitation.allowedCiteClause(sources)));
 
                 // 加入历史对话(最近10轮)
                 int startIdx = Math.max(0, history.size() - 5);
@@ -1033,7 +999,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 String chatCapability = "factory".equals(mode)
                         ? AiCallLogService.CAP_FACTORY_CHAT
                         : AiCallLogService.CAP_SMART_CHAT;
-                String historyId = null;
+                boolean streamFailed = false;
                 try {
                     streamChat(emitter, messages, fullResponse, fullReasoning, activeConn);
                     if (aiCallLogService != null) {
@@ -1069,7 +1035,8 @@ public class SmartChatServiceImpl implements SmartChatService {
                         aiCallLogService.record(chatCapability, null, false,
                                 System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
                     }
-                    throw chatEx;
+                    streamFailed = true;
+                    log.warn("模型流式输出失败: {}", chatEx.getMessage());
                 } finally {
                     // 8. 无论流是否成功，都保存已收集的AI回复（含思维链）
                     if (fullResponse.length() > 0) {
@@ -1106,16 +1073,17 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
-                try {
-                    java.util.Map<String, Object> done = new java.util.LinkedHashMap<>();
-                    done.put("type", "done");
-                    if (historyId != null && !historyId.isBlank()) {
-                        done.put("historyId", historyId);
+                sendTerminal(emitter, historyId, activeConvId, citedSources);
+                if (streamFailed && fullResponse.length() == 0) {
+                    try {
+                        emitter.send(SseEmitter.event().name("message").data(
+                                Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
+                                        "type", "error",
+                                        "content", "AI对话失败，请稍后再试"
+                                )))
+                        ));
+                    } catch (Exception ignored) {
                     }
-                    emitter.send(SseEmitter.event().name("message").data(
-                            Objects.requireNonNull(objectMapper.writeValueAsString(done))));
-                } catch (Exception sendDoneEx) {
-                    log.warn("发送对话结束事件失败: {}", sendDoneEx.getMessage());
                 }
 
                 // 9. 更新对话标题（如果是新对话的第一条消息）
@@ -1125,16 +1093,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                 emitter.complete();
             } catch (Exception e) {
                 log.error("智能对话失败: {}", e.getMessage());
+                sendTerminal(emitter, historyId, activeConvId, citedSources);
                 try {
                     emitter.send(SseEmitter.event().name("message").data(
                             Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "error", "content", "AI对话失败: " + e.getMessage())))
                     ));
                 } catch (Exception ignored) {}
-                emitter.completeWithError(e);
+                emitter.complete();
             }
         });
         } catch (RejectedExecutionException rejected) {
             log.warn("智能对话线程池已满: {}", rejected.getMessage());
+            sendTerminal(emitter, null, null, List.of());
             try {
                 emitter.send(SseEmitter.event().name("message").data(
                         Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
@@ -3774,31 +3744,14 @@ public class SmartChatServiceImpl implements SmartChatService {
         }
     }
 
-    /**
-     * 加载对话历史
-     */
-
-    private String erpExcerpt(Map<String, Object> row) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(row.getOrDefault("type", "")).append('\n');
-        sb.append(row.getOrDefault("summary", "")).append('\n');
-        Object data = row.get("data");
-        if (data instanceof Map<?, ?> map) {
-            for (Map.Entry<?, ?> entry : map.entrySet()) {
-                if (entry.getValue() == null) {
-                    continue;
-                }
-                String value = entry.getValue().toString();
-                if (value.length() > 300) {
-                    value = value.substring(0, 300) + "...";
-                }
-                sb.append(entry.getKey()).append(": ").append(value).append('\n');
-                if (sb.length() > 1500) {
-                    break;
-                }
-            }
+    private void sendTerminal(SseEmitter emitter, String historyId, String conversationId, List<Map<String, Object>> sources) {
+        try {
+            emitter.send(SseEmitter.event().name("message").data(
+                    Objects.requireNonNull(objectMapper.writeValueAsString(
+                            ChatSseFrames.done(historyId, conversationId, sources)))));
+        } catch (Exception ex) {
+            log.warn("发送对话结束事件失败: {}", ex.getMessage());
         }
-        return sb.toString();
     }
 
     private void attachSources(Map<String, Object> msg, java.sql.ResultSet rs) {

@@ -7,6 +7,10 @@ import {
   Copy, Check, Sparkles, Loader2, Lightbulb, Globe
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
+import ChatFeedbackBar from './ChatFeedbackBar';
+import { backendFetch } from '@/lib/backend-proxy';
+import { isSamplerSession } from '@/lib/auth';
+import { mapHistoryChatMessage, takeSseEvents, type ChatSource, type ChatSseEvent } from '@/lib/chat-sse';
 
 // ===== 类型定义 =====
 interface ChatMessage {
@@ -17,6 +21,9 @@ interface ChatMessage {
   isStreaming?: boolean;
   thinkingChain?: string[];
   searchResults?: { title: string; url: string; snippet: string }[];
+  sources?: ChatSource[];
+  historyId?: string;
+  feedback?: 'useful' | 'wrong';
 }
 
 // ===== 复制按钮 =====
@@ -61,6 +68,9 @@ export default function FloatingAI() {
   const [thinkingExpanded, setThinkingExpanded] = useState(true);
   const [searchExpanded, setSearchExpanded] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [samplerSession, setSamplerSession] = useState(false);
+  const [openSource, setOpenSource] = useState<ChatSource | null>(null);
+  const [wrongDraft, setWrongDraft] = useState<{ id: string; comment: string } | null>(null);
   const [, setIsLoadingHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -123,51 +133,60 @@ export default function FloatingAI() {
       let buffer = '';
       let fullContent = '';
 
+      const applyEvent = (data: ChatSseEvent) => {
+        if (data.type === 'conversation' && typeof data.conversationId === 'string') {
+          setConversationId(data.conversationId);
+        }
+        if (typeof data.conversationId === 'string' && data.conversationId && data.type === 'done') {
+          setConversationId(data.conversationId);
+        }
+        if (data.type === 'sources' && Array.isArray(data.sources)) {
+          const sources = data.sources;
+          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, sources } : m));
+        }
+        if (data.type === 'content' && typeof data.content === 'string') {
+          fullContent += data.content;
+          const content = fullContent;
+          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
+          scrollToBottom();
+        }
+        if (data.type === 'done') {
+          const historyId = typeof data.historyId === 'string' ? data.historyId : '';
+          const sources = Array.isArray(data.sources) ? data.sources : undefined;
+          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? {
+            ...m,
+            isStreaming: false,
+            ...(historyId ? { historyId } : {}),
+            ...(sources ? { sources } : {}),
+          } : m));
+        }
+        if (typeof data.thinking === 'string' && data.thinking) {
+          const thinking = data.thinking;
+          setMessages(prev => prev.map(m =>
+            m.id === assistantMsg.id
+              ? { ...m, thinkingChain: [...(m.thinkingChain || []), thinking] }
+              : m
+          ));
+        }
+        if (Array.isArray(data.searchResults)) {
+          const searchResults = data.searchResults as ChatMessage['searchResults'];
+          setMessages(prev => prev.map(m =>
+            m.id === assistantMsg.id ? { ...m, searchResults } : m
+          ));
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim() || !line.startsWith('data:')) continue;
-          const dataStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5);
-          if (dataStr.trim() === '[DONE]') continue;
-
-          try {
-            const data = JSON.parse(dataStr);
-            // 保存conversationId用于上下文对话
-            if (data.conversationId) {
-              setConversationId(data.conversationId);
-            }
-            if (data.content) {
-              fullContent += data.content;
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMsg.id
-                  ? { ...m, content: fullContent }
-                  : m
-              ));
-              scrollToBottom();
-            }
-            if (data.thinking) {
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMsg.id
-                  ? { ...m, thinkingChain: [...(m.thinkingChain || []), data.thinking] }
-                  : m
-              ));
-            }
-            if (data.searchResults) {
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMsg.id
-                  ? { ...m, searchResults: data.searchResults }
-                  : m
-              ));
-            }
-          } catch { /* skip invalid JSON */ }
-        }
+        const taken = takeSseEvents(buffer, false);
+        buffer = taken.rest;
+        for (const event of taken.events) applyEvent(event);
       }
+      buffer += decoder.decode();
+      const tail = takeSseEvents(buffer, true);
+      for (const event of tail.events) applyEvent(event);
 
       setMessages(prev => prev.map(m =>
         m.id === assistantMsg.id ? { ...m, isStreaming: false } : m
@@ -195,8 +214,46 @@ export default function FloatingAI() {
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 200);
+      backendFetch('/auth/session')
+        .then(res => res.ok ? res.json() : null)
+        .then(session => {
+          const user = session?.data || session?.user;
+          setSamplerSession(isSamplerSession(user));
+        })
+        .catch(() => setSamplerSession(false));
     }
   }, [isOpen]);
+
+  const submitFeedback = async (messageId: string, verdict: 'useful' | 'wrong', comment?: string) => {
+    const index = messages.findIndex(m => m.id === messageId);
+    const answer = messages[index];
+    if (!answer || answer.feedback) return;
+    let question = '';
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        question = messages[i].content;
+        break;
+      }
+    }
+    try {
+      const res = await backendFetch('/chat/feedback', {
+        method: 'POST',
+        body: {
+          verdict,
+          question,
+          answer: answer.content,
+          conversationId: conversationId || '',
+          comment: comment || '',
+          sources: answer.sources || [],
+          historyId: answer.historyId || '',
+        },
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      setWrongDraft(null);
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, feedback: verdict } : m));
+    } catch { /* ignore */ }
+  };
 
   // 加载对话历史
   const loadHistory = useCallback(async (targetMode: string) => {
@@ -206,14 +263,20 @@ export default function FloatingAI() {
       if (!res.ok) { setIsLoadingHistory(false); return; }
       const data = await res.json();
       if (data.history && data.history.length > 0) {
-        const historyMessages: ChatMessage[] = data.history.map((h: { role: string; content: string; thinkingChain?: string[]; searchResults?: { title: string; url: string; snippet: string }[] }) => ({
-          id: crypto.randomUUID(),
-          role: h.role as 'user' | 'assistant',
-          content: h.content,
-          thinkingChain: h.thinkingChain || [],
-          searchResults: h.searchResults || [],
-          isStreaming: false,
-        }));
+        const historyMessages: ChatMessage[] = data.history.map((h: { id?: string; role: string; content: string; reasoning?: string; sources?: ChatSource[]; thinkingChain?: string[]; searchResults?: { title: string; url: string; snippet: string }[] }) => {
+          const mapped = mapHistoryChatMessage(h);
+          return {
+            id: mapped.historyId || crypto.randomUUID(),
+            role: mapped.role,
+            content: mapped.content,
+            timestamp: new Date(),
+            thinkingChain: h.thinkingChain || [],
+            searchResults: h.searchResults || [],
+            sources: mapped.sources,
+            historyId: mapped.historyId,
+            isStreaming: false,
+          };
+        });
         setMessages(historyMessages);
         setConversationId(data.conversationId || null);
         setTimeout(() => scrollToBottom(true), 100);
@@ -411,7 +474,26 @@ export default function FloatingAI() {
                   }`}>
                     {msg.role === 'assistant' ? (
                       <div className="text-[13px] leading-relaxed">
-                        <MarkdownRenderer content={msg.content || (msg.isStreaming ? '' : '...')} darkMode />
+                        <MarkdownRenderer
+                          content={msg.content || (msg.isStreaming ? '' : '...')}
+                          darkMode
+                          citeIds={(msg.sources || []).map(s => s.id).filter((id): id is string => !!id)}
+                          onCite={(id) => {
+                            const hit = msg.sources?.find(s => s.id === id);
+                            if (hit) setOpenSource(hit);
+                          }}
+                        />
+                        {msg.role === 'assistant' && !msg.isStreaming && msg.content && !samplerSession && (
+                          <ChatFeedbackBar
+                            feedback={msg.feedback}
+                            showComment={wrongDraft?.id === msg.id}
+                            comment={wrongDraft?.id === msg.id ? wrongDraft.comment : ''}
+                            onCommentChange={(value) => setWrongDraft({ id: msg.id, comment: value })}
+                            onUseful={() => submitFeedback(msg.id, 'useful')}
+                            onWrong={() => setWrongDraft({ id: msg.id, comment: '' })}
+                            onSubmitWrong={() => submitFeedback(msg.id, 'wrong', wrongDraft?.comment || '')}
+                          />
+                        )}
                         {msg.isStreaming && msg.content && (
                           <span className="inline-block w-1.5 h-4 bg-[#007aff] ml-0.5 animate-pulse rounded-sm" />
                         )}
@@ -438,6 +520,16 @@ export default function FloatingAI() {
             ))}
             <div ref={messagesEndRef} />
           </div>
+
+          {openSource && (
+            <div className="border-t border-[#e5e5ea] bg-white px-3 py-2 max-h-36 overflow-y-auto">
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-[11px] text-[#007aff]">{openSource.id} · {openSource.title || '原文'}{openSource.recordId ? ` · ${openSource.recordId}` : ''}</div>
+                <button type="button" onClick={() => setOpenSource(null)} className="text-[#8e8e93]"><X className="w-3 h-3" /></button>
+              </div>
+              <p className="mt-1 text-[12px] text-[#3a3a3c] whitespace-pre-wrap">{openSource.excerpt || openSource.content || '没有可展示的原文。'}</p>
+            </div>
+          )}
 
           {/* 输入区域 */}
           <div className="p-3 border-t border-[rgba(0,122,255,0.2)] bg-[rgba(242,242,247,0.6)] backdrop-blur-xl">
