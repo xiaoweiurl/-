@@ -295,6 +295,21 @@ milvus:
     dense-weight: ${MILVUS_HYBRID_DENSE_WEIGHT:0.5}
     sparse-weight: ${MILVUS_HYBRID_SPARSE_WEIGHT:0.5}
 
+# 以图搜图。默认关闭，关闭时不连接 image_vectors，上传行为与现在一致。
+# 集合名必须以 image_ 开头，禁止指向 salesperson_docs / salesperson_docs_hybrid / salesperson_chunks。
+# 进度表 image_vector_index 要手动执行 V64 SQL，Flyway 不会自动跑。
+image-search:
+  enabled: ${IMAGE_SEARCH_ENABLED:false}
+  embed-base-url: ${IMAGE_EMBED_URL:http://127.0.0.1:8002}
+  timeout-ms: ${IMAGE_SEARCH_TIMEOUT_MS:60000}
+  collection: ${IMAGE_SEARCH_COLLECTION:image_vectors}
+  dimension: ${IMAGE_SEARCH_DIMENSION:512}
+  top-k: ${IMAGE_SEARCH_TOP_K:20}
+  milvus-host: ${MILVUS_HOST:localhost}
+  milvus-port: ${MILVUS_PORT:19530}
+  max-image-bytes: ${IMAGE_SEARCH_MAX_BYTES:20971520}
+  default-company: 宝娜斯集团
+
 # 知识批量导入配置（200G 级流式导入，直写 Milvus）
 knowledge-import:
   # 解析线程数（PDF/Excel/OCR 解析 + 切片，受 CPU 和内存约束，不宜过大）
