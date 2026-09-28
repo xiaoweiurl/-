@@ -6,9 +6,11 @@ import { backendFetch } from '@/lib/backend-proxy';
 import {
   MessageSquare, Send, Plus, Trash2, ArrowLeft,
   Bot, User, BookOpen, Loader2, Sparkles,
-  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X, ThumbsUp, ThumbsDown
+  Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import ChatFeedbackBar from '@/components/ChatFeedbackBar';
+import { isSamplerSession } from '@/lib/auth';
 
 // ===== 类型定义 =====
 interface ChatImage {
@@ -48,6 +50,7 @@ interface ChatMessage {
     score?: number;
   }>;
   feedback?: 'useful' | 'wrong';
+  historyId?: string;
   images?: ChatImage[];
   userImages?: string[]; // 用户上传的base64图片（兼容旧逻辑）
   attachments?: UploadedAttachment[]; // 用户上传的附件
@@ -128,6 +131,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [openSource, setOpenSource] = useState<NonNullable<ChatMessage['sources']>[number] | null>(null);
   const [wrongDraft, setWrongDraft] = useState<{ index: number; comment: string } | null>(null);
+  const [samplerSession, setSamplerSession] = useState(false);
   const [input, setInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -161,6 +165,7 @@ export default function ChatPage() {
           conversationId: activeSessionId || '',
           comment: comment || '',
           sources: answer.sources || [],
+          historyId: answer.historyId || '',
         },
       });
       const data = await res.json();
@@ -234,6 +239,14 @@ export default function ChatPage() {
         }
 
         setAuthChecked(true);
+        try {
+          const sessionRes = await backendFetch('/auth/session');
+          const session = await sessionRes.json();
+          const user = session?.data || session?.user;
+          setSamplerSession(isSamplerSession(user));
+        } catch {
+          setSamplerSession(false);
+        }
       } catch {
         setAuthChecked(true);
       }
@@ -278,11 +291,12 @@ export default function ChatPage() {
       });
       const data = await res.json();
       if (data.success && data.history?.length > 0) {
-        return data.history.map((m: { role: string; content: string; reasoning?: string; sources?: ChatMessage['sources'] }) => {
+        return data.history.map((m: { id?: string; role: string; content: string; reasoning?: string; sources?: ChatMessage['sources'] }) => {
           const msg: ChatMessage = {
             role: m.role as ChatMessage['role'],
             content: m.content,
           };
+          if (m.id) msg.historyId = m.id;
           if (m.reasoning) {
             msg.reasoning = m.reasoning;
           }
@@ -514,11 +528,17 @@ export default function ChatPage() {
                 return updated;
               });
             } else if (event.type === 'done') {
+              const historyId = typeof event.historyId === 'string' ? event.historyId : '';
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last) {
-                  updated[updated.length - 1] = { ...last, isStreaming: false, isThinking: false };
+                  updated[updated.length - 1] = {
+                    ...last,
+                    isStreaming: false,
+                    isThinking: false,
+                    ...(historyId ? { historyId } : {}),
+                  };
                 }
                 return updated;
               });
@@ -540,36 +560,42 @@ export default function ChatPage() {
         }
       }
 
-      // 处理缓冲区
-      if (sseBuffer.startsWith('data:')) {
-        const data = sseBuffer.substring(5).trim();
-        if (data) {
-          try {
-            const event = JSON.parse(data);
-            if (event.type === 'done') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last) {
-                  updated[updated.length - 1] = { ...last, isStreaming: false };
-                }
-                return updated;
-              });
-            } else if (event.type === 'content') {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.isStreaming) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: last.content + event.content,
-                  };
-                }
-                return updated;
-              });
-            }
-          } catch { /* ignore */ }
-        }
+      // 连接结束时缓冲区里可能还剩没有换行的最后一帧（event + data）
+      for (const line of sseBuffer.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.substring(5).trim();
+        if (!data) continue;
+        try {
+          const event = JSON.parse(data);
+          if (event.type === 'done') {
+            const historyId = typeof event.historyId === 'string' ? event.historyId : '';
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last) {
+                updated[updated.length - 1] = {
+                  ...last,
+                  isStreaming: false,
+                  isThinking: false,
+                  ...(historyId ? { historyId } : {}),
+                };
+              }
+              return updated;
+            });
+          } else if (event.type === 'content') {
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last?.isStreaming) {
+                updated[updated.length - 1] = {
+                  ...last,
+                  content: last.content + event.content,
+                };
+              }
+              return updated;
+            });
+          }
+        } catch { /* ignore */ }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '未知错误';
@@ -587,6 +613,15 @@ export default function ChatPage() {
       });
     } finally {
       setIsChatting(false);
+      setMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === 'assistant' && last.isStreaming) {
+          updated[updated.length - 1] = { ...last, isStreaming: false, isThinking: false };
+          return updated;
+        }
+        return prev;
+      });
     }
   }, [input, isChatting, activeSessionId]);
 
@@ -965,9 +1000,10 @@ export default function ChatPage() {
                         <MarkdownRenderer
                           content={msg.content || ''}
                           darkMode
+                          citeIds={(msg.sources || []).map(s => s.id).filter((id): id is string => !!id)}
                           onCite={(id) => {
                             const hit = msg.sources?.find(s => s.id === id);
-                            setOpenSource(hit || { id, source: 'knowledge', title: id, excerpt: '这条引用没有对应的原文。' });
+                            if (hit) setOpenSource(hit);
                           }}
                         />
                       )}
@@ -982,56 +1018,18 @@ export default function ChatPage() {
                           <CopyButton text={msg.content} />
                         </div>
                       )}
+                      {msg.role === 'assistant' && !msg.isStreaming && msg.content && !samplerSession && (
+                        <ChatFeedbackBar
+                          feedback={msg.feedback}
+                          showComment={wrongDraft?.index === i}
+                          comment={wrongDraft?.index === i ? wrongDraft.comment : ''}
+                          onCommentChange={(value) => setWrongDraft({ index: i, comment: value })}
+                          onUseful={() => submitFeedback(i, 'useful')}
+                          onWrong={() => setWrongDraft({ index: i, comment: '' })}
+                          onSubmitWrong={() => submitFeedback(i, 'wrong', wrongDraft?.comment || '')}
+                        />
+                      )}
                     </div>
-
-                    {msg.role === 'assistant' && !msg.isStreaming && msg.content && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={!!msg.feedback}
-                          onClick={() => submitFeedback(i, 'useful')}
-                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] border ${
-                            msg.feedback === 'useful'
-                              ? 'border-[rgba(52,199,89,0.4)] bg-[rgba(52,199,89,0.12)] text-[#34c759]'
-                              : 'border-[#e5e5ea] text-[#8e8e93] hover:text-[#1c1c1e]'
-                          }`}
-                        >
-                          <ThumbsUp className="w-3 h-3" /> 有用
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!!msg.feedback}
-                          onClick={() => setWrongDraft({ index: i, comment: '' })}
-                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] border ${
-                            msg.feedback === 'wrong'
-                              ? 'border-[rgba(255,59,48,0.35)] bg-[rgba(255,59,48,0.08)] text-[#ff3b30]'
-                              : 'border-[#e5e5ea] text-[#8e8e93] hover:text-[#1c1c1e]'
-                          }`}
-                        >
-                          <ThumbsDown className="w-3 h-3" /> 答错了
-                        </button>
-                        {wrongDraft?.index === i && !msg.feedback && (
-                          <span className="inline-flex items-center gap-1">
-                            <input
-                              value={wrongDraft.comment}
-                              onChange={(e) => setWrongDraft({ index: i, comment: e.target.value })}
-                              placeholder="备注（可选）"
-                              className="h-7 w-36 rounded-lg border border-[#e5e5ea] px-2 text-[11px] text-[#1c1c1e]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => submitFeedback(i, 'wrong', wrongDraft.comment)}
-                              className="rounded-lg bg-[#ff3b30] px-2 py-1 text-[11px] text-white"
-                            >
-                              提交
-                            </button>
-                          </span>
-                        )}
-                        {msg.feedback === 'wrong' && (
-                          <span className="text-[11px] text-[#8e8e93]">已提交，管理员会在待补充里看到</span>
-                        )}
-                      </div>
-                    )}
 
                     {/* 图片结果 */}
                     {msg.images && msg.images.length > 0 && (
@@ -1234,6 +1232,9 @@ export default function ChatPage() {
                 <h2 className="text-sm font-semibold text-[#1c1c1e] mt-1">{openSource.title || '原文'}</h2>
                 {openSource.recordId && (
                   <p className="mt-1 text-[11px] text-[#8e8e93] break-all">记录 {openSource.recordId}</p>
+                )}
+                {openSource.score != null && (
+                  <p className="mt-1 text-[11px] text-[#8e8e93]">分数 {openSource.score}</p>
                 )}
               </div>
               <button type="button" onClick={() => setOpenSource(null)} className="text-[#8e8e93]"><X className="w-4 h-4" /></button>

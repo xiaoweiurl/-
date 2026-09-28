@@ -1033,6 +1033,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 String chatCapability = "factory".equals(mode)
                         ? AiCallLogService.CAP_FACTORY_CHAT
                         : AiCallLogService.CAP_SMART_CHAT;
+                String historyId = null;
                 try {
                     streamChat(emitter, messages, fullResponse, fullReasoning, activeConn);
                     if (aiCallLogService != null) {
@@ -1080,7 +1081,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             }
                         } catch (Exception ignored) {
                         }
-                        saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode, sourcesJson);
+                        historyId = saveChatMessage(userId, convId, "assistant", fullResponse.toString(), company, reasoning, mode, sourcesJson);
                         // 同步更新ChatMemory
                         chatMemoryManager.addAssistantMessage(convId, fullResponse.toString());
                         
@@ -1103,6 +1104,18 @@ public class SmartChatServiceImpl implements SmartChatService {
                             }
                         }
                     }
+                }
+
+                try {
+                    java.util.Map<String, Object> done = new java.util.LinkedHashMap<>();
+                    done.put("type", "done");
+                    if (historyId != null && !historyId.isBlank()) {
+                        done.put("historyId", historyId);
+                    }
+                    emitter.send(SseEmitter.event().name("message").data(
+                            Objects.requireNonNull(objectMapper.writeValueAsString(done))));
+                } catch (Exception sendDoneEx) {
+                    log.warn("发送对话结束事件失败: {}", sendDoneEx.getMessage());
                 }
 
                 // 9. 更新对话标题（如果是新对话的第一条消息）
@@ -1148,7 +1161,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         List<Map<String, Object>> results;
         if (conversationId != null && !conversationId.isEmpty()) {
             // 按conversationId查询对话历史
-            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
+            String sql = "SELECT id::text AS id, role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE conversation_id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     modeCondition +
                     "ORDER BY created_at ASC LIMIT 100";
@@ -1160,6 +1173,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             results = jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
                         Map<String, Object> msg = new LinkedHashMap<>();
+                        msg.put("id", rs.getString("id"));
                         msg.put("role", rs.getString("role"));
                         msg.put("content", rs.getString("content"));
                         String reasoning = rs.getString("reasoning_content");
@@ -1174,7 +1188,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             );
         } else {
             // 兼容旧逻辑：按userId+company查询最近10轮对话
-            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
+            String sql = "SELECT id::text AS id, role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     modeCondition +
                     "ORDER BY created_at DESC LIMIT 20";
@@ -1186,6 +1200,7 @@ public class SmartChatServiceImpl implements SmartChatService {
             results = jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
                         Map<String, Object> msg = new LinkedHashMap<>();
+                        msg.put("id", rs.getString("id"));
                         msg.put("role", rs.getString("role"));
                         msg.put("content", rs.getString("content"));
                         String reasoning = rs.getString("reasoning_content");
@@ -1208,12 +1223,13 @@ public class SmartChatServiceImpl implements SmartChatService {
         List<Map<String, Object>> results;
         if (conversationId != null && !conversationId.isEmpty()) {
             // 按conversationId查询对话历史
-            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
+            String sql = "SELECT id::text AS id, role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE conversation_id = ?::uuid AND user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "ORDER BY created_at ASC LIMIT 100";
             results = jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
                         Map<String, Object> msg = new LinkedHashMap<>();
+                        msg.put("id", rs.getString("id"));
                         msg.put("role", rs.getString("role"));
                         msg.put("content", rs.getString("content"));
                         String reasoning = rs.getString("reasoning_content");
@@ -1228,12 +1244,13 @@ public class SmartChatServiceImpl implements SmartChatService {
             );
         } else {
             // 兼容旧逻辑：按userId+company查询最近10轮对话
-            String sql = "SELECT role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
+            String sql = "SELECT id::text AS id, role, content, reasoning_content, sources_json, created_at FROM smart_chat_history " +
                     "WHERE user_id = ? AND (COALESCE(NULLIF(company, ''), '') = COALESCE(NULLIF(?, ''), '')) " +
                     "ORDER BY created_at DESC LIMIT 20";
             results = jdbcTemplate.query(sql,
                     (rs, rowNum) -> {
                         Map<String, Object> msg = new LinkedHashMap<>();
+                        msg.put("id", rs.getString("id"));
                         msg.put("role", rs.getString("role"));
                         msg.put("content", rs.getString("content"));
                         String reasoning = rs.getString("reasoning_content");
@@ -3799,27 +3816,30 @@ public class SmartChatServiceImpl implements SmartChatService {
      * 保存对话消息（按userId+company绑定，session_id存储为基于userId生成的确定性UUID）
      * 使用TransactionTemplate确保在无事务上下文（新线程）中也能提交
      */
-    private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode) {
-        saveChatMessage(userId, conversationId, role, content, company, reasoningContent, mode, null);
+    private String saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode) {
+        return saveChatMessage(userId, conversationId, role, content, company, reasoningContent, mode, null);
     }
 
-    private void saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode, String sourcesJson) {
+    private String saveChatMessage(String userId, String conversationId, String role, String content, String company, String reasoningContent, String mode, String sourcesJson) {
         try {
             if (content == null || content.trim().isEmpty()) {
                 log.warn("保存对话消息跳过: content为空, userId={}, role={}", userId, role);
-                return;
+                return null;
             }
             String modeValue = (mode != null && !mode.isEmpty()) ? mode : "designer";
+            String id = UUID.randomUUID().toString();
             TransactionTemplate txTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
             txTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
                         "INSERT INTO smart_chat_history (id, session_id, conversation_id, role, content, reasoning_content, user_id, company, model, sources_json, created_at) " +
-                                "VALUES (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                        conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue, sourcesJson
+                                "VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                        id, conversationId, conversationId, role, content, reasoningContent, userId, company, modeValue, sourcesJson
                 );
             });
+            return id;
         } catch (Exception e) {
             log.error("保存对话消息失败: userId={}, role={}, error={}", userId, role, e.getMessage(), e);
+            return null;
         }
     }
 
@@ -4085,7 +4105,7 @@ public class SmartChatServiceImpl implements SmartChatService {
         }
         }
 
-        // 发送完整的reasoning和done事件
+        // 完整思考过程。结束事件在保存历史记录之后发送，才能带上 historyId。
         if (reasoningContent.length() > 0) {
             emitter.send(SseEmitter.event().name("message").data(
                     Objects.requireNonNull(objectMapper.writeValueAsString(Map.of(
@@ -4094,8 +4114,5 @@ public class SmartChatServiceImpl implements SmartChatService {
                     )))
             ));
         }
-        emitter.send(SseEmitter.event().name("message").data(
-                Objects.requireNonNull(objectMapper.writeValueAsString(Map.of("type", "done")))
-        ));
     }
 }
