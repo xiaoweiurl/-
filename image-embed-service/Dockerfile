@@ -1,4 +1,6 @@
-# 可选。默认 CPU 版 torch。有 NVIDIA GPU 时更建议在本机 venv 里装 CUDA 版 torch 后直接 python main.py。
+# CPU 回退镜像，不是 RTX 5090 的 GPU 运行方式。
+# 5090（sm_120，驱动 610.88）请在 Windows venv 里装 cu130 轮子，见 README。
+# cu124 / cu126 没有 sm_120，不要用。
 FROM python:3.11-slim
 
 WORKDIR /app

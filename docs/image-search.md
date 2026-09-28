@@ -4,68 +4,110 @@
 
 默认关闭。关闭时不连接新的向量集合，上传、删除、页面行为与现在一致（入口也不会出现）。
 
+## 这台机器
+
+- 显卡：NVIDIA GeForce RTX 5090，32GB 显存，驱动 610.88，Blackwell，计算能力 12.0（sm_120）。
+- 内存：62GB。
+- 同一张卡还要跑 Ollama 的 `qwen3.6:35b`。向量服务只占大约 1GB 显存，可以和它共存。显存被占满时把向量服务改到 CPU，不要再往这张卡上加载第二个大模型。
+
 ## 模型
 
-用 **Chinese-CLIP ViT-B/16**（`OFA-Sys/chinese-clip-vit-base-patch16`，512 维，Apache-2.0）。
+这台机器用 **Chinese-CLIP ViT-L/14**（`OFA-Sys/chinese-clip-vit-large-patch14`，768 维，Apache-2.0）。
 
 - 图片和中文文本在同一个向量空间里，余弦相似度可以直接比。除了以图搜图，也可以只输入中文描述。
-- ViT-B/16 大约 1.8 亿参数，没有 GPU 时 CPU 可以跑完一张图（大约几百毫秒到两秒）。有 NVIDIA GPU 时自动用 CUDA。
+- ViT-L/14 大约 4 亿参数。GPU 上用 fp16，权重大约 1GB，单张图是几十毫秒量级。32GB 显存里 qwen3.6:35b 已经常驻，这个向量模型仍然放得下。
+- 代码和 Java 配置的默认值仍是较小的 ViT-B/16（`OFA-Sys/chinese-clip-vit-base-patch16`，512 维，集合 `image_vectors`）。那是 CPU 回退和没有确认 sm_120 的机器用的。这台 5090 在第一次回填之前改成下面四项，不要改已经建好的 512 维集合：
+
+```text
+IMAGE_EMBED_MODEL=OFA-Sys/chinese-clip-vit-large-patch14
+IMAGE_EMBED_DIMENSION=768
+IMAGE_SEARCH_DIMENSION=768
+IMAGE_SEARCH_COLLECTION=image_vectors_vitl
+```
+
 - 没有用 jina-clip-v2：它的许可证是 CC-BY-NC，不适合公司正式使用。
 - 没有用 SigLIP：英文和图图检索很好，中文对齐不如 Chinese-CLIP。
-- 本机的 qwen3.6:35b 只能写描述，不能产出可比对的图片向量。bge-m3 只处理文本。
-- 新集合名是 `image_vectors`。不会读、改、删 `salesperson_docs`、`salesperson_docs_hybrid`、`salesperson_chunks`。集合已存在时不会改字段。Milvus 的字符串上限按字节计算，写入前会按字段上限截断，避免中文标题把整条插入打失败。
-
-有 GPU、想换更大的模型时，同时改这三项，并换一个新集合名（旧集合维度不能混用）：
-
-- `IMAGE_EMBED_MODEL=OFA-Sys/chinese-clip-vit-large-patch14`
-- `IMAGE_EMBED_DIMENSION=768`
-- `IMAGE_SEARCH_DIMENSION=768`
-- `IMAGE_SEARCH_COLLECTION=image_vectors_vitl`
+- 本机的 qwen3.6:35b 继续只做对话和识图描述。它不能产出可比对的图片向量，也不要把它挪来当检索模型。bge-m3 只处理文本。
+- 新集合名是 `image_vectors_vitl`。不会读、改、删 `salesperson_docs`、`salesperson_docs_hybrid`、`salesperson_chunks`。集合已存在时不会改字段，维度不同必须换新集合名。Milvus 的字符串上限按字节计算，写入前会按字段上限截断，避免中文标题把整条插入打失败。
 
 ## 按顺序在 Windows 上执行
 
 下面假设仓库在 `D:\yingyun`，数据库名以 `application-local.yml` 为准，默认 `image_management`。JDK 17 要在 `PATH` 里（`java -version`）。
 
-### 1. 看有没有 GPU
+### 1. 确认这张 5090
 
 ```powershell
 nvidia-smi
 ```
 
-有正常输出就是有 NVIDIA GPU。没有这条命令，或报驱动错误，就走 CPU。
+应看到 `NVIDIA GeForce RTX 5090`、驱动 `610.88`、显存约 32GB。驱动比 CUDA 12.8 / 13.0 轮子要求的版本新，不需要再单独装一套 CUDA Toolkit，轮子自带运行库。
 
-装好向量服务后再确认一次：
+5090 是 sm_120。PyTorch 从 **2.7 的 cu128 轮子**起才带这个架构。`cu124`、`cu126` 的架构列表停在 sm_90，装上去会报 `no kernel image is available` 或 `sm_120 is not compatible`。不要装这两档。
 
-```powershell
-.\.venv\Scripts\python -c "import torch; print('cuda', torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu-only')"
-```
-
-服务起来后看 `http://127.0.0.1:8002/health` 里的 `device`：`cuda` 或 `cpu`。`IMAGE_EMBED_DEVICE` 默认 `auto`，有 CUDA 用 GPU，否则 CPU。强制 CPU：
-
-```powershell
-$env:IMAGE_EMBED_DEVICE = "cpu"
-```
+2026-09-28 核对过官方索引：`cu128` 的 Windows 轮子到 `2.11.0+cu128`，`cu130` 仍在更新（Windows 轮子到 `2.14.0+cu130`），两者都含 sm_120。这台机器用 **cu130**。下不下来时再改用 cu128，不要改用更旧的索引。
 
 ### 2. 安装并启动图片向量服务
+
+`requirements.txt` 里故意没有 torch。后装 requirements 不会把刚装好的 CUDA 轮子换成 PyPI 上没有 sm_120 的包。
 
 ```powershell
 cd D:\yingyun\image-embed-service
 py -3 -m venv .venv
 .\.venv\Scripts\activate
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-# 上一步确认有 GPU 时，改成对应 CUDA 轮子，例如：
-# pip install torch --index-url https://download.pytorch.org/whl/cu124
+pip uninstall -y torch torchvision torchaudio
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 pip install -r requirements.txt
+```
+
+cu130 失败时，改用仍包含 sm_120 的 cu128：
+
+```powershell
+pip uninstall -y torch torchvision torchaudio
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+```
+
+装完先确认架构，再启动服务。必须看到 `sm_120` 和 `(12, 0)`，版本号里是 `+cu130` 或 `+cu128`：
+
+```powershell
+.\.venv\Scripts\python -c "import torch; print(torch.__version__, torch.version.cuda); print(torch.cuda.get_arch_list()); print(torch.cuda.get_device_capability(0)); print(torch.cuda.get_device_name(0))"
+```
+
+确认通过后，在同一个窗口指定 ViT-L/14 再启动。这个窗口要一直开着。
+
+```powershell
+$env:IMAGE_EMBED_MODEL = "OFA-Sys/chinese-clip-vit-large-patch14"
+$env:IMAGE_EMBED_DIMENSION = "768"
+$env:IMAGE_EMBED_DEVICE = "auto"
 python main.py
 ```
 
-第一次会从镜像下载 Chinese-CLIP（约几百 MB）。这个窗口要一直开着。健康检查：
+第一次会从镜像下载 Chinese-CLIP ViT-L/14。健康检查：
 
 ```powershell
 curl http://127.0.0.1:8002/health
 ```
 
-`stub` 必须是 `false`。`IMAGE_EMBED_STUB=1` 只给开发冒烟，不能用于正式检索。
+`stub` 必须是 `false`，`device` 应为 `cuda`，`dimension` 应为 `768`，`gpu_name` 里应有 5090。`IMAGE_EMBED_STUB=1` 只给开发冒烟，不能用于正式检索。
+
+显存被 qwen3.6:35b 占满、启动报 CUDA OOM 时，保持上面的模型和维度不变，只把设备改成 CPU。62GB 内存够跑 ViT-L/14，只是单张图会慢到一秒上下：
+
+```powershell
+$env:IMAGE_EMBED_DEVICE = "cpu"
+python main.py
+```
+
+没有 NVIDIA GPU、或驱动起不来时，不要装 cu130。卸掉 CUDA 轮子，改用 CPU 轮子，并退回默认的 ViT-B/16（512 维，集合 `image_vectors`）：
+
+```powershell
+pip uninstall -y torch torchvision torchaudio
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+$env:IMAGE_EMBED_DEVICE = "cpu"
+$env:IMAGE_EMBED_MODEL = "OFA-Sys/chinese-clip-vit-base-patch16"
+$env:IMAGE_EMBED_DIMENSION = "512"
+python main.py
+```
+
+CPU 回退和 5090 的 ViT-L/14 不能混在同一个 Milvus 集合里。换模型就要换集合名，并重新回填。
 
 ### 3. 手动执行 SQL
 
@@ -84,6 +126,13 @@ psql -h localhost -U postgres -d image_management -f D:\yingyun\backend\src\main
 ### 4. 回填已有图片
 
 另开一个 PowerShell。启动方式和已经跑通的 `scripts/hybrid-backfill.ps1` 一样：`cmd /c` 把 classpath 写到 `backend/cp.txt`（已在 `.gitignore`），再用 `Get-Content -Raw` 拼出以分号分隔的 classpath，然后 `java -cp`。不要用 `mvnw exec:java -Dexec.args`，PowerShell 5.1 会把它拆碎。也不要给 Maven 传 `-Dmdep.pathSeparator=;`，分号会被 cmd 截断。
+
+回填窗口里的维度和集合名必须和向量服务一致。这台 5090 用 ViT-L/14 时先设：
+
+```powershell
+$env:IMAGE_SEARCH_DIMENSION = "768"
+$env:IMAGE_SEARCH_COLLECTION = "image_vectors_vitl"
+```
 
 ```powershell
 cd D:\yingyun
@@ -110,6 +159,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\image-search-backfill.ps1 --f
 
 ### 5. 只读评测
 
+评测窗口同样要带上和第 4 步一样的维度与集合名（`$env:IMAGE_SEARCH_DIMENSION = "768"`、`$env:IMAGE_SEARCH_COLLECTION = "image_vectors_vitl"`）。
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\image-search-eval.ps1 --groups 20 --synthetic 8 --k 10
 ```
@@ -127,11 +178,15 @@ IDEA 运行配置里增加环境变量，然后重启后端：
 ```text
 IMAGE_SEARCH_ENABLED=true
 IMAGE_EMBED_URL=http://127.0.0.1:8002
+IMAGE_SEARCH_DIMENSION=768
+IMAGE_SEARCH_COLLECTION=image_vectors_vitl
 ```
+
+这四项要和已经启动的向量服务一致（模型 `chinese-clip-vit-large-patch14`，维度 768）。只在 IDEA 里改维度、向量服务仍是 512，写入会失败。
 
 Milvus 继续用现有的 `MILVUS_HOST` / `MILVUS_PORT`（默认 `localhost:19530`）。
 
-不要改 `milvus.collection-name`，那是文本库。图片库由 `IMAGE_SEARCH_COLLECTION` 指定，默认 `image_vectors`。
+不要改 `milvus.collection-name`，那是文本库。图片库由 `IMAGE_SEARCH_COLLECTION` 指定。这台机器是 `image_vectors_vitl`。代码默认仍是 512 维的 `image_vectors`，只在没有改上面两项时使用。
 
 重启后：
 
@@ -154,7 +209,7 @@ pnpm start
 1. IDEA 里去掉 `IMAGE_SEARCH_ENABLED`，或设成 `false`，重启后端。搜索接口返回未开启，新上传不再写向量，页面入口消失。
 2. 停掉 `python main.py`。
 3. 需要连进度表一起去掉时，手动执行：`DROP TABLE IF EXISTS image_vector_index;`
-4. 需要去掉向量时，只删除 Milvus 集合 `image_vectors`（若改过名，删你配置的那个 `image_` 集合）。不要删除 `salesperson_docs`、`salesperson_docs_hybrid`、`salesperson_chunks`。
+4. 需要去掉向量时，只删除 Milvus 集合 `image_vectors_vitl`。如果还建过默认的 `image_vectors`，也只删这个 `image_` 集合。不要删除 `salesperson_docs`、`salesperson_docs_hybrid`、`salesperson_chunks`。
 5. 前端不需要单独回滚。开关关闭后按钮不会出现。
 
 ## 权限

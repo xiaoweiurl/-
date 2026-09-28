@@ -4,6 +4,12 @@
 默认模型：OFA-Sys/chinese-clip-vit-base-patch16（Chinese-CLIP ViT-B/16，512 维）。
 图和中文文本在同一向量空间，余弦相似度可直接比。
 
+RTX 5090（sm_120）这台机器改用 ViT-L/14，并与 Java 一起换成新集合，不要改默认值：
+  IMAGE_EMBED_MODEL=OFA-Sys/chinese-clip-vit-large-patch14
+  IMAGE_EMBED_DIMENSION=768
+  对应 IMAGE_SEARCH_DIMENSION=768、IMAGE_SEARCH_COLLECTION=image_vectors_vitl
+PyTorch 需要 cu128 或更新的轮子（本机 cu130）。cu124/cu126 没有 sm_120。
+
 环境变量：
   IMAGE_EMBED_DEVICE=auto|cpu|cuda   默认 auto：有 CUDA 用 GPU，否则 CPU
   IMAGE_EMBED_MODEL                   默认 OFA-Sys/chinese-clip-vit-base-patch16
