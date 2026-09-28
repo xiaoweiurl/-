@@ -23,10 +23,7 @@ import java.util.Map;
  * 用同一批从原集合抽样的问题，比较稠密检索和影子集合上的混合检索。
  * 只读两个集合，不写 Postgres。问题向量向本机 Ollama 现算，不写回 Milvus。
  *
- * <p>Windows PowerShell（在 backend 目录，回填完成之后）：
- * <pre>
- * .\mvnw.cmd -DskipTests compile exec:java "-Dexec.mainClass=com.imagemanager.milvus.tools.HybridCompareEvalMain" "-Dexec.args=--host=localhost --port=19530 --source=salesperson_docs --target=salesperson_docs_hybrid --embed-url=http://localhost:11434 --embed-model=bge-m3 --dim=1024 --sample-codes=40 --sample-chinese=15 --seed=25 --output=hybrid-eval-report.md"
- * </pre>
+ * <p>Windows 上不要用 {@code mvnw.cmd exec:java -Dexec.args}。用仓库里的 {@code scripts/hybrid-eval.ps1}。
  */
 public final class HybridCompareEvalMain {
 

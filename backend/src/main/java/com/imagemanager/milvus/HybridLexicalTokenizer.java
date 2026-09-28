@@ -106,6 +106,21 @@ public final class HybridLexicalTokenizer {
         return List.copyOf(ordered);
     }
 
+    /**
+     * BM25 查询文本。问句里有货号/型号/面料编号时，只保留这些编号的 token。
+     *
+     * <p>若把「型号」「货号」这类常见词一起送进稀疏检索，大量无关切片会同时出现在
+     * 稠密和稀疏的前排，RRF 会把只靠编号命中、稠密向量又排不进前 48 的切片挤出最终结果。
+     * 没有编号时仍用完整词袋，中文问题的行为不变。
+     */
+    public static String sparseQuery(String text) {
+        List<String> codes = codeQueryTokens(text);
+        if (codes.isEmpty()) {
+            return lexicalText(text);
+        }
+        return String.join(" ", codes);
+    }
+
     /** 空格分隔的索引文本。没有 token 时返回 {@code _blank}，避免 BM25 字段为空。 */
     public static String lexicalText(String text) {
         List<String> tokens = tokens(text);
@@ -152,6 +167,22 @@ public final class HybridLexicalTokenizer {
             "utf8", "utf16", "pdf", "docx", "xlsx", "pptx", "jpg", "jpeg", "png", "gif", "webp",
             "mp4", "mp3", "html", "css", "xml", "json", "csv", "txt", "zip", "rar");
 
+    /** 数量、重量、功率一类后缀，不拿来出评测题。 */
+    private static final Set<String> UNIT_SUFFIX = Set.of(
+            "kgs", "kg", "g", "mg", "gsm", "cm", "mm", "m", "yd", "w", "kw", "v", "a",
+            "pcs", "pc", "oz", "lb", "ml", "l", "tex", "dtex", "rpm", "nm");
+
+    /** Excel 单元格，如 I413、K294、T15、AA10。1–3 个字母后只跟行号。 */
+    private static final Pattern EXCEL_CELL = Pattern.compile("(?i)^[a-z]{1,3}\\d{1,7}$");
+
+    /** 3D/12F 这种旦尼尔/根数，不是面料编号。 */
+    private static final Pattern FIBER_COUNT = Pattern.compile("(?i)^\\d+(?:\\.\\d+)?d/\\d+(?:\\.\\d+)?f$");
+
+    private static final Pattern QUANTITY = Pattern.compile("(?i)^\\d+(?:\\.\\d+)?[a-z]{1,4}$");
+
+    /** 货号，如 25YK00022：至少两位数字、字母、再至少两位数字。 */
+    private static final Pattern HUOHAO = Pattern.compile("(?i)\\d{2,}[a-z]{1,12}\\d{2,}");
+
     /**
      * 正文里出现的货号/面料编号/型号，保留原文大小写，供评测出题。
      * 同一编号只保留第一次出现。文件扩展名这类噪声不收。
@@ -175,6 +206,20 @@ public final class HybridLexicalTokenizer {
         return List.copyOf(out);
     }
 
+    /**
+     * 评测题里值得当成标准答案的编号。索引仍然保留更宽的 {@link #acceptCode}，
+     * 这里只是不出「98g」「7865.00KGS」「3D/12F」和 Excel 坐标这种题。
+     */
+    public static boolean isQuestionCode(String raw) {
+        if (!acceptCode(raw) || SURFACE_SKIP.contains(raw.toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        if (EXCEL_CELL.matcher(raw).matches() || FIBER_COUNT.matcher(raw).matches() || isQuantity(raw)) {
+            return false;
+        }
+        return HUOHAO.matcher(raw).find() || isMaterialCode(raw) || isModelCode(raw);
+    }
+
     public static boolean acceptCode(String raw) {
         if (raw == null || raw.length() < 3 || raw.length() > MAX_CODE_LENGTH) {
             return false;
@@ -190,6 +235,79 @@ public final class HybridLexicalTokenizer {
             }
         }
         return letter && digit;
+    }
+
+    private static List<String> codeQueryTokens(String text) {
+        List<String> ordered = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (String raw : surfaceCodes(text)) {
+            String full = raw.toLowerCase(Locale.ROOT);
+            if (seen.add(full)) {
+                ordered.add(full);
+            }
+            if (raw.indexOf('-') < 0 && raw.indexOf('/') < 0 && raw.indexOf('_') < 0 && raw.indexOf('.') < 0) {
+                continue;
+            }
+            String squashed = full.replaceAll("[._/\\-]", "");
+            if (squashed.length() >= 3 && seen.add(squashed)) {
+                ordered.add(squashed);
+            }
+        }
+        return ordered;
+    }
+
+    private static boolean isQuantity(String raw) {
+        if (QUANTITY.matcher(raw).matches()) {
+            Matcher suffix = Pattern.compile("(?i)[a-z]+$").matcher(raw);
+            return suffix.find() && UNIT_SUFFIX.contains(suffix.group().toLowerCase(Locale.ROOT));
+        }
+        String[] parts = raw.split("[._/\\-]+");
+        boolean sawUnit = false;
+        for (String part : parts) {
+            String letters = part.replaceAll("\\d", "");
+            if (letters.isEmpty()) {
+                continue;
+            }
+            if (!UNIT_SUFFIX.contains(letters.toLowerCase(Locale.ROOT))) {
+                return false;
+            }
+            sawUnit = true;
+        }
+        return sawUnit;
+    }
+
+    private static boolean isMaterialCode(String raw) {
+        if (raw.indexOf('-') < 0 && raw.indexOf('/') < 0 && raw.indexOf('_') < 0) {
+            return false;
+        }
+        int letters = 0;
+        int digits = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (Character.isLetter(c)) {
+                letters++;
+            } else if (Character.isDigit(c)) {
+                digits++;
+            }
+        }
+        return letters >= 2 && digits >= 2;
+    }
+
+    private static boolean isModelCode(String raw) {
+        if (raw.length() < 5 || EXCEL_CELL.matcher(raw).matches()) {
+            return false;
+        }
+        int letters = 0;
+        int digits = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (Character.isLetter(c)) {
+                letters++;
+            } else if (Character.isDigit(c)) {
+                digits++;
+            }
+        }
+        return letters >= 2 && digits >= 1;
     }
 
     private static void add(List<String> ordered, String token) {

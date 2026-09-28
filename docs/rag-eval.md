@@ -55,7 +55,7 @@ mvn test -Dgroups=rag-eval -Dsurefire.excludedGroups=
 
 默认 `mvn test` 里的 `RagHybridDenseCompareTest` 用同一套 `RagEvalScorer`，对「货号只在稀疏通道排第一、稠密通道把它滤掉」的情形出一份对照表：纯稠密召回不到货号，RRF 混合检索能召回。融合公式和线上 `RRFRanker(k=60)` 相同。
 
-线上 Milvus 里的真实切片对比，用 `HybridCompareEvalMain`。它从 `salesperson_docs` 抽样出货号、面料编号、型号和中文问题，对原集合做纯稠密检索、对 `salesperson_docs_hybrid` 做混合检索，把 Recall@5、Recall@10、MRR 和延迟写进 `hybrid-eval-report.md`。只读这两个集合，不连 Postgres。命令见 `docs/milvus-hybrid.md`。
+线上 Milvus 里的真实切片对比，用 `HybridCompareEvalMain`。它从 `salesperson_docs` 抽样出货号（如 `25YK00022`）、面料编号、较长型号和中文问题，对原集合做纯稠密检索、对 `salesperson_docs_hybrid` 做混合检索，把 Recall@5、Recall@10、MRR 和延迟写进 `hybrid-eval-report.md`。单位数量、旦尼尔根数和 Excel 单元格坐标不出题。问句里有编号时，BM25 只送这些编号，不再把「型号」「货号」送进稀疏通道。只读这两个集合，不连 Postgres。Windows 命令见 `docs/milvus-hybrid.md`。
 
 对话链路的题库对比仍然是：先保持 `MILVUS_HYBRID_ENABLED=false` 跑
 
