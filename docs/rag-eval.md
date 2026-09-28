@@ -50,3 +50,16 @@ mvn test -Dgroups=rag-eval -Dsurefire.excludedGroups=
 - **引用正确率**：给了 `expectedSourceIds` 时，这些 id 要全部出现。只给了货号或关键词时，看排名第一的结果是否包含它们。
 - **拒答正确率**：`shouldRefuse=true` 的题，检索结果为空才算对。没有拒答题时报告写「无拒答样本」。
 - **延迟**：每题检索耗时的平均值和 P95。
+
+## 混合检索和纯稠密对比
+
+默认 `mvn test` 里的 `RagHybridDenseCompareTest` 用同一套 `RagEvalScorer`，对「货号只在稀疏通道排第一、稠密通道把它滤掉」的情形出一份对照表：纯稠密召回不到货号，RRF 混合检索能召回。融合公式和线上 `RRFRanker(k=60)` 相同。
+
+线上要拿真实题库对比：先保持 `MILVUS_HYBRID_ENABLED=false` 跑
+
+```bash
+cd backend
+mvn test -Dgroups=rag-eval -Dsurefire.excludedGroups=
+```
+
+把 `backend/target/rag-eval/` 拷走。再按 `docs/milvus-hybrid.md` 回填并打开开关，重跑同一条命令。两份 `report.md` 的召回命中率、引用正确率、拒答正确率可以直接比。开关只改变 Milvus 召回，评测入口、拒答规则和引用编号不变。

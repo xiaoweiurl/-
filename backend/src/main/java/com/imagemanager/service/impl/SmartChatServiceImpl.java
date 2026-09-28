@@ -618,8 +618,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         String chunkInfo = mergedChunks > 1
                                 ? String.format(" | 已拼接%d个相关切片/共命中%d片", mergedChunks, hitChunks)
                                 : "";
-                        knowledgeContext.append(String.format("### %s资料%d (相关度: %.1f%% | 来源: %s%s)\n%s\n\n",
-                                ChatCitation.mark(salespersonResults.get(i)), i + 1, score * 100, fileName, chunkInfo, content));
+                        String relevance = com.imagemanager.milvus.RetrievalScoreLabel.format(
+                                score, String.valueOf(r.getOrDefault("scoreMetric", "cosine")));
+                        knowledgeContext.append(String.format("### %s资料%d (%s | 来源: %s%s)\n%s\n\n",
+                                ChatCitation.mark(salespersonResults.get(i)), i + 1, relevance, fileName, chunkInfo, content));
                     }
                     knowledgeContext.append("⚠️ 以上来自业务员资料库（Milvus向量检索），包含业务员的客户资料、产品明细、价格表等一手业务知识。" +
                             "请与【供应链/工厂业务数据】结合使用：精确数字以供应链数据为准，业务员资料用于补充客户背景、产品细节、工艺说明等业务语义信息。\n\n");
@@ -661,8 +663,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                         // 按相关度动态调整截断长度：高分保留更多内容
                         int maxLen = score >= 0.7 ? 1200 : (score >= 0.5 ? 800 : 500);
                         if (content.length() > maxLen) content = content.substring(0, maxLen) + "...";
-                        knowledgeContext.append(String.format("### %s片段%d (相关度: %.1f%% | 来源: %s)\n%s\n\n",
-                                ChatCitation.mark(knowledgeResults.get(i)), i + 1, score * 100, source, content));
+                        String relevance = com.imagemanager.milvus.RetrievalScoreLabel.format(
+                                score, String.valueOf(r.getOrDefault("scoreMetric", "cosine")));
+                        knowledgeContext.append(String.format("### %s片段%d (%s | 来源: %s)\n%s\n\n",
+                                ChatCitation.mark(knowledgeResults.get(i)), i + 1, relevance, source, content));
                     }
                 }
 
@@ -1881,7 +1885,20 @@ public class SmartChatServiceImpl implements SmartChatService {
         try {
             List<Map<String, Object>> results = new ArrayList<>();
 
-            // 0. 优先：直接关键词搜索（绕过RagPipeline和向量检索，避免Ollama超时）
+            // 0. 混合检索打开时先走 Milvus 稠密+稀疏。未命中（含货号不在正文里）再回退下面的精确匹配。
+            if (milvusService != null && milvusService.isHybridSearchActive()) {
+                try {
+                    List<Map<String, Object>> hybridResults = searchKnowledgeBaseHybrid(query);
+                    if (hybridResults != null && !hybridResults.isEmpty()) {
+                        return hybridResults;
+                    }
+                    log.info("[知识库] Milvus 混合检索未命中，回退货号精确匹配与原检索");
+                } catch (Exception e) {
+                    log.warn("[知识库] 混合检索异常，回退原检索: {}", e.getMessage());
+                }
+            }
+
+            // 0b. 优先：直接关键词搜索（绕过RagPipeline和向量检索，避免Ollama超时）
             String productCode = extractProductCode(query);
             if (productCode != null && !productCode.isEmpty()) {
                 try {
@@ -1948,6 +1965,42 @@ public class SmartChatServiceImpl implements SmartChatService {
         }
     }
 
+    /**
+     * 开关打开时的知识库混合检索。货号必须出现在切片正文里，否则返回空，交给 ILIKE。
+     */
+    private List<Map<String, Object>> searchKnowledgeBaseHybrid(String query) {
+        float[] queryEmbedding = getEmbedding(query);
+        List<MilvusService.MilvusSearchResult> hits = milvusService.hybridSearch(queryEmbedding, query, 15);
+        String productCode = extractProductCode(query);
+        hits = com.imagemanager.milvus.HybridRecallPolicy.accept(hits, productCode, hit -> hit.content);
+        List<Map<String, Object>> mapped = new ArrayList<>();
+        for (MilvusService.MilvusSearchResult hit : hits) {
+            if (hit.content == null || hit.content.isBlank()) {
+                continue;
+            }
+            if (!com.imagemanager.milvus.MilvusHitFilter.keep(hit.score, hit.scoreMetric, 0.30)) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("content", hit.content);
+            item.put("score", (double) hit.score);
+            item.put("scoreMetric", hit.scoreMetric);
+            item.put("title", hit.fileName != null ? hit.fileName : "");
+            item.put("domain", "知识库");
+            item.put("source", "knowledge_base_hybrid");
+            if (hit.docId != null) {
+                item.put("docId", hit.docId);
+                item.put("recordId", hit.docId);
+                item.put("sourceDocId", hit.docId);
+            }
+            mapped.add(item);
+            if (mapped.size() >= 8) {
+                break;
+            }
+        }
+        return mapped;
+    }
+
     // ========== 业务员资料库 Milvus 向量检索（工厂模式 RAG） ==========
 
     /**
@@ -1974,15 +2027,28 @@ public class SmartChatServiceImpl implements SmartChatService {
         final int TOTAL_CHAR_BUDGET = 8000;   // 全局拼接字符预算（本地 LLM 上下文保护）
         try {
             float[] queryEmbedding = getEmbedding(query);
-            List<MilvusService.MilvusSearchResult> hits =
-                    milvusService.search(queryEmbedding, TOP_K);
+            List<MilvusService.MilvusSearchResult> hits;
+            if (milvusService.isHybridSearchActive()) {
+                hits = milvusService.hybridSearch(queryEmbedding, query, TOP_K);
+                String productCode = extractProductCode(query);
+                List<MilvusService.MilvusSearchResult> codeHits =
+                        com.imagemanager.milvus.HybridRecallPolicy.accept(hits, productCode, hit -> hit.content);
+                if (productCode != null && codeHits.isEmpty()) {
+                    log.info("混合检索未包含货号 {}，回退稠密检索", productCode);
+                    hits = milvusService.search(queryEmbedding, TOP_K);
+                } else {
+                    hits = codeHits;
+                }
+            } else {
+                hits = milvusService.search(queryEmbedding, TOP_K);
+            }
 
             // 1. 过滤弱相关/空内容，按 docId 分组（同文档切片聚合）
             Map<String, List<MilvusService.MilvusSearchResult>> byDoc =
                     new LinkedHashMap<>();
             for (MilvusService.MilvusSearchResult r : hits) {
-                if (r.score < MIN_SCORE) continue;
                 if (r.content == null || r.content.isBlank()) continue;
+                if (!com.imagemanager.milvus.MilvusHitFilter.keep(r.score, r.scoreMetric, MIN_SCORE)) continue;
                 String key = r.docId != null ? r.docId : ("__no_doc_" + r.fileName + "_" + r.chunkIndex);
                 byDoc.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
             }
@@ -2056,6 +2122,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 item.put("docType", first.docType != null ? first.docType : "");
                 item.put("docId", first.docId != null ? first.docId : "");
                 item.put("score", g.get("topScore"));
+                item.put("scoreMetric", first.scoreMetric);
                 item.put("mergedChunks", mergedChunks);
                 item.put("hitChunks", hitCount);
                 out.add(item);

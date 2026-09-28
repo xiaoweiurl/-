@@ -1,6 +1,8 @@
 package com.imagemanager.service;
 
 import com.google.gson.JsonObject;
+import com.imagemanager.milvus.MilvusHybridSchema;
+import com.imagemanager.milvus.MilvusRetrievalPlan;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.DataType;
@@ -24,6 +26,9 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Milvus 向量数据库服务（200G 业务员资料，约 2000 万切片）
@@ -35,11 +40,17 @@ import java.util.*;
  * - doc_type:   VarChar(16)  pdf/xlsx/image/word/txt
  * - chunk_index:Int32        切片序号
  * - content:    VarChar(8192) 切片原文（检索后直接返回）
- * - embedding:  FloatVector(1024) bge-m3 向量
+ * - embedding:  FloatVector(1024) bge-m3 向量（Ollama 本地模型，不是云端嵌入）
  *
  * 索引：
  * - embedding: HNSW(M=16, efConstruction=200) + COSINE
  * - file_name / doc_type: TRIE 标量索引
+ *
+ * 混合检索（默认关闭）写到旁边的集合 {collection}_hybrid：
+ * lexical_text 由 {@link com.imagemanager.milvus.HybridLexicalTokenizer} 预先分词，
+ * Milvus 2.5 BM25 Function 用 whitespace 分析器生成 sparse，再和稠密向量做 RRF。
+ * 稠密集合的 schema 不变。Java 读取的集合名是 milvus.collection，默认 salesperson_docs；
+ * application.yml 里的 milvus.collection-name 目前没有绑定到这个字段。
  */
 @Slf4j
 @Service
@@ -60,7 +71,37 @@ public class MilvusService {
     @Value("${milvus.enabled:true}")
     private boolean enabled;
 
+    /** 默认关闭。关闭时检索、写入都与原来的稠密集合一致。 */
+    @Value("${milvus.hybrid.enabled:false}")
+    private boolean hybridEnabled;
+
+    @Value("${milvus.hybrid.collection:}")
+    private String hybridCollectionOverride;
+
+    @Value("${milvus.hybrid.ranker:rrf}")
+    private String hybridRanker;
+
+    @Value("${milvus.hybrid.rrf-k:60}")
+    private int hybridRrfK;
+
+    @Value("${milvus.hybrid.dense-weight:0.5}")
+    private float hybridDenseWeight;
+
+    @Value("${milvus.hybrid.sparse-weight:0.5}")
+    private float hybridSparseWeight;
+
     private MilvusClientV2 client;
+    private volatile boolean hybridReady;
+    private volatile boolean rebuilding;
+    private volatile String rebuildState = "idle";
+    private volatile String hybridStatusMessage = "混合检索关闭";
+    private final AtomicBoolean rebuildRunning = new AtomicBoolean(false);
+    private final MilvusHybridSchema.RebuildProgress rebuildProgress = new MilvusHybridSchema.RebuildProgress();
+    private final ExecutorService hybridRebuildExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "milvus-hybrid-rebuild");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     @PostConstruct
     public void init() {
@@ -77,6 +118,7 @@ public class MilvusService {
                     .build());
             log.info("Milvus 连接成功");
             ensureCollection();
+            refreshHybridState();
         } catch (Exception e) {
             log.error("Milvus 连接失败: {}", e.getMessage(), e);
         }
@@ -84,6 +126,7 @@ public class MilvusService {
 
     @PreDestroy
     public void destroy() {
+        hybridRebuildExecutor.shutdownNow();
         if (client != null) {
             try {
                 client.close();
@@ -217,6 +260,7 @@ public class MilvusService {
                     .collectionName(collectionName)
                     .data(rows)
                     .build());
+            dualWriteHybrid(rows);
         } catch (Exception e) {
             log.error("Milvus 批量插入失败({}条): {}", rows.size(), e.getMessage(), e);
             throw new RuntimeException("Milvus 批量插入失败: " + e.getMessage(), e);
@@ -261,6 +305,8 @@ public class MilvusService {
         public String content;
         public int chunkIndex = -1;
         public float score;
+        /** cosine：稠密 HNSW；rrf / weighted / bm25：混合或稀疏通道，不能再用 0.35 余弦阈值。 */
+        public String scoreMetric = "cosine";
     }
 
     /**
@@ -378,6 +424,117 @@ public class MilvusService {
     }
 
     /**
+     * 稠密 + 稀疏融合检索。开关关闭、集合未就绪或重建进行中时，调用方应继续走 {@link #search}。
+     * 查询失败时回退稠密检索，避免混合集合异常把原来的召回也打掉。
+     */
+    public List<MilvusSearchResult> hybridSearch(float[] queryEmbedding, String queryText, int topK) {
+        if (!isHybridSearchActive()) {
+            return queryEmbedding == null ? Collections.emptyList() : search(queryEmbedding, topK);
+        }
+        try {
+            List<MilvusHybridSchema.HybridHit> hits = MilvusHybridSchema.search(
+                    client,
+                    hybridCollectionName(),
+                    queryEmbedding,
+                    queryText,
+                    topK,
+                    hybridRanker,
+                    hybridRrfK,
+                    hybridDenseWeight,
+                    hybridSparseWeight,
+                    null);
+            if (hits.isEmpty() && queryEmbedding != null && queryEmbedding.length > 0) {
+                log.info("混合检索无结果，回退稠密集合 {}", collectionName);
+                return search(queryEmbedding, topK);
+            }
+            return toSearchResults(hits);
+        } catch (Exception e) {
+            log.error("混合检索失败，回退稠密检索: {}", e.getMessage(), e);
+            if (queryEmbedding == null || queryEmbedding.length == 0) {
+                return Collections.emptyList();
+            }
+            return search(queryEmbedding, topK);
+        }
+    }
+
+    public boolean isHybridSearchActive() {
+        return MilvusRetrievalPlan.resolve(hybridEnabled, hybridReady, rebuilding) == MilvusRetrievalPlan.Mode.HYBRID;
+    }
+
+    public Map<String, Object> hybridStatus() {
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("milvusEnabled", isEnabled());
+        status.put("hybridEnabled", hybridEnabled);
+        status.put("hybridReady", hybridReady);
+        status.put("hybridSearchActive", isHybridSearchActive());
+        status.put("denseCollection", collectionName);
+        status.put("hybridCollection", hybridCollectionName());
+        status.put("ranker", hybridRanker);
+        status.put("rrfK", hybridRrfK);
+        status.put("denseWeight", hybridDenseWeight);
+        status.put("sparseWeight", hybridSparseWeight);
+        status.put("rebuildState", rebuildState);
+        status.put("rebuilding", rebuilding);
+        status.put("scanned", rebuildProgress.scanned);
+        status.put("inserted", rebuildProgress.inserted);
+        status.put("failed", rebuildProgress.failed);
+        status.put("message", hybridStatusMessage);
+        status.put("requirement", MilvusHybridSchema.REQUIREMENT);
+        status.put("note", "默认 hybrid.enabled=false。打开前先 POST /api/admin/milvus/hybrid/rebuild。"
+                + "回滚把 MILVUS_HYBRID_ENABLED 设为 false 并重启，稠密集合不改。"
+                + "没有 SQL 迁移。历史问答在 pgvector(SMART_CHAT)，商品库在 goods_library，都不在 Milvus。");
+        return status;
+    }
+
+    /**
+     * 重复执行的回填：删掉混合集合，按当前稠密集合重建 BM25 字段后逐批抄入。
+     * 重建过程中检索自动回到稠密集合。
+     */
+    public Map<String, Object> startHybridRebuild() {
+        if (!enabled || client == null) {
+            hybridStatusMessage = "Milvus 未连接，无法重建";
+            Map<String, Object> status = hybridStatus();
+            status.put("success", false);
+            return status;
+        }
+        if (!rebuildRunning.compareAndSet(false, true)) {
+            hybridStatusMessage = "重建已在进行";
+            Map<String, Object> status = hybridStatus();
+            status.put("success", true);
+            return status;
+        }
+        rebuilding = true;
+        rebuildState = "running";
+        hybridReady = false;
+        rebuildProgress.scanned = 0;
+        rebuildProgress.inserted = 0;
+        rebuildProgress.failed = 0;
+        rebuildProgress.message = "开始重建";
+        hybridStatusMessage = "正在重建混合集合 " + hybridCollectionName();
+        hybridRebuildExecutor.execute(() -> {
+            try {
+                runHybridRebuild();
+                rebuildState = "done";
+                hybridStatusMessage = "重建完成：扫描 " + rebuildProgress.scanned
+                        + "，写入 " + rebuildProgress.inserted
+                        + "，失败 " + rebuildProgress.failed
+                        + "。确认后把 milvus.hybrid.enabled 设为 true 并重启。";
+            } catch (Exception e) {
+                rebuildState = "failed";
+                hybridReady = false;
+                hybridStatusMessage = e.getMessage();
+                log.error("混合集合重建失败: {}", e.getMessage(), e);
+            } finally {
+                rebuilding = false;
+                rebuildRunning.set(false);
+            }
+        });
+        Map<String, Object> status = hybridStatus();
+        status.put("success", true);
+        return status;
+    }
+
+    /**
      * 按文档ID删除（删除文档/重导前清理旧向量）
      */
     public void deleteByDocId(String docId) {
@@ -389,6 +546,16 @@ public class MilvusService {
                     .collectionName(collectionName)
                     .filter("doc_id == \"" + docId + "\"")
                     .build());
+            if (hybridReady && !rebuilding) {
+                try {
+                    client.delete(DeleteReq.builder()
+                            .collectionName(hybridCollectionName())
+                            .filter("doc_id == \"" + escape(docId) + "\"")
+                            .build());
+                } catch (Exception hybridEx) {
+                    log.warn("混合集合删除失败 docId={}: {}", docId, hybridEx.getMessage());
+                }
+            }
         } catch (Exception e) {
             log.error("Milvus 删除失败 docId={}: {}", docId, e.getMessage(), e);
         }
@@ -396,5 +563,107 @@ public class MilvusService {
 
     public boolean isEnabled() {
         return enabled && client != null;
+    }
+
+    private void refreshHybridState() {
+        if (!enabled || client == null) {
+            hybridReady = false;
+            hybridStatusMessage = "Milvus 未连接";
+            return;
+        }
+        String hybridName = hybridCollectionName();
+        if (hybridName.equals(collectionName)) {
+            hybridReady = false;
+            hybridStatusMessage = "混合集合名不能和稠密集合相同";
+            log.error(hybridStatusMessage);
+            return;
+        }
+        try {
+            boolean exists = MilvusHybridSchema.exists(client, hybridName);
+            if (hybridEnabled && !exists) {
+                log.info("混合检索已打开，创建空集合 {}。历史数据需要 POST /api/admin/milvus/hybrid/rebuild", hybridName);
+                MilvusHybridSchema.createCollection(client, hybridName, dimension);
+                exists = true;
+                hybridStatusMessage = "混合集合已创建但还没有历史数据，请先重建回填。回填完成前无结果会回退稠密检索。";
+            } else if (exists) {
+                hybridStatusMessage = hybridEnabled
+                        ? "混合检索已打开，集合 " + hybridName
+                        : "混合集合已存在。检索开关仍是关闭，新写入会同步进去，方便之后打开开关。";
+            } else {
+                hybridStatusMessage = "混合检索关闭，使用稠密集合 " + collectionName;
+            }
+            hybridReady = exists;
+            if (hybridEnabled && !hybridReady) {
+                log.warn("混合检索开关已打开，但集合未就绪。{}", MilvusHybridSchema.REQUIREMENT);
+            }
+        } catch (Exception e) {
+            hybridReady = false;
+            hybridStatusMessage = e.getMessage();
+            log.error("混合集合初始化失败，检索保持稠密模式: {}", e.getMessage(), e);
+        }
+    }
+
+    private void runHybridRebuild() {
+        String hybridName = hybridCollectionName();
+        if (hybridName.equals(collectionName)) {
+            throw new IllegalStateException("混合集合名不能和稠密集合相同: " + hybridName);
+        }
+        if (!MilvusHybridSchema.exists(client, collectionName)) {
+            throw new IllegalStateException("稠密集合不存在，无法回填: " + collectionName);
+        }
+        log.info("开始重建混合集合 {} <- {}", hybridName, collectionName);
+        MilvusHybridSchema.dropIfExists(client, hybridName);
+        MilvusHybridSchema.createCollection(client, hybridName, dimension);
+        MilvusHybridSchema.RebuildStats stats = MilvusHybridSchema.backfill(
+                client, collectionName, hybridName, 200, rebuildProgress);
+        hybridReady = true;
+        if (stats.failed > 0) {
+            hybridStatusMessage = "重建部分失败: " + stats.lastError;
+            log.warn("混合集合重建部分失败 scanned={} inserted={} failed={} last={}",
+                    stats.scanned, stats.inserted, stats.failed, stats.lastError);
+        } else {
+            log.info("混合集合重建完成 scanned={} inserted={}", stats.scanned, stats.inserted);
+        }
+    }
+
+    private void dualWriteHybrid(List<JsonObject> rows) {
+        if (!hybridReady || rebuilding || client == null || rows == null || rows.isEmpty()) {
+            return;
+        }
+        try {
+            List<JsonObject> hybridRows = new ArrayList<>(rows.size());
+            for (JsonObject row : rows) {
+                hybridRows.add(MilvusHybridSchema.hybridRowFromDense(row));
+            }
+            MilvusHybridSchema.insert(client, hybridCollectionName(), hybridRows);
+        } catch (Exception e) {
+            log.warn("混合集合双写失败({}条)，稠密集合已写入，可稍后重建: {}", rows.size(), e.getMessage());
+        }
+    }
+
+    private List<MilvusSearchResult> toSearchResults(List<MilvusHybridSchema.HybridHit> hits) {
+        List<MilvusSearchResult> out = new ArrayList<>();
+        if (hits == null) {
+            return out;
+        }
+        for (MilvusHybridSchema.HybridHit hit : hits) {
+            MilvusSearchResult row = new MilvusSearchResult();
+            row.docId = hit.docId();
+            row.fileName = hit.fileName();
+            row.docType = hit.docType();
+            row.content = hit.content();
+            row.chunkIndex = hit.chunkIndex();
+            row.score = hit.score();
+            row.scoreMetric = hit.scoreMetric() == null ? "cosine" : hit.scoreMetric();
+            out.add(row);
+        }
+        return out;
+    }
+
+    private String hybridCollectionName() {
+        if (hybridCollectionOverride != null && !hybridCollectionOverride.isBlank()) {
+            return hybridCollectionOverride.trim();
+        }
+        return collectionName + "_hybrid";
     }
 }
