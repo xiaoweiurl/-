@@ -10,11 +10,8 @@ import java.util.Map;
  * 把稠密集合里已有的正文和向量分批抄到影子集合，并在写入前生成 BM25 分词。
  * 不启动 Web，不连接 Postgres，不调用 Ollama。可以重复执行：每次只删影子集合再重抄。
  *
- * <p>Windows PowerShell（在 backend 目录）：
- * <pre>
- * .\mvnw.cmd -DskipTests compile exec:java "-Dexec.mainClass=com.imagemanager.milvus.tools.HybridBackfillMain" "-Dexec.args=--dry-run --host=localhost --port=19530 --source=salesperson_docs --target=salesperson_docs_hybrid"
- * .\mvnw.cmd -DskipTests compile exec:java "-Dexec.mainClass=com.imagemanager.milvus.tools.HybridBackfillMain" "-Dexec.args=--host=localhost --port=19530 --source=salesperson_docs --target=salesperson_docs_hybrid --dim=1024 --batch=200"
- * </pre>
+ * <p>Windows 上不要用 {@code mvnw.cmd exec:java -Dexec.args}，PowerShell 和 cmd 都会把参数拆碎。
+ * 用仓库里的 {@code scripts/hybrid-backfill.ps1}（先 {@code dependency:build-classpath}，再 {@code java -cp}）。
  */
 public final class HybridBackfillMain {
 

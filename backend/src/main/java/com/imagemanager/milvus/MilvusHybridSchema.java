@@ -289,7 +289,7 @@ public final class MilvusHybridSchema {
                                          ConsistencyLevel consistency) {
         int limit = topK > 0 ? topK : 10;
         boolean denseOk = embedding != null && embedding.length > 0;
-        String lexical = HybridLexicalTokenizer.lexicalText(queryText);
+        String lexical = HybridLexicalTokenizer.sparseQuery(queryText);
         boolean sparseOk = queryText != null && !queryText.isBlank() && !"_blank".equals(lexical);
         if (!denseOk && !sparseOk) {
             return List.of();

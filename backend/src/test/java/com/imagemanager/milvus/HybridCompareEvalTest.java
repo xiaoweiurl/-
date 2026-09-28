@@ -32,6 +32,22 @@ class HybridCompareEvalTest {
     }
 
     @Test
+    void samplerSkipsUnitsExcelCellsAndFiberCounts() {
+        List<HybridCompareEval.Question> questions = HybridCompareEval.sample(List.of(
+                new HybridCompareEval.Chunk("a", 0, "净重7865.00KGS 克重98g 功率405W 规格3D/12F"),
+                new HybridCompareEval.Chunk("b", 0, "单元格I413 K294 T15 J623"),
+                new HybridCompareEval.Chunk("c", 0, "型号M1YK010M 与 M2SW2516"),
+                new HybridCompareEval.Chunk("d", 0, "货号25YK00022 面料C100-40S")), 20, 0, 1);
+        assertTrue(questions.stream().anyMatch(q -> "M1YK010M".equals(q.code())));
+        assertTrue(questions.stream().anyMatch(q -> "M2SW2516".equals(q.code())));
+        assertTrue(questions.stream().anyMatch(q -> "25YK00022".equals(q.code()) && "product".equals(q.kind())));
+        assertTrue(questions.stream().anyMatch(q -> "C100-40S".equals(q.code()) && "fabric".equals(q.kind())));
+        assertTrue(questions.stream().noneMatch(q -> q.code() != null && List.of(
+                "7865.00KGS", "98g", "405W", "3D/12F", "I413", "K294", "T15", "J623"
+        ).contains(q.code())));
+    }
+
+    @Test
     void pinsProductCodeWhenTheSampleIsSmall() {
         List<HybridCompareEval.Chunk> chunks = new java.util.ArrayList<>();
         for (int i = 0; i < 20; i++) {

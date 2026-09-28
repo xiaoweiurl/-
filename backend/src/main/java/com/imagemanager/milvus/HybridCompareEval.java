@@ -77,7 +77,12 @@ public final class HybridCompareEval {
                 continue;
             }
             List<String> surfaces = HybridLexicalTokenizer.surfaceCodes(chunk.content);
+            boolean asked = false;
             for (String code : surfaces) {
+                if (!HybridLexicalTokenizer.isQuestionCode(code)) {
+                    continue;
+                }
+                asked = true;
                 if (!seen.add(code.toLowerCase(Locale.ROOT))) {
                     continue;
                 }
@@ -88,7 +93,7 @@ public final class HybridCompareEval {
                     pinned = question;
                 }
             }
-            if (surfaces.isEmpty()) {
+            if (!asked) {
                 String phrase = chinesePhrase(chunk.content);
                 if (phrase != null) {
                     chinese.add(new Question("chinese", phrase, null, chunk.docId, chunk.chunkIndex));

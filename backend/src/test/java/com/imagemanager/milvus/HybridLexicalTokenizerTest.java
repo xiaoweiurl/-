@@ -32,6 +32,36 @@ class HybridLexicalTokenizerTest {
     }
 
     @Test
+    void sparseQueryKeepsOnlyTheCodeWhenTheQuestionHasOne() {
+        assertEquals("k294", HybridLexicalTokenizer.sparseQuery("型号 K294"));
+        assertEquals("m1yk010m", HybridLexicalTokenizer.sparseQuery("型号 M1YK010M"));
+        assertEquals("t15", HybridLexicalTokenizer.sparseQuery("型号 T15"));
+        String fabric = HybridLexicalTokenizer.sparseQuery("面料编号 C100-40S");
+        assertTrue(fabric.contains("c100-40s"), fabric);
+        assertFalse(fabric.contains("面料"), fabric);
+        assertEquals(
+                HybridLexicalTokenizer.lexicalText("棉质面料需要低温洗涤"),
+                HybridLexicalTokenizer.sparseQuery("棉质面料需要低温洗涤"));
+    }
+
+    @Test
+    void questionCodesDropUnitsExcelAndFiberCounts() {
+        assertTrue(HybridLexicalTokenizer.isQuestionCode("25YK00022"));
+        assertTrue(HybridLexicalTokenizer.isQuestionCode("C100-40S"));
+        assertTrue(HybridLexicalTokenizer.isQuestionCode("M1YK010M"));
+        assertTrue(HybridLexicalTokenizer.isQuestionCode("M2SW2516"));
+        assertTrue(HybridLexicalTokenizer.isQuestionCode("ZX9K2"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("K294"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("T15"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("I413"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("J623"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("98g"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("405W"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("7865.00KGS"));
+        assertFalse(HybridLexicalTokenizer.isQuestionCode("3D/12F"));
+    }
+
+    @Test
     void chineseBigramAndDictionaryTermSurvive() {
         List<String> tokens = HybridLexicalTokenizer.tokens("棉质面料的洗涤说明");
         assertTrue(tokens.contains("棉质面料") || tokens.contains("面料"), tokens.toString());
