@@ -17,6 +17,8 @@ import com.imagemanager.service.AIRecognitionService;
 import com.imagemanager.service.AlbumService;
 import com.imagemanager.service.ImageEnhancementService;
 import com.imagemanager.service.ImageTableService;
+import com.imagemanager.imagesearch.ImageSearchFilters;
+import com.imagemanager.imagesearch.ImageSearchIndexer;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.ImageService;
 import com.imagemanager.service.UserService;
@@ -70,6 +72,31 @@ public class ImageServiceImpl implements ImageService {
     
     @Autowired(required = false)
     private FileStorageService fileStorageService;
+
+    @Autowired(required = false)
+    private ImageSearchIndexer imageSearchIndexer;
+
+    private void scheduleLibraryIndex(Image image) {
+        if (imageSearchIndexer == null || image == null || image.getId() == null) {
+            return;
+        }
+        try {
+            imageSearchIndexer.submitLibrary(image.getId());
+        } catch (Exception e) {
+            log.warn("提交图片向量任务失败（不影响上传）: id={}, err={}", image.getId(), e.getMessage());
+        }
+    }
+
+    private void scheduleLibraryRemoval(String imageId) {
+        if (imageSearchIndexer == null || imageId == null || imageId.isBlank()) {
+            return;
+        }
+        try {
+            imageSearchIndexer.submitRemoval(ImageSearchFilters.libraryVectorId(imageId));
+        } catch (Exception e) {
+            log.warn("提交图片向量删除失败（不影响删除）: id={}, err={}", imageId, e.getMessage());
+        }
+    }
     
     @Autowired(required = false)
     private StorageProperties storageProperties;
@@ -747,6 +774,7 @@ public class ImageServiceImpl implements ImageService {
                     .build();
             
             image = imageRepository.save(image);
+            scheduleLibraryIndex(image);
             
             // 同时保存到用户动态表（方案A：物理隔离）
             try {
@@ -818,6 +846,7 @@ public class ImageServiceImpl implements ImageService {
                 relatedImage.setDeleted(true);
                 relatedImage.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
                 imageRepository.save(relatedImage);
+                scheduleLibraryRemoval(relatedImage.getId());
                 // 软删除动态表中的关联详情图
                 deleteFromDynamicTable(relatedImage);
             }
@@ -826,6 +855,7 @@ public class ImageServiceImpl implements ImageService {
         image.setDeleted(true);
         image.setDeletedAt(LocalDateTime.now(BEIJING_ZONE));
         imageRepository.save(image);
+        scheduleLibraryRemoval(image.getId());
         
         // 软删除动态表中的图片
         deleteFromDynamicTable(image);
@@ -866,6 +896,7 @@ public class ImageServiceImpl implements ImageService {
                     deleteImageFile(relatedImage);
                     // 从动态表中硬删除
                     hardDeleteFromDynamicTable(relatedImage);
+                    scheduleLibraryRemoval(relatedImage.getId());
                     imageRepository.delete(Objects.requireNonNull(relatedImage));
                     deletedCount++;
                 }
@@ -873,6 +904,7 @@ public class ImageServiceImpl implements ImageService {
             
             // 从存储中删除文件
             deleteImageFile(image);
+            scheduleLibraryRemoval(image.getId());
             
             // 从动态表中硬删除
             hardDeleteFromDynamicTable(image);
@@ -904,6 +936,7 @@ public class ImageServiceImpl implements ImageService {
                 relatedImage.setDeleted(false);
                 relatedImage.setDeletedAt(null);
                 imageRepository.save(relatedImage);
+                scheduleLibraryIndex(relatedImage);
                 // 恢复动态表中的数据
                 restoreInDynamicTable(relatedImage);
                 restoredCount++;
@@ -914,6 +947,7 @@ public class ImageServiceImpl implements ImageService {
         image.setDeleted(false);
         image.setDeletedAt(null);
         imageRepository.save(image);
+        scheduleLibraryIndex(image);
         // 恢复动态表中的数据
         restoreInDynamicTable(image);
         restoredCount++;
@@ -1461,6 +1495,7 @@ public class ImageServiceImpl implements ImageService {
                     deleteImageFile(relatedImage);
                     // 从动态表中硬删除
                     hardDeleteFromDynamicTable(relatedImage);
+                    scheduleLibraryRemoval(relatedImage.getId());
                     imageRepository.delete(Objects.requireNonNull(relatedImage));
                     totalDeleted++;
                 }
@@ -1468,6 +1503,7 @@ public class ImageServiceImpl implements ImageService {
             
             // 从存储中删除主图文件
             deleteImageFile(mainImage);
+            scheduleLibraryRemoval(mainImage.getId());
             // 从动态表中硬删除
             hardDeleteFromDynamicTable(mainImage);
             imageRepository.delete(mainImage);
@@ -1489,6 +1525,7 @@ public class ImageServiceImpl implements ImageService {
                 Image image = uploadSingleImageWithAI(file, albums);
                 if (image != null) {
                     uploadedImages.add(image);
+                    scheduleLibraryIndex(image);
                 }
             } catch (Exception e) {
                 log.error("上传图片失败: {}, 错误: {}", file.getOriginalFilename(), e.getMessage());
@@ -2230,7 +2267,7 @@ public class ImageServiceImpl implements ImageService {
                                 image.setDescription(item.getDescription());
                             }
                             image = imageRepository.save(image);
-                            
+                            scheduleLibraryIndex(image);
 
                             successCount++;
                             response.setSuccess(true);
