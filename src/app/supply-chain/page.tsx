@@ -16,7 +16,6 @@ import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import PdfExportButton from '@/components/PdfExportButton';
 import DocumentStatsDashboard from '@/components/DocumentStatsDashboard';
 import { mapHistoryChatMessage, takeSseEvents, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
-import ImageSearchEntry from '@/components/ImageSearchEntry';
 
 // ============ 类型定义 ============
 interface QuotationOrderRow {
@@ -422,7 +421,6 @@ export default function SupplyChainPage() {
               </div>
             </div>
           <div className="flex items-center gap-2">
-            <ImageSearchEntry />
             <button onClick={handleLogout}
               className="text-sm text-[#8e8e93] hover:text-[#ff3b30] transition-colors px-3 py-1.5 hover:bg-[rgba(255,59,48,0.1)] rounded-lg">
               退出登录
