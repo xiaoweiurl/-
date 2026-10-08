@@ -1,5 +1,6 @@
 package com.imagemanager.service;
 
+import com.imagemanager.imagesearch.ImageSearchFilters;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -72,6 +73,13 @@ public class DecisionDataService {
      * @return 结构化数据条目列表（type/summary/data），无意图时返回空
      */
     public List<Map<String, Object>> searchStructuredForMessage(String message, String subMode) {
+        return searchStructuredForMessage(message, subMode, null);
+    }
+
+    /**
+     * @param company 当前用户公司。商品库只返回该公司的打样记录；空值按默认公司处理。
+     */
+    public List<Map<String, Object>> searchStructuredForMessage(String message, String subMode, String company) {
         List<Map<String, Object>> out = new ArrayList<>();
         boolean decision = "decision".equals(subMode);
         boolean planning = "planning".equals(subMode);
@@ -83,9 +91,23 @@ public class DecisionDataService {
         boolean perfIntent = containsAny(message, "业务员效能", "业务员绩效", "人效", "业绩", "业务员能力", "客户分配", "业务员负载");
         boolean processIntent = containsAny(message, "工艺", "克重", "针数", "机型", "制成率", "下机秒数", "理论产量", "打样", "工艺单");
         boolean deliveryIntent = containsAny(message, "交期", "交货", "延期", "逾期", "未下计划", "终审", "交付风险");
+        String styleCode = extractProductCode(message);
 
-        // 通用工厂模式下无任何相关意图时不注入（避免无关数据引发幻觉）
+        // 通用工厂模式下无业务意图时不注入排产/客户等汇总，避免无关数据引发幻觉。
+        // 但消息里带货号时仍要查本公司商品库，并按实际查询结果说明缺失的 ERP 维度。
         if (!decision && !planning && !capacityIntent && !customerIntent && !perfIntent && !processIntent && !deliveryIntent) {
+            if (styleCode != null) {
+                out.addAll(queryHuohaoFullChain(styleCode, company));
+                List<Map<String, Object>> schedule = queryCapacityByProductCode(styleCode);
+                if (schedule.isEmpty()) {
+                    if (!out.isEmpty()) {
+                        appendMissingDimension(out, styleCode, "排产明细（" + PLAN_TABLE + " 无此货号记录）");
+                    }
+                } else {
+                    out.addAll(schedule);
+                }
+            }
+            ensureRecordIds(out);
             return out;
         }
 
@@ -129,20 +151,12 @@ public class DecisionDataService {
         boolean erpBizIntent = processIntent || containsAny(message,
                 "原料", "用料", "物料", "BOM", "供应商", "工序", "工价", "机台", "产能", "理论产量", "损耗");
         if (erpBizIntent || decision || (planning && finalDoc)) {
-            String code = extractProductCode(message);
-            if (code != null) {
-                out.addAll(queryHuohaoFullChain(code));
+            if (styleCode != null) {
+                out.addAll(queryHuohaoFullChain(styleCode, company));
             }
-        } else {
-            // 商品库/图片意图独立触发：仅查商品库文件夹（品名+货号命名，含图片签名URL），不拉全链路
-            boolean goodsLibraryIntent = containsAny(message,
-                    "商品库", "文件夹", "主图", "侧面图", "细节图", "产品图", "商品图片", "商品图");
-            if (goodsLibraryIntent) {
-                String code = extractProductCode(message);
-                if (code != null) {
-                    out.addAll(queryGoodsLibraryByHuohao(code));
-                }
-            }
+        } else if (styleCode != null) {
+            // 有货号即查本公司商品库，不再要求消息里出现「商品库 / 主图 / 产品图」
+            out.addAll(queryGoodsLibraryByHuohao(styleCode, company));
         }
         ensureRecordIds(out);
         return out;
@@ -187,6 +201,20 @@ public class DecisionDataService {
             }
         }
         return null;
+    }
+
+    /**
+     * 设计师等未走工厂全链路的对话：消息含货号时只取本公司商品库的打样信息与图片。
+     * 没有货号不查库。
+     */
+    public List<Map<String, Object>> searchGoodsLibraryForMessage(String message, String company) {
+        String code = extractProductCode(message);
+        if (code == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>(queryGoodsLibraryByHuohao(code, company));
+        ensureRecordIds(out);
+        return out;
     }
 
     /** 终稿/完整报告意图：用户要求整合多轮内容一次性输出 */
@@ -492,55 +520,102 @@ public class DecisionDataService {
      * ④产品报价信息(order_bjd_query 最近记录: 客户/售价/销售成本/尺码)
      * 品名/客户名等字段仅当数据非空时带出。
      */
-    private List<Map<String, Object>> queryHuohaoFullChain(String code) {
+    private List<Map<String, Object>> queryHuohaoFullChain(String code, String company) {
         List<Map<String, Object>> out = new ArrayList<>();
         out.addAll(queryProcessParams(code));       // ①丝袜工艺单
         out.addAll(queryJfkProcessParams(code));    // ②内衣工艺单
-        out.addAll(querySalesOrdersByHuohao(code)); // ③销售订单（业务员/客户/品名）
-        out.addAll(queryProductQuoteInfo(code));    // ④产品报价信息
-        out.addAll(queryGoodsLibraryByHuohao(code));// ⑤商品库文件夹（品名+货号命名，含图片签名URL）
+        List<Map<String, Object>> sales = querySalesOrdersByHuohao(code); // ③销售订单（业务员/客户/品名）
+        List<Map<String, Object>> quotes = queryProductQuoteInfo(code);    // ④产品报价信息
+        List<Map<String, Object>> goods = queryGoodsLibraryByHuohao(code, company); // ⑤本公司商品库
         List<Map<String, Object>> bom = queryRawMaterialBom(code);        // ⑥采购原料BOM
         List<Map<String, Object>> capacity = queryBujMachineCapacity(code); // ⑦机台产能
         List<Map<String, Object>> gongxu = queryGongxuProcessPrice(code);   // ⑧工序工价
+        out.addAll(sales);
+        out.addAll(quotes);
+        out.addAll(goods);
         out.addAll(bom);
         out.addAll(capacity);
         out.addAll(gongxu);
-        // 维度完整性检查：全链路已命中（货号确实存在）但某个 ERP 维度无记录时，
-        // 注入缺失说明条目，让 LLM 如实告知"无数据"，避免用户误以为未关联
+        // 维度完整性检查：全链路已命中（货号或商品库确实存在）但某个 ERP 维度无记录时，
+        // 注入缺失说明条目，让回答如实列出缺口，禁止编造成本、报价、交期或供应商数字
         if (!out.isEmpty()) {
             List<String> missing = new ArrayList<>();
-            if (bom.isEmpty()) missing.add("采购原料BOM（" + RAW_MATERIAL_TABLE + " 无此货号记录）");
+            if (quotes.isEmpty()) missing.add("产品报价/成本（" + QUOTATION_TABLE + " 无此货号记录）");
+            if (sales.isEmpty()) missing.add("销售订单交期（" + SALES_ORDER_TABLE + " 无此货号记录）");
+            if (bom.isEmpty()) missing.add("采购原料BOM/供应商交付（" + RAW_MATERIAL_TABLE + " 无此货号记录）");
             if (capacity.isEmpty()) missing.add("机台产能（" + BUJ_COMPONENT_TABLE + " 无此货号记录）");
             if (gongxu.isEmpty()) missing.add("工序工价（" + GONGXU_PROCESS_TABLE + "/" + GONGXU_PRICE_TABLE + " 无此货号记录）");
             if (!missing.isEmpty()) {
-                Map<String, Object> miss = new LinkedHashMap<>();
-                miss.put("type", "数据缺失说明");
-                miss.put("summary", "货号 " + code + " 以下维度暂无ERP数据：" + String.join("；", missing));
-                Map<String, Object> data = new LinkedHashMap<>();
-                data.put("缺失维度", String.join("；", missing));
-                data.put("处理要求", "如实告知用户该货号这些维度暂无数据（可能表未同步或该货号确实未录入），禁止编造工序/工价/原料/机台数据");
-                miss.put("data", data);
-                out.add(miss);
+                out.add(missingEntry(code, missing));
             }
         }
         return out;
     }
 
+    private Map<String, Object> missingEntry(String code, List<String> missing) {
+        String joined = String.join("；", missing);
+        Map<String, Object> miss = new LinkedHashMap<>();
+        miss.put("type", "数据缺失说明");
+        miss.put("summary", "货号 " + code + " 以下维度暂无ERP数据：" + joined);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("缺失维度", joined);
+        data.put("处理要求", "如实告知用户该货号这些维度暂无数据（可能表未同步或该货号确实未录入），禁止编造成本、报价、排产、原料、供应商交付、工序或工价数字");
+        miss.put("data", data);
+        return miss;
+    }
+
+    /** 把后查到的空维度并进已有缺失说明，避免同一条回答里出现两份缺口清单。 */
+    private void appendMissingDimension(List<Map<String, Object>> out, String code, String dimension) {
+        for (Map<String, Object> entry : out) {
+            if (!"数据缺失说明".equals(entry.get("type"))) {
+                continue;
+            }
+            Object dataObj = entry.get("data");
+            if (!(dataObj instanceof Map<?, ?> raw)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) raw;
+            String existing = String.valueOf(data.getOrDefault("缺失维度", ""));
+            if ("null".equals(existing)) {
+                existing = "";
+            }
+            if (existing.contains(dimension)) {
+                return;
+            }
+            String merged = existing.isBlank() ? dimension : existing + "；" + dimension;
+            data.put("缺失维度", merged);
+            entry.put("summary", "货号 " + code + " 以下维度暂无ERP数据：" + merged);
+            return;
+        }
+        out.add(missingEntry(code, List.of(dimension)));
+    }
+
     /**
-     * 按货号关联商品库文件夹（goods_library）。
+     * 按货号关联当前公司的商品库文件夹（goods_library）。
      * 文件夹命名规则 = 货号+品名，故用货号同时匹配 goods_no 与 folder_name；
+     * 公司取归属用户 users.company，无归属人的记录只对默认公司可见。
      * 带出文件夹信息（发起人/打样员/品名/客户/订单号/备注）与四类图片
-     * （主图/侧面图/细节图/产品图）的 24h 签名 URL，供 LLM 综合回答与 markdown 展示。
+     * （主图/侧面图/细节图/产品图）的 24h 签名 URL，供回答展示。
      */
-    private List<Map<String, Object>> queryGoodsLibraryByHuohao(String code) {
+    private List<Map<String, Object>> queryGoodsLibraryByHuohao(String code, String company) {
         List<Map<String, Object>> out = new ArrayList<>();
+        String viewerCompany = viewerCompany(company);
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT id, folder_name, initiator, sampler, product_name, goods_no, customer, order_no, "
-                            + "main_image_key, side_image_key, detail_image_key, product_image_key, remark "
-                            + "FROM goods_library "
-                            + "WHERE goods_no ILIKE ? OR folder_name ILIKE ? ORDER BY created_at DESC LIMIT 5",
-                    "%" + code + "%", "%" + code + "%");
+                    "SELECT g.id, g.folder_name, g.initiator, g.sampler, g.product_name, g.goods_no, g.customer, g.order_no, "
+                            + "g.main_image_key, g.side_image_key, g.detail_image_key, g.product_image_key, g.remark "
+                            + "FROM goods_library g "
+                            + "LEFT JOIN users u ON u.id::text = g.user_id::text "
+                            + "WHERE (g.goods_no ILIKE ? OR g.folder_name ILIKE ?) "
+                            + "AND (btrim(COALESCE(u.company, '')) = ? "
+                            + "OR (COALESCE(btrim(g.user_id), '') = '' AND ? = ?)) "
+                            + "ORDER BY g.created_at DESC LIMIT 5",
+                    "%" + code + "%", "%" + code + "%", viewerCompany,
+                    ImageSearchFilters.DEFAULT_COMPANY, viewerCompany);
+            if (rows == null) {
+                return out;
+            }
             String[][] slots = {
                     {"main_image_key", "主图"}, {"side_image_key", "侧面图"},
                     {"detail_image_key", "细节图"}, {"product_image_key", "产品图"}
@@ -859,6 +934,14 @@ public class DecisionDataService {
 
     // ====== 工具方法 ======
 
+    /** 会话没带公司时按默认公司，和商品库无归属人记录的可见范围一致。 */
+    private static String viewerCompany(String company) {
+        if (company == null || company.isBlank()) {
+            return ImageSearchFilters.DEFAULT_COMPANY;
+        }
+        return company.trim();
+    }
+
     private boolean containsAny(String message, String... kws) {
         if (message == null) return false;
         for (String kw : kws) {
@@ -867,14 +950,16 @@ public class DecisionDataService {
         return false;
     }
 
-    /** 从问题中提取可能的货号（字母开头的字母数字组合，长度>=4） */
+    /** 从问题中提取可能的货号（字母开头、含数字、长度>=4）。纯英文单词不当成货号。 */
     private String extractProductCode(String message) {
         if (message == null) return null;
         Matcher m = PRODUCT_CODE.matcher(message);
         while (m.find()) {
             String token = m.group();
-            // 排除常见英文词与纯单词
-            if (!token.matches("(?i)plan|mode|excel|pdf|sku|v1|no|date|time")) {
+            if (token.matches("(?i)plan|mode|excel|pdf|sku|v1|no|date|time")) {
+                continue;
+            }
+            if (token.matches(".*\\d.*")) {
                 return token;
             }
         }
