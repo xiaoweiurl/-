@@ -6,6 +6,7 @@ import com.imagemanager.cache.LlmCacheService;
 import com.imagemanager.dto.MemorySearchResult;
 import com.imagemanager.enhance.ChatMemoryManager;
 import com.imagemanager.enhance.RagPipeline;
+import com.imagemanager.imagesearch.ChatVisualSearchService;
 import com.imagemanager.service.AiCallLogService;
 import com.imagemanager.service.DecisionDataService;
 import com.imagemanager.service.FileStorageService;
@@ -109,6 +110,9 @@ public class SmartChatServiceImpl implements SmartChatService {
     @Autowired(required = false)
     private AiCallLogService aiCallLogService;
 
+    @Autowired(required = false)
+    private ChatVisualSearchService chatVisualSearchService;
+
     @Autowired
     @Qualifier("chatExecutor")
     private Executor chatExecutor;
@@ -185,6 +189,11 @@ public class SmartChatServiceImpl implements SmartChatService {
 
     @Override
     public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs, String subMode) {
+        return smartChatWithAttachments(message, userId, company, conversationId, mode, userImages, userPdfs, subMode, true);
+    }
+
+    @Override
+    public SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> userImages, List<Map<String, String>> userPdfs, String subMode, boolean allowVisualSearch) {
         SseEmitter emitter = new SseEmitter(CHAT_MAX_DURATION_MS);
         AtomicReference<HttpURLConnection> activeConn = new AtomicReference<>();
         Runnable releaseConn = () -> {
@@ -474,11 +483,26 @@ public class SmartChatServiceImpl implements SmartChatService {
                     }
                 }
 
+                // 4e. 上传图片的以图搜图。打样会话、开关关闭或向量服务不可用时不搜，识图照旧。
+                ChatVisualSearchService.Outcome visualOutcome = ChatVisualSearchService.Outcome.none();
+                if (!modeSwitchCmd && allowVisualSearch && chatVisualSearchService != null
+                        && userImages != null && !userImages.isEmpty()) {
+                    try {
+                        visualOutcome = chatVisualSearchService.search(message, userImages, company, true);
+                    } catch (Exception e) {
+                        log.warn("对话以图搜图失败，继续原有识图: {}", e.getMessage());
+                    }
+                }
+
                 // 3. 给每条检索结果编号。回答句末用 [[K1]] [[E1]] 指回原文，recordId 是真实记录主键
                 // 岗位卡片和历史问答只在设计师模式作为来源；工厂模式的 E 类（含工具分析）始终进入 sources
+                // 相似图用 visual- 编号挂在同一份 sources 里，不会变成 [[E1]] 这类引用
                 List<Map<String, Object>> sources = ChatCitation.collectSources(
                         knowledgeResults, salespersonResults, supplyChainResults, structuredResults,
                         positionCardResults, chatHistoryQAResults, !isFactory);
+                if (visualOutcome.ran() && !visualOutcome.sources().isEmpty()) {
+                    sources.addAll(visualOutcome.sources());
+                }
                 citedSources = sources;
 
                 emitter.send(SseEmitter.event().name("message").data(
@@ -714,6 +738,10 @@ public class SmartChatServiceImpl implements SmartChatService {
                 } else if (isImageSearchIntent(message)) {
                     knowledgeContext.append("## 图片库搜索结果：未找到匹配的图片〔数据源优先级 L2·本地业务数据〕\n");
                     knowledgeContext.append("用户请求在图片库中查找图片，但根据关键词搜索未找到任何匹配的产品图片。请如实告知用户图片库中没有找到相关图片，并建议用户尝试其他关键词或上传相关图片。\n");
+                }
+
+                if (visualOutcome.ran() && !visualOutcome.context().isBlank()) {
+                    knowledgeContext.append(visualOutcome.context());
                 }
 
                 // 企划/决策模式第3段：用户历史多轮对话提问记录
@@ -989,10 +1017,15 @@ public class SmartChatServiceImpl implements SmartChatService {
                 }
                 messages.add(userMessage);
 
-                // 6. 保存用户消息
-                saveChatMessage(userId, convId, "user", message, company, null, mode);
+                // 6. 保存用户消息。只上传图片时补一句占位，避免空内容被丢掉。
+                String persistedUserMessage = message;
+                if ((persistedUserMessage == null || persistedUserMessage.isBlank())
+                        && userImages != null && !userImages.isEmpty()) {
+                    persistedUserMessage = "（上传图片）";
+                }
+                saveChatMessage(userId, convId, "user", persistedUserMessage, company, null, mode);
                 // 6b. 更新ChatMemory（内存级多轮对话记忆，LangChain4j ChatMemory）
-                chatMemoryManager.addUserMessage(convId, message);
+                chatMemoryManager.addUserMessage(convId, persistedUserMessage);
 
                 // 7. 流式调用本地模型（Ollama）
                 // 联网策略：仅企划智能体（factory/planning 子模式）允许联网检索（阶段一 MiniMax web_search 已在前面完成）；
@@ -1092,7 +1125,7 @@ public class SmartChatServiceImpl implements SmartChatService {
 
                 // 9. 更新对话标题（如果是新对话的第一条消息）
                 updateConversationTitleFromMessage(convId,
-                        planningOverrideMessage != null ? planningOverrideMessage : message);
+                        planningOverrideMessage != null ? planningOverrideMessage : persistedUserMessage);
 
                 emitter.complete();
             } catch (Exception e) {

@@ -305,6 +305,10 @@ image-search:
   collection: ${IMAGE_SEARCH_COLLECTION:image_vectors}
   dimension: ${IMAGE_SEARCH_DIMENSION:512}
   top-k: ${IMAGE_SEARCH_TOP_K:20}
+  # 对话上传图片后的以图搜图：默认只回相似度最高的几条，低于余弦阈值的丢掉。
+  chat-top-k: ${IMAGE_SEARCH_CHAT_TOP_K:5}
+  chat-min-score: ${IMAGE_SEARCH_CHAT_MIN_SCORE:0.30}
+  chat-max-results: ${IMAGE_SEARCH_CHAT_MAX_RESULTS:50}
   milvus-host: ${MILVUS_HOST:localhost}
   milvus-port: ${MILVUS_PORT:19530}
   max-image-bytes: ${IMAGE_SEARCH_MAX_BYTES:20971520}

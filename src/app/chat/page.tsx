@@ -11,7 +11,8 @@ import {
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import { isSamplerSession } from '@/lib/auth';
-import { mapHistoryChatMessage, takeSseEvents, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
+import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
+import ChatVisualMatches from '@/components/ChatVisualMatches';
 
 // ===== 类型定义 =====
 interface ChatImage {
@@ -373,19 +374,21 @@ export default function ChatPage() {
 
   // 发送消息
   const handleSend = useCallback(async () => {
-    if (!input.trim() || isChatting) return;
+    const text = input.trim();
+    const currentAttachments = [...chatAttachments];
+    const hasImage = currentAttachments.some(a => a.type === 'image');
+    if ((!text && !hasImage) || isChatting) return;
 
     // 用户发送新消息时，重置滚动状态，确保自动滚到底部
     isUserScrollingRef.current = false;
 
     const userMsg: ChatMessage = {
       role: 'user',
-      content: input.trim(),
-      attachments: chatAttachments.length > 0 ? [...chatAttachments] : undefined,
+      content: text,
+      attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
     };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    const currentAttachments = [...chatAttachments];
     setChatAttachments([]);
     setIsChatting(true);
 
@@ -400,7 +403,7 @@ export default function ChatPage() {
 
     try {
       const loginSid = getLoginSessionId();
-      const msg = input.trim();
+      const msg = text;
       const headers: Record<string, string> = { 'Accept': 'text/event-stream' };
       if (loginSid) headers['X-Session-Id'] = loginSid;
 
@@ -594,7 +597,7 @@ export default function ChatPage() {
         return prev;
       });
     }
-  }, [input, isChatting, activeSessionId]);
+  }, [input, isChatting, activeSessionId, chatAttachments]);
 
   // 新建对话
   const handleNewChat = async () => {
@@ -886,11 +889,11 @@ export default function ChatPage() {
                       <Bot className="w-4 h-4 text-white" />
                     </div>
                   )}
-                  <div className={`max-w-[80%] min-w-0 ${msg.role === 'user' ? '' : ''}`}>
+                  <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[80%]' : visualMatchesFromSources(msg.sources).length > 0 ? 'w-full max-w-[40rem]' : 'max-w-[80%]'}`}>
                     {/* 来源标签 */}
-                    {msg.sources && msg.sources.length > 0 && (
+                    {msg.sources && msg.sources.some(s => s.source !== 'visual_match') && (
                       <div className="flex flex-wrap gap-1.5 mb-2">
-                        {msg.sources.map((s, j) => (
+                        {msg.sources.filter(s => s.source !== 'visual_match').map((s, j) => (
                           <button
                             key={j}
                             type="button"
@@ -943,6 +946,10 @@ export default function ChatPage() {
                       </details>
                     )}
 
+                    {msg.role === 'assistant' && visualMatchesFromSources(msg.sources).length > 0 && (
+                      <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} />
+                    )}
+
                     {/* 消息内容 */}
                     <div className={`relative group/msg
                       ${msg.role === 'user'
@@ -971,7 +978,7 @@ export default function ChatPage() {
                         <MarkdownRenderer
                           content={msg.content || ''}
                           darkMode
-                          citeIds={(msg.sources || []).map(s => s.id).filter((id): id is string => !!id)}
+                          citeIds={citeIdsFromSources(msg.sources)}
                           onCite={(id) => {
                             const hit = msg.sources?.find(s => s.id === id);
                             if (hit) setOpenSource(hit);
@@ -1163,7 +1170,7 @@ export default function ChatPage() {
               </div>
               <button
                 onClick={handleSend}
-                disabled={isChatting || !input.trim()}
+                disabled={isChatting || (!input.trim() && !chatAttachments.some(a => a.type === 'image'))}
                 className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all
                   ${isChatting || !input.trim()
                     ? 'bg-[rgba(118,118,128,0.12)] text-[#8e8e93] cursor-not-allowed'

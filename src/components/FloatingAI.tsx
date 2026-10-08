@@ -10,7 +10,8 @@ import MarkdownRenderer from './MarkdownRenderer';
 import ChatFeedbackBar from './ChatFeedbackBar';
 import { backendFetch } from '@/lib/backend-proxy';
 import { isSamplerSession } from '@/lib/auth';
-import { mapHistoryChatMessage, takeSseEvents, type ChatSource, type ChatSseEvent } from '@/lib/chat-sse';
+import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSource, type ChatSseEvent } from '@/lib/chat-sse';
+import ChatVisualMatches from './ChatVisualMatches';
 
 // ===== 类型定义 =====
 interface ChatMessage {
@@ -409,7 +410,7 @@ export default function FloatingAI() {
                     <Bot className="w-4 h-4 text-[#007aff]" />
                   </div>
                 )}
-                <div className={`max-w-[85%] relative ${msg.role === 'user' ? 'order-1' : ''}`}>
+                <div className={`relative ${msg.role === 'user' ? 'max-w-[85%] order-1' : visualMatchesFromSources(msg.sources).length > 0 ? 'w-full min-w-0' : 'max-w-[85%]'}`}>
                   {/* 思维链 */}
                   {msg.role === 'assistant' && msg.thinkingChain && msg.thinkingChain.length > 0 && (
                     <div className="mb-2">
@@ -466,6 +467,10 @@ export default function FloatingAI() {
                     </div>
                   )}
 
+                  {msg.role === 'assistant' && visualMatchesFromSources(msg.sources).length > 0 && (
+                    <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} />
+                  )}
+
                   {/* 消息内容 */}
                   <div className={`rounded-2xl px-3.5 py-2.5 ${
                     msg.role === 'user'
@@ -477,7 +482,7 @@ export default function FloatingAI() {
                         <MarkdownRenderer
                           content={msg.content || (msg.isStreaming ? '' : '...')}
                           darkMode
-                          citeIds={(msg.sources || []).map(s => s.id).filter((id): id is string => !!id)}
+                          citeIds={citeIdsFromSources(msg.sources)}
                           onCite={(id) => {
                             const hit = msg.sources?.find(s => s.id === id);
                             if (hit) setOpenSource(hit);

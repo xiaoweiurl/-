@@ -28,6 +28,15 @@ public class ImageSearchProperties {
 
     private int topK = 20;
 
+    /** 对话里默认返回的相似图条数。 */
+    private int chatTopK = 5;
+
+    /** 余弦相似度下限。低于这个值的结果不进对话。 */
+    private double chatMinScore = 0.30d;
+
+    /** 用户明确要求“全部”时，最多返回这么多条。 */
+    private int chatMaxResults = 50;
+
     private String milvusHost = "localhost";
 
     private int milvusPort = 19530;
