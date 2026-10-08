@@ -37,6 +37,41 @@ public class ImageSearchProperties {
     /** 用户明确要求“全部”时，最多返回这么多条。 */
     private int chatMaxResults = 50;
 
+    /**
+     * 主体裁剪集合。关闭时不连接、不写入。
+     * 打开后，新上传会同时写入整图集合和裁剪集合。
+     */
+    private boolean cropEnabled = false;
+
+    /**
+     * 空着就用「整图集合名_crop」。这台机器整图集合是 image_vectors_vitl 时，裁剪集合是 image_vectors_vitl_crop。
+     */
+    private String cropCollection = "";
+
+    /**
+     * 同款用哪个集合：crop 或 full。默认 crop。
+     * 实图里背景和模特会把别的款抬到很高，裁掉主体再比更接近「是不是这款」。
+     * 本机评测如果整图更好，改成 full。
+     */
+    private String sameProductVariant = "crop";
+
+    /** 相似素材用哪个集合。crop 未就绪时自动退回整图集合。 */
+    private String similarReferenceVariant = "crop";
+
+    /** 同款有多张图命中时，每多一张加的分。 */
+    private double sameProductMultiBonus = 0.02d;
+
+    /** 多图奖励的上限。 */
+    private double sameProductMultiBonusCap = 0.06d;
+
+    /**
+     * 只发了一张图、几乎没有文字时：整图集合第一条若是商品且不低于这个值，就按同款，否则按相似素材。
+     */
+    private double sameProductProbeMinScore = 0.45d;
+
+    /** 同款向 Milvus 多取的倍数，分组后还要凑够返回条数。 */
+    private int internalTopKFactor = 5;
+
     private String milvusHost = "localhost";
 
     private int milvusPort = 19530;
@@ -51,5 +86,13 @@ public class ImageSearchProperties {
         if (!enabled) {
             throw new ImageSearchDisabledException();
         }
+    }
+
+    public String resolvedCropCollection() {
+        if (cropCollection != null && !cropCollection.isBlank()) {
+            return cropCollection.trim();
+        }
+        String base = collection == null || collection.isBlank() ? "image_vectors" : collection.trim();
+        return base + "_crop";
     }
 }

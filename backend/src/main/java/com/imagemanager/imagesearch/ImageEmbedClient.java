@@ -41,16 +41,34 @@ public class ImageEmbedClient implements ImageEmbedder {
 
     @Override
     public float[] embedImage(byte[] data, String filename) {
+        return embedImage(data, filename, false);
+    }
+
+    @Override
+    public float[] embedImage(byte[] data, String filename, boolean crop) {
         if (data == null || data.length == 0) {
             throw new IllegalArgumentException("图片内容为空");
         }
         String boundary = "----ImageSearch" + UUID.randomUUID().toString().replace("-", "");
-        byte[] body = multipart(boundary, filename == null ? "image.jpg" : filename, data);
+        byte[] body = multipart(boundary, filename == null ? "image.jpg" : filename, data, crop);
         HttpRequest request = base("/embed/image")
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .build();
         return readEmbedding(send(request));
+    }
+
+    @Override
+    public boolean cropDetectorReady() {
+        HttpRequest request = base("/health").GET().build();
+        try {
+            JsonNode root = objectMapper.readTree(send(request));
+            return root.path("crop_enabled").asBoolean(false) && root.path("crop_detector_ready").asBoolean(false);
+        } catch (IllegalStateException e) {
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
@@ -109,7 +127,7 @@ public class ImageEmbedClient implements ImageEmbedder {
         }
     }
 
-    private static byte[] multipart(String boundary, String filename, byte[] data) {
+    private static byte[] multipart(String boundary, String filename, byte[] data, boolean crop) {
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             String safeName = filename.replace("\"", "").replace("\r", "").replace("\n", "");
@@ -118,7 +136,14 @@ public class ImageEmbedClient implements ImageEmbedder {
                     + "Content-Type: application/octet-stream\r\n\r\n";
             out.write(head.getBytes(StandardCharsets.UTF_8));
             out.write(data);
-            out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+            out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            if (crop) {
+                String cropPart = "--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"crop\"\r\n\r\n"
+                        + "1\r\n";
+                out.write(cropPart.getBytes(StandardCharsets.UTF_8));
+            }
+            out.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
             return out.toByteArray();
         } catch (Exception e) {
             throw new IllegalStateException("组装上传请求失败", e);

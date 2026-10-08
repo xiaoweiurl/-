@@ -1,3 +1,12 @@
+export interface VisualThumb {
+  imageUrl?: string;
+  slotLabel?: string;
+  scorePercent?: number;
+  source?: string;
+  sourceId?: string;
+  slot?: string;
+}
+
 export interface ChatSource {
   id?: string;
   recordId?: string;
@@ -17,6 +26,15 @@ export interface ChatSource {
   albumName?: string;
   slotLabel?: string;
   empty?: boolean;
+  /** SAME_PRODUCT / SIMILAR_REFERENCE / MIXED。历史记录靠它选卡片。 */
+  scenario?: string;
+  /** product 是同款一张卡，image 是单张图。 */
+  cardType?: string;
+  images?: VisualThumb[];
+}
+
+export function isProductCard(hit: { cardType?: string } | null | undefined): boolean {
+  return hit?.cardType === 'product';
 }
 
 const CITE_ID = /^[A-Za-z]\d+$/;

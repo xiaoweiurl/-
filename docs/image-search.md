@@ -209,12 +209,100 @@ pnpm start
 
 素材库按 `images.company` 隔离，和图片列表一样。商品库/打样不按公司裁剪，和现在的商品库列表一样：登录用户都能看到。打样会话仍然只能进自己的那张表单。
 
+## 同款和相似素材
+
+检索分成两个场景，代码里是枚举 `VisualSearchScenario`，每个场景一个策略类。
+
+| 场景 | 什么时候 | 结果 |
+| --- | --- | --- |
+| `SAME_PRODUCT` | 「这款做过吗 / 是什么货号 / 找同款 / 历史打样」，或弹层选「打样」 | 按货号（没有货号则按商品 id）合并。分数是组内最高相似度，多张命中可加一小段奖励（`IMAGE_SEARCH_SAME_PRODUCT_BONUS`，默认 0.02，上限 0.06）。一张商品卡：主图是最像的那张，其余是小图，带货号、品名、打样员 |
+| `SIMILAR_REFERENCE` | 「找相似的素材 / 参考图 / 类似风格 / 找图」，或弹层选「素材」 | 一张图一条，不合并 |
+| `NON_SEARCH` | 问文字、瑕疵、面料等 | 不搜图，对话继续原来的识图 |
+| `MIXED` | 只用于弹层「全部」 | 同款卡片在前，没被收进去的素材图在后 |
+
+「全部 / 所有」仍然只是把对话结果放宽到最多 50 条，两个场景都生效，不会把对话改成 `MIXED`。
+
+只发一张图、或文字很短（去掉标点后不超过 8 个字）时，先用整图集合看相似度最高的一条：它是商品且不低于 `IMAGE_SEARCH_PROBE_MIN_SCORE`（默认 0.45）就当同款，否则当相似素材。探测只用整图集合，因为裁剪集合可能还没回填。
+
+弹层页签：打样 → `SAME_PRODUCT`，素材 → `SIMILAR_REFERENCE`，全部 → `MIXED`。接口的 `scenario` 和对话 `sources_json` 里的 `scenario`、`cardType`（`product` / `image`）决定卡片样式，历史记录按原样重新渲染。
+
+对话其余行为不变：默认 5 条，相似度阈值 0.30，说「全部」最多 50 条，向量服务挂了就继续原来的识图，打样作用域会话不搜图，`[[E1]]` 引用和反馈按钮不收 `visual_match`。
+
+同款内部会按大约 5 倍取候选再合并（`IMAGE_SEARCH_INTERNAL_TOPK_FACTOR`，上限 250），这样分组之后仍然够条数。
+
+## 主体裁剪（新集合）
+
+实图里，同一款的不同照片相似度只有 0.53–0.67，背景或模特接近的其他款可以到 0.86 以上。相似素材和同款默认都用裁过主体的向量。云端没有 GPU，这个默认是按这个失败模式定的，本机评测后可以把同款改回整图：`IMAGE_SEARCH_SAME_PRODUCT_VARIANT=full`。
+
+检测器是 **OWLv2** `google/owlv2-base-patch16-ensemble`（Apache-2.0）。`transformers` 4.57 自带 `Owlv2Processor` / `Owlv2ForObjectDetection`，不用再装检测库，5090 上用 fp16。提示词是 `clothing` / `garment` / `person`。检不出、分数不够、框几乎盖住整张图，或短边小于 48（小 GIF），就用整张图。查询图和入库图走同一套预处理。
+
+裁剪向量写入新集合，默认是整图集合名加 `_crop`。整图集合是 `image_vectors_vitl` 时，新集合是 `image_vectors_vitl_crop`。不改、不删 `image_vectors_vitl`，也不碰 `salesperson_*`。文本检索仍在同一个 Chinese-CLIP 空间里，文本本身不裁剪。
+
+`image-embed-service\start.ps1` 在 `.gitignore` 里，并且把环境变量写死在脚本里。仓库改不到它。请在那份脚本里加上：
+
+```powershell
+$env:IMAGE_EMBED_CROP = "1"
+```
+
+可选：`IMAGE_EMBED_CROP_MODEL`、`IMAGE_EMBED_CROP_THRESHOLD`（默认 0.20）、`IMAGE_EMBED_CROP_PADDING`（默认 0.12）、`IMAGE_EMBED_CROP_MIN_SIDE`（默认 48）。`HF_ENDPOINT` 保持 `https://hf-mirror.com`。第一次启动会从镜像下载 OWLv2。`requirements.txt` 没有新增包，OWLv2 用已有的 `transformers`。
+
+健康检查里要看到 `crop_enabled=true`、`crop_mode=owlv2`、`crop_detector_ready=true`。没打开时 `crop_mode` 是 `off`。打开了但模型没加载起来是 `unavailable`，这时裁剪请求退回整图。
+
+Java 侧（IDEA 运行配置，和现有的 `IMAGE_SEARCH_*` 放在一起）：
+
+```text
+IMAGE_SEARCH_CROP_ENABLED=true
+IMAGE_SEARCH_CROP_COLLECTION=image_vectors_vitl_crop
+```
+
+`IMAGE_SEARCH_CROP_COLLECTION` 可以不设，空着就会用 `image_vectors_vitl_crop`。相似素材用裁剪集合（`IMAGE_SEARCH_SIMILAR_VARIANT`，默认 `crop`）。集合没就绪时两个场景都退回整图集合。
+
+进度表要多一列 `variant`。Flyway 仍是关的，手动执行，可以重复跑：
+
+```powershell
+psql -h localhost -U postgres -d image_management -f D:\yingyun\backend\src\main\resources\db\migration\V65__image_vector_index_variant.sql
+```
+
+没执行 V65 时，整图回填照旧；裁剪回填会直接提示先跑这条 SQL。
+
+裁剪集合回填（向量服务健康检查已经 `crop_detector_ready=true` 之后）：
+
+```powershell
+cd D:\yingyun
+$env:IMAGE_SEARCH_DIMENSION = "768"
+$env:IMAGE_SEARCH_COLLECTION = "image_vectors_vitl"
+$env:IMAGE_SEARCH_CROP_ENABLED = "true"
+powershell -ExecutionPolicy Bypass -File .\scripts\image-search-backfill.ps1 --variant crop
+```
+
+可重复执行。已完成且对象键未变的会跳过。失败后：`--variant crop --only-failed`。不要用默认命令代替这一步，默认 `--variant` 是 `full`，只维护原来的整图集合。
+
+新上传的素材、商品四张图、二创保存，会写入当前已启用的集合。裁剪开关打开且集合就绪时，整图和裁剪各写一条。
+
+然后重启后端，再构建前端：
+
+```powershell
+cd D:\yingyun
+pnpm build
+pnpm start
+```
+
+### 对比评测
+
+顶层的 `recallAt1` / `recallAt5` 仍是整图集合、按单张图的旧口径，用来和之前的 32% / 42% 对比。`byCollection.full.scenarios.SAME_PRODUCT` 是商品级召回：去掉查询图自己之后，同一货号或同一商品的任意一张图出现在 TopK 就算命中。`SIMILAR_REFERENCE` 仍按单张图。裁剪集合在 `byCollection.crop`；还没回填时 `available` 是 `false`。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\image-search-eval.ps1 --groups 20 --synthetic 8 --k 10
+```
+
+管理接口是 `POST /api/image-search/eval`，同样只读。
+
 ## 回滚
 
 1. IDEA 里去掉 `IMAGE_SEARCH_ENABLED`，或设成 `false`，重启后端。搜索接口返回未开启，新上传不再写向量，页面入口消失。
 2. 停掉 `python main.py`。
 3. 需要连进度表一起去掉时，手动执行：`DROP TABLE IF EXISTS image_vector_index;`
-4. 需要去掉向量时，只删除 Milvus 集合 `image_vectors_vitl`。如果还建过默认的 `image_vectors`，也只删这个 `image_` 集合。不要删除 `salesperson_docs`、`salesperson_docs_hybrid`、`salesperson_chunks`。
+4. 需要去掉向量时，只删除 Milvus 集合 `image_vectors_vitl`。如果还建过裁剪集合，只再删 `image_vectors_vitl_crop`。如果还建过默认的 `image_vectors`，也只删这个 `image_` 集合。不要删除 `salesperson_docs`、`salesperson_docs_hybrid`、`salesperson_chunks`。
 5. 前端不需要单独回滚。开关关闭后按钮不会出现。
 
 ## 权限

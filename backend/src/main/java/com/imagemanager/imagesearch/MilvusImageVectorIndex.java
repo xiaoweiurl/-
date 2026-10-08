@@ -36,6 +36,7 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
     private final Object lock = new Object();
     private MilvusClientV2 client;
     private volatile boolean ready;
+    private volatile boolean cropReady;
 
     public MilvusImageVectorIndex(ImageSearchProperties properties) {
         this.properties = properties;
@@ -66,11 +67,16 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
                         .uri(uri)
                         .connectTimeoutMs(10_000)
                         .build());
-                ensureCollection();
+                ensureCollection(properties.getCollection());
                 ready = true;
                 log.info("图片向量集合就绪: {}", properties.getCollection());
+                cropReady = false;
+                if (properties.isCropEnabled()) {
+                    openCropCollection();
+                }
             } catch (Exception e) {
                 ready = false;
+                cropReady = false;
                 log.error("图片向量库连接失败（以图搜图不可用，不影响其他功能）: {}", e.getMessage());
             }
         }
@@ -88,6 +94,7 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
                 client = null;
             }
             ready = false;
+            cropReady = false;
         }
     }
 
@@ -97,40 +104,70 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
     }
 
     @Override
+    public boolean supports(EmbeddingVariant variant) {
+        if (variant == EmbeddingVariant.CROP) {
+            return cropReady && client != null;
+        }
+        return isReady();
+    }
+
+    @Override
     public void upsert(ImageVectorRecord record, float[] embedding) {
+        upsert(EmbeddingVariant.FULL, record, embedding);
+    }
+
+    @Override
+    public void upsert(EmbeddingVariant variant, ImageVectorRecord record, float[] embedding) {
         ensureReady();
         if (embedding == null || embedding.length != properties.getDimension()) {
             throw new IllegalStateException("向量维度与 image-search.dimension 不一致");
         }
-        deleteQuiet(record.vectorId());
+        String collection = collectionName(variant);
+        deleteQuiet(collection, record.vectorId());
         JsonObject row = toRow(record, embedding);
         client.insert(InsertReq.builder()
-                .collectionName(properties.getCollection())
+                .collectionName(collection)
                 .data(List.of(row))
                 .build());
     }
 
     @Override
     public void deleteById(String vectorId) {
-        if (!isReady() || vectorId == null || vectorId.isBlank()) {
+        deleteById(EmbeddingVariant.FULL, vectorId);
+    }
+
+    @Override
+    public void deleteById(EmbeddingVariant variant, String vectorId) {
+        if (!supports(variant) || vectorId == null || vectorId.isBlank()) {
             return;
         }
-        deleteQuiet(vectorId);
+        deleteQuiet(collectionName(variant), vectorId);
     }
 
     @Override
     public List<ImageSearchModels.RawHit> search(float[] embedding, String scope, String company, int topK) {
-        ensureReady();
+        return search(EmbeddingVariant.FULL, embedding, scope, company, topK);
+    }
+
+    @Override
+    public List<ImageSearchModels.RawHit> search(EmbeddingVariant variant, float[] embedding,
+                                                String scope, String company, int topK) {
+        if (!supports(variant)) {
+            throw new IllegalStateException(variant == EmbeddingVariant.CROP
+                    ? "裁剪向量集合未就绪"
+                    : "图片向量库未就绪");
+        }
         if (embedding == null || embedding.length != properties.getDimension()) {
             throw new IllegalStateException("查询向量维度与 image-search.dimension 不一致");
         }
-        int k = Math.max(1, Math.min(topK, 100));
+        int k = Math.max(1, Math.min(topK, VisualSearchLimits.MAX_INTERNAL));
+        String collection = collectionName(variant);
         List<Float> vector = new ArrayList<>(embedding.length);
         for (float value : embedding) {
             vector.add(value);
         }
         SearchResp response = client.search(SearchReq.builder()
-                .collectionName(properties.getCollection())
+                .collectionName(collection)
                 .annsField("embedding")
                 .data(List.of(new FloatVec(vector)))
                 .topK(k)
@@ -165,8 +202,32 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
         return hits;
     }
 
-    private void ensureCollection() {
-        String name = properties.getCollection();
+    private void openCropCollection() {
+        String name = properties.resolvedCropCollection();
+        if (name.equals(properties.getCollection())) {
+            log.error("裁剪集合不能和整图集合同名: {}", name);
+            cropReady = false;
+            return;
+        }
+        try {
+            ImageSearchFilters.assertCollectionName(name);
+            ensureCollection(name);
+            cropReady = true;
+            log.info("裁剪向量集合就绪: {}", name);
+        } catch (Exception e) {
+            cropReady = false;
+            log.error("裁剪向量集合未就绪，相似素材会退回整图集合: {}", e.getMessage());
+        }
+    }
+
+    private String collectionName(EmbeddingVariant variant) {
+        if (variant == EmbeddingVariant.CROP) {
+            return properties.resolvedCropCollection();
+        }
+        return properties.getCollection();
+    }
+
+    private void ensureCollection(String name) {
         boolean exists = client.hasCollection(HasCollectionReq.builder().collectionName(name).build());
         if (exists) {
             client.loadCollection(LoadCollectionReq.builder().collectionName(name).build());
@@ -237,10 +298,10 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
         return row;
     }
 
-    private void deleteQuiet(String vectorId) {
+    private void deleteQuiet(String collection, String vectorId) {
         try {
             client.delete(DeleteReq.builder()
-                    .collectionName(properties.getCollection())
+                    .collectionName(collection)
                     .filter("vector_id == \"" + ImageSearchFilters.milvusQuote(vectorId) + "\"")
                     .build());
         } catch (Exception e) {

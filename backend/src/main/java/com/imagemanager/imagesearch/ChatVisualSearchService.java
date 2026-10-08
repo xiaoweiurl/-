@@ -11,6 +11,7 @@ import java.util.Map;
 /**
  * 对话上传图片后的以图搜图。素材和商品库一起查。
  * 开关关闭、向量服务不可用、或打样会话时不搜，对话继续走原来的识图。
+ * 同款和相似素材分属两个策略；短文本先看整图集合的第一条再决定。
  */
 @Slf4j
 @Service
@@ -34,8 +35,8 @@ public class ChatVisualSearchService {
         if (imageBase64 == null || imageBase64.isEmpty()) {
             return Outcome.none();
         }
-        ChatVisualSearchIntent.Decision decision = ChatVisualSearchIntent.decide(message);
-        if (decision == ChatVisualSearchIntent.Decision.SKIP) {
+        VisualSearchClassifier.Intent intent = VisualSearchClassifier.classify(message);
+        if (!intent.probe() && intent.scenario() == VisualSearchScenario.NON_SEARCH) {
             return Outcome.none();
         }
         if (!properties.isEnabled()) {
@@ -44,20 +45,14 @@ public class ChatVisualSearchService {
         }
         int topK = clamp(properties.getChatTopK(), 1, 20);
         int maxResults = clamp(properties.getChatMaxResults(), topK, 50);
-        double minScore = properties.getChatMinScore();
-        if (minScore < 0d) {
-            minScore = 0d;
-        } else if (minScore > 1d) {
-            minScore = 1d;
-        }
-        int limit = decision == ChatVisualSearchIntent.Decision.ALL ? maxResults : topK;
-        int fetch = Math.min(50, decision == ChatVisualSearchIntent.Decision.ALL
-                ? maxResults
-                : Math.max(topK * 4, 20));
+        double minScore = clampScore(properties.getChatMinScore());
+        int limit = intent.all() ? maxResults : topK;
+        boolean cropReady = queryService.cropCollectionReady();
 
         List<ImageSearchModels.ImageSearchHitView> merged = new ArrayList<>();
         int searched = 0;
         int seen = 0;
+        VisualSearchScenario scenario = intent.probe() ? null : intent.scenario();
         for (String raw : imageBase64) {
             if (seen >= MAX_QUERY_IMAGES) {
                 break;
@@ -68,22 +63,53 @@ public class ChatVisualSearchService {
                 continue;
             }
             seen++;
+            String filename = "chat-query-" + seen + ".jpg";
             try {
-                ImageSearchModels.ImageSearchResponse response = queryService.search(
-                        bytes, "chat-query-" + seen + ".jpg", null, "all", fetch, company);
-                searched++;
-                if (response.getResults() != null) {
-                    merged.addAll(response.getResults());
+                if (scenario == null) {
+                    scenario = probeAndCollect(bytes, filename, company, limit, cropReady, merged);
+                } else {
+                    collect(scenario, bytes, filename, company, limit, cropReady, merged);
                 }
+                searched++;
             } catch (Exception ex) {
                 log.warn("对话以图搜图失败，继续原有识图: {}", ex.getMessage());
             }
         }
-        if (searched == 0) {
+        if (searched == 0 || scenario == null) {
             return Outcome.none();
         }
-        List<ImageSearchModels.ImageSearchHitView> kept = ChatVisualSearchRank.select(merged, minScore, limit);
-        return Outcome.ran(ChatVisualSearchRank.context(kept), ChatVisualSearchRank.toSources(kept));
+        VisualSearchStrategy strategy = VisualSearchStrategies.of(scenario);
+        List<ImageSearchModels.ImageSearchHitView> kept = strategy.assemble(merged, minScore, limit, properties);
+        for (ImageSearchModels.ImageSearchHitView hit : kept) {
+            hit.setScenario(scenario.name());
+        }
+        return Outcome.ran(ChatVisualSearchRank.context(kept), ChatVisualSearchRank.toSources(kept, scenario));
+    }
+
+    /**
+     * 短文本先用整图集合看第一条。决定后的场景如果也用整图，这次结果直接留下，不再查第二次。
+     */
+    private VisualSearchScenario probeAndCollect(byte[] bytes, String filename, String company, int limit,
+                                                 boolean cropReady, List<ImageSearchModels.ImageSearchHitView> merged) {
+        int probeFetch = VisualSearchLimits.capInternal(Math.max(limit * Math.max(properties.getInternalTopKFactor(), 1), 20));
+        List<ImageSearchModels.ImageSearchHitView> probeHits = queryService.collect(
+                bytes, filename, null, "all", probeFetch, company, EmbeddingVariant.FULL);
+        VisualSearchScenario scenario = VisualSearchClassifier.fromProbe(probeHits, properties.getSameProductProbeMinScore());
+        EmbeddingVariant variant = EmbeddingVariantSelector.select(scenario, properties, cropReady);
+        if (variant == EmbeddingVariant.FULL) {
+            merged.addAll(probeHits);
+            return scenario;
+        }
+        collect(scenario, bytes, filename, company, limit, cropReady, merged);
+        return scenario;
+    }
+
+    private void collect(VisualSearchScenario scenario, byte[] bytes, String filename, String company, int limit,
+                         boolean cropReady, List<ImageSearchModels.ImageSearchHitView> merged) {
+        VisualSearchStrategy strategy = VisualSearchStrategies.of(scenario);
+        EmbeddingVariant variant = EmbeddingVariantSelector.select(scenario, properties, cropReady);
+        merged.addAll(queryService.collect(
+                bytes, filename, null, "all", strategy.internalTopK(limit, properties), company, variant));
     }
 
     static byte[] decode(String raw) {
@@ -105,6 +131,16 @@ public class ChatVisualSearchService {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    private static double clampScore(double minScore) {
+        if (minScore < 0d) {
+            return 0d;
+        }
+        if (minScore > 1d) {
+            return 1d;
+        }
+        return minScore;
     }
 
     private static int clamp(int value, int min, int max) {

@@ -1,4 +1,6 @@
 # Read-only image-search eval. ASCII only: PowerShell 5.1 misreads UTF-8 without BOM.
+# Top-level Recall stays the old per-image metric on the whole-image collection.
+# byCollection.full / byCollection.crop add SAME_PRODUCT product recall and SIMILAR_REFERENCE image recall.
 # Same launch path as scripts/hybrid-eval.ps1. Does not write Milvus or image_vector_index.
 # Do not call mvnw exec:java -Dexec.args. Do not pass -Dmdep.pathSeparator=;.
 $ErrorActionPreference = "Stop"

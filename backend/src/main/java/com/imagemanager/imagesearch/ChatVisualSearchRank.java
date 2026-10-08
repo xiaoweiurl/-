@@ -44,6 +44,7 @@ public final class ChatVisualSearchRank {
         StringBuilder text = new StringBuilder();
         text.append("## 以图搜图结果〔上传图片在素材库和商品库/打样里的相似图。")
                 .append("只能使用下列命中，禁止编造货号、品名、打样员或相似度〕：\n");
+        appendScenario(text, kept);
         if (kept == null || kept.isEmpty()) {
             text.append("未找到达到相似度阈值的图片。请明确告诉用户没有找到相似的产品图或素材图，")
                     .append("不要猜测货号，也不要编造历史打样记录。\n");
@@ -95,6 +96,27 @@ public final class ChatVisualSearchRank {
             }
             putText(source, "albumName", hit.getAlbumName());
             putText(source, "slotLabel", hit.getSlotLabel());
+            putText(source, "cardType", hit.getCardType());
+            putText(source, "scenario", hit.getScenario());
+            if (hit.getImages() != null && !hit.getImages().isEmpty()) {
+                List<Map<String, Object>> thumbs = new ArrayList<>();
+                for (ImageSearchModels.ImageThumb thumb : hit.getImages()) {
+                    if (thumb == null) {
+                        continue;
+                    }
+                    Map<String, Object> one = new LinkedHashMap<>();
+                    putText(one, "imageUrl", thumb.getImageUrl());
+                    putText(one, "slotLabel", thumb.getSlotLabel());
+                    putText(one, "slot", thumb.getSlot());
+                    putText(one, "source", thumb.getSource());
+                    putText(one, "sourceId", thumb.getSourceId());
+                    one.put("scorePercent", thumb.getScorePercent());
+                    thumbs.add(one);
+                }
+                if (!thumbs.isEmpty()) {
+                    source.put("images", thumbs);
+                }
+            }
             sources.add(source);
             index++;
         }
@@ -117,7 +139,39 @@ public final class ChatVisualSearchRank {
         } else {
             append(line, "槽位", hit.getSlotLabel());
         }
+        if (hit.getImages() != null && !hit.getImages().isEmpty()) {
+            line.append("｜同款其他图片 ").append(hit.getImages().size()).append(" 张");
+        }
         return line.toString();
+    }
+
+    public static List<Map<String, Object>> toSources(List<ImageSearchModels.ImageSearchHitView> kept,
+                                                      VisualSearchScenario scenario) {
+        List<Map<String, Object>> sources = toSources(kept);
+        if (scenario == null) {
+            return sources;
+        }
+        for (Map<String, Object> source : sources) {
+            source.putIfAbsent("scenario", scenario.name());
+        }
+        return sources;
+    }
+
+    private static void appendScenario(StringBuilder text, List<ImageSearchModels.ImageSearchHitView> kept) {
+        String scenario = "";
+        if (kept != null) {
+            for (ImageSearchModels.ImageSearchHitView hit : kept) {
+                if (hit != null && hit.getScenario() != null && !hit.getScenario().isBlank()) {
+                    scenario = hit.getScenario();
+                    break;
+                }
+            }
+        }
+        if (VisualSearchScenario.SAME_PRODUCT.name().equals(scenario)) {
+            text.append("场景：同款。同一货号或同一商品的图片已经合并成一条，相似度是其中最高的一张。\n");
+        } else if (VisualSearchScenario.SIMILAR_REFERENCE.name().equals(scenario)) {
+            text.append("场景：相似素材。每张图单独一条，不要把不同的图说成同一个货号。\n");
+        }
     }
 
     private static String sourceLabel(ImageSearchModels.ImageSearchHitView hit) {

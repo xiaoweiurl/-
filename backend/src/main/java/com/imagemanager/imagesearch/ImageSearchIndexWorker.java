@@ -44,7 +44,7 @@ public class ImageSearchIndexWorker {
             ensureVectorStore();
             ImageVectorRecord record = catalog.findLibrary(imageId);
             if (record == null) {
-                index.deleteById(ImageSearchFilters.libraryVectorId(imageId));
+                remove(ImageSearchFilters.libraryVectorId(imageId));
                 return;
             }
             indexRecord(record);
@@ -61,7 +61,7 @@ public class ImageSearchIndexWorker {
             ensureVectorStore();
             ImageVectorRecord record = catalog.findGoodsSlot(goodsId, slot);
             if (record == null) {
-                index.deleteById(ImageSearchFilters.goodsVectorId(goodsId, slot));
+                remove(ImageSearchFilters.goodsVectorId(goodsId, slot));
                 return;
             }
             indexRecord(record);
@@ -78,7 +78,10 @@ public class ImageSearchIndexWorker {
             if (!index.isReady()) {
                 ((MilvusImageVectorIndex) index).initIfEnabled();
             }
-            index.deleteById(vectorId);
+            index.deleteById(EmbeddingVariant.FULL, vectorId);
+            if (properties.isCropEnabled() && index.supports(EmbeddingVariant.CROP)) {
+                index.deleteById(EmbeddingVariant.CROP, vectorId);
+            }
         } catch (Exception e) {
             log.warn("删除图片向量失败（不影响删除）: id={}, err={}", vectorId, e.getMessage());
         }
@@ -86,16 +89,21 @@ public class ImageSearchIndexWorker {
 
     /**
      * 回填调用。失败会写入进度表再抛出，让引擎继续下一条。
+     * 只写传入的那一个变体，整图和裁剪可以分开重跑。
      */
     public void indexForBackfill(ImageVectorRecord record) throws Exception {
+        indexForBackfill(record, EmbeddingVariant.FULL);
+    }
+
+    public void indexForBackfill(ImageVectorRecord record, EmbeddingVariant variant) throws Exception {
+        EmbeddingVariant actual = variant == null ? EmbeddingVariant.FULL : variant;
         try {
             byte[] bytes = readBytes(record.ossKey());
             String sha = sha256(bytes);
-            writeVector(record, bytes);
-            progressStore.save(record, "DONE", sha, null);
+            writeVariant(record, bytes, sha, actual);
         } catch (Exception e) {
             try {
-                progressStore.save(record, "FAILED", null, e.getMessage());
+                progressStore.save(record, "FAILED", null, e.getMessage(), actual);
             } catch (Exception saveError) {
                 log.warn("记录失败项也失败了: {} {}", record.vectorId(), saveError.getMessage());
             }
@@ -105,17 +113,26 @@ public class ImageSearchIndexWorker {
 
     private void indexRecord(ImageVectorRecord record) throws Exception {
         if (record.ossKey() == null || record.ossKey().isBlank()) {
-            progressStore.save(record, "SKIPPED", null, "没有可读取的图片地址");
+            progressStore.save(record, "SKIPPED", null, "没有可读取的图片地址", EmbeddingVariant.FULL);
             return;
         }
         byte[] bytes = readBytes(record.ossKey());
-        writeVector(record, bytes);
-        progressStore.save(record, "DONE", sha256(bytes), null);
+        String sha = sha256(bytes);
+        writeVariant(record, bytes, sha, EmbeddingVariant.FULL);
+        if (properties.isCropEnabled() && index.supports(EmbeddingVariant.CROP)) {
+            try {
+                writeVariant(record, bytes, sha, EmbeddingVariant.CROP);
+            } catch (Exception e) {
+                log.warn("裁剪向量失败（整图向量已写入）: id={}, err={}", record.vectorId(), e.getMessage());
+            }
+        }
     }
 
-    private void writeVector(ImageVectorRecord record, byte[] bytes) {
-        float[] embedding = embedder.embedImage(bytes, ImageSearchFilters.fileNameOf(record.ossKey()));
-        index.upsert(record, embedding);
+    private void writeVariant(ImageVectorRecord record, byte[] bytes, String sha, EmbeddingVariant variant) {
+        float[] embedding = embedder.embedImage(
+                bytes, ImageSearchFilters.fileNameOf(record.ossKey()), variant == EmbeddingVariant.CROP);
+        index.upsert(variant, record, embedding);
+        progressStore.save(record, "DONE", sha, null, variant);
     }
 
     private void ensureVectorStore() {

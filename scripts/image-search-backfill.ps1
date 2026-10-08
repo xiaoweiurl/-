@@ -1,4 +1,7 @@
 # Image vector backfill. ASCII only: PowerShell 5.1 misreads UTF-8 without BOM.
+# Default writes the whole-image collection only.
+# Crop collection: --variant crop   (needs IMAGE_EMBED_CROP=1 and IMAGE_SEARCH_CROP_ENABLED=true)
+# Both: --variant all
 # Same launch path as scripts/hybrid-backfill.ps1:
 #   cmd /c writes backend/cp.txt
 #   Get-Content -Raw builds a ';' classpath
