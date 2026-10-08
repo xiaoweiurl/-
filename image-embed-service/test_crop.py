@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
 import io
+import logging
 import unittest
+from unittest import mock
 
 from PIL import Image
 
@@ -91,23 +94,69 @@ class CropFallbackTest(unittest.TestCase):
         self.assertIn("crop_enabled", body)
         self.assertIn("crop_mode", body)
         self.assertIn("crop_detector_ready", body)
+        self.assertIn("crop_detector_error", body)
         self.assertIn(body["crop_mode"], ("off", "stub", "owlv2", "unavailable"))
         if not body["crop_enabled"]:
             self.assertEqual(body["crop_mode"], "off")
             self.assertFalse(body["crop_detector_ready"])
+            self.assertIsNone(body["crop_detector_error"])
 
     def test_health_reports_detector_missing(self):
-        previous = (main.CROP_ENABLED, main.STUB, main._detector)
+        previous = (main.CROP_ENABLED, main.STUB, main._detector, main._crop_detector_error)
         main.CROP_ENABLED = True
         main.STUB = False
         main._detector = None
+        main._crop_detector_error = "ImportError: 主体裁剪需要 scipy"
         try:
             body = main.health()
         finally:
-            main.CROP_ENABLED, main.STUB, main._detector = previous
+            main.CROP_ENABLED, main.STUB, main._detector, main._crop_detector_error = previous
         self.assertTrue(body["crop_enabled"])
         self.assertEqual(body["crop_mode"], "unavailable")
         self.assertFalse(body["crop_detector_ready"])
+        self.assertIn("scipy", body["crop_detector_error"])
+
+    def test_missing_scipy_error_names_the_dependency(self):
+        real = importlib.import_module
+
+        def fake(name, package=None):
+            if name == "scipy" or name.startswith("scipy."):
+                raise ImportError("No module named 'scipy'")
+            return real(name, package)
+
+        with mock.patch("importlib.import_module", fake):
+            with self.assertRaises(ImportError) as caught:
+                crop.require_crop_imports()
+        self.assertIn("scipy", str(caught.exception))
+        self.assertIn("Owlv2ImageProcessor.resize", str(caught.exception))
+
+    def test_startup_records_detector_import_failure_once(self):
+        previous = (main.CROP_ENABLED, main.STUB, main._detector, main._crop_detector_error)
+        main.CROP_ENABLED = True
+        main.STUB = False
+        main._detector = object()
+        main._crop_detector_error = None
+
+        class Broken:
+            def __init__(self, model_id, device):
+                raise ImportError(
+                    "主体裁剪需要 scipy：transformers 的 OWLv2 后处理会导入 scipy.ndimage"
+                )
+
+        original = crop.OwlV2GarmentDetector
+        crop.OwlV2GarmentDetector = Broken
+        try:
+            with self.assertLogs("image-embed", level="ERROR") as logs:
+                main._load_detector()
+            body = main.health()
+        finally:
+            crop.OwlV2GarmentDetector = original
+            main.CROP_ENABLED, main.STUB, main._detector, main._crop_detector_error = previous
+        self.assertFalse(body["crop_detector_ready"])
+        self.assertEqual(body["crop_mode"], "unavailable")
+        self.assertIn("scipy", body["crop_detector_error"])
+        errors = [record for record in logs.records if record.levelno >= logging.ERROR]
+        self.assertEqual(len(errors), 1)
 
     def test_request_without_crop_flag_does_not_crop(self):
         raw = io.BytesIO()

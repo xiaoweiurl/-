@@ -9,3 +9,6 @@ pydantic>=2.0.0
 pillow>=10.0.0
 python-multipart>=0.0.9
 transformers>=4.44.0,<5.0.0
+# OWLv2 后处理（Owlv2ImageProcessor.resize）会导入 scipy.ndimage。
+# 缺了的话模型能加载，但每张裁剪请求都会失败并退回整图。Python 3.10 可用 scipy==1.15.3。
+scipy>=1.11,<2

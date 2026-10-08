@@ -244,9 +244,9 @@ pnpm start
 $env:IMAGE_EMBED_CROP = "1"
 ```
 
-可选：`IMAGE_EMBED_CROP_MODEL`、`IMAGE_EMBED_CROP_THRESHOLD`（默认 0.20）、`IMAGE_EMBED_CROP_PADDING`（默认 0.12）、`IMAGE_EMBED_CROP_MIN_SIDE`（默认 48）。`HF_ENDPOINT` 保持 `https://hf-mirror.com`。第一次启动会从镜像下载 OWLv2。`requirements.txt` 没有新增包，OWLv2 用已有的 `transformers`。
+可选：`IMAGE_EMBED_CROP_MODEL`、`IMAGE_EMBED_CROP_THRESHOLD`（默认 0.20）、`IMAGE_EMBED_CROP_PADDING`（默认 0.12）、`IMAGE_EMBED_CROP_MIN_SIDE`（默认 48）。`HF_ENDPOINT` 保持 `https://hf-mirror.com`。OWLv2 后处理要 `scipy`（`requirements.txt` 里 `scipy>=1.11,<2`）。第一次启动会从镜像下载 OWLv2。本机 HTTP 代理（Clash 等）会打断 hf-mirror，请设 `NO_PROXY=hf-mirror.com`。
 
-健康检查里要看到 `crop_enabled=true`、`crop_mode=owlv2`、`crop_detector_ready=true`。没打开时 `crop_mode` 是 `off`。打开了但模型没加载起来是 `unavailable`，这时裁剪请求退回整图。
+健康检查里要看到 `crop_enabled=true`、`crop_mode=owlv2`、`crop_detector_ready=true`。没打开时 `crop_mode` 是 `off`。打开了但模型或 scipy 没加载起来是 `unavailable`，`crop_detector_error` 里有原因，这时裁剪请求退回整图。
 
 Java 侧（IDEA 运行配置，和现有的 `IMAGE_SEARCH_*` 放在一起）：
 
