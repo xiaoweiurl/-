@@ -17,6 +17,7 @@ PyTorch 需要 cu128 或更新的轮子（本机 cu130）。cu124/cu126 没有 s
   IMAGE_EMBED_PORT                    默认 8002
   IMAGE_EMBED_HOST                    默认 127.0.0.1
   IMAGE_EMBED_STUB=1                  不加载模型，用确定性颜色向量（只给流水线冒烟，不能用于正式检索）
+  IMAGE_EMBED_HTTP                    默认 h11。Java HttpClient 会发 Upgrade: h2c，httptools 会拒绝。一般不要改
   HF_ENDPOINT                         默认 https://hf-mirror.com
 """
 
@@ -144,7 +145,12 @@ def load_model() -> None:
         model = model.to("cpu").float()
 
     with torch.no_grad():
-        probe = processor(images=Image.new("RGB", (32, 32), "white"), return_tensors="pt")
+        # 1 像素边长会被推断成 channels-first。read_image 已转成 RGB，这里必须声明 channels_last。
+        probe = processor(
+            images=Image.new("RGB", (32, 32), "white"),
+            return_tensors="pt",
+            input_data_format="channels_last",
+        )
         pixel_values = probe["pixel_values"].to(_device)
         if _device == "cuda":
             pixel_values = pixel_values.half()
@@ -170,7 +176,9 @@ def _image_features(model, pixel_values):
 
 def _text_features(model, input_ids, attention_mask):
     text_outputs = model.text_model(input_ids=input_ids, attention_mask=attention_mask)
-    pooled = text_outputs[1]
+    # Chinese-CLIP 文本塔没有 pooler，text_outputs[1] 会 IndexError。
+    # 与 transformers ChineseCLIPModel.get_text_features 一致，取 CLS（第 0 位）。
+    pooled = text_outputs[0][:, 0, :]
     features = model.text_projection(pooled)
     return features / features.norm(p=2, dim=-1, keepdim=True)
 
@@ -193,7 +201,8 @@ def embed_image(image: Image.Image) -> List[float]:
     if STUB:
         return stub_image_embedding(image, _dimension)
     import torch
-    inputs = _processor(images=image, return_tensors="pt")
+    # 1x1、3x1、1x3 会被当成 channels-first，报 mean must have 1 elements, got 3。
+    inputs = _processor(images=image, return_tensors="pt", input_data_format="channels_last")
     pixel_values = inputs["pixel_values"].to(_device)
     if _device == "cuda":
         pixel_values = pixel_values.half()
@@ -294,4 +303,5 @@ def embed_text_api(body: TextRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host=HOST, port=PORT, workers=1)
+    # httptools 会拒绝 Java HttpClient 的 Upgrade: h2c。plain python main.py 固定 h11。
+    uvicorn.run(app, host=HOST, port=PORT, workers=1, http=os.environ.get("IMAGE_EMBED_HTTP", "h11"))

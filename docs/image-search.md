@@ -81,6 +81,8 @@ $env:IMAGE_EMBED_DEVICE = "auto"
 python main.py
 ```
 
+`python main.py` 默认使用 h11（环境变量 `IMAGE_EMBED_HTTP`，一般不要改）。Java 的 `HttpClient` 会发送 `Upgrade: h2c`。如果改用 `uvicorn main:app` 启动，必须加上 `--http h11`，否则 uvicorn 默认的 httptools 解析器会返回 400、422 或空响应。
+
 第一次会从镜像下载 Chinese-CLIP ViT-L/14。健康检查：
 
 ```powershell
