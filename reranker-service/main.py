@@ -169,4 +169,5 @@ async def health_check():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # 与图片向量服务相同：Java HttpClient 会发 Upgrade: h2c，httptools 会拒绝。一般不要改 RERANKER_HTTP。
+    uvicorn.run(app, host="0.0.0.0", port=8001, http=os.environ.get("RERANKER_HTTP", "h11"))

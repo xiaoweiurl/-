@@ -29,6 +29,8 @@ $env:IMAGE_EMBED_DEVICE = "auto"
 python main.py
 ```
 
+`python main.py` 默认使用 h11（环境变量 `IMAGE_EMBED_HTTP`，一般不要改）。Java 的 `HttpClient` 会发送 `Upgrade: h2c`。如果改用 `uvicorn main:app` 启动，必须加上 `--http h11`，否则 uvicorn 默认的 httptools 解析器会返回 400、422 或空响应。
+
 Java 侧同时设置 `IMAGE_SEARCH_DIMENSION=768` 和 `IMAGE_SEARCH_COLLECTION=image_vectors_vitl`，并且要在第一次回填之前设好。
 
 健康检查：`curl http://127.0.0.1:8002/health`。`device` 应为 `cuda`，`dimension` 应为 `768`，`stub` 必须是 `false`。
