@@ -69,6 +69,7 @@ _lock = threading.Lock()
 _model = None
 _processor = None
 _detector = None
+_crop_detector_error: Optional[str] = None
 _device = "cpu"
 _cuda_available = False
 _gpu_name: Optional[str] = None
@@ -182,7 +183,8 @@ def load_model() -> None:
 
 
 def _load_detector() -> None:
-    global _detector
+    global _detector, _crop_detector_error
+    _crop_detector_error = None
     if not CROP_ENABLED or STUB:
         _detector = None
         if CROP_ENABLED and STUB:
@@ -191,9 +193,13 @@ def _load_detector() -> None:
     try:
         _detector = crop_mod.OwlV2GarmentDetector(CROP_MODEL, _device)
         logger.info("主体检测就绪：%s", CROP_MODEL)
-    except Exception:
+    except Exception as exc:
         _detector = None
-        logger.exception("主体检测没加载起来。裁剪请求会退回整图，整图向量不受影响")
+        _crop_detector_error = f"{type(exc).__name__}: {exc}"
+        logger.exception(
+            "主体检测没加载起来：%s。裁剪请求会退回整图，整图向量不受影响",
+            _crop_detector_error,
+        )
 
 
 def _image_features(model, pixel_values):
@@ -340,6 +346,7 @@ def health():
         "crop_mode": _crop_mode(),
         "crop_model": CROP_MODEL if CROP_ENABLED and not STUB else None,
         "crop_detector_ready": _detector is not None,
+        "crop_detector_error": _crop_detector_error,
         "crop_prompts": list(crop_mod.PROMPTS),
     }
 

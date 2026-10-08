@@ -7,6 +7,7 @@
 提示词是 clothing / garment / person。检不出、或图太小，就用整张图。
 
 权重从 HF_ENDPOINT 下载。国内默认 https://hf-mirror.com。
+图像后处理会导入 scipy.ndimage（Owlv2ImageProcessor.resize）。requirements.txt 里有 scipy。
 """
 
 from __future__ import annotations
@@ -109,10 +110,28 @@ def preprocess(image: Image.Image, detector: Optional[Detector], enabled: bool,
     return cropped, "crop"
 
 
+def require_crop_imports() -> None:
+    """确认 OWLv2 后处理能导入。
+
+    transformers 在 Owlv2ImageProcessor.resize 里才 import scipy.ndimage。
+    模型 from_pretrained 不会碰到它，所以缺包时启动看起来成功，每张图才失败。
+    """
+    try:
+        import importlib
+        importlib.import_module("scipy")
+        importlib.import_module("scipy.ndimage")
+    except ImportError as exc:
+        raise ImportError(
+            "主体裁剪需要 scipy：transformers 的 OWLv2 后处理（Owlv2ImageProcessor.resize）"
+            "会导入 scipy.ndimage。请安装 scipy>=1.11,<2。"
+        ) from exc
+
+
 class OwlV2GarmentDetector:
     """OWLv2 开放词汇检测。只在 IMAGE_EMBED_CROP=1 且不是 stub 时加载。"""
 
     def __init__(self, model_id: str, device: str):
+        require_crop_imports()
         import torch
         from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
