@@ -3,6 +3,8 @@
 import React from 'react';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { productDetailHref, sampleOrderHref } from '@/lib/image-search-links';
+import type { GoodsAnswerLink } from '@/lib/goods-library-chat';
 
 interface MarkdownRendererProps {
   content: string;
@@ -11,6 +13,13 @@ interface MarkdownRendererProps {
   /** 当前回答里真实存在的引用编号。未出现在列表中的 [[E1]] 渲染为灰色不可点标记。 */
   citeIds?: string[];
   onCite?: (id: string) => void;
+  /** 本公司商品库货号。正文和行内代码里的货号会打开商品详情。 */
+  goodsLinks?: GoodsAnswerLink[];
+}
+
+interface ResolvedGoodsLink {
+  goodsNo: string;
+  href: string;
 }
 
 const CITE_TOKEN = /\[\[([A-Za-z]\d+)\]\]/g;
@@ -57,26 +66,93 @@ function CiteChip({
   );
 }
 
+function childText(children: React.ReactNode): string {
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  if (Array.isArray(children)) return children.map(child => childText(child)).join('');
+  return '';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function RecordAnchor({ href, testId, children }: { href: string; testId: string; children: React.ReactNode }) {
+  return (
+    <a href={href} data-testid={testId} className="text-[#007AFF] underline underline-offset-2">
+      {children}
+    </a>
+  );
+}
+
+function recordAnchor(href: string | null | undefined, children: React.ReactNode): React.ReactNode {
+  const sample = sampleOrderHref(href);
+  const detail = productDetailHref(href);
+  const internal = sample || detail;
+  if (!internal) return null;
+  return (
+    <RecordAnchor href={internal} testId={sample ? 'open-sample-order' : 'open-product-detail'}>
+      {children}
+    </RecordAnchor>
+  );
+}
+
+function linkifyGoods(text: string, links: ResolvedGoodsLink[], keyPrefix: string): React.ReactNode[] {
+  if (!links.length || !text) return [text];
+  const sorted = [...links].sort((a, b) => b.goodsNo.length - a.goodsNo.length);
+  const pattern = new RegExp(
+    sorted.map(link => `(?<![A-Za-z0-9])(${escapeRegExp(link.goodsNo)})(?![A-Za-z0-9])`).join('|'),
+    'g',
+  );
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let linked = false;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const start = match.index;
+    if (/https?:\/\/\S*$/i.test(text.slice(0, start))) continue;
+    const href = sorted.find(link => link.goodsNo === match![0])?.href;
+    if (!href) continue;
+    linked = true;
+    if (start > last) nodes.push(text.slice(last, start));
+    nodes.push(
+      <RecordAnchor key={`${keyPrefix}-${start}`} href={href} testId="open-product-detail">
+        {match[0]}
+      </RecordAnchor>,
+    );
+    last = start + match[0].length;
+  }
+  if (!linked) return [text];
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
 function mapCiteChildren(
   children: React.ReactNode,
   knownIds: Set<string> | null,
-  onCite?: (id: string) => void,
+  onCite: ((id: string) => void) | undefined,
+  goodsLinks: ResolvedGoodsLink[],
 ): React.ReactNode {
   return React.Children.map(children, (child, index) => {
-    if (typeof child !== 'string' || !child.includes('[[')) return child;
+    if (typeof child !== 'string') return child;
     const nodes: React.ReactNode[] = [];
     const re = new RegExp(CITE_TOKEN.source, 'g');
     let last = 0;
     let match: RegExpExecArray | null;
+    let cited = false;
     while ((match = re.exec(child))) {
-      if (match.index > last) nodes.push(child.slice(last, match.index));
+      cited = true;
+      if (match.index > last) nodes.push(...linkifyGoods(child.slice(last, match.index), goodsLinks, `${index}-${last}`));
       const id = match[1];
       const known = knownIds == null || knownIds.has(id);
       nodes.push(<CiteChip key={`${id}-${match.index}`} id={id} known={known} onCite={onCite} />);
       last = match.index + match[0].length;
     }
-    if (last < child.length) nodes.push(child.slice(last));
-    if (nodes.length === 0) return child;
+    if (!cited) {
+      const linked = linkifyGoods(child, goodsLinks, String(index));
+      if (linked.length === 1 && linked[0] === child) return child;
+      return <React.Fragment key={index}>{linked}</React.Fragment>;
+    }
+    if (last < child.length) nodes.push(...linkifyGoods(child.slice(last), goodsLinks, `${index}-tail`));
     return <React.Fragment key={index}>{nodes}</React.Fragment>;
   });
 }
@@ -111,11 +187,20 @@ function preprocessLlmHtml(content: string): string {
     .join('');
 }
 
-export default function MarkdownRenderer({ content, className = '', darkMode = false, citeIds, onCite }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className = '', darkMode = false, citeIds, onCite, goodsLinks }: MarkdownRendererProps) {
   // Color helpers
   const t = (light: string, dark: string) => darkMode ? dark : light;
   const knownIds = React.useMemo(() => (citeIds ? new Set(citeIds) : null), [citeIds]);
-  const cite = (children: React.ReactNode) => mapCiteChildren(children, knownIds, onCite);
+  const resolvedGoods = React.useMemo<ResolvedGoodsLink[]>(() => {
+    const links: ResolvedGoodsLink[] = [];
+    for (const link of goodsLinks || []) {
+      const href = productDetailHref(link?.productDetailPath);
+      const goodsNo = link?.goodsNo?.trim();
+      if (href && goodsNo) links.push({ goodsNo, href });
+    }
+    return links;
+  }, [goodsLinks]);
+  const cite = (children: React.ReactNode) => mapCiteChildren(children, knownIds, onCite, resolvedGoods);
   const processedContent = React.useMemo(() => preprocessLlmHtml(content), [content]);
 
   return (
@@ -197,6 +282,11 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           code: ({ className: codeClassName, children, ...props }) => {
             const isInline = !codeClassName;
             if (isInline) {
+              const label = childText(children).trim();
+              const goods = resolvedGoods.find(link => link.goodsNo === label);
+              if (goods) {
+                return <RecordAnchor href={goods.href} testId="open-product-detail">{label}</RecordAnchor>;
+              }
               return (
                 <code className={`${t('bg-[rgba(118,118,128,0.08)] text-[#8e8e93] border-[rgba(229,229,234,0.6)]', 'bg-[rgba(118,118,128,0.12)] text-[#007aff] border-[rgba(229,229,234,0.5)]')} px-1.5 py-0.5 rounded-md text-[11.5px] font-mono border`} {...props}>
                   {children}
@@ -252,6 +342,8 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               const known = knownIds == null || knownIds.has(citeId);
               return <CiteChip id={citeId} known={known} onCite={onCite} />;
             }
+            const internal = recordAnchor(href, children);
+            if (internal) return internal;
             return (
             <a
               href={href}
@@ -294,15 +386,19 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             <del className={`line-through ${t('text-[#8e8e93]', 'text-[#8e8e93]')}`}>{cite(children)}</del>
           ),
           // 图片
-          img: ({ src, alt }) => (
+          img: ({ src, alt }) => {
+            const url = typeof src === 'string' ? src : '';
+            if (!/^https?:\/\//i.test(url)) return null;
+            return (
             <div className="my-3">
               <img
-                src={src}
-                alt={alt || ''}
+                src={url}
+                alt={typeof alt === 'string' ? alt : ''}
                 className={`max-w-full rounded-xl border shadow-md hover:shadow-lg transition-shadow ${t('border-[rgba(229,229,234,0.6)]', 'border-[rgba(229,229,234,0.5)]')}`}
               />
             </div>
-          ),
+            );
+          },
         }}
       >
         {processedContent}

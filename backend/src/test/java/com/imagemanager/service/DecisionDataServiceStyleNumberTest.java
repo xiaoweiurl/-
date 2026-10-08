@@ -30,7 +30,7 @@ class DecisionDataServiceStyleNumberTest {
 
     private static final String COMPANY = "宝娜斯集团";
     private static final String OTHER_COMPANY = "其他公司";
-    private static final String SIGNED_URL = "https://files.example/m19f011-main?sig=fixture";
+    private static final String SIGNED_QUERY = "?sig=fixture&X-Amz-Signature=abc";
 
     private JdbcTemplate jdbcTemplate;
     private DecisionDataService service;
@@ -43,7 +43,8 @@ class DecisionDataServiceStyleNumberTest {
         service = new DecisionDataService();
         ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
         ReflectionTestUtils.setField(service, "fileStorageService", fileStorageService);
-        when(fileStorageService.generatePresignedUrl(anyString(), anyInt())).thenReturn(SIGNED_URL);
+        when(fileStorageService.generatePresignedUrl(anyString(), anyInt())).thenAnswer(invocation ->
+                "https://files.example/" + invocation.getArgument(0) + SIGNED_QUERY);
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(this::answerQuery);
     }
 
@@ -57,8 +58,13 @@ class DecisionDataServiceStyleNumberTest {
         assertEquals("豹纹长裤", data.get("品名"));
         assertEquals("余凌辉", data.get("打样员"));
         assertEquals("M19F011", data.get("货号"));
-        assertEquals(SIGNED_URL, data.get("主图图片URL"));
-        assertTrue(String.valueOf(data.get("侧面图图片URL")).startsWith("https://"));
+        assertEquals("/goods-library/34", data.get("productDetailPath"));
+        assertEquals("/sampler/34", data.get("sampleOrderPath"));
+        assertTrue(String.valueOf(data.get("主图图片URL")).contains("/main.jpg" + SIGNED_QUERY));
+        assertTrue(String.valueOf(data.get("侧面图图片URL")).contains("/side.jpg"));
+        assertTrue(String.valueOf(data.get("细节图图片URL")).contains("/detail.jpg"));
+        assertFalse(data.containsKey("产品图图片URL"));
+        assertFalse(data.get("主图图片URL").equals(data.get("侧面图图片URL")));
 
         Map<String, Object> missing = findType(results, "数据缺失说明");
         String gap = String.valueOf(missing.get("summary"));
@@ -87,7 +93,10 @@ class DecisionDataServiceStyleNumberTest {
         Map<String, Object> data = (Map<String, Object>) goods.get("data");
         assertEquals("豹纹长裤", data.get("品名"));
         assertEquals("余凌辉", data.get("打样员"));
-        assertEquals(SIGNED_URL, data.get("主图图片URL"));
+        assertEquals("/goods-library/34", data.get("productDetailPath"));
+        assertEquals("/sampler/34", data.get("sampleOrderPath"));
+        assertTrue(String.valueOf(data.get("主图图片URL")).contains("/main.jpg"));
+        assertTrue(String.valueOf(data.get("侧面图图片URL")).contains("/side.jpg"));
         assertFalse(results.stream().anyMatch(entry -> "数据缺失说明".equals(entry.get("type"))));
     }
 
@@ -96,6 +105,10 @@ class DecisionDataServiceStyleNumberTest {
         List<Map<String, Object>> results = service.searchStructuredForMessage("M19F011", null, OTHER_COMPANY);
 
         assertTrue(results.stream().noneMatch(entry -> "商品库文件夹".equals(entry.get("type"))));
+        assertTrue(results.stream().noneMatch(entry -> {
+            Object data = entry.get("data");
+            return data instanceof Map<?, ?> map && (map.containsKey("productDetailPath") || map.containsKey("sampleOrderPath"));
+        }));
         assertFalse(goodsLibraryArgs.isEmpty());
         assertEquals(OTHER_COMPANY, goodsLibraryArgs.get(goodsLibraryArgs.size() - 1).get(3));
     }
@@ -150,7 +163,7 @@ class DecisionDataServiceStyleNumberTest {
         row.put("order_no", null);
         row.put("main_image_key", "goods-library/M19F011/main.jpg");
         row.put("side_image_key", "goods-library/M19F011/side.jpg");
-        row.put("detail_image_key", null);
+        row.put("detail_image_key", "goods-library/M19F011/detail.jpg");
         row.put("product_image_key", "");
         row.put("remark", null);
         return row;
