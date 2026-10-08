@@ -1,6 +1,7 @@
 package com.imagemanager.imagesearch;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -22,6 +23,11 @@ public class ImageSearchConditionApplier {
     private final ImageVectorIndex vectorIndex;
     private final Clock clock;
 
+    /**
+     * Spring 注入构造器。必须标 {@code @Autowired}：同包还有一个带 {@link Clock} 的测试构造器，
+     * Spring 不会把这个 4 参构造器当成唯一构造器，否则会退回不存在的无参 {@code <init>()}。
+     */
+    @Autowired
     public ImageSearchConditionApplier(ImageSearchProperties properties,
                                        ImageSearchCondition.Lexicon lexicon,
                                        ImageEmbedder embedder,
