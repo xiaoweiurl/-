@@ -26,6 +26,17 @@ public final class ImageSearchModels {
     }
 
     @Data
+    public static class ImageThumb {
+        private String imageUrl;
+        private String slot;
+        private String slotLabel;
+        private float score;
+        private int scorePercent;
+        private String source;
+        private String sourceId;
+    }
+
+    @Data
     public static class ImageSearchHitView {
         private float score;
         private int scorePercent;
@@ -37,6 +48,13 @@ public final class ImageSearchModels {
         private String imageUrl;
         private String albumName;
         private String productId;
+        private String company;
+        /** product：同款一张卡片。image：一张图一条。 */
+        private String cardType;
+        /** SAME_PRODUCT / SIMILAR_REFERENCE / MIXED。历史记录靠它选卡片。 */
+        private String scenario;
+        /** 同款卡片里，主图以外的其他图片。 */
+        private List<ImageThumb> images = new ArrayList<>();
         private GoodsBrief goods;
         private List<GoodsBrief> relatedGoods = new ArrayList<>();
     }
@@ -45,6 +63,8 @@ public final class ImageSearchModels {
     public static class ImageSearchResponse {
         private boolean enabled = true;
         private String mode;
+        /** 本次结果用的场景，前端按它画卡片。 */
+        private String scenario;
         private int tookMs;
         private List<ImageSearchHitView> results = new ArrayList<>();
     }
@@ -65,6 +85,7 @@ public final class ImageSearchModels {
         view.setTitle(record.title());
         view.setImageUrl(imageUrl);
         view.setProductId(record.productId());
+        view.setCompany(record.company());
         return view;
     }
 }

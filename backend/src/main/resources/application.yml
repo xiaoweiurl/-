@@ -309,6 +309,19 @@ image-search:
   chat-top-k: ${IMAGE_SEARCH_CHAT_TOP_K:5}
   chat-min-score: ${IMAGE_SEARCH_CHAT_MIN_SCORE:0.30}
   chat-max-results: ${IMAGE_SEARCH_CHAT_MAX_RESULTS:50}
+  # 主体裁剪后的向量写到另一个集合，不改 image_vectors / image_vectors_vitl，也不碰 salesperson_*。
+  # 进度表多一列 variant，要手动执行 V65。关闭时上传和检索都只用整图集合。
+  crop-enabled: ${IMAGE_SEARCH_CROP_ENABLED:false}
+  # 空着则用「整图集合名_crop」。整图是 image_vectors_vitl 时，裁剪集合是 image_vectors_vitl_crop。
+  crop-collection: ${IMAGE_SEARCH_CROP_COLLECTION:}
+  # 同款默认 crop：实图里背景和模特会把别的款抬到 0.86 以上。本机评测后可改成 full。
+  same-product-variant: ${IMAGE_SEARCH_SAME_PRODUCT_VARIANT:crop}
+  similar-reference-variant: ${IMAGE_SEARCH_SIMILAR_VARIANT:crop}
+  same-product-multi-bonus: ${IMAGE_SEARCH_SAME_PRODUCT_BONUS:0.02}
+  same-product-multi-bonus-cap: ${IMAGE_SEARCH_SAME_PRODUCT_BONUS_CAP:0.06}
+  # 只发图、几乎没文字时：整图集合第一条是商品且不低于这个值，就按同款。
+  same-product-probe-min-score: ${IMAGE_SEARCH_PROBE_MIN_SCORE:0.45}
+  internal-top-k-factor: ${IMAGE_SEARCH_INTERNAL_TOPK_FACTOR:5}
   milvus-host: ${MILVUS_HOST:localhost}
   milvus-port: ${MILVUS_PORT:19530}
   max-image-bytes: ${IMAGE_SEARCH_MAX_BYTES:20971520}

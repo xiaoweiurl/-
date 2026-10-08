@@ -74,40 +74,71 @@ public class ImageSearchEvalService {
         int synthetic = Math.max(0, Math.min(syntheticLimit, 20));
         int topK = Math.max(1, Math.min(k, 50));
 
-        List<List<String>> relevant = new ArrayList<>();
-        List<List<String>> retrieved = new ArrayList<>();
-        List<Long> searchMs = new ArrayList<>();
-        List<Long> endToEndMs = new ArrayList<>();
-        List<String> skipped = new ArrayList<>();
-
-        collectStyleProbes(groups, topK, relevant, retrieved, searchMs, endToEndMs, skipped);
-        int styleQueries = relevant.size();
-        collectSyntheticProbes(synthetic, topK, relevant, retrieved, searchMs, endToEndMs, skipped);
-
+        Pass full = runPass(groups, synthetic, topK, EmbeddingVariant.FULL);
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("readOnly", true);
         report.put("k", topK);
-        report.put("styleQueries", styleQueries);
-        report.put("syntheticQueries", relevant.size() - styleQueries);
-        report.put("skipped", skipped);
-        report.put("recallAt1", round(ImageSearchRecall.meanRecall(relevant, retrieved, 1)));
-        report.put("recallAt5", round(ImageSearchRecall.meanRecall(relevant, retrieved, Math.min(5, topK))));
-        report.put("recallAtK", round(ImageSearchRecall.meanRecall(relevant, retrieved, topK)));
-        report.put("hitAt1", round(ImageSearchRecall.hitRate(relevant, retrieved, 1)));
-        report.put("hitAt5", round(ImageSearchRecall.hitRate(relevant, retrieved, Math.min(5, topK))));
-        report.put("hitAtK", round(ImageSearchRecall.hitRate(relevant, retrieved, topK)));
-        report.put("searchLatencyMs", latency(searchMs));
-        report.put("endToEndLatencyMs", latency(endToEndMs));
-        report.put("note", "Recall@K 是各查询 |相关∩TopK| / |相关| 的平均值。风格探针的相关项是同一 product_id、同一商品多图或同一货号的其他图片。合成探针把缩放图和中心裁剪图去找回原图。失败探针不进分母。");
+        report.put("styleQueries", full.styleQueries);
+        report.put("syntheticQueries", full.imageRelevant.size() - full.styleQueries);
+        report.put("skipped", full.skipped);
+        report.put("recallAt1", round(ImageSearchRecall.meanRecall(full.imageRelevant, full.imageRetrieved, 1)));
+        report.put("recallAt5", round(ImageSearchRecall.meanRecall(full.imageRelevant, full.imageRetrieved, Math.min(5, topK))));
+        report.put("recallAtK", round(ImageSearchRecall.meanRecall(full.imageRelevant, full.imageRetrieved, topK)));
+        report.put("hitAt1", round(ImageSearchRecall.hitRate(full.imageRelevant, full.imageRetrieved, 1)));
+        report.put("hitAt5", round(ImageSearchRecall.hitRate(full.imageRelevant, full.imageRetrieved, Math.min(5, topK))));
+        report.put("hitAtK", round(ImageSearchRecall.hitRate(full.imageRelevant, full.imageRetrieved, topK)));
+        report.put("searchLatencyMs", latency(full.searchMs));
+        report.put("endToEndLatencyMs", latency(full.endToEndMs));
+        report.put("note", "顶层的 Recall 仍是整图集合、按单张图的旧口径，方便和之前的评测对比。"
+                + "byCollection 里 SAME_PRODUCT 是商品级召回：去掉查询图自己之后，同一商品的任意一张图出现在 TopK 即命中。"
+                + "SIMILAR_REFERENCE 不分组。crop 集合没开时 available=false。失败探针不进分母。");
+
+        Map<String, Object> byCollection = new LinkedHashMap<>();
+        byCollection.put("full", collectionBlock(properties.getCollection(), EmbeddingVariant.FULL, topK, full, true));
+        if (queryService.cropCollectionReady()) {
+            Pass crop = runPass(groups, synthetic, topK, EmbeddingVariant.CROP);
+            byCollection.put("crop", collectionBlock(properties.resolvedCropCollection(), EmbeddingVariant.CROP, topK, crop, true));
+        } else {
+            Map<String, Object> unavailable = new LinkedHashMap<>();
+            unavailable.put("available", false);
+            unavailable.put("collection", properties.resolvedCropCollection());
+            unavailable.put("reason", "裁剪集合未启用或未就绪。设置 IMAGE_SEARCH_CROP_ENABLED=true 并回填 --variant crop 之后再评。");
+            byCollection.put("crop", unavailable);
+        }
+        report.put("byCollection", byCollection);
+        Object fullBlock = byCollection.get("full");
+        if (fullBlock instanceof Map<?, ?> fullMap) {
+            report.put("scenarios", fullMap.get("scenarios"));
+        }
         return report;
     }
 
-    private void collectStyleProbes(int limit, int topK,
-                                    List<List<String>> relevant,
-                                    List<List<String>> retrieved,
-                                    List<Long> searchMs,
-                                    List<Long> endToEndMs,
-                                    List<String> skipped) {
+    private Pass runPass(int groups, int synthetic, int topK, EmbeddingVariant variant) {
+        Pass pass = new Pass();
+        collectStyleProbes(groups, topK, variant, pass);
+        pass.styleQueries = pass.imageRelevant.size();
+        collectSyntheticProbes(synthetic, topK, variant, pass);
+        return pass;
+    }
+
+    private Map<String, Object> collectionBlock(String collection, EmbeddingVariant variant, int topK, Pass pass, boolean available) {
+        Map<String, Object> block = new LinkedHashMap<>();
+        block.put("available", available);
+        block.put("collection", collection);
+        block.put("variant", variant.name().toLowerCase(java.util.Locale.ROOT));
+        block.put("styleQueries", pass.styleQueries);
+        block.put("syntheticQueries", pass.imageRelevant.size() - pass.styleQueries);
+        block.put("skipped", pass.skipped);
+        block.put("recallAt1", round(ImageSearchRecall.meanRecall(pass.imageRelevant, pass.imageRetrieved, 1)));
+        block.put("recallAt5", round(ImageSearchRecall.meanRecall(pass.imageRelevant, pass.imageRetrieved, Math.min(5, topK))));
+        block.put("recallAtK", round(ImageSearchRecall.meanRecall(pass.imageRelevant, pass.imageRetrieved, topK)));
+        block.put("scenarios", ImageSearchScenarioMetrics.scenarios(
+                topK, pass.imageRelevant, pass.imageRetrieved, pass.productRelevant, pass.productRetrieved));
+        block.put("searchLatencyMs", latency(pass.searchMs));
+        return block;
+    }
+
+    private void collectStyleProbes(int limit, int topK, EmbeddingVariant variant, Pass pass) {
         if (limit <= 0) {
             return;
         }
@@ -120,18 +151,13 @@ public class ImageSearchEvalService {
             if (used >= limit) {
                 break;
             }
-            if (runProbe(probe, topK, relevant, retrieved, searchMs, endToEndMs, skipped)) {
+            if (runProbe(probe, topK, variant, pass, true)) {
                 used++;
             }
         }
     }
 
-    private void collectSyntheticProbes(int limit, int topK,
-                                        List<List<String>> relevant,
-                                        List<List<String>> retrieved,
-                                        List<Long> searchMs,
-                                        List<Long> endToEndMs,
-                                        List<String> skipped) {
+    private void collectSyntheticProbes(int limit, int topK, EmbeddingVariant variant, Pass pass) {
         if (limit <= 0) {
             return;
         }
@@ -154,56 +180,55 @@ public class ImageSearchEvalService {
             try {
                 original = worker.readBytes(key);
             } catch (Exception e) {
-                skipped.add(id + " 原图读取失败");
+                pass.skipped.add(id + " 原图读取失败");
                 continue;
             }
             String vectorId = ImageSearchFilters.libraryVectorId(id);
             String company = text(row.get("company"));
-            runTransformed(vectorId, company, original, true, topK, relevant, retrieved, searchMs, endToEndMs, skipped);
-            runTransformed(vectorId, company, original, false, topK, relevant, retrieved, searchMs, endToEndMs, skipped);
+            runTransformed(vectorId, company, original, true, topK, variant, pass);
+            runTransformed(vectorId, company, original, false, topK, variant, pass);
         }
     }
 
     private void runTransformed(String vectorId, String company, byte[] original, boolean scale, int topK,
-                                List<List<String>> relevant,
-                                List<List<String>> retrieved,
-                                List<Long> searchMs,
-                                List<Long> endToEndMs,
-                                List<String> skipped) {
+                                EmbeddingVariant variant, Pass pass) {
         try {
             byte[] changed = scale ? ImageTransforms.scaleHalf(original) : ImageTransforms.centerCrop(original);
             long started = System.nanoTime();
-            float[] embedding = embedder.embedImage(changed, scale ? "scaled.jpg" : "crop.jpg");
+            float[] embedding = embedder.embedImage(changed, scale ? "scaled.jpg" : "crop.jpg", variant == EmbeddingVariant.CROP);
             long searchStarted = System.nanoTime();
-            List<ImageSearchModels.RawHit> hits = queryService.searchRaw(embedding, "all", company, topK);
-            searchMs.add((System.nanoTime() - searchStarted) / 1_000_000L);
-            endToEndMs.add((System.nanoTime() - started) / 1_000_000L);
-            relevant.add(List.of(vectorId));
-            retrieved.add(idsOf(hits));
+            List<ImageSearchModels.RawHit> hits = queryService.searchRaw(embedding, "all", company, topK, variant);
+            pass.searchMs.add((System.nanoTime() - searchStarted) / 1_000_000L);
+            pass.endToEndMs.add((System.nanoTime() - started) / 1_000_000L);
+            pass.imageRelevant.add(List.of(vectorId));
+            pass.imageRetrieved.add(idsOf(hits));
         } catch (Exception e) {
-            skipped.add(vectorId + (scale ? " 缩放" : " 裁剪") + "失败");
+            pass.skipped.add(vectorId + (scale ? " 缩放" : " 裁剪") + "失败");
         }
     }
 
-    private boolean runProbe(Probe probe, int topK,
-                             List<List<String>> relevant,
-                             List<List<String>> retrieved,
-                             List<Long> searchMs,
-                             List<Long> endToEndMs,
-                             List<String> skipped) {
+    private boolean runProbe(Probe probe, int topK, EmbeddingVariant variant, Pass pass, boolean productMetric) {
         try {
             byte[] bytes = worker.readBytes(probe.ossKey);
             long started = System.nanoTime();
-            float[] embedding = embedder.embedImage(bytes, ImageSearchFilters.fileNameOf(probe.ossKey));
+            float[] embedding = embedder.embedImage(
+                    bytes, ImageSearchFilters.fileNameOf(probe.ossKey), variant == EmbeddingVariant.CROP);
             long searchStarted = System.nanoTime();
-            List<ImageSearchModels.RawHit> hits = queryService.searchRaw(embedding, "all", probe.company, topK);
-            searchMs.add((System.nanoTime() - searchStarted) / 1_000_000L);
-            endToEndMs.add((System.nanoTime() - started) / 1_000_000L);
-            relevant.add(probe.relevantIds);
-            retrieved.add(idsOf(hits));
+            int fetch = Math.max(topK, new SameProductStrategy().internalTopK(topK, properties));
+            List<ImageSearchModels.RawHit> hits = queryService.searchRaw(embedding, "all", probe.company, fetch, variant);
+            pass.searchMs.add((System.nanoTime() - searchStarted) / 1_000_000L);
+            pass.endToEndMs.add((System.nanoTime() - started) / 1_000_000L);
+            pass.imageRelevant.add(probe.relevantIds);
+            pass.imageRetrieved.add(idsOf(hits));
+            if (productMetric && probe.productKey != null && !probe.productKey.isBlank()) {
+                pass.productRelevant.add(List.of(probe.productKey));
+                pass.productRetrieved.add(SameProductGrouping.rankedProductKeys(
+                        hits, probe.excludeVectorId, topK,
+                        properties.getSameProductMultiBonus(), properties.getSameProductMultiBonusCap()));
+            }
             return true;
         } catch (Exception e) {
-            skipped.add(probe.queryId + " 探针失败");
+            pass.skipped.add(probe.queryId + " 探针失败");
             return false;
         }
     }
@@ -220,7 +245,8 @@ public class ImageSearchEvalService {
         for (Map<String, Object> group : groups) {
             String productId = text(group.get("product_id"));
             List<Map<String, Object>> rows = txTemplate.execute(status -> jdbcTemplate.queryForList(
-                    "SELECT id, file_key, file_path, url, COALESCE(NULLIF(btrim(company), ''), ?) AS company "
+                    "SELECT id, file_key, file_path, url, COALESCE(product_id, '') AS product_id, "
+                            + "COALESCE(NULLIF(btrim(company), ''), ?) AS company "
                             + "FROM images WHERE COALESCE(deleted, false) = false AND product_id = ? ORDER BY id",
                     properties.getDefaultCompany(), productId));
             addRowsAsProbe(probes, rows, "product:" + productId);
@@ -248,7 +274,10 @@ public class ImageSearchEvalService {
             for (int i = 1; i < slots.size(); i++) {
                 others.add(slots.get(i).vectorId);
             }
-            probes.add(new Probe(slots.get(0).vectorId, slots.get(0).key, properties.getDefaultCompany(), others));
+            probes.add(styleProbe(slots.get(0).vectorId, slots.get(0).key, properties.getDefaultCompany(), others,
+                    ImageVectorRecord.goods(id, "main", properties.getDefaultCompany(), slots.get(0).key,
+                            text(row.get("goods_no")), "", properties.getDefaultCompany()),
+                    slots.get(0).vectorId));
             added++;
         }
     }
@@ -282,8 +311,23 @@ public class ImageSearchEvalService {
             for (int i = 1; i < slots.size(); i++) {
                 others.add(slots.get(i).vectorId);
             }
-            probes.add(new Probe(slots.get(0).vectorId, slots.get(0).key, properties.getDefaultCompany(), others));
+            probes.add(styleProbe(slots.get(0).vectorId, slots.get(0).key, properties.getDefaultCompany(), others,
+                    ImageVectorRecord.goods(slotsOwner(slots.get(0).vectorId), "main", properties.getDefaultCompany(),
+                            slots.get(0).key, goodsNo, "", properties.getDefaultCompany()),
+                    slots.get(0).vectorId));
         }
+    }
+
+    private static long slotsOwner(String vectorId) {
+        String[] parts = vectorId == null ? new String[0] : vectorId.split(":");
+        if (parts.length >= 2) {
+            try {
+                return Long.parseLong(parts[1]);
+            } catch (NumberFormatException ignored) {
+                return 0L;
+            }
+        }
+        return 0L;
     }
 
     private void addRowsAsProbe(List<Probe> probes, List<Map<String, Object>> rows, String label) {
@@ -294,6 +338,7 @@ public class ImageSearchEvalService {
         String key = "";
         String company = properties.getDefaultCompany();
         String queryId = "";
+        String productId = "";
         for (Map<String, Object> row : rows) {
             String id = text(row.get("id"));
             String resolved = ImageSearchFilters.resolveStorageKey(
@@ -306,6 +351,7 @@ public class ImageSearchEvalService {
                 key = resolved;
                 company = text(row.get("company"));
                 queryId = id;
+                productId = text(row.get("product_id"));
             }
         }
         if (ids.size() < 2 || key.isBlank()) {
@@ -313,7 +359,14 @@ public class ImageSearchEvalService {
         }
         List<String> relevant = new ArrayList<>(ids);
         relevant.remove(0);
-        probes.add(new Probe(label + ":" + queryId, key, company, relevant));
+        ImageVectorRecord sample = ImageVectorRecord.library(
+                queryId, company, key, "", productId, properties.getDefaultCompany());
+        probes.add(styleProbe(label + ":" + queryId, key, company, relevant, sample, sample.vectorId()));
+    }
+
+    private static Probe styleProbe(String queryId, String ossKey, String company, List<String> relevantIds,
+                                    ImageVectorRecord sample, String excludeVectorId) {
+        return new Probe(queryId, ossKey, company, relevantIds, SameProductGrouping.productKey(sample), excludeVectorId);
     }
 
     private List<Slot> presentSlots(long goodsId, Map<String, Object> row) {
@@ -380,7 +433,19 @@ public class ImageSearchEvalService {
         return value == null ? "" : value.toString();
     }
 
-    private record Probe(String queryId, String ossKey, String company, List<String> relevantIds) {
+    private record Probe(String queryId, String ossKey, String company, List<String> relevantIds,
+                         String productKey, String excludeVectorId) {
+    }
+
+    private static final class Pass {
+        private final List<List<String>> imageRelevant = new ArrayList<>();
+        private final List<List<String>> imageRetrieved = new ArrayList<>();
+        private final List<List<String>> productRelevant = new ArrayList<>();
+        private final List<List<String>> productRetrieved = new ArrayList<>();
+        private final List<Long> searchMs = new ArrayList<>();
+        private final List<Long> endToEndMs = new ArrayList<>();
+        private final List<String> skipped = new ArrayList<>();
+        private int styleQueries;
     }
 
     private record Slot(String vectorId, String key) {

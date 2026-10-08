@@ -24,14 +24,14 @@ import java.util.Map;
 public class ImageSearchController {
 
     private final ImageSearchProperties properties;
-    private final ImageSearchQueryService queryService;
+    private final VisualSearchExecutor visualSearchExecutor;
     private final ImageSearchEvalService evalService;
 
     public ImageSearchController(ImageSearchProperties properties,
-                                 ImageSearchQueryService queryService,
+                                 VisualSearchExecutor visualSearchExecutor,
                                  ImageSearchEvalService evalService) {
         this.properties = properties;
-        this.queryService = queryService;
+        this.visualSearchExecutor = visualSearchExecutor;
         this.evalService = evalService;
     }
 
@@ -39,6 +39,11 @@ public class ImageSearchController {
     public ApiResponse<Map<String, Object>> status() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("enabled", properties.isEnabled());
+        body.put("cropEnabled", properties.isCropEnabled());
+        body.put("collection", properties.getCollection());
+        body.put("cropCollection", properties.resolvedCropCollection());
+        body.put("sameProductVariant", properties.getSameProductVariant());
+        body.put("similarReferenceVariant", properties.getSimilarReferenceVariant());
         return ApiResponse.success(body);
     }
 
@@ -66,7 +71,7 @@ public class ImageSearchController {
                 bytes = file.getBytes();
                 filename = file.getOriginalFilename();
             }
-            ImageSearchModels.ImageSearchResponse result = queryService.search(
+            ImageSearchModels.ImageSearchResponse result = visualSearchExecutor.search(
                     bytes, filename, text, scope, topK, SessionUtil.getCurrentCompany());
             return ResponseEntity.ok(ApiResponse.success("检索完成", result));
         } catch (ImageSearchDisabledException e) {

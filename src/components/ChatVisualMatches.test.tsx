@@ -58,6 +58,61 @@ test('opening a result shows the larger image', () => {
   assert.match(html, /aria-label="关闭"/);
 });
 
+test('same-product cards show the main image, other thumbs, goods number and sampler', () => {
+  const html = renderToStaticMarkup(
+    <ChatVisualMatches
+      matches={[{
+        id: 'visual-1',
+        source: 'visual_match',
+        cardType: 'product',
+        scenario: 'SAME_PRODUCT',
+        sourceLabel: '产品',
+        goodsNo: 'H100',
+        productName: '蕾丝中筒',
+        sampler: '张三',
+        scorePercent: 86,
+        imageUrl: 'https://example.test/goods/main.jpg',
+        images: [
+          { imageUrl: 'https://example.test/goods/side.jpg', slotLabel: '侧面图' },
+          { imageUrl: 'https://example.test/goods/detail.jpg', slotLabel: '细节图' },
+        ],
+      }]}
+    />
+  );
+  assert.match(html, /data-testid="visual-product-card"/);
+  assert.match(html, /data-scenario="SAME_PRODUCT"/);
+  assert.match(html, /同款/);
+  assert.match(html, /H100 蕾丝中筒/);
+  assert.match(html, /打样员 张三/);
+  assert.match(html, /src="https:\/\/example.test\/goods\/main.jpg"/);
+  assert.equal((html.match(/data-testid="visual-product-thumb"/g) || []).length, 2);
+  assert.match(html, /src="https:\/\/example.test\/goods\/side.jpg"/);
+  assert.doesNotMatch(html, /data-testid="visual-match-card"/);
+});
+
+test('reference cards stay one image each', () => {
+  const html = renderToStaticMarkup(
+    <ChatVisualMatches
+      matches={[{
+        id: 'visual-2',
+        source: 'visual_match',
+        cardType: 'image',
+        scenario: 'SIMILAR_REFERENCE',
+        sourceLabel: '素材',
+        title: '红色蕾丝',
+        albumName: '秋冬',
+        scorePercent: 71,
+        imageUrl: 'https://example.test/lib/1.jpg',
+      }]}
+    />
+  );
+  assert.match(html, /data-testid="visual-match-card"/);
+  assert.match(html, /data-scenario="SIMILAR_REFERENCE"/);
+  assert.match(html, /红色蕾丝/);
+  assert.match(html, /秋冬/);
+  assert.doesNotMatch(html, /data-testid="visual-product-card"/);
+});
+
 test('empty search renders a no-match note', () => {
   const html = renderToStaticMarkup(
     <ChatVisualMatches matches={[{ id: 'visual-empty', source: 'visual_match', empty: true, title: '未找到相似图片' }]} />

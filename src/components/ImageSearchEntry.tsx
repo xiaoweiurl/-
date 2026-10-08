@@ -3,34 +3,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, ScanSearch, X } from 'lucide-react';
+import ImageSearchResults, { type ImageSearchResultHit } from './ImageSearchResults';
 
-interface GoodsBrief {
-  id: number;
-  folderName?: string;
-  goodsNo?: string;
-  productName?: string;
-  sampler?: string;
-  initiator?: string;
-  customer?: string;
-  orderNo?: string;
-}
-
-interface SearchHit {
-  scorePercent: number;
-  source: string;
-  sourceId: string;
-  slotLabel?: string;
-  title?: string;
-  imageUrl?: string | null;
-  albumName?: string;
-  productId?: string;
-  goods?: GoodsBrief | null;
-  relatedGoods?: GoodsBrief[];
-}
+type SearchHit = ImageSearchResultHit;
 
 interface SearchPayload {
   tookMs?: number;
   mode?: string;
+  scenario?: string;
   results?: SearchHit[];
 }
 
@@ -40,8 +20,11 @@ const SCOPES = [
   { value: 'goods', label: '打样' },
 ] as const;
 
-function goodsLine(goods: GoodsBrief): string {
-  return [goods.goodsNo, goods.productName].filter(Boolean).join(' ') || goods.folderName || '打样记录';
+function scenarioLabel(scenario: string | null): string {
+  if (scenario === 'SAME_PRODUCT') return '同款 · ';
+  if (scenario === 'SIMILAR_REFERENCE') return '参考图 · ';
+  if (scenario === 'MIXED') return '同款在前 · ';
+  return '';
 }
 
 /**
@@ -59,6 +42,7 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tookMs, setTookMs] = useState<number | null>(null);
+  const [scenario, setScenario] = useState<string | null>(null);
   const [results, setResults] = useState<SearchHit[]>([]);
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -150,6 +134,7 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
       }
       const payload = (data.data || {}) as SearchPayload;
       setResults(payload.results || []);
+      setScenario(payload.scenario || null);
       setTookMs(payload.tookMs ?? null);
       if (!payload.results || payload.results.length === 0) {
         setError('没有找到相似图片。确认已经打开功能并完成回填。');
@@ -237,45 +222,12 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
 
               {error && <p className="text-[13px] text-[#FF3B30]">{error}</p>}
               {tookMs != null && results.length > 0 && (
-                <p className="text-[12px] text-[#8E8E93]">{results.length} 条 · {tookMs} ms</p>
+                <p className="text-[12px] text-[#8E8E93]">
+                  {scenarioLabel(scenario)}{results.length} 条 · {tookMs} ms
+                </p>
               )}
 
-              <div className="space-y-3">
-                {results.map((hit) => {
-                  const linked = hit.goods || hit.relatedGoods?.[0];
-                  return (
-                    <div key={`${hit.source}-${hit.sourceId}-${hit.slotLabel}`} className="flex gap-3 rounded-2xl border border-[#E5E5EA] p-3">
-                      <div className="w-16 h-16 rounded-xl bg-[#F2F2F7] overflow-hidden shrink-0">
-                        {hit.imageUrl ? (
-                          <img src={hit.imageUrl} alt="" className="w-full h-full object-cover" />
-                        ) : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[15px] font-semibold text-[#007AFF]">{hit.scorePercent}%</span>
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[#F2F2F7] text-[#3A3A3C]">
-                            {hit.source === 'goods' ? '打样' : '素材'}
-                          </span>
-                          {hit.slotLabel && hit.source === 'goods' && (
-                            <span className="text-[11px] text-[#8E8E93]">{hit.slotLabel}</span>
-                          )}
-                        </div>
-                        <p className="text-[13px] text-[#1C1C1E] truncate">{hit.title || '未命名'}</p>
-                        {hit.albumName && <p className="text-[12px] text-[#8E8E93] truncate">{hit.albumName}</p>}
-                        {linked && (
-                          <a href={`/goods-library/${linked.id}`} className="block text-[12px] text-[#007AFF] truncate mt-0.5">
-                            {goodsLine(linked)}
-                            {linked.sampler ? ` · 打样员 ${linked.sampler}` : ''}
-                          </a>
-                        )}
-                        {hit.productId && !linked && (
-                          <p className="text-[12px] text-[#8E8E93] truncate">款号 {hit.productId}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <ImageSearchResults results={results} scenario={scenario} />
             </div>
           </div>
         </div>,

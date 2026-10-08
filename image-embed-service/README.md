@@ -56,3 +56,18 @@ python main.py
 ```
 
 `IMAGE_EMBED_STUB=1` 不下载模型，只给开发机冒烟，不能用于正式检索。
+
+## 主体裁剪
+
+可选。检测器是 OWLv2 `google/owlv2-base-patch16-ensemble`（Apache-2.0），`transformers` 4.57 已包含，**不用新增 pip 包**。提示词 `clothing` / `garment` / `person`。检不出或图太小就用整张图。查询和入库必须用同一种预处理，所以 Java 把裁剪向量写到另一个集合（默认 `image_vectors_vitl_crop`），不改 `image_vectors_vitl`。
+
+`start.ps1` 被 gitignore，并且把环境变量写死在脚本里。请在那份脚本里加上：
+
+```powershell
+$env:IMAGE_EMBED_CROP = "1"
+$env:HF_ENDPOINT = "https://hf-mirror.com"
+```
+
+然后用原来的方式重启。第一次会从 hf-mirror 下载 OWLv2。`curl http://127.0.0.1:8002/health` 里 `crop_enabled` 为 true、`crop_mode` 为 `owlv2`、`crop_detector_ready` 为 true 之后，再跑 Java 的 `--variant crop` 回填。没加这个变量时，请求不带 `crop=1`，向量和以前一样是整图。
+
+可选变量：`IMAGE_EMBED_CROP_MODEL`、`IMAGE_EMBED_CROP_THRESHOLD`（0.20）、`IMAGE_EMBED_CROP_PADDING`（0.12）、`IMAGE_EMBED_CROP_MIN_SIDE`（48）。完整的 V65、回填和评测步骤在 `docs/image-search.md`。

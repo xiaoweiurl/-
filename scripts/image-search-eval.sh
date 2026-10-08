@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 只读评测：不写 Milvus，不写 image_vector_index。
+# 顶层 Recall 仍是整图集合的单张图口径。byCollection 里另有同款商品召回和裁剪集合。
 set -euo pipefail
 cd "$(dirname "$0")/../backend"
 ./mvnw -q -DskipTests compile

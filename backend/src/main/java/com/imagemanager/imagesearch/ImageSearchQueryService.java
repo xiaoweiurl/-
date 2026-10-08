@@ -64,9 +64,54 @@ public class ImageSearchQueryService {
         return response;
     }
 
+    public boolean cropCollectionReady() {
+        return properties.isCropEnabled() && vectorIndex.supports(EmbeddingVariant.CROP);
+    }
+
+    /**
+     * 按指定集合取出补全后的命中，不做场景分组。条数是内部分组用的，可以大于对用户展示的条数。
+     */
+    public List<ImageSearchModels.ImageSearchHitView> collect(byte[] image, String filename, String text,
+                                                              String scope, int fetch, String company,
+                                                              EmbeddingVariant variant) {
+        properties.requireEnabled();
+        ensureReady();
+        boolean hasImage = image != null && image.length > 0;
+        boolean hasText = text != null && !text.isBlank();
+        if (!hasImage && !hasText) {
+            throw new IllegalArgumentException("请上传图片或输入中文描述");
+        }
+        if (hasImage && image.length > Math.min(properties.getMaxImageBytes(), 10 * 1024 * 1024)) {
+            throw new IllegalArgumentException("图片不能超过 10MB");
+        }
+        EmbeddingVariant actual = resolveVariant(variant);
+        String normalizedScope = ImageSearchFilters.normalizeScope(scope);
+        String normalizedCompany = ImageSearchFilters.normalizeCompany(company, properties.getDefaultCompany());
+        float[] embedding = hasImage
+                ? embedder.embedImage(image, filename == null ? "query.jpg" : filename, actual == EmbeddingVariant.CROP)
+                : embedder.embedText(text.trim());
+        return collectEmbedded(embedding, normalizedScope, fetch, normalizedCompany, actual);
+    }
+
+    public List<ImageSearchModels.ImageSearchHitView> collectEmbedded(float[] embedding, String scope, int fetch,
+                                                                      String company, EmbeddingVariant variant) {
+        properties.requireEnabled();
+        ensureReady();
+        EmbeddingVariant actual = resolveVariant(variant);
+        String normalizedCompany = ImageSearchFilters.normalizeCompany(company, properties.getDefaultCompany());
+        List<ImageSearchModels.RawHit> raw = searchRaw(embedding, scope, normalizedCompany, Math.max(fetch, 1), actual);
+        return enricher.enrich(raw, normalizedCompany);
+    }
+
     public List<ImageSearchModels.RawHit> searchRaw(float[] embedding, String scope, String company, int topK) {
-        int fetch = Math.min(100, Math.max(topK, topK * 3));
-        List<ImageSearchModels.RawHit> raw = vectorIndex.search(embedding, scope, company, fetch);
+        return searchRaw(embedding, scope, company, topK, EmbeddingVariant.FULL);
+    }
+
+    public List<ImageSearchModels.RawHit> searchRaw(float[] embedding, String scope, String company, int topK,
+                                                    EmbeddingVariant variant) {
+        EmbeddingVariant actual = resolveVariant(variant);
+        int fetch = VisualSearchLimits.capInternal(Math.max(topK, topK * 3));
+        List<ImageSearchModels.RawHit> raw = vectorIndex.search(actual, embedding, scope, company, fetch);
         List<ImageSearchModels.RawHit> kept = new ArrayList<>();
         for (ImageSearchModels.RawHit hit : raw) {
             if (ImageSearchFilters.matches(hit.record(), scope, company)) {
@@ -77,5 +122,21 @@ public class ImageSearchQueryService {
             }
         }
         return kept;
+    }
+
+    private EmbeddingVariant resolveVariant(EmbeddingVariant variant) {
+        if (variant == EmbeddingVariant.CROP && !cropCollectionReady()) {
+            return EmbeddingVariant.FULL;
+        }
+        return variant == null ? EmbeddingVariant.FULL : variant;
+    }
+
+    private void ensureReady() {
+        if (!vectorIndex.isReady() && vectorIndex instanceof MilvusImageVectorIndex milvus) {
+            milvus.initIfEnabled();
+        }
+        if (!vectorIndex.isReady()) {
+            throw new IllegalStateException("图片向量库未就绪");
+        }
     }
 }

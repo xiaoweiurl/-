@@ -19,34 +19,35 @@ public class ImageSearchBackfillService {
     private final ImageSearchCatalog catalog;
     private final ImageVectorProgressStore progressStore;
     private final ImageSearchIndexWorker worker;
+    private final ImageEmbedder embedder;
 
     public ImageSearchBackfillService(ImageSearchProperties properties,
                                       MilvusImageVectorIndex vectorIndex,
                                       ImageSearchCatalog catalog,
                                       ImageVectorProgressStore progressStore,
-                                      ImageSearchIndexWorker worker) {
+                                      ImageSearchIndexWorker worker,
+                                      ImageEmbedder embedder) {
         this.properties = properties;
         this.vectorIndex = vectorIndex;
         this.catalog = catalog;
         this.progressStore = progressStore;
         this.worker = worker;
+        this.embedder = embedder;
     }
 
     public int runAndPrint(String[] args) {
         ImageSearchBackfillEngine.Options options = parse(args);
         String source = parseSource(args);
+        String variantArg = parseVariant(args);
         try {
-            ImageSearchBackfillEngine.Summary summary = execute(source, options);
-            System.out.println("以图搜图回填完成");
-            System.out.println("扫描 " + summary.scanned + "，写入 " + summary.indexed
-                    + "，跳过 " + summary.skipped + "，失败 " + summary.failed);
-            for (String error : summary.errors) {
-                System.out.println("失败: " + error);
+            int code = 0;
+            if ("all".equals(variantArg) || "full".equals(variantArg)) {
+                code = Math.max(code, printSummary(execute(source, options, EmbeddingVariant.FULL), "full"));
             }
-            if (!summary.errors.isEmpty() && summary.failed > summary.errors.size()) {
-                System.out.println("其余失败已写入 image_vector_index，可用 --only-failed 再跑");
+            if ("all".equals(variantArg) || "crop".equals(variantArg)) {
+                code = Math.max(code, printSummary(execute(source, options, EmbeddingVariant.CROP), "crop"));
             }
-            return summary.failed > 0 ? 2 : 0;
+            return code;
         } catch (Exception e) {
             System.err.println("回填没有跑起来: " + e.getMessage());
             log.error("图片向量回填失败", e);
@@ -54,28 +55,60 @@ public class ImageSearchBackfillService {
         }
     }
 
+    private int printSummary(ImageSearchBackfillEngine.Summary summary, String variant) {
+        System.out.println("以图搜图回填完成（" + variant + "）");
+        System.out.println("扫描 " + summary.scanned + "，写入 " + summary.indexed
+                + "，跳过 " + summary.skipped + "，失败 " + summary.failed);
+        for (String error : summary.errors) {
+            System.out.println("失败: " + error);
+        }
+        if (!summary.errors.isEmpty() && summary.failed > summary.errors.size()) {
+            System.out.println("其余失败已写入 image_vector_index，可用 --only-failed --variant " + variant + " 再跑");
+        }
+        return summary.failed > 0 ? 2 : 0;
+    }
+
     public ImageSearchBackfillEngine.Summary execute(String source, ImageSearchBackfillEngine.Options options) {
+        return execute(source, options, EmbeddingVariant.FULL);
+    }
+
+    public ImageSearchBackfillEngine.Summary execute(String source, ImageSearchBackfillEngine.Options options,
+                                                     EmbeddingVariant variant) {
+        EmbeddingVariant actual = variant == null ? EmbeddingVariant.FULL : variant;
         properties.requireEnabled();
         ImageSearchFilters.assertCollectionName(properties.getCollection());
         vectorIndex.initIfEnabled();
         if (!vectorIndex.isReady()) {
             throw new IllegalStateException("图片向量库未就绪，请确认 Milvus 和 image-search.collection");
         }
+        if (actual == EmbeddingVariant.CROP) {
+            ImageSearchFilters.assertCollectionName(properties.resolvedCropCollection());
+            if (!properties.isCropEnabled() || !vectorIndex.supports(EmbeddingVariant.CROP)) {
+                throw new IllegalStateException(
+                        "裁剪集合未就绪。请设置 IMAGE_SEARCH_CROP_ENABLED=true，确认集合 "
+                                + properties.resolvedCropCollection() + " 可写，并且不要改动 image_vectors_vitl");
+            }
+            if (!embedder.cropDetectorReady()) {
+                throw new IllegalStateException(
+                        "向量服务没有打开主体裁剪。请在 image-embed-service\\start.ps1 加上 IMAGE_EMBED_CROP=1 后重启，"
+                                + "curl http://127.0.0.1:8002/health 里 crop_detector_ready 应为 true");
+            }
+        }
         ImageSearchBackfillEngine.Summary summary = new ImageSearchBackfillEngine.Summary();
         ImageSearchBackfillEngine.Sink sink = new ImageSearchBackfillEngine.Sink() {
             @Override
             public Optional<ImageSearchBackfillEngine.Progress> find(String vectorId) {
-                return progressStore.find(vectorId);
+                return progressStore.find(vectorId, actual);
             }
 
             @Override
             public void markSkipped(ImageVectorRecord record, String reason) {
-                progressStore.save(record, "SKIPPED", null, reason);
+                progressStore.save(record, "SKIPPED", null, reason, actual);
             }
 
             @Override
             public void index(ImageVectorRecord record) throws Exception {
-                worker.indexForBackfill(record);
+                worker.indexForBackfill(record, actual);
             }
         };
         String normalized = source == null ? "all" : source.trim().toLowerCase(Locale.ROOT);
@@ -101,8 +134,8 @@ public class ImageSearchBackfillService {
                 ImageSearchBackfillEngine.run(chunk.records(), options, sink, summary);
             }
         }
-        log.info("图片向量回填 source={} scanned={} indexed={} skipped={} failed={}",
-                normalized, summary.scanned, summary.indexed, summary.skipped, summary.failed);
+        log.info("图片向量回填 variant={} source={} scanned={} indexed={} skipped={} failed={}",
+                actual.name().toLowerCase(Locale.ROOT), normalized, summary.scanned, summary.indexed, summary.skipped, summary.failed);
         return summary;
     }
 
@@ -135,5 +168,22 @@ public class ImageSearchBackfillService {
             }
         }
         return "all";
+    }
+
+    /** full、crop 或 all。默认只回填整图集合，避免把已经跑过的整图再编码一遍。 */
+    static String parseVariant(String[] args) {
+        if (args == null) {
+            return "full";
+        }
+        for (int i = 0; i < args.length; i++) {
+            if ("--variant".equals(args[i]) && i + 1 < args.length) {
+                String value = args[i + 1] == null ? "" : args[i + 1].trim().toLowerCase(Locale.ROOT);
+                if ("full".equals(value) || "crop".equals(value) || "all".equals(value)) {
+                    return value;
+                }
+                throw new IllegalArgumentException("--variant 只能是 full、crop 或 all");
+            }
+        }
+        return "full";
     }
 }
