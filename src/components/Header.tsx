@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { type BrandConfig } from '@/lib/brand';
 import { isAdminOrAbove } from '@/lib/auth';
+import ImageSearchEntry from '@/components/ImageSearchEntry';
 
 export interface CurrentUser {
   id: string;
@@ -228,6 +229,8 @@ export default function Header({
 
         {/* 分隔线 */}
         <div className="w-px h-5 bg-[#E5E5EA] mx-0.5" />
+
+        <ImageSearchEntry />
 
         {/* AI生图入口 */}
         <button

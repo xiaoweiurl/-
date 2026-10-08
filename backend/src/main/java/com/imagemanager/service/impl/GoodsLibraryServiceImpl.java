@@ -1,11 +1,14 @@
 package com.imagemanager.service.impl;
 
+import com.imagemanager.imagesearch.ImageSearchFilters;
+import com.imagemanager.imagesearch.ImageSearchIndexer;
 import com.imagemanager.org.OrgNameMatcher;
 import com.imagemanager.service.FileStorageService;
 import com.imagemanager.service.GoodsLibraryService;
 import com.imagemanager.service.GoodsSamplerNotice;
 import com.imagemanager.service.GoodsSamplerNoticeService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -38,6 +41,31 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
     private final FileStorageService fileStorageService;
     private final TransactionTemplate txTemplate;
     private final GoodsSamplerNoticeService samplerNoticeService;
+
+    @Autowired(required = false)
+    private ImageSearchIndexer imageSearchIndexer;
+
+    private void scheduleGoodsIndex(long id, String slot) {
+        if (imageSearchIndexer == null) {
+            return;
+        }
+        try {
+            imageSearchIndexer.submitGoodsSlot(id, slot);
+        } catch (Exception e) {
+            log.warn("[GoodsLibrary] 提交图片向量失败（不影响保存）: id={}, slot={}, err={}", id, slot, e.getMessage());
+        }
+    }
+
+    private void scheduleGoodsRemoval(long id, String slot) {
+        if (imageSearchIndexer == null) {
+            return;
+        }
+        try {
+            imageSearchIndexer.submitRemoval(ImageSearchFilters.goodsVectorId(id, slot));
+        } catch (Exception e) {
+            log.warn("[GoodsLibrary] 提交图片向量删除失败（不影响删除）: id={}, slot={}, err={}", id, slot, e.getMessage());
+        }
+    }
 
     public GoodsLibraryServiceImpl(JdbcTemplate jdbcTemplate, FileStorageService fileStorageService,
                                    PlatformTransactionManager transactionManager,
@@ -105,6 +133,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
                     String col = slot + "_image_key";
                     txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                             "UPDATE goods_library SET " + col + " = ?, updated_at = now() WHERE id = ?", storedKey, id));
+                    scheduleGoodsIndex(id, slot);
                 } catch (Exception e) {
                     log.error("[GoodsLibrary] 创建时上传图片失败: id={}, slot={}, err={}", id, slot, e.getMessage());
                 }
@@ -184,6 +213,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         txTemplate.executeWithoutResult(s -> jdbcTemplate.update("DELETE FROM goods_library WHERE id=?", id));
         for (String slot : SLOTS) {
             Object key = row.get(slot + "_image_key");
+            scheduleGoodsRemoval(id, slot);
             if (key != null) {
                 try {
                     fileStorageService.deleteFile(String.valueOf(key));
@@ -214,6 +244,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
 
         txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                 "UPDATE goods_library SET " + keyColumn + " = ?, updated_at = now() WHERE id = ?", storedKey, id));
+        scheduleGoodsIndex(id, slot);
 
         // 替换场景：旧 key 与新 key 不同（扩展名变化）时删除旧文件
         if (oldKey != null && !oldKey.equals(storedKey)) {
@@ -247,6 +278,7 @@ public class GoodsLibraryServiceImpl implements GoodsLibraryService {
         }
         txTemplate.executeWithoutResult(s -> jdbcTemplate.update(
                 "UPDATE goods_library SET " + keyColumn + " = NULL, updated_at = now() WHERE id = ?", id));
+        scheduleGoodsRemoval(id, slot);
     }
 
     // ==================== 内部辅助 ====================

@@ -44,6 +44,9 @@ class SamplerSessionGuardTest {
         assertFalse(SamplerSessionGuard.allows("/chat/knowledge-gaps", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/chat/knowledge-gaps/export", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/chat/rag-eval", "POST", sampler));
+        assertFalse(SamplerSessionGuard.allows("/image-search/status", "GET", sampler));
+        assertFalse(SamplerSessionGuard.allows("/image-search/query", "POST", sampler));
+        assertFalse(SamplerSessionGuard.allows("/image-search/eval", "POST", sampler));
     }
 
     @Test

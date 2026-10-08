@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+import com.imagemanager.imagesearch.ImageSearchIndexer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -47,6 +49,9 @@ public class AiImageController {
     private final ImageDynamicRepository imageDynamicRepository;
     private final ImageTableService imageTableService;
     private final FileStorageService fileStorageService;
+
+    @Autowired(required = false)
+    private ImageSearchIndexer imageSearchIndexer;
 
     public AiImageController(ImageRepository imageRepository,
                              ImageDynamicRepository imageDynamicRepository,
@@ -519,6 +524,13 @@ public class AiImageController {
             }
 
             imageRepository.save(image);
+            if (imageSearchIndexer != null) {
+                try {
+                    imageSearchIndexer.submitLibrary(image.getId());
+                } catch (Exception indexError) {
+                    log.warn("提交二创图片向量失败（不影响保存）: {}", indexError.getMessage());
+                }
+            }
 
             // 同步到用户的动态表（二创中心/我的二创）
             try {

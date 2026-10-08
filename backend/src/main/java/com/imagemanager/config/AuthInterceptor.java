@@ -104,7 +104,9 @@ public class AuthInterceptor implements HandlerInterceptor {
                 || "/chat/knowledge-gaps".equals(path)
                 || path.startsWith("/chat/knowledge-gaps/")
                 || "/chat/rag-eval".equals(path)
-                || path.startsWith("/chat/rag-eval/");
+                || path.startsWith("/chat/rag-eval/")
+                || "/image-search/eval".equals(path)
+                || path.startsWith("/image-search/eval/");
     }
 
     private static boolean isAdminUser(LoginResponse.UserInfo userInfo,
