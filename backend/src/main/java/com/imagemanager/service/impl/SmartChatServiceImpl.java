@@ -403,9 +403,13 @@ public class SmartChatServiceImpl implements SmartChatService {
                 // 与报价单确定性查询同思路：产能数字、客户订单统计全部由参数化 SQL 产出，
                 // 使"产能与订单匹配""动态客户经营"板块有确定性数据底座，不流于形式
                 List<Map<String, Object>> structuredResults = Collections.emptyList();
-                if (isFactory && !generalChatIntent && !modeSwitchCmd && decisionDataService != null) {
+                if (!generalChatIntent && !modeSwitchCmd && decisionDataService != null) {
                     try {
-                        structuredResults = decisionDataService.searchStructuredForMessage(message, resolvedSubMode);
+                        // 工厂模式走全量结构化检索（含货号全链路）。设计师共用同一对话后端，
+                        // 只在消息含货号时补本公司商品库图片与打样信息，不注入排产/报价汇总。
+                        structuredResults = isFactory
+                                ? decisionDataService.searchStructuredForMessage(message, resolvedSubMode, company)
+                                : decisionDataService.searchGoodsLibraryForMessage(message, company);
                     } catch (Exception e) {
                         log.warn("结构化决策数据检索异常: {}", e.getMessage());
                     }
@@ -796,6 +800,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "\nC. 业务支持：结合业务员资料回答客户背景、款式细节、工艺说明、订单进度等问题；用户需要查看产品图时可搜索图片库。" +
                             "\nD. 知识问答：基于知识库文档回答管理、流程、标准等问题，注明出处。" +
                             "\n\n【防幻觉铁律】只引用检索结果中明确存在的内容；单号/货号/客户名称必须精确匹配，模糊相似但不包含所问实体的数据一律不得引用；供应链数据、业务员资料、知识库文档均无相关信息时，必须明确告知'当前数据库中暂无此数据'，严禁凭通用知识编造。" +
+                            "用户只发货号时：若上下文有【商品库文件夹】，必须写明其中的品名和打样员（没有该字段就不要编造），并说明产品图由系统在回答末尾展示；成本、报价、排产、BOM、供应商交付只有上下文里有对应ERP条目时才能给数字，附带【数据缺失说明】时必须逐项列出缺口，禁止编造这些数字。" +
                             "\n\n【输出格式】Markdown；数据用表格（表头加粗），要点用列表，关键数据加粗；不用特殊符号(如※★●◆)装饰，不滥用分隔线；回答末尾标注引用来源（供应链数据/业务员资料/知识库文档/产品图片/网络搜索）。" +
                             buildUniversalLogicRules() +
                             // 子模式层：激活时注入基础约束+对应模式SOP；未激活时提示两大模式入口
@@ -816,6 +821,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                             "4. 回答时标注引用来源（岗位卡片/记忆库/知识库/网络搜索）。" +
                             "5. 保持专业、简洁、有帮助的回答风格。" +
                             "6. 输出格式规范：使用Markdown格式，用表格展示数据（表头加粗），用列表展示要点，用加粗强调关键数据，不要使用特殊符号(如※★●◆等)做装饰，不要使用过多分隔线，保持版面简洁清晰。" +
+                            "用户只发货号且上下文有【商品库文件夹】时，写明品名和打样员（没有该字段就不要编造）；产品图由系统在回答末尾展示，不要自己输出图片链接，也不要声称没有产品图。" +
                             buildUniversalLogicRules() +
                             "注意：供应链/工厂业务问题（报价、成本、原料、供应商、采购等）不属于你的职责范围，请引导用户前往【工厂/供应链】板块的AI对话咨询。" +
                             ChatCitation.RULE;
@@ -918,23 +924,26 @@ public class SmartChatServiceImpl implements SmartChatService {
                         }
                     }
                 }
-                // 收集商品库文件夹图片（品名+货号命中的商品库条目，data中含签名URL），传给多模态模型；
-                // 同时收集"槽位名|签名URL"列表，用于流式回答结束后由后端自动追加真实图片展示（不依赖LLM复现URL）
-                List<String> goodsLibraryImageUrls = new ArrayList<>();
+                // 收集商品库文件夹图片（货号命中的本公司商品库条目，data中含签名URL），传给多模态模型；
+                // 同时保留品名/打样员和签名 URL，流式回答结束后由后端追加，不依赖模型复现长链接
+                List<String> goodsLibraryBlocks = new ArrayList<>();
                 for (Map<String, Object> entry : structuredResults) {
                     if (!"商品库文件夹".equals(entry.get("type"))) continue;
                     Object dataObj = entry.get("data");
                     if (!(dataObj instanceof Map)) continue;
                     @SuppressWarnings("unchecked")
                     Map<String, Object> goodsData = (Map<String, Object>) dataObj;
+                    StringBuilder block = new StringBuilder();
+                    appendGoodsFact(block, "品名", goodsData.get("品名"));
+                    appendGoodsFact(block, "打样员", goodsData.get("打样员"));
+                    appendGoodsFact(block, "货号", goodsData.get("货号"));
                     for (Map.Entry<String, Object> ge : goodsData.entrySet()) {
                         String slotKey = ge.getKey();
                         if (!slotKey.endsWith("URL") || ge.getValue() == null) continue;
                         String imageUrl = ge.getValue().toString();
                         if (!imageUrl.startsWith("http")) continue;
-                        // 槽位名（去掉"URL"后缀），用于展示标签
                         String slotLabel = slotKey.substring(0, slotKey.length() - 3);
-                        goodsLibraryImageUrls.add(slotLabel + "|" + imageUrl);
+                        block.append("![").append(slotLabel).append("](").append(imageUrl).append(")\n\n");
                         if (imageBase64List.size() >= 5) continue;
                         try {
                             String base64 = downloadImageAsBase64(imageUrl);
@@ -944,6 +953,9 @@ public class SmartChatServiceImpl implements SmartChatService {
                         } catch (Exception ex) {
                             log.warn("下载商品库图片失败: url={}, error={}", imageUrl, ex.getMessage());
                         }
+                    }
+                    if (!block.isEmpty()) {
+                        goodsLibraryBlocks.add(block.toString());
                     }
                 }
                 // 也检查图片库搜索结果
@@ -1043,16 +1055,12 @@ public class SmartChatServiceImpl implements SmartChatService {
                         aiCallLogService.record(chatCapability, null, true,
                                 System.currentTimeMillis() - chatCallStart, null, "convId=" + convId);
                     }
-                    // 7b. 商品库图片由后端自动追加展示（真实签名URL不经LLM复现，避免长URL输出出错导致裂图）；
+                    // 7b. 商品库图片与打样信息由后端自动追加（真实签名URL不经LLM复现，避免长URL输出出错导致裂图）；
                     // 同时append到fullResponse，保证保存对话历史后刷新仍可见
-                    if (!goodsLibraryImageUrls.isEmpty()) {
+                    if (!goodsLibraryBlocks.isEmpty()) {
                         StringBuilder imgBlock = new StringBuilder("\n\n---\n\n**商品图片**（商品库文件夹）\n\n");
-                        for (String item : goodsLibraryImageUrls) {
-                            int sep = item.indexOf('|');
-                            if (sep <= 0) continue;
-                            String slot = item.substring(0, sep);
-                            String url = item.substring(sep + 1);
-                            imgBlock.append("![").append(slot).append("](").append(url).append(")\n\n");
+                        for (String block : goodsLibraryBlocks) {
+                            imgBlock.append(block);
                         }
                         String imgChunk = imgBlock.toString();
                         try {
@@ -2336,7 +2344,7 @@ public class SmartChatServiceImpl implements SmartChatService {
                 "\n7. 阶段成果输出完成后提示：成果可同步飞书，并附使用说明、测试记录、遗留问题清单。" +
                 "\n8.【结构化数据强制规则】只要上下文【结构化数据库查询结果】附带了产能排产、客户订单、销售订单、业务员效能、工艺单参数结构化查询结果，" +
                 "必须100%基于给到的结构化数据分析，禁止编造任何不在返回结果内的产能数字、订单数据、业务员绩效指标、客户数据、工艺参数；不得脱离给出的数据空谈结论。" +
-                "\n8.1【商品库图片规则】上下文附带【商品库文件夹】条目时：商品信息（品名/货号/客户/订单号/备注）须与工艺单、销售订单、报价数据综合分析后一并作答；" +
+                "\n8.1【商品库图片规则】上下文附带【商品库文件夹】条目时：商品信息（品名/货号/打样员/发起人/客户/订单号/备注）须与工艺单、销售订单、报价数据综合分析后一并作答，品名和打样员有值时必须在回答中写明；" +
                 "条目中附带的 主图/侧面图/细节图/产品图 图片【已由系统在回答末尾自动追加展示】，你【禁止】在回答中自行输出任何图片URL或markdown图片语法（链接很长，复现极易出错导致裂图），只需在文字中提到图片将由系统展示即可；" +
                 "同时图片已作为视觉输入传入你的多模态模型，你可以直接观察图片内容，回答颜色、款式、花型、细节工艺等外观问题，描述必须基于实际看到的图片，禁止凭空想象。" +
                 "\n8.2【货号ERP数据优先规则】上下文附带【内衣工艺单】【采购原料BOM】【机台产能（部件工艺）】【工序工价】【产品报价信息】【销售订单】等ERP结构化条目时：" +
@@ -3509,6 +3517,18 @@ public class SmartChatServiceImpl implements SmartChatService {
             log.error("供应链关键词搜索失败", e);
         }
         return results;
+    }
+
+    /** 商品库展示块里的非空字段。空值不写，避免回答里出现编造的打样员或品名。 */
+    private static void appendGoodsFact(StringBuilder block, String label, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty() || "null".equalsIgnoreCase(text)) {
+            return;
+        }
+        block.append(label).append("：").append(text).append("\n\n");
     }
 
     /**
