@@ -24,11 +24,19 @@ public final class ImageSearchPipelineSmoke {
     private ImageSearchPipelineSmoke() {
     }
 
+    /** 与 ImageEmbedClient 一样固定 HTTP/1.1，避免 uvicorn httptools 拒绝 Upgrade: h2c。 */
+    static HttpClient embedHttpClient() {
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(3))
+                .build();
+    }
+
     public static void main(String[] args) throws Exception {
         String embedUrl = arg(args, "--embed-url", "http://127.0.0.1:8002");
         String host = arg(args, "--milvus-host", "localhost");
         int port = Integer.parseInt(arg(args, "--milvus-port", "19530"));
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+        HttpClient http = embedHttpClient();
         HttpResponse<String> health = http.send(HttpRequest.newBuilder(URI.create(embedUrl + "/health"))
                 .timeout(Duration.ofSeconds(5)).GET().build(), HttpResponse.BodyHandlers.ofString());
         if (health.statusCode() != 200) {

@@ -26,7 +26,11 @@ public class ImageEmbedClient implements ImageEmbedder {
 
     @Autowired
     public ImageEmbedClient(ImageSearchProperties properties, ObjectMapper objectMapper) {
-        this(properties, objectMapper, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
+        // Java HttpClient 默认 HTTP/2，会发 Upgrade: h2c。uvicorn 的 httptools 因此返回 400、422 或空响应。
+        this(properties, objectMapper, HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(5))
+                .build());
     }
 
     ImageEmbedClient(ImageSearchProperties properties, ObjectMapper objectMapper, HttpClient httpClient) {

@@ -35,7 +35,9 @@ public class Reranker {
     @Value("${app.reranker.enabled:true}")
     private boolean enabled;
 
+    // 与图片向量服务相同：默认 HTTP/2 的 Upgrade: h2c 会被 uvicorn httptools 拒绝，失败后又被吞掉，检索静默退回无重排。
     private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
