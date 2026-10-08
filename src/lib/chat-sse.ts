@@ -33,6 +33,10 @@ export interface ChatSource {
   images?: VisualThumb[];
   filters?: VisualFilter[];
   filterNotice?: string;
+  /** 已核对的打样单。没有记录时不出现。 */
+  sampleOrderPath?: string;
+  /** 已核对的商品详情。没有记录时不出现。 */
+  productDetailPath?: string;
 }
 
 export interface VisualFilter {

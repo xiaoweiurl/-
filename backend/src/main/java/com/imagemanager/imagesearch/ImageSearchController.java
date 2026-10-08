@@ -1,6 +1,8 @@
 package com.imagemanager.imagesearch;
 
+import com.imagemanager.config.SamplerSessionGuard;
 import com.imagemanager.dto.ApiResponse;
+import com.imagemanager.dto.LoginResponse;
 import com.imagemanager.util.SessionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -125,6 +127,7 @@ public class ImageSearchController {
             }
             ImageSearchModels.ImageSearchResponse result = visualSearchExecutor.searchSampler(
                     file.getBytes(), file.getOriginalFilename(), topK, SessionUtil.getCurrentCompany());
+            restrictSamplerLinks(result);
             return ResponseEntity.ok(ApiResponse.success("检索完成", result));
         } catch (ImageSearchDisabledException e) {
             return ResponseEntity.status(503).body(ApiResponse.error(503, e.getMessage()));
@@ -138,6 +141,20 @@ public class ImageSearchController {
             }
             return ResponseEntity.status(503).body(ApiResponse.error(503, message));
         }
+    }
+
+    /**
+     * 打样作用域会话只能打开自己的那张打样单和商品详情。完整会话保持公司内的链接。
+     */
+    private static void restrictSamplerLinks(ImageSearchModels.ImageSearchResponse result) {
+        if (result == null) {
+            return;
+        }
+        LoginResponse.UserInfo user = SessionUtil.getCurrentUserInfo();
+        if (user == null || !SamplerSessionGuard.isSamplerScope(user)) {
+            return;
+        }
+        ImageSearchRecordLinks.retainSampler(result.getResults(), user.getSamplerGoodsId());
     }
 
     /**

@@ -24,18 +24,31 @@ public class ChatVisualSearchService {
     private final ImageSearchProperties properties;
     private final ImageSearchQueryService queryService;
     private final ImageSearchConditionApplier conditions;
+    private final ImageSearchRecordLinks recordLinks;
 
     public ChatVisualSearchService(ImageSearchProperties properties, ImageSearchQueryService queryService) {
         this(properties, queryService, null);
     }
 
-    @Autowired
     public ChatVisualSearchService(ImageSearchProperties properties,
                                    ImageSearchQueryService queryService,
                                    ImageSearchConditionApplier conditions) {
+        this(properties, queryService, conditions, null);
+    }
+
+    /**
+     * Spring 注入构造器。必须标 {@code @Autowired}：同类还有给测试用的短构造器，
+     * 不标明时 Spring 会退回不存在的无参构造。
+     */
+    @Autowired
+    public ChatVisualSearchService(ImageSearchProperties properties,
+                                   ImageSearchQueryService queryService,
+                                   ImageSearchConditionApplier conditions,
+                                   ImageSearchRecordLinks recordLinks) {
         this.properties = properties;
         this.queryService = queryService;
         this.conditions = conditions;
+        this.recordLinks = recordLinks;
     }
 
     public Outcome search(String message, List<String> imageBase64, String company, boolean allowed) {
@@ -83,6 +96,9 @@ public class ChatVisualSearchService {
         List<ImageSearchModels.ImageSearchHitView> kept = strategy.assemble(filtered.hits(), minScore, limit, properties);
         for (ImageSearchModels.ImageSearchHitView hit : kept) {
             hit.setScenario(gathered.scenario().name());
+        }
+        if (recordLinks != null) {
+            recordLinks.attach(kept, company);
         }
         String summary = ImageSearchConditionRank.summary(filtered.filters(), filtered.notice());
         String context = ChatVisualSearchRank.context(kept);

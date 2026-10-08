@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import SearchRecordActions from './SearchRecordActions';
 
 interface GoodsBrief {
   id: number;
@@ -30,6 +31,8 @@ export interface ImageSearchResultHit {
   images?: SearchThumb[];
   goods?: GoodsBrief | null;
   relatedGoods?: GoodsBrief[];
+  sampleOrderPath?: string | null;
+  productDetailPath?: string | null;
 }
 
 function goodsLine(goods: GoodsBrief): string {
@@ -75,14 +78,18 @@ export default function ImageSearchResults({
               <p className="text-[13px] text-[#1C1C1E] truncate">{hit.title || (linked ? goodsLine(linked) : '未命名')}</p>
               {hit.albumName && !product && <p className="text-[12px] text-[#8E8E93] truncate">{hit.albumName}</p>}
               {linked && (
-                <a href={`/goods-library/${linked.id}`} className="flex items-center min-h-11 text-[13px] text-[#007AFF] truncate">
+                <p className="flex items-center min-h-11 text-[13px] text-[#007AFF] truncate">
                   {goodsLine(linked)}
                   {linked.sampler ? ` · 打样员 ${linked.sampler}` : ''}
-                </a>
+                </p>
               )}
               {hit.productId && !linked && (
                 <p className="text-[12px] text-[#8E8E93] truncate">款号 {hit.productId}</p>
               )}
+              <SearchRecordActions
+                sampleOrderPath={hit.sampleOrderPath}
+                productDetailPath={hit.productDetailPath}
+              />
               {product && thumbs.length > 0 && (
                 <div className="mt-1.5 flex gap-1">
                   {thumbs.map((thumb, index) => (

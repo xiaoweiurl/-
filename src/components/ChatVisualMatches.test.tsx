@@ -90,6 +90,53 @@ test('same-product cards show the main image, other thumbs, goods number and sam
   assert.doesNotMatch(html, /data-testid="visual-match-card"/);
 });
 
+test('product and reference cards open the sample order and product detail when present', () => {
+  const html = renderToStaticMarkup(
+    <ChatVisualMatches
+      matches={[
+        {
+          id: 'visual-1',
+          source: 'visual_match',
+          cardType: 'product',
+          goodsNo: 'H100',
+          productName: '蕾丝中筒',
+          sampler: '张三',
+          scorePercent: 86,
+          imageUrl: 'https://example.test/goods/main.jpg',
+          sampleOrderPath: '/sampler/9',
+          productDetailPath: '/goods-library/9',
+        },
+        {
+          id: 'visual-2',
+          source: 'visual_match',
+          cardType: 'image',
+          sourceLabel: '素材',
+          title: '红色蕾丝',
+          scorePercent: 71,
+          imageUrl: 'https://example.test/lib/1.jpg',
+          productDetailPath: '/products/p-1',
+        },
+        {
+          id: 'visual-3',
+          source: 'visual_match',
+          cardType: 'image',
+          sourceLabel: '素材',
+          title: '没有档案',
+          scorePercent: 40,
+          imageUrl: 'https://example.test/lib/2.jpg',
+          sampleOrderPath: 'javascript:alert(1)',
+        },
+      ]}
+      initialExpandedId="visual-1"
+    />
+  );
+  assert.match(html, /href="\/sampler\/9"/);
+  assert.match(html, /href="\/goods-library\/9"/);
+  assert.match(html, /href="\/products\/p-1"/);
+  assert.doesNotMatch(html, /javascript:/);
+  assert.equal((html.match(/data-testid="open-sample-order"/g) || []).length, 2);
+});
+
 test('reference cards stay one image each', () => {
   const html = renderToStaticMarkup(
     <ChatVisualMatches
