@@ -253,8 +253,73 @@ public final class ChatCitation {
                 continue;
             }
             String title = text(row.get("type"));
-            sources.add(toSource(row, "supply_chain", title.isEmpty() ? "ERP单据" : title, erpExcerpt(row)));
+            Map<String, Object> source = toSource(row, "supply_chain", title.isEmpty() ? "ERP单据" : title, erpExcerpt(row));
+            attachGoodsLibrary(source, row);
+            sources.add(source);
         }
+    }
+
+    /**
+     * 本公司商品库命中后，带上和以图搜图卡片相同的站内路径，以及这条记录真实有的图片。
+     * 路径只接受 /goods-library/{正整数} 和 /sampler/{正整数}。
+     */
+    private static void attachGoodsLibrary(Map<String, Object> source, Map<String, Object> row) {
+        if (!"商品库文件夹".equals(text(row.get("type")))) {
+            return;
+        }
+        Object data = row.get("data");
+        if (!(data instanceof Map<?, ?> map)) {
+            return;
+        }
+        String detail = goodsPath(map.get("productDetailPath"), "/goods-library/");
+        String sample = goodsPath(map.get("sampleOrderPath"), "/sampler/");
+        if (!detail.isEmpty()) {
+            source.put("productDetailPath", detail);
+        }
+        if (!sample.isEmpty()) {
+            source.put("sampleOrderPath", sample);
+        }
+        putPlain(source, "goodsNo", map.get("货号"));
+        putPlain(source, "productName", map.get("品名"));
+        putPlain(source, "sampler", map.get("打样员"));
+        List<Map<String, Object>> images = new ArrayList<>();
+        for (String slot : new String[]{"主图", "侧面图", "细节图", "产品图"}) {
+            String url = httpUrl(map.get(slot + "图片URL"));
+            if (url.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> image = new LinkedHashMap<>();
+            image.put("imageUrl", url);
+            image.put("slotLabel", slot);
+            images.add(image);
+        }
+        if (!images.isEmpty()) {
+            source.put("images", images);
+        }
+    }
+
+    private static void putPlain(Map<String, Object> source, String key, Object value) {
+        String text = text(value);
+        if (!text.isEmpty()) {
+            source.put(key, text);
+        }
+    }
+
+    private static String goodsPath(Object value, String prefix) {
+        String path = text(value);
+        if (!path.startsWith(prefix)) {
+            return "";
+        }
+        String id = path.substring(prefix.length());
+        return id.matches("[1-9]\\d{0,18}") ? prefix + id : "";
+    }
+
+    private static String httpUrl(Object value) {
+        String url = text(value);
+        if (url.startsWith("https://") || url.startsWith("http://")) {
+            return url;
+        }
+        return "";
     }
 
     private static String erpExcerpt(Map<String, Object> row) {
@@ -267,11 +332,16 @@ public final class ChatCitation {
                 if (entry.getValue() == null) {
                     continue;
                 }
+                String key = String.valueOf(entry.getKey());
                 String value = entry.getValue().toString();
+                if (key.endsWith("图片URL")) {
+                    sb.append(key).append(": 已上传\n");
+                    continue;
+                }
                 if (value.length() > 300) {
                     value = value.substring(0, 300) + "...";
                 }
-                sb.append(entry.getKey()).append(": ").append(value).append('\n');
+                sb.append(key).append(": ").append(value).append('\n');
                 if (sb.length() > 1500) {
                     break;
                 }

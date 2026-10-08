@@ -13,10 +13,12 @@ import { getCurrentBrand, BRANDS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import { isAdminOrAbove, isSamplerSession } from '@/lib/auth';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import GoodsLibraryChatMedia from '@/components/GoodsLibraryChatMedia';
 import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import PdfExportButton from '@/components/PdfExportButton';
 import DocumentStatsDashboard from '@/components/DocumentStatsDashboard';
 import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
+import { goodsAnswerLinks, goodsLibraryChatEntries, withoutBrokenSlotImages } from '@/lib/goods-library-chat';
 import ImageSearchEntry from '@/components/ImageSearchEntry';
 import ChatVisualMatches from '@/components/ChatVisualMatches';
 
@@ -497,7 +499,7 @@ export default function SupplyChainPage() {
                           <Bot className="w-4 h-4 text-white" />
                         </div>
                       )}
-                      <div className={`group/msg ${msg.role === 'user' ? 'max-w-[80%] order-first' : visualMatchesFromSources(msg.sources).length > 0 ? 'w-full max-w-[40rem] min-w-0' : 'max-w-[80%]'}`}>
+                      <div className={`group/msg ${msg.role === 'user' ? 'max-w-[80%] order-first' : visualMatchesFromSources(msg.sources).length > 0 || goodsLibraryChatEntries(msg.sources).some(entry => entry.images.length > 0) ? 'w-full max-w-[40rem] min-w-0' : 'max-w-[80%]'}`}>
                         {/* 思维链（DeepSeek思考模式） */}
                         {msg.role === 'assistant' && msg.reasoning && msg.reasoning.length > 0 && (
                           <details className="mb-2.5 group">
@@ -626,14 +628,16 @@ export default function SupplyChainPage() {
                             </div>
                           ) : msg.content ? (
                             <MarkdownRenderer
-                              content={msg.content || ''}
+                              content={withoutBrokenSlotImages(msg.content || '', msg.sources)}
                               darkMode
                               citeIds={citeIdsFromSources(msg.sources)}
+                              goodsLinks={goodsAnswerLinks(msg.sources)}
                               onCite={(id) => {
                                 const hit = msg.sources?.find(s => s.id === id);
                                 if (hit) setOpenSource(hit);
                               }}
                             />
+                            <GoodsLibraryChatMedia sources={msg.sources} content={msg.content || ''} />
                           ) : (
                             /* AI 思考中加载动画 */
                             <div className="flex items-center gap-3 py-1">

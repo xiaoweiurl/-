@@ -646,6 +646,11 @@ public class DecisionDataService {
                     }
                 }
                 putIfNonBlank(data, "已上传图片", uploaded.isEmpty() ? null : String.join("、", uploaded));
+                String recordId = goodsRecordId(row.get("id"));
+                if (!recordId.isEmpty()) {
+                    data.put("productDetailPath", "/goods-library/" + recordId);
+                    data.put("sampleOrderPath", "/sampler/" + recordId);
+                }
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("type", "商品库文件夹");
                 entry.put("summary", "商品库文件夹「" + row.get("folder_name") + "」（品名 " + row.get("product_name")
@@ -933,6 +938,26 @@ public class DecisionDataService {
     }
 
     // ====== 工具方法 ======
+
+    /**
+     * 商品库主键。只接受正整数，和以图搜图卡片的 /goods-library/{id}、/sampler/{id} 一致。
+     */
+    private static String goodsRecordId(Object id) {
+        if (id == null) {
+            return "";
+        }
+        String text;
+        if (id instanceof Number number) {
+            long value = number.longValue();
+            if (value <= 0 || number.doubleValue() != value) {
+                return "";
+            }
+            text = Long.toString(value);
+        } else {
+            text = String.valueOf(id).trim();
+        }
+        return text.matches("[1-9]\\d{0,18}") ? text : "";
+    }
 
     /** 会话没带公司时按默认公司，和商品库无归属人记录的可见范围一致。 */
     private static String viewerCompany(String company) {
