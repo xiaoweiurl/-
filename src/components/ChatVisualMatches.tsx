@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { isProductCard, type ChatSource, type VisualThumb } from '@/lib/chat-sse';
+import { isProductCard, type ChatSource, type VisualFilter, type VisualThumb } from '@/lib/chat-sse';
+import ImageSearchFilterChips from './ImageSearchFilterChips';
 
 /**
  * 对话里的相似图。缩略图、相似度、素材/产品，点开看大图。
@@ -16,19 +17,36 @@ export default function ChatVisualMatches({
 }) {
   const cards = matches.filter(match => !match.empty);
   const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId);
+  const [hiddenFilters, setHiddenFilters] = useState<string[]>([]);
   const expanded = cards.find(match => (match.id || '') === expandedId) || null;
+  const filters = visibleFilters(matches, hiddenFilters);
+  const notice = matches.find(match => match.filterNotice)?.filterNotice || '';
 
   if (cards.length === 0) {
-    if (!matches.some(match => match.empty)) return null;
+    if (!matches.some(match => match.empty) && filters.length === 0 && !notice) return null;
     return (
-      <p data-testid="visual-match-empty" className="mb-2.5 text-[12px] leading-5 text-[#8E8E93]">
-        没有找到足够相似的图片
-      </p>
+      <div className="mb-2.5 space-y-2">
+        <ImageSearchFilterChips
+          filters={filters}
+          onRemove={(id) => setHiddenFilters(current => current.includes(id) ? current : [...current, id])}
+        />
+        {notice ? <p className="text-[12px] leading-5 text-[#C93400]">{notice}</p> : null}
+        {matches.some(match => match.empty) && (
+          <p data-testid="visual-match-empty" className="text-[12px] leading-5 text-[#8E8E93]">
+            没有找到足够相似的图片
+          </p>
+        )}
+      </div>
     );
   }
 
   return (
     <div data-testid="chat-visual-matches" className="mb-2.5">
+      <ImageSearchFilterChips
+        filters={filters}
+        onRemove={(id) => setHiddenFilters(current => current.includes(id) ? current : [...current, id])}
+      />
+      {notice ? <p className="mb-1.5 text-[12px] leading-5 text-[#C93400]">{notice}</p> : null}
       <p className="mb-1.5 text-[11px] text-[#8E8E93]">{sectionLabel(cards)}</p>
       {cards.some(isProductCard) && (
         <div className="space-y-2 mb-2">
@@ -163,6 +181,11 @@ function Thumb({ thumb }: { thumb: VisualThumb }) {
       loading="lazy"
     />
   );
+}
+
+function visibleFilters(matches: ChatSource[], hidden: string[]): VisualFilter[] {
+  const found = matches.find(match => Array.isArray(match.filters) && match.filters.length > 0);
+  return (found?.filters || []).filter(filter => filter?.id && !hidden.includes(filter.id));
 }
 
 function sectionLabel(cards: ChatSource[]): string {

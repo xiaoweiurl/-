@@ -8,4 +8,8 @@ public class ImageSearchDisabledException extends RuntimeException {
     public ImageSearchDisabledException() {
         super("以图搜图未开启");
     }
+
+    public ImageSearchDisabledException(String message) {
+        super(message == null || message.isBlank() ? "以图搜图未开启" : message);
+    }
 }

@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, ScanSearch, X } from 'lucide-react';
 import ImageSearchResults, { type ImageSearchResultHit } from './ImageSearchResults';
+import ImageSearchCapture from './ImageSearchCapture';
+import ImageSearchFilterChips, { type ImageSearchFilterChip } from './ImageSearchFilterChips';
+import { isDingTalkEnv } from '@/lib/dingtalk-env';
+import { prepareSearchImage } from '@/lib/image-search-file';
+import { imageSearchSheetClass } from '@/lib/image-search-sheet';
 
 type SearchHit = ImageSearchResultHit;
 
@@ -12,6 +17,9 @@ interface SearchPayload {
   mode?: string;
   scenario?: string;
   results?: SearchHit[];
+  filters?: ImageSearchFilterChip[];
+  filterNotice?: string;
+  filterRelaxed?: boolean;
 }
 
 const SCOPES = [
@@ -44,8 +52,11 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
   const [tookMs, setTookMs] = useState<number | null>(null);
   const [scenario, setScenario] = useState<string | null>(null);
   const [results, setResults] = useState<SearchHit[]>([]);
+  const [filters, setFilters] = useState<ImageSearchFilterChip[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [excluded, setExcluded] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dingtalk = mounted && isDingTalkEnv();
 
   useEffect(() => {
     setMounted(true);
@@ -101,15 +112,28 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
     setError(null);
   };
 
-  const onFile = (next: File | null) => {
+  const onFile = async (next: File | null) => {
     if (preview) URL.revokeObjectURL(preview);
-    setFile(next);
-    setPreview(next ? URL.createObjectURL(next) : null);
+    if (!next) {
+      setFile(null);
+      setPreview(null);
+      setResults([]);
+      setFilters([]);
+      setNotice(null);
+      setError(null);
+      return;
+    }
+    const prepared = await prepareSearchImage(next);
+    setFile(prepared);
+    setPreview(URL.createObjectURL(prepared));
     setResults([]);
+    setFilters([]);
+    setNotice(null);
     setError(null);
   };
 
-  const search = async () => {
+  const search = async (drop?: string[]) => {
+    const ignored = drop ?? excluded;
     if (!file && !text.trim()) {
       setError('请上传图片，或输入中文描述');
       return;
@@ -121,6 +145,7 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
       if (file) body.append('file', file);
       if (text.trim()) body.append('text', text.trim());
       body.append('scope', scope);
+      if (ignored.length > 0) body.append('exclude', ignored.join(','));
       const res = await fetch('/api/image-search/query', {
         method: 'POST',
         body,
@@ -129,14 +154,18 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
       const data = await res.json();
       if (!res.ok || !data.success) {
         setResults([]);
+        setFilters([]);
+        setNotice(null);
         setError(data.message || '检索失败');
         return;
       }
       const payload = (data.data || {}) as SearchPayload;
       setResults(payload.results || []);
+      setFilters(payload.filters || []);
+      setNotice(payload.filterNotice || null);
       setScenario(payload.scenario || null);
       setTookMs(payload.tookMs ?? null);
-      if (!payload.results || payload.results.length === 0) {
+      if ((!payload.results || payload.results.length === 0) && !payload.filterNotice) {
         setError('没有找到相似图片。确认已经打开功能并完成回填。');
       }
     } catch {
@@ -160,7 +189,11 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
       {/* 顶栏 backdrop-filter 会成为 position:fixed 的包含块，弹层挂到 body 才相对视口定位 */}
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-          <div className="bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl shadow-lg flex flex-col">
+          <div
+            data-testid="image-search-sheet"
+            data-dingtalk={dingtalk ? 'true' : 'false'}
+            className={imageSearchSheetClass(dingtalk)}
+          >
             <div className="flex items-center justify-between px-4 h-14 border-b border-[#E5E5EA] shrink-0">
               <h2 className="text-[16px] font-semibold text-[#1C1C1E]">以图搜图</h2>
               <button type="button" onClick={close} className="min-w-11 min-h-11 flex items-center justify-center text-[#8E8E93]" aria-label="关闭">
@@ -169,29 +202,15 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="w-full min-h-28 rounded-2xl border border-dashed border-[#E5E5EA] bg-[#F2F2F7] flex items-center justify-center overflow-hidden"
-              >
-                {preview ? (
-                  <img src={preview} alt="待检索图片" className="max-h-40 w-full object-contain" />
-                ) : (
-                  <span className="text-[13px] text-[#8E8E93] px-4 text-center">上传一张款式图或素材图</span>
-                )}
-              </button>
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
-                className="hidden"
-                onChange={(event) => onFile(event.target.files?.[0] || null)}
-              />
+              <ImageSearchCapture preview={preview} onPick={(next) => { void onFile(next); }} />
 
               <input
                 value={text}
-                onChange={(event) => setText(event.target.value)}
-                placeholder="可选：用中文描述，例如红色蕾丝"
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setExcluded([]);
+                }}
+                placeholder="可选：要红色的、2025年打样的、张三打的样"
                 className="w-full min-h-11 px-3 rounded-xl bg-[#F2F2F7] text-[15px] text-[#1C1C1E] placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
 
@@ -212,7 +231,7 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
 
               <button
                 type="button"
-                onClick={search}
+                onClick={() => { void search(); }}
                 disabled={loading}
                 className="w-full min-h-11 rounded-xl bg-[#007AFF] text-white text-[15px] font-medium disabled:opacity-60 flex items-center justify-center gap-2"
               >
@@ -220,6 +239,15 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
                 搜索相似款
               </button>
 
+              <ImageSearchFilterChips
+                filters={filters}
+                onRemove={(id) => {
+                  const next = excluded.includes(id) ? excluded : [...excluded, id];
+                  setExcluded(next);
+                  void search(next);
+                }}
+              />
+              {notice && <p className="text-[13px] text-[#C93400]">{notice}</p>}
               {error && <p className="text-[13px] text-[#FF3B30]">{error}</p>}
               {tookMs != null && results.length > 0 && (
                 <p className="text-[12px] text-[#8E8E93]">

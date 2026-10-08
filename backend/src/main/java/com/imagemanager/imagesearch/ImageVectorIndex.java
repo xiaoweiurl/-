@@ -1,6 +1,7 @@
 package com.imagemanager.imagesearch;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 图片向量集合。实现只能操作 image_ 前缀的新集合。
@@ -39,5 +40,12 @@ public interface ImageVectorIndex {
             throw new IllegalStateException("裁剪向量集合未启用");
         }
         return search(embedding, scope, company, topK);
+    }
+
+    /**
+     * 按主键取回已入库的图片向量，给中文条件做重排。测试桩默认没有向量，重排会保留图片分。
+     */
+    default Map<String, float[]> embeddings(EmbeddingVariant variant, List<String> vectorIds) {
+        return Map.of();
     }
 }
