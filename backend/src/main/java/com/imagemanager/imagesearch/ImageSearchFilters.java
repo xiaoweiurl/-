@@ -6,13 +6,15 @@ import java.util.Set;
 /**
  * 向量 ID、公司过滤和集合名约束。
  * 素材库沿用 images.company；商品库/打样沿用现有规则（已登录可见，不按公司裁剪）。
- * 打样会话由 SamplerSessionGuard 拦截 /image-search，到不了这里。
+ * 打样会话只能走 /image-search/sampler-query，并且范围锁在本公司商品图。
  */
 public final class ImageSearchFilters {
 
     public static final String DEFAULT_COMPANY = "宝娜斯集团";
     public static final String SOURCE_LIBRARY = "library";
     public static final String SOURCE_GOODS = "goods";
+    /** 打样拍照查同款：只要商品图，并且公司必须对得上。 */
+    public static final String SOURCE_GOODS_COMPANY = "goods-company";
 
     private static final Set<String> SLOTS = Set.of("main", "side", "detail", "product");
     private static final Set<String> FORBIDDEN_COLLECTIONS = Set.of(
@@ -71,6 +73,9 @@ public final class ImageSearchFilters {
             return "all";
         }
         String normalized = scope.trim().toLowerCase(Locale.ROOT);
+        if (SOURCE_GOODS_COMPANY.equals(normalized)) {
+            return SOURCE_GOODS_COMPANY;
+        }
         if (!SOURCE_LIBRARY.equals(normalized) && !SOURCE_GOODS.equals(normalized)) {
             throw new IllegalArgumentException("scope 只能是 all、library 或 goods");
         }
@@ -98,6 +103,7 @@ public final class ImageSearchFilters {
         return switch (normalizeScope(scope)) {
             case SOURCE_LIBRARY -> "source == \"library\" and company == \"" + quotedCompany + "\"";
             case SOURCE_GOODS -> "source == \"goods\"";
+            case SOURCE_GOODS_COMPANY -> "source == \"goods\" and company == \"" + quotedCompany + "\"";
             default -> "(source == \"goods\") or (source == \"library\" and company == \"" + quotedCompany + "\")";
         };
     }
@@ -112,12 +118,15 @@ public final class ImageSearchFilters {
         String normalizedScope = normalizeScope(scope);
         String expectedCompany = companyKey(company, DEFAULT_COMPANY);
         if (SOURCE_GOODS.equals(record.source())) {
+            if (SOURCE_GOODS_COMPANY.equals(normalizedScope)) {
+                return expectedCompany.equals(companyKey(record.company(), DEFAULT_COMPANY));
+            }
             return !"library".equals(normalizedScope);
         }
         if (!SOURCE_LIBRARY.equals(record.source())) {
             return false;
         }
-        if (SOURCE_GOODS.equals(normalizedScope)) {
+        if (SOURCE_GOODS.equals(normalizedScope) || SOURCE_GOODS_COMPANY.equals(normalizedScope)) {
             return false;
         }
         return expectedCompany.equals(companyKey(record.company(), DEFAULT_COMPANY));

@@ -49,6 +49,14 @@ public final class ImageSearchModels {
         private String albumName;
         private String productId;
         private String company;
+        /** 向量主键，文字重排时取回库里的图片向量。 */
+        private String vectorId;
+        /** 素材 created_at 或商品库 created_at，毫秒。时间条件靠它后过滤。 */
+        private Long createdAt;
+        /** 融合前的图片相似度。阈值仍看它，避免只因文字分把结果丢掉。 */
+        private float imageScore;
+        /** 中文条件与图片向量的相似度。没有重排时为 0。 */
+        private float textScore;
         /** product：同款一张卡片。image：一张图一条。 */
         private String cardType;
         /** SAME_PRODUCT / SIMILAR_REFERENCE / MIXED。历史记录靠它选卡片。 */
@@ -67,6 +75,21 @@ public final class ImageSearchModels {
         private String scenario;
         private int tookMs;
         private List<ImageSearchHitView> results = new ArrayList<>();
+        /** 从文字里解析出的条件，前端画成可去掉的标签。 */
+        private List<SearchFilter> filters = new ArrayList<>();
+        /** 某条硬条件把结果筛空时的说明。此时 results 是去掉该条件后的结果。 */
+        private String filterNotice;
+        private boolean filterRelaxed;
+    }
+
+    @Data
+    public static class SearchFilter {
+        private String id;
+        private String kind;
+        private String label;
+        private String value;
+        private boolean applied = true;
+        private boolean relaxed;
     }
 
     public static int scorePercent(float score) {
@@ -86,6 +109,20 @@ public final class ImageSearchModels {
         view.setImageUrl(imageUrl);
         view.setProductId(record.productId());
         view.setCompany(record.company());
+        view.setVectorId(record.vectorId());
         return view;
+    }
+
+    /**
+     * 对话阈值看图片分。重排后的展示分可以更低，但不能因此把原本过线的图丢掉。
+     */
+    public static float gateScore(ImageSearchHitView hit) {
+        if (hit == null) {
+            return 0f;
+        }
+        if (hit.getImageScore() > 0f) {
+            return hit.getImageScore();
+        }
+        return hit.getScore();
     }
 }

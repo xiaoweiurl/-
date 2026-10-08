@@ -6,8 +6,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -75,6 +79,7 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
                     view.setTitle(title);
                 }
                 view.setAlbumName(text(row.get("album_name")));
+                view.setCreatedAt(epochMillis(row.get("created_at")));
                 view.setProductId(text(row.get("product_id")));
                 view.setRelatedGoods(related.getOrDefault(text(row.get("product_id")), List.of()));
                 views.add(view);
@@ -97,6 +102,7 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
                         record, hit.score(), presign(key.isBlank() ? record.ossKey() : key));
                 ImageSearchModels.GoodsBrief brief = toBrief(row);
                 view.setGoods(brief);
+                view.setCreatedAt(epochMillis(row.get("created_at")));
                 if (brief.getFolderName() != null && !brief.getFolderName().isBlank()) {
                     view.setTitle(brief.getFolderName());
                 }
@@ -156,7 +162,7 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
         }
         String placeholders = placeholders(ids.size());
         List<Map<String, Object>> rows = txTemplate.execute(status -> jdbcTemplate.queryForList(
-                "SELECT id, title, name, album_name, product_id, company, file_key, file_path, url, "
+                "SELECT id, title, name, album_name, product_id, company, file_key, file_path, url, created_at, "
                         + "COALESCE(deleted, false) AS deleted FROM images WHERE id IN (" + placeholders + ")",
                 ids.toArray()));
         if (rows != null) {
@@ -174,7 +180,7 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
         }
         String placeholders = placeholders(ids.size());
         List<Map<String, Object>> rows = txTemplate.execute(status -> jdbcTemplate.queryForList(
-                "SELECT id, folder_name, goods_no, product_name, sampler, initiator, customer, order_no, "
+                "SELECT id, folder_name, goods_no, product_name, sampler, initiator, customer, order_no, created_at, "
                         + "main_image_key, side_image_key, detail_image_key, product_image_key "
                         + "FROM goods_library WHERE id IN (" + placeholders + ")",
                 ids.toArray()));
@@ -240,5 +246,27 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
 
     private static String text(Object value) {
         return value == null ? "" : value.toString();
+    }
+
+    private static Long epochMillis(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toInstant().toEpochMilli();
+        }
+        if (value instanceof OffsetDateTime offset) {
+            return offset.toInstant().toEpochMilli();
+        }
+        if (value instanceof LocalDateTime local) {
+            return local.atZone(ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli();
+        }
+        if (value instanceof Date date) {
+            return date.getTime();
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
     }
 }

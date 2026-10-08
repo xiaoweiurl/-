@@ -31,6 +31,17 @@ export interface ChatSource {
   /** product 是同款一张卡，image 是单张图。 */
   cardType?: string;
   images?: VisualThumb[];
+  filters?: VisualFilter[];
+  filterNotice?: string;
+}
+
+export interface VisualFilter {
+  id: string;
+  kind?: string;
+  label: string;
+  value?: string;
+  applied?: boolean;
+  relaxed?: boolean;
 }
 
 export function isProductCard(hit: { cardType?: string } | null | undefined): boolean {

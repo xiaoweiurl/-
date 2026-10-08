@@ -5,7 +5,9 @@ import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { Camera, Loader2, X } from 'lucide-react';
+import SamplerSameProductSheet, { type SamplerSameProductHit } from '@/components/SamplerSameProductSheet';
 import { loginHref, samplerFormPath } from '@/lib/auth-redirect';
+import { prepareSearchImage } from '@/lib/image-search-file';
 import { isDingTalkEnv } from '@/lib/dingtalk-env';
 import { beginSingleFlight, recoverSamplerAuth, readSamplerTicketFromSearch, stripSamplerTicketFromLocation } from '@/lib/dingtalk-sso';
 
@@ -76,6 +78,11 @@ export default function SamplerFormPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState<SlotKey | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [sameSearchEnabled, setSameSearchEnabled] = useState(false);
+  const [sameSheetOpen, setSameSheetOpen] = useState(false);
+  const [sameLoading, setSameLoading] = useState(false);
+  const [sameError, setSameError] = useState<string | null>(null);
+  const [sameResults, setSameResults] = useState<SamplerSameProductHit[]>([]);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const recoverAuthInFlight = useRef<Promise<boolean> | null>(null);
   const ticketRef = useRef<string | null | undefined>(undefined);
@@ -174,6 +181,60 @@ export default function SamplerFormPage() {
   useEffect(() => {
     void fetchDetail();
   }, [fetchDetail]);
+
+  useEffect(() => {
+    if (!detail) return;
+    let cancelled = false;
+    api('/api/image-search/sampler-status')
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!cancelled && body?.success && body?.data?.enabled === true) {
+          setSameSearchEnabled(true);
+        }
+      })
+      .catch(() => {
+        /* 未开启时不显示入口 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail]);
+
+  const searchSameProduct = async (file: File | null) => {
+    if (!file) return;
+    setSameLoading(true);
+    setSameError(null);
+    try {
+      const prepared = await prepareSearchImage(file);
+      const body = new FormData();
+      body.append('file', prepared);
+      const res = await api('/api/image-search/sampler-query', { method: 'POST', body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setSameResults([]);
+        setSameError(data.message || '没有找到同款');
+        return;
+      }
+      const hits = Array.isArray(data.data?.results) ? data.data.results : [];
+      const mapped: SamplerSameProductHit[] = hits.map((hit: {
+        scorePercent?: number;
+        imageUrl?: string | null;
+        goods?: { goodsNo?: string; productName?: string; sampler?: string };
+      }) => ({
+        scorePercent: hit.scorePercent || 0,
+        imageUrl: hit.imageUrl,
+        goodsNo: hit.goods?.goodsNo,
+        productName: hit.goods?.productName,
+        sampler: hit.goods?.sampler,
+      }));
+      setSameResults(mapped);
+      if (mapped.length === 0) setSameError('没有找到同款商品图');
+    } catch {
+      setSameError('检索失败，请稍后重试');
+    } finally {
+      setSameLoading(false);
+    }
+  };
 
   const handleSave = async (retried = false) => {
     if (!isGoodsId(id) || !detail) return;
@@ -379,7 +440,22 @@ export default function SamplerFormPage() {
           </section>
 
           <section>
-            <p className="px-1 mb-2 text-[13px] text-[#8E8E93]">图片</p>
+            <div className="px-1 mb-2 flex items-center justify-between min-h-8">
+              <p className="text-[13px] text-[#8E8E93]">图片</p>
+              {sameSearchEnabled && (
+                <button
+                  type="button"
+                  data-testid="sampler-same-product-entry"
+                  onClick={() => {
+                    setSameError(null);
+                    setSameSheetOpen(true);
+                  }}
+                  className="min-h-8 text-[13px] text-[#007AFF]"
+                >
+                  拍照查同款
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {IMAGE_SLOTS.map(({ slot, label }) => {
                 const url = imageUrlOf(slot);
@@ -476,6 +552,22 @@ export default function SamplerFormPage() {
           </button>
         </div>
       )}
+
+      <SamplerSameProductSheet
+        open={sameSheetOpen}
+        loading={sameLoading}
+        error={sameError}
+        results={sameResults}
+        onClose={() => setSameSheetOpen(false)}
+        onFile={(file) => { void searchSameProduct(file); }}
+        onPick={(hit) => {
+          const goodsNo = (hit.goodsNo || '').trim();
+          if (!goodsNo) return;
+          setForm(prev => ({ ...prev, goods_no: goodsNo }));
+          toast.success('已填入货号，保存后生效');
+          setSameSheetOpen(false);
+        }}
+      />
 
       <Toaster position="bottom-center" richColors offset={{ bottom: 96 }} mobileOffset={{ bottom: 96 }} />
     </div>
