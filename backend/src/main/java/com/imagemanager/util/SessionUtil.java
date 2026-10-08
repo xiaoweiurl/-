@@ -1,5 +1,6 @@
 package com.imagemanager.util;
 
+import com.imagemanager.dto.LoginResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -64,6 +65,24 @@ public class SessionUtil {
                     org.springframework.http.HttpStatus.UNAUTHORIZED, "未登录或会话已过期");
         }
         return userId;
+    }
+
+    /**
+     * 当前请求上的登录用户。没有会话时返回 null。
+     */
+    public static LoginResponse.UserInfo getCurrentUserInfo() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return null;
+            }
+            Object userInfo = attrs.getRequest().getAttribute(USER_INFO_ATTRIBUTE);
+            if (userInfo instanceof LoginResponse.UserInfo info) {
+                return info;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /**

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { isProductCard, type ChatSource, type VisualFilter, type VisualThumb } from '@/lib/chat-sse';
 import ImageSearchFilterChips from './ImageSearchFilterChips';
+import SearchRecordActions from './SearchRecordActions';
 
 /**
  * 对话里的相似图。缩略图、相似度、素材/产品，点开看大图。
@@ -64,31 +65,40 @@ export default function ChatVisualMatches({
           const sub = hit.sampler ? `打样员 ${hit.sampler}` : (hit.albumName || hit.slotLabel || '');
           const key = hit.id || String(index);
           return (
-            <button
+            <div
               key={key}
-              type="button"
-              data-testid="visual-match-card"
-              data-source-label={label}
-              data-score={percent}
-              data-scenario={hit.scenario || ''}
-              aria-label={`查看大图 ${title} 相似度 ${percent}%`}
-              onClick={() => setExpandedId(key)}
-              className="min-h-11 text-left rounded-xl border border-[#E5E5EA] bg-white overflow-hidden active:scale-[0.98] transition-transform"
+              className="rounded-xl border border-[#E5E5EA] bg-white overflow-hidden"
             >
-              <div className="aspect-square bg-[#F2F2F7]">
-                {hit.imageUrl ? (
-                  <img src={hit.imageUrl} alt={title} className="w-full h-full object-cover" loading="lazy" />
-                ) : null}
-              </div>
-              <div className="px-2 py-1.5">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[13px] font-semibold text-[#007AFF]">{percent}%</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F2F2F7] text-[#3A3A3C]">{label}</span>
+              <button
+                type="button"
+                data-testid="visual-match-card"
+                data-source-label={label}
+                data-score={percent}
+                data-scenario={hit.scenario || ''}
+                aria-label={`查看大图 ${title} 相似度 ${percent}%`}
+                onClick={() => setExpandedId(key)}
+                className="w-full min-h-11 text-left active:scale-[0.98] transition-transform"
+              >
+                <div className="aspect-square bg-[#F2F2F7]">
+                  {hit.imageUrl ? (
+                    <img src={hit.imageUrl} alt={title} className="w-full h-full object-cover" loading="lazy" />
+                  ) : null}
                 </div>
-                <p className="text-[12px] text-[#1C1C1E] truncate">{title}</p>
-                {sub ? <p className="text-[11px] text-[#8E8E93] truncate">{sub}</p> : null}
-              </div>
-            </button>
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[13px] font-semibold text-[#007AFF]">{percent}%</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F2F2F7] text-[#3A3A3C]">{label}</span>
+                  </div>
+                  <p className="text-[12px] text-[#1C1C1E] truncate">{title}</p>
+                  {sub ? <p className="text-[11px] text-[#8E8E93] truncate">{sub}</p> : null}
+                </div>
+              </button>
+              <SearchRecordActions
+                sampleOrderPath={hit.sampleOrderPath}
+                productDetailPath={hit.productDetailPath}
+                className="px-2"
+              />
+            </div>
           );
         })}
       </div>
@@ -120,6 +130,11 @@ export default function ChatVisualMatches({
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <SearchRecordActions
+              sampleOrderPath={expanded.sampleOrderPath}
+              productDetailPath={expanded.productDetailPath}
+              className="px-3"
+            />
             {expanded.imageUrl ? (
               <img
                 src={expanded.imageUrl}
@@ -140,34 +155,41 @@ function ProductCard({ hit, onOpen }: { hit: ChatSource; onOpen: (id: string) =>
   const key = hit.id || title;
   const thumbs = (hit.images || []).filter(thumb => thumb?.imageUrl).slice(0, 4);
   return (
-    <button
-      type="button"
-      data-testid="visual-product-card"
-      data-scenario={hit.scenario || 'SAME_PRODUCT'}
-      data-score={percent}
-      aria-label={`查看同款 ${title} 相似度 ${percent}%`}
-      onClick={() => onOpen(key)}
-      className="w-full min-h-11 text-left rounded-xl border border-[#E5E5EA] bg-white p-2 flex gap-2 active:scale-[0.99] transition-transform"
-    >
-      <div className="w-16 h-16 rounded-lg bg-[#F2F2F7] overflow-hidden shrink-0">
-        {hit.imageUrl ? <img src={hit.imageUrl} alt={title} className="w-full h-full object-cover" loading="lazy" /> : null}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[15px] font-semibold text-[#007AFF]">{percent}%</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F2F2F7] text-[#3A3A3C]">同款</span>
+    <div className="rounded-xl border border-[#E5E5EA] bg-white p-2">
+      <button
+        type="button"
+        data-testid="visual-product-card"
+        data-scenario={hit.scenario || 'SAME_PRODUCT'}
+        data-score={percent}
+        aria-label={`查看同款 ${title} 相似度 ${percent}%`}
+        onClick={() => onOpen(key)}
+        className="w-full min-h-11 text-left flex gap-2 active:scale-[0.99] transition-transform"
+      >
+        <div className="w-16 h-16 rounded-lg bg-[#F2F2F7] overflow-hidden shrink-0">
+          {hit.imageUrl ? <img src={hit.imageUrl} alt={title} className="w-full h-full object-cover" loading="lazy" /> : null}
         </div>
-        <p className="text-[13px] text-[#1C1C1E] truncate">{title}</p>
-        {hit.sampler ? <p className="text-[12px] text-[#8E8E93] truncate">打样员 {hit.sampler}</p> : null}
-        {thumbs.length > 0 && (
-          <div className="mt-1 flex gap-1">
-            {thumbs.map((thumb, index) => (
-              <Thumb key={`${thumb.imageUrl}-${index}`} thumb={thumb} />
-            ))}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[15px] font-semibold text-[#007AFF]">{percent}%</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F2F2F7] text-[#3A3A3C]">同款</span>
           </div>
-        )}
-      </div>
-    </button>
+          <p className="text-[13px] text-[#1C1C1E] truncate">{title}</p>
+          {hit.sampler ? <p className="text-[12px] text-[#8E8E93] truncate">打样员 {hit.sampler}</p> : null}
+          {thumbs.length > 0 && (
+            <div className="mt-1 flex gap-1">
+              {thumbs.map((thumb, index) => (
+                <Thumb key={`${thumb.imageUrl}-${index}`} thumb={thumb} />
+              ))}
+            </div>
+          )}
+        </div>
+      </button>
+      <SearchRecordActions
+        sampleOrderPath={hit.sampleOrderPath}
+        productDetailPath={hit.productDetailPath}
+        className="pl-[4.5rem]"
+      />
+    </div>
   );
 }
 

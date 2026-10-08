@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Camera, ImagePlus, Loader2, X } from 'lucide-react';
+import SearchRecordActions from './SearchRecordActions';
 
 export interface SamplerSameProductHit {
   scorePercent: number;
@@ -9,6 +10,8 @@ export interface SamplerSameProductHit {
   goodsNo?: string;
   productName?: string;
   sampler?: string;
+  sampleOrderPath?: string | null;
+  productDetailPath?: string | null;
 }
 
 /**
@@ -75,25 +78,37 @@ export default function SamplerSameProductSheet({
           )}
           {error && <p className="text-[13px] text-[#FF3B30]">{error}</p>}
           {results.map((hit, index) => (
-            <button
+            <div
               key={`${hit.goodsNo || 'goods'}-${index}`}
-              type="button"
               data-testid="sampler-same-product-hit"
-              onClick={() => onPick(hit)}
-              className="w-full min-h-16 flex items-center gap-3 rounded-2xl border border-[#E5E5EA] p-2 text-left active:scale-[0.99] transition-transform"
+              className="w-full min-h-16 flex items-center gap-3 rounded-2xl border border-[#E5E5EA] p-2"
             >
-              <div className="w-16 h-16 rounded-xl bg-[#F2F2F7] overflow-hidden shrink-0">
+              <button
+                type="button"
+                onClick={() => onPick(hit)}
+                className="w-16 h-16 rounded-xl bg-[#F2F2F7] overflow-hidden shrink-0 active:scale-[0.99] transition-transform"
+              >
                 {hit.imageUrl ? <img src={hit.imageUrl} alt="" className="w-full h-full object-cover" /> : null}
-              </div>
+              </button>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-semibold text-[#007AFF]">{hit.scorePercent}%</span>
-                  <span className="text-[15px] font-medium text-[#1C1C1E] truncate">{hit.goodsNo || '未填货号'}</span>
-                </div>
-                <p className="text-[13px] text-[#3A3A3C] truncate">{hit.productName || '未填品名'}</p>
-                <p className="text-[12px] text-[#8E8E93] truncate">打样员 {hit.sampler || '未填写'}</p>
+                <button
+                  type="button"
+                  onClick={() => onPick(hit)}
+                  className="w-full text-left active:scale-[0.99] transition-transform"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[15px] font-semibold text-[#007AFF]">{hit.scorePercent}%</span>
+                    <span className="text-[15px] font-medium text-[#1C1C1E] truncate">{hit.goodsNo || '未填货号'}</span>
+                  </div>
+                  <p className="text-[13px] text-[#3A3A3C] truncate">{hit.productName || '未填品名'}</p>
+                  <p className="text-[12px] text-[#8E8E93] truncate">打样员 {hit.sampler || '未填写'}</p>
+                </button>
+                <SearchRecordActions
+                  sampleOrderPath={hit.sampleOrderPath}
+                  productDetailPath={hit.productDetailPath}
+                />
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>

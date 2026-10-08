@@ -219,6 +219,8 @@ export default function SamplerFormPage() {
       const mapped: SamplerSameProductHit[] = hits.map((hit: {
         scorePercent?: number;
         imageUrl?: string | null;
+        sampleOrderPath?: string | null;
+        productDetailPath?: string | null;
         goods?: { goodsNo?: string; productName?: string; sampler?: string };
       }) => ({
         scorePercent: hit.scorePercent || 0,
@@ -226,6 +228,8 @@ export default function SamplerFormPage() {
         goodsNo: hit.goods?.goodsNo,
         productName: hit.goods?.productName,
         sampler: hit.goods?.sampler,
+        sampleOrderPath: hit.sampleOrderPath,
+        productDetailPath: hit.productDetailPath,
       }));
       setSameResults(mapped);
       if (mapped.length === 0) setSameError('没有找到同款商品图');

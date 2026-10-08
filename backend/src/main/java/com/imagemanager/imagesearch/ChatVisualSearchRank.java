@@ -98,6 +98,8 @@ public final class ChatVisualSearchRank {
             putText(source, "slotLabel", hit.getSlotLabel());
             putText(source, "cardType", hit.getCardType());
             putText(source, "scenario", hit.getScenario());
+            putText(source, "sampleOrderPath", hit.getSampleOrderPath());
+            putText(source, "productDetailPath", hit.getProductDetailPath());
             if (hit.getImages() != null && !hit.getImages().isEmpty()) {
                 List<Map<String, Object>> thumbs = new ArrayList<>();
                 for (ImageSearchModels.ImageThumb thumb : hit.getImages()) {

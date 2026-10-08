@@ -65,6 +65,14 @@ public final class ImageSearchModels {
         private List<ImageThumb> images = new ArrayList<>();
         private GoodsBrief goods;
         private List<GoodsBrief> relatedGoods = new ArrayList<>();
+        /**
+         * 已核对存在、且属于当前公司的打样单。没有记录时为空，前端不渲染链接。
+         */
+        private String sampleOrderPath;
+        /**
+         * 已核对存在、且属于当前公司的商品详情。没有记录时为空。
+         */
+        private String productDetailPath;
     }
 
     @Data

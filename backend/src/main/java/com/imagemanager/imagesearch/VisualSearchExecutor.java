@@ -16,19 +16,32 @@ public class VisualSearchExecutor {
     private final ImageSearchProperties properties;
     private final ImageSearchQueryService queryService;
     private final ImageSearchConditionApplier conditions;
+    private final ImageSearchRecordLinks recordLinks;
     private final MixedCatalogStrategy mixed = new MixedCatalogStrategy();
 
     public VisualSearchExecutor(ImageSearchProperties properties, ImageSearchQueryService queryService) {
         this(properties, queryService, null);
     }
 
-    @Autowired
     public VisualSearchExecutor(ImageSearchProperties properties,
                                 ImageSearchQueryService queryService,
                                 ImageSearchConditionApplier conditions) {
+        this(properties, queryService, conditions, null);
+    }
+
+    /**
+     * Spring 注入构造器。必须标 {@code @Autowired}：同类还有给测试用的短构造器，
+     * 不标明时 Spring 会退回不存在的无参构造。
+     */
+    @Autowired
+    public VisualSearchExecutor(ImageSearchProperties properties,
+                                ImageSearchQueryService queryService,
+                                ImageSearchConditionApplier conditions,
+                                ImageSearchRecordLinks recordLinks) {
         this.properties = properties;
         this.queryService = queryService;
         this.conditions = conditions;
+        this.recordLinks = recordLinks;
     }
 
     public ImageSearchModels.ImageSearchResponse search(byte[] image, String filename, String text,
@@ -74,6 +87,7 @@ public class VisualSearchExecutor {
             }
         }
         List<ImageSearchModels.ImageSearchHitView> results = present(scenario, gathered, outcome, limit);
+        attachLinks(results, normalizedCompany);
         ImageSearchModels.ImageSearchResponse response = new ImageSearchModels.ImageSearchResponse();
         response.setEnabled(true);
         response.setMode(hasImage ? "image" : "text");
@@ -117,6 +131,7 @@ public class VisualSearchExecutor {
                 results.add(hit);
             }
         }
+        attachLinks(results, normalizedCompany);
         ImageSearchModels.ImageSearchResponse response = new ImageSearchModels.ImageSearchResponse();
         response.setEnabled(true);
         response.setMode("image");
@@ -124,6 +139,13 @@ public class VisualSearchExecutor {
         response.setTookMs((int) ((System.nanoTime() - started) / 1_000_000L));
         response.setResults(results);
         return response;
+    }
+
+    private void attachLinks(List<ImageSearchModels.ImageSearchHitView> hits, String company) {
+        if (recordLinks == null || hits == null || hits.isEmpty()) {
+            return;
+        }
+        recordLinks.attach(hits, company);
     }
 
     private Gathered gather(VisualSearchScenario scenario, byte[] image, String filename, String text,
