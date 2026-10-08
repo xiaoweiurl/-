@@ -47,8 +47,13 @@ public interface SmartChatService {
      * 智能对话 (SSE流式) - 附件 + 显式业务子模式
      */
     default SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> images, List<Map<String, String>> pdfs, String subMode) {
-        return smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs);
+        return smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs, subMode, true);
     }
+
+    /**
+     * @param allowVisualSearch 打样作用域会话必须传 false，不跑以图搜图
+     */
+    SseEmitter smartChatWithAttachments(String message, String userId, String company, String conversationId, String mode, List<String> images, List<Map<String, String>> pdfs, String subMode, boolean allowVisualSearch);
 
     /**
      * 智能对话 (SSE流式) - 兼容旧接口(无mode)

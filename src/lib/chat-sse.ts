@@ -7,6 +7,30 @@ export interface ChatSource {
   excerpt?: string;
   content?: string;
   score?: number;
+  scorePercent?: number;
+  imageUrl?: string;
+  sourceLabel?: string;
+  visualSource?: string;
+  goodsNo?: string;
+  productName?: string;
+  sampler?: string;
+  albumName?: string;
+  slotLabel?: string;
+  empty?: boolean;
+}
+
+const CITE_ID = /^[A-Za-z]\d+$/;
+
+/** [[E1]] 这类编号。相似图的 visual-1 不进引用按钮。 */
+export function citeIdsFromSources(sources?: ChatSource[]): string[] {
+  return (sources || [])
+    .filter(source => source?.source !== 'visual_match')
+    .map(source => source?.id)
+    .filter((id): id is string => !!id && CITE_ID.test(id));
+}
+
+export function visualMatchesFromSources(sources?: ChatSource[]): ChatSource[] {
+  return (sources || []).filter(source => source?.source === 'visual_match');
 }
 
 export interface ChatSseEvent {

@@ -15,8 +15,9 @@ import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import PdfExportButton from '@/components/PdfExportButton';
 import DocumentStatsDashboard from '@/components/DocumentStatsDashboard';
-import { mapHistoryChatMessage, takeSseEvents, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
+import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
 import ImageSearchEntry from '@/components/ImageSearchEntry';
+import ChatVisualMatches from '@/components/ChatVisualMatches';
 
 // ============ 类型定义 ============
 interface QuotationOrderRow {
@@ -185,8 +186,9 @@ export default function SupplyChainPage() {
   }, [chatAttachments.length]);
 
   const handleFactoryChat = useCallback(async (message?: string) => {
-    const msg = message || chatInput.trim();
-    if (!msg || chatLoading) return;
+    const msg = (message ?? chatInput).trim();
+    const pendingImages = chatAttachments.filter(a => a.type === 'image');
+    if ((!msg && pendingImages.length === 0) || chatLoading) return;
 
     const userMsg = { role: 'user' as const, content: msg, attachments: chatAttachments.length > 0 ? [...chatAttachments] : undefined };
     setChatMessages(prev => [...prev, userMsg]);
@@ -345,7 +347,7 @@ export default function SupplyChainPage() {
     } finally {
       setChatLoading(false);
     }
-  }, [chatInput, chatLoading, chatAgent]);
+  }, [chatInput, chatLoading, chatAgent, chatAttachments]);
 
   const submitFactoryFeedback = async (index: number, verdict: 'useful' | 'wrong', comment?: string) => {
     const answer = chatMessages[index];
@@ -507,7 +509,7 @@ export default function SupplyChainPage() {
                           <Bot className="w-4 h-4 text-white" />
                         </div>
                       )}
-                      <div className={`max-w-[80%] group/msg ${msg.role === 'user' ? 'order-first' : ''}`}>
+                      <div className={`group/msg ${msg.role === 'user' ? 'max-w-[80%] order-first' : visualMatchesFromSources(msg.sources).length > 0 ? 'w-full max-w-[40rem] min-w-0' : 'max-w-[80%]'}`}>
                         {/* 思维链（DeepSeek思考模式） */}
                         {msg.role === 'assistant' && msg.reasoning && msg.reasoning.length > 0 && (
                           <details className="mb-2.5 group">
@@ -606,6 +608,10 @@ export default function SupplyChainPage() {
                           </details>
                         )}
 
+                        {msg.role === 'assistant' && visualMatchesFromSources(msg.sources).length > 0 && (
+                          <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} />
+                        )}
+
                         {/* 消息内容 */}
                         <div className={`relative group/msg
                           ${msg.role === 'user'
@@ -634,7 +640,7 @@ export default function SupplyChainPage() {
                             <MarkdownRenderer
                               content={msg.content || ''}
                               darkMode
-                              citeIds={(msg.sources || []).map(s => s.id).filter((id): id is string => !!id)}
+                              citeIds={citeIdsFromSources(msg.sources)}
                               onCite={(id) => {
                                 const hit = msg.sources?.find(s => s.id === id);
                                 if (hit) setOpenSource(hit);
@@ -765,7 +771,7 @@ export default function SupplyChainPage() {
                     />
                     <button
                       onClick={() => handleFactoryChat()}
-                      disabled={chatLoading || !chatInput.trim()}
+                      disabled={chatLoading || (!chatInput.trim() && !chatAttachments.some(a => a.type === 'image'))}
                       className="shrink-0 w-10 h-10 rounded-xl bg-[#007AFF] text-white flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
                     >
                       <Send className="w-4 h-4" />

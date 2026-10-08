@@ -119,19 +119,24 @@ public class ChatController {
         @SuppressWarnings("unchecked")
         List<Map<String, String>> pdfs = body.get("pdfs") != null ? (List<Map<String, String>>) body.get("pdfs") : null;
 
+        boolean hasImages = images != null && !images.isEmpty();
         if (message == null || message.isBlank()) {
-            SseEmitter emitter = new SseEmitter(60000L);
-            try {
-                emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
-                emitter.complete();
-            } catch (Exception ignored) {}
-            return emitter;
+            if (!hasImages) {
+                SseEmitter emitter = new SseEmitter(60000L);
+                try {
+                    emitter.send(SseEmitter.event().data("{\"error\":\"消息不能为空\"}"));
+                    emitter.complete();
+                } catch (Exception ignored) {}
+                return emitter;
+            }
+            message = "";
         }
         try {
             LoginResponse.UserInfo user = getCurrentUser(request);
             String userId = resolveUserId(user);
             String company = resolveCompany(user);
-            return smartChatService.smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs, subMode);
+            boolean allowVisualSearch = !SamplerSessionGuard.isSamplerScope(user);
+            return smartChatService.smartChatWithAttachments(message, userId, company, conversationId, mode, images, pdfs, subMode, allowVisualSearch);
         } catch (Exception e) {
             SseEmitter emitter = new SseEmitter(60000L);
             try {
