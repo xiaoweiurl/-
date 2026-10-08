@@ -23,7 +23,7 @@ public final class ChatVisualSearchRank {
         float floor = (float) minScore;
         Map<String, ImageSearchModels.ImageSearchHitView> best = new LinkedHashMap<>();
         for (ImageSearchModels.ImageSearchHitView hit : hits) {
-            if (hit == null || Float.isNaN(hit.getScore()) || hit.getScore() < floor) {
+            if (hit == null || Float.isNaN(hit.getScore()) || ImageSearchModels.gateScore(hit) < floor) {
                 continue;
             }
             String key = key(hit);

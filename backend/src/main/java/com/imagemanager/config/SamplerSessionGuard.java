@@ -46,6 +46,13 @@ public final class SamplerSessionGuard {
         if (path.equals(item + "/images")) {
             return "POST".equals(m) || "DELETE".equals(m);
         }
+        // 只开放商品图同款检索。素材库、评测和普通以图搜图仍然拒绝。
+        if ("/image-search/sampler-query".equals(path)) {
+            return "POST".equals(m);
+        }
+        if ("/image-search/sampler-status".equals(path)) {
+            return "GET".equals(m);
+        }
         return false;
     }
 }

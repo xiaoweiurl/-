@@ -12,8 +12,10 @@ import io.milvus.v2.service.collection.request.HasCollectionReq;
 import io.milvus.v2.service.collection.request.LoadCollectionReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
+import io.milvus.v2.service.vector.request.QueryReq;
 import io.milvus.v2.service.vector.request.SearchReq;
 import io.milvus.v2.service.vector.request.data.FloatVec;
+import io.milvus.v2.service.vector.response.QueryResp;
 import io.milvus.v2.service.vector.response.SearchResp;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -21,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -200,6 +204,84 @@ public class MilvusImageVectorIndex implements ImageVectorIndex {
             hits.add(new ImageSearchModels.RawHit(record, item.getScore()));
         }
         return hits;
+    }
+
+    @Override
+    public Map<String, float[]> embeddings(EmbeddingVariant variant, List<String> vectorIds) {
+        Map<String, float[]> found = new LinkedHashMap<>();
+        if (!supports(variant) || vectorIds == null || vectorIds.isEmpty()) {
+            return found;
+        }
+        List<String> ids = new ArrayList<>();
+        for (String id : vectorIds) {
+            if (id != null && !id.isBlank() && !ids.contains(id)) {
+                ids.add(id.trim());
+            }
+        }
+        String collection = collectionName(variant);
+        int batch = 80;
+        for (int offset = 0; offset < ids.size(); offset += batch) {
+            List<String> slice = ids.subList(offset, Math.min(ids.size(), offset + batch));
+            try {
+                QueryResp response = client.query(QueryReq.builder()
+                        .collectionName(collection)
+                        .filter(vectorIdIn(slice))
+                        .outputFields(List.of("vector_id", "embedding"))
+                        .limit((long) slice.size())
+                        .build());
+                if (response == null || response.getQueryResults() == null) {
+                    continue;
+                }
+                for (QueryResp.QueryResult row : response.getQueryResults()) {
+                    Map<String, Object> entity = row.getEntity();
+                    if (entity == null) {
+                        continue;
+                    }
+                    String id = text(entity.get("vector_id"));
+                    float[] vector = floats(entity.get("embedding"));
+                    if (!id.isBlank() && vector.length == properties.getDimension()) {
+                        found.put(id, vector);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("读取图片向量失败，文字重排跳过这一批: {}", e.getMessage());
+            }
+        }
+        return found;
+    }
+
+    private static String vectorIdIn(List<String> ids) {
+        StringBuilder filter = new StringBuilder("vector_id in [");
+        for (int i = 0; i < ids.size(); i++) {
+            if (i > 0) {
+                filter.append(',');
+            }
+            filter.append('"').append(ImageSearchFilters.milvusQuote(ids.get(i))).append('"');
+        }
+        filter.append(']');
+        return filter.toString();
+    }
+
+    private static float[] floats(Object value) {
+        if (value instanceof float[] array) {
+            return array;
+        }
+        if (value instanceof Collection<?> collection) {
+            float[] vector = new float[collection.size()];
+            int index = 0;
+            for (Object item : collection) {
+                vector[index++] = item instanceof Number number ? number.floatValue() : 0f;
+            }
+            return vector;
+        }
+        if (value instanceof JsonArray array) {
+            float[] vector = new float[array.size()];
+            for (int i = 0; i < array.size(); i++) {
+                vector[i] = array.get(i).getAsFloat();
+            }
+            return vector;
+        }
+        return new float[0];
     }
 
     private void openCropCollection() {

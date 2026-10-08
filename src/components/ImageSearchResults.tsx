@@ -57,9 +57,9 @@ export default function ImageSearchResults({
             key={`${hit.cardType || 'image'}-${hit.source}-${hit.sourceId}-${hit.slot || ''}-${hit.slotLabel || ''}`}
             data-testid={product ? 'search-product-card' : 'search-image-card'}
             data-scenario={hit.scenario || scenario || ''}
-            className="flex gap-3 rounded-2xl border border-[#E5E5EA] p-3"
+            className="flex gap-3 rounded-2xl border border-[#E5E5EA] p-3 min-h-16"
           >
-            <div className="w-16 h-16 rounded-xl bg-[#F2F2F7] overflow-hidden shrink-0">
+            <div className="w-20 h-20 rounded-xl bg-[#F2F2F7] overflow-hidden shrink-0">
               {hit.imageUrl ? <img src={hit.imageUrl} alt="" className="w-full h-full object-cover" /> : null}
             </div>
             <div className="min-w-0 flex-1">
@@ -75,7 +75,7 @@ export default function ImageSearchResults({
               <p className="text-[13px] text-[#1C1C1E] truncate">{hit.title || (linked ? goodsLine(linked) : '未命名')}</p>
               {hit.albumName && !product && <p className="text-[12px] text-[#8E8E93] truncate">{hit.albumName}</p>}
               {linked && (
-                <a href={`/goods-library/${linked.id}`} className="block text-[12px] text-[#007AFF] truncate mt-0.5">
+                <a href={`/goods-library/${linked.id}`} className="flex items-center min-h-11 text-[13px] text-[#007AFF] truncate">
                   {goodsLine(linked)}
                   {linked.sampler ? ` · 打样员 ${linked.sampler}` : ''}
                 </a>

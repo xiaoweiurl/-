@@ -72,6 +72,27 @@ public class ImageSearchProperties {
     /** 同款向 Milvus 多取的倍数，分组后还要凑够返回条数。 */
     private int internalTopKFactor = 5;
 
+    /**
+     * 时间、打样员、相册不在向量标量里，要在补全后再滤。
+     * 这时把内部条数再乘上这个倍数，避免滤完以后不够展示。
+     */
+    private int conditionFetchFactor = 3;
+
+    /** 图文重排：final = imageWeight * 图片分 + textWeight * 文字分。 */
+    private double textRerankImageWeight = 0.65d;
+
+    private double textRerankTextWeight = 0.35d;
+
+    /**
+     * 文字分低于这个值才丢弃。默认 0，只丢掉负相关，不因为文字分偏低就清空结果。
+     */
+    private double textScoreFloor = 0d;
+
+    /**
+     * 打样页「拍照查同款」。总开关关闭时这里打开也不生效。
+     */
+    private boolean samplerEnabled = true;
+
     private String milvusHost = "localhost";
 
     private int milvusPort = 19530;

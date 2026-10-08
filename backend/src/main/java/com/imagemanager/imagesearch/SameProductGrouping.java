@@ -28,7 +28,7 @@ public final class SameProductGrouping {
         float floor = (float) minScore;
         Map<String, List<ImageSearchModels.ImageSearchHitView>> buckets = new LinkedHashMap<>();
         for (ImageSearchModels.ImageSearchHitView hit : hits) {
-            if (hit == null || Float.isNaN(hit.getScore()) || hit.getScore() < floor) {
+            if (hit == null || Float.isNaN(hit.getScore()) || ImageSearchModels.gateScore(hit) < floor) {
                 continue;
             }
             buckets.computeIfAbsent(groupKey(hit), key -> new ArrayList<>()).add(hit);
@@ -137,6 +137,10 @@ public final class SameProductGrouping {
         card.setAlbumName(best.getAlbumName());
         card.setProductId(best.getProductId());
         card.setCompany(best.getCompany());
+        card.setImageScore(best.getImageScore());
+        card.setTextScore(best.getTextScore());
+        card.setCreatedAt(best.getCreatedAt());
+        card.setVectorId(best.getVectorId());
 
         ImageSearchModels.GoodsBrief goods = goodsOf(members);
         card.setGoods(goods);

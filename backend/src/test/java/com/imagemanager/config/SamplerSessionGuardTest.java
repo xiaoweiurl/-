@@ -47,6 +47,10 @@ class SamplerSessionGuardTest {
         assertFalse(SamplerSessionGuard.allows("/image-search/status", "GET", sampler));
         assertFalse(SamplerSessionGuard.allows("/image-search/query", "POST", sampler));
         assertFalse(SamplerSessionGuard.allows("/image-search/eval", "POST", sampler));
+        assertTrue(SamplerSessionGuard.allows("/image-search/sampler-status", "GET", sampler));
+        assertTrue(SamplerSessionGuard.allows("/image-search/sampler-query", "POST", sampler));
+        assertFalse(SamplerSessionGuard.allows("/image-search/sampler-query", "GET", sampler));
+        assertFalse(SamplerSessionGuard.allows("/image-search/sampler-status", "POST", sampler));
     }
 
     @Test
