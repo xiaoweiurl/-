@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, ScanSearch, X } from 'lucide-react';
 
 interface GoodsBrief {
@@ -59,7 +60,29 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
   const [error, setError] = useState<string | null>(null);
   const [tookMs, setTookMs] = useState<number | null>(null);
   const [results, setResults] = useState<SearchHit[]>([]);
+  const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        setError(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,8 +172,9 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
         <span>以图搜图</span>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* 顶栏 backdrop-filter 会成为 position:fixed 的包含块，弹层挂到 body 才相对视口定位 */}
+      {open && mounted && createPortal(
+        <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
           <div className="bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl shadow-lg flex flex-col">
             <div className="flex items-center justify-between px-4 h-14 border-b border-[#E5E5EA] shrink-0">
               <h2 className="text-[16px] font-semibold text-[#1C1C1E]">以图搜图</h2>
@@ -254,7 +278,8 @@ export default function ImageSearchEntry({ className = '' }: { className?: strin
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
