@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useStickToBottom } from '@/hooks/useStickToBottom';
 import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
 import {
@@ -81,9 +82,7 @@ export default function SupplyChainPage() {
   const [chatLoading, setChatLoading] = useState(false);
   // 业务智能体子模式：general=通用业务助手 / planning=商品企划智能体 / decision=决策辅助智能体
   const [chatAgent, setChatAgent] = useState<'general' | 'planning' | 'decision'>('general');
-  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
-  const isUserScrollingRef = useRef(false);
-  const chatScrollContainerRef = useRef<HTMLDivElement>(null);
+  const { scrollerRef: chatScrollerRef, resumeFollow: resumeChatFollow } = useStickToBottom();
 
   // 当前用户角色（用于 ERP 同步入口可见性：仅管理员以上）
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -196,7 +195,7 @@ export default function SupplyChainPage() {
     const currentAttachments = [...chatAttachments];
     setChatAttachments([]); // 清空已上传的附件
     setChatLoading(true);
-    isUserScrollingRef.current = false;
+    resumeChatFollow();
 
     const assistantMsg: typeof chatMessages[0] = {
       role: 'assistant',
@@ -347,7 +346,7 @@ export default function SupplyChainPage() {
     } finally {
       setChatLoading(false);
     }
-  }, [chatInput, chatLoading, chatAgent, chatAttachments]);
+  }, [chatInput, chatLoading, chatAgent, chatAttachments, resumeChatFollow]);
 
   const submitFactoryFeedback = async (index: number, verdict: 'useful' | 'wrong', comment?: string) => {
     const answer = chatMessages[index];
@@ -378,13 +377,6 @@ export default function SupplyChainPage() {
       setChatMessages(prev => prev.map((m, i) => i === index ? { ...m, feedback: verdict } : m));
     } catch { /* ignore */ }
   };
-
-  // 自动滚动到底部
-  useEffect(() => {
-    if (!isUserScrollingRef.current && chatMessagesEndRef.current) {
-      chatMessagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-    }
-  }, [chatMessages]);
 
   const handleLogout = () => {
     localStorage.removeItem('session_id');
@@ -467,17 +459,11 @@ export default function SupplyChainPage() {
               <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
                 {/* 聊天消息区 */}
                 <div
-                  ref={chatScrollContainerRef}
-                  className="flex-1 overflow-y-auto px-6 py-4 space-y-5"
-                  onScroll={() => {
-                    if (chatScrollContainerRef.current) {
-                      const { scrollTop, scrollHeight, clientHeight } = chatScrollContainerRef.current;
-                      isUserScrollingRef.current = scrollHeight - scrollTop - clientHeight > 120;
-                    }
-                  }}
+                  ref={chatScrollerRef}
+                  className="flex-1 min-h-0 overflow-y-auto flex flex-col px-6 py-4"
                 >
                   {chatMessages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="flex flex-1 flex-col items-center justify-center text-center">
                       <div className="w-16 h-16 rounded-2xl bg-[#007AFF] flex items-center justify-center mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
                         <MessageSquare className="w-8 h-8 text-white" />
                       </div>
@@ -502,6 +488,8 @@ export default function SupplyChainPage() {
                       </div>
                     </div>
                   )}
+                  {chatMessages.length > 0 && (
+                  <div className="mt-auto space-y-5">
                   {chatMessages.map((msg, idx) => (
                     <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       {msg.role === 'assistant' && (
@@ -688,7 +676,8 @@ export default function SupplyChainPage() {
                       )}
                     </div>
                   ))}
-                  <div ref={chatMessagesEndRef} />
+                  </div>
+                  )}
                 </div>
                 {/* 输入区 */}
                 <div className="border-t border-[#E5E5EA] px-4 py-3 bg-white">
