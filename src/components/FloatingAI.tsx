@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useStickToBottom } from '@/hooks/useStickToBottom';
 import { usePathname } from 'next/navigation';
 import {
   MessageSquare, X, Send, Bot, User, ChevronDown,
@@ -73,19 +74,10 @@ export default function FloatingAI() {
   const [openSource, setOpenSource] = useState<ChatSource | null>(null);
   const [wrongDraft, setWrongDraft] = useState<{ id: string; comment: string } | null>(null);
   const [, setIsLoadingHistory] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isUserScrollingRef = useRef(false);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const { scrollerRef, resumeFollow } = useStickToBottom();
 
   const { mode, label, icon } = getModeFromPath(pathname);
-
-  // 智能自动滚动
-  const scrollToBottom = useCallback((force = false) => {
-    if (force || !isUserScrollingRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, []);
 
   // 发送消息
   const handleSend = async () => {
@@ -112,11 +104,10 @@ export default function FloatingAI() {
     setMessages(prev => [...prev, userMsg, assistantMsg]);
     setInput('');
     setIsChatting(true);
-    isUserScrollingRef.current = false;
+    resumeFollow();
 
     setTimeout(() => {
       inputRef.current?.focus();
-      scrollToBottom(true);
     }, 100);
 
     try {
@@ -149,7 +140,6 @@ export default function FloatingAI() {
           fullContent += data.content;
           const content = fullContent;
           setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
-          scrollToBottom();
         }
         if (data.type === 'done') {
           const historyId = typeof data.historyId === 'string' ? data.historyId : '';
@@ -201,14 +191,6 @@ export default function FloatingAI() {
     } finally {
       setIsChatting(false);
     }
-  };
-
-  // 处理滚动
-  const handleScroll = () => {
-    const el = chatContainerRef.current;
-    if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    isUserScrollingRef.current = !isNearBottom;
   };
 
   // 切换面板时聚焦输入框
@@ -280,7 +262,7 @@ export default function FloatingAI() {
         });
         setMessages(historyMessages);
         setConversationId(data.conversationId || null);
-        setTimeout(() => scrollToBottom(true), 100);
+        resumeFollow();
       } else {
         setMessages([]);
         setConversationId(null);
@@ -291,7 +273,7 @@ export default function FloatingAI() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, []);
+  }, [resumeFollow]);
 
   // mode变化时加载对应历史
   useEffect(() => {
@@ -366,13 +348,12 @@ export default function FloatingAI() {
 
           {/* 消息区域 */}
           <div
-            ref={chatContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-3"
+            ref={scrollerRef}
+            className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4"
             style={{ scrollbarWidth: 'thin', scrollbarColor: '#C7C7CC transparent' }}
           >
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="flex flex-1 flex-col items-center justify-center text-center">
                 <div className="w-16 h-16 rounded-2xl bg-[#007AFF] border border-[rgba(0,122,255,0.2)] flex items-center justify-center mb-4">
                   <Bot className="w-8 h-8 text-[#007aff]" />
                 </div>
@@ -403,6 +384,8 @@ export default function FloatingAI() {
               </div>
             )}
 
+            {messages.length > 0 && (
+            <div className="mt-auto space-y-3">
             {messages.map((msg) => (
               <div key={msg.id} className={`group flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
@@ -523,7 +506,8 @@ export default function FloatingAI() {
                 )}
               </div>
             ))}
-            <div ref={messagesEndRef} />
+            </div>
+            )}
           </div>
 
           {openSource && (

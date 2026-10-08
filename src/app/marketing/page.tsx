@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useStickToBottom } from '@/hooks/useStickToBottom';
 import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
 import { Send, Trash2, Bot, User, Loader2, ArrowLeft, Scissors, Cloud } from 'lucide-react';
@@ -22,8 +23,8 @@ export default function MarketingChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [company, setCompany] = useState('');
   const [userId, setUserId] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { scrollerRef, resumeFollow } = useStickToBottom();
 
   useEffect(() => {
     const storedCompany = localStorage.getItem('user_company') || '';
@@ -69,14 +70,6 @@ export default function MarketingChatPage() {
     }
   };
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
@@ -91,6 +84,7 @@ export default function MarketingChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
+    resumeFollow();
 
     const assistantMsg: Message = {
       id: Math.random().toString(36).slice(2),
@@ -270,8 +264,8 @@ export default function MarketingChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-6">
+      <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <div className={`w-full max-w-3xl mx-auto px-4 py-6 ${messages.length > 0 ? 'mt-auto' : ''}`}>
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center">
               <div className={cn(
@@ -335,7 +329,6 @@ export default function MarketingChatPage() {
               )}
             </div>
           ))}
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
