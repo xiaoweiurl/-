@@ -12,9 +12,11 @@ import SearchRecordActions from './SearchRecordActions';
 export default function ChatVisualMatches({
   matches,
   initialExpandedId = null,
+  returnTo,
 }: {
   matches: ChatSource[];
   initialExpandedId?: string | null;
+  returnTo?: string | null;
 }) {
   const cards = matches.filter(match => !match.empty);
   const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId);
@@ -52,7 +54,7 @@ export default function ChatVisualMatches({
       {cards.some(isProductCard) && (
         <div className="space-y-2 mb-2">
           {cards.filter(isProductCard).map((hit, index) => (
-            <ProductCard key={hit.id || `product-${index}`} hit={hit} onOpen={setExpandedId} />
+            <ProductCard key={hit.id || `product-${index}`} hit={hit} onOpen={setExpandedId} returnTo={returnTo} />
           ))}
         </div>
       )}
@@ -96,6 +98,7 @@ export default function ChatVisualMatches({
               <SearchRecordActions
                 sampleOrderPath={hit.sampleOrderPath}
                 productDetailPath={hit.productDetailPath}
+                returnTo={returnTo}
                 className="px-2"
               />
             </div>
@@ -133,6 +136,7 @@ export default function ChatVisualMatches({
             <SearchRecordActions
               sampleOrderPath={expanded.sampleOrderPath}
               productDetailPath={expanded.productDetailPath}
+              returnTo={returnTo}
               className="px-3"
             />
             {expanded.imageUrl ? (
@@ -149,7 +153,7 @@ export default function ChatVisualMatches({
   );
 }
 
-function ProductCard({ hit, onOpen }: { hit: ChatSource; onOpen: (id: string) => void }) {
+function ProductCard({ hit, onOpen, returnTo }: { hit: ChatSource; onOpen: (id: string) => void; returnTo?: string | null }) {
   const percent = typeof hit.scorePercent === 'number' ? hit.scorePercent : 0;
   const title = cardTitle(hit);
   const key = hit.id || title;
@@ -187,6 +191,7 @@ function ProductCard({ hit, onOpen }: { hit: ChatSource; onOpen: (id: string) =>
       <SearchRecordActions
         sampleOrderPath={hit.sampleOrderPath}
         productDetailPath={hit.productDetailPath}
+        returnTo={returnTo}
         className="pl-[4.5rem]"
       />
     </div>

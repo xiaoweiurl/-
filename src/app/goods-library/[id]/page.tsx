@@ -10,6 +10,12 @@ import {
   Image as ImageIcon, Sparkles,
 } from 'lucide-react';
 import { loginHref } from '@/lib/auth-redirect';
+import {
+  detailBackAction,
+  GOODS_LIBRARY_LIST,
+  performDetailBack,
+  readDetailBackContext,
+} from '@/lib/detail-return';
 
 interface SamplerNotice {
   status: string;
@@ -79,6 +85,10 @@ export default function GoodsDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
+
+  const goBack = () => {
+    performDetailBack(router, detailBackAction(readDetailBackContext(GOODS_LIBRARY_LIST)));
+  };
 
   const [detail, setDetail] = useState<GoodsDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -248,7 +258,7 @@ export default function GoodsDetailPage() {
       const data = await res.json();
       if (data.success) {
         toast.success('商品文件夹已删除');
-        router.push('/goods-library');
+        router.push(GOODS_LIBRARY_LIST);
       } else {
         toast.error(data.message || '删除失败');
       }
@@ -271,10 +281,10 @@ export default function GoodsDetailPage() {
         <ImageIcon className="w-10 h-10 text-[#8e8e93]" />
         <p className="text-sm">商品文件夹不存在或已被删除</p>
         <button
-          onClick={() => router.push('/goods-library')}
+          onClick={goBack}
           className="min-h-11 px-5 py-2.5 rounded-lg bg-[rgba(0,122,255,0.2)] border border-[rgba(0,122,255,0.3)] text-[#007aff] text-sm hover:bg-[rgba(0,122,255,0.3)] transition-colors"
         >
-          返回商品库
+          返回
         </button>
       </div>
     );
@@ -288,9 +298,12 @@ export default function GoodsDetailPage() {
       <div className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 border-b border-[rgba(0,122,255,0.15)] pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-14 sm:h-16 py-2 flex items-center gap-2 sm:gap-4">
           <button
-            onClick={() => router.push('/goods-library')}
+            type="button"
+            onClick={goBack}
+            data-testid="goods-detail-back"
             className="shrink-0 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-[rgba(118,118,128,0.12)] text-[#8e8e93] hover:text-[#1c1c1e] transition-colors"
-            title="返回商品库"
+            title="返回"
+            aria-label="返回"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>

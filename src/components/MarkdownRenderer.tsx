@@ -4,6 +4,7 @@ import React from 'react';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { productDetailHref, sampleOrderHref } from '@/lib/image-search-links';
+import { withDetailReturn } from '@/lib/detail-return';
 import type { GoodsAnswerLink } from '@/lib/goods-library-chat';
 
 interface MarkdownRendererProps {
@@ -15,6 +16,8 @@ interface MarkdownRendererProps {
   onCite?: (id: string) => void;
   /** 本公司商品库货号。正文和行内代码里的货号会打开商品详情。 */
   goodsLinks?: GoodsAnswerLink[];
+  /** 对话页路径。站内商品库 / 打样单链接带上，返回时回到对话。 */
+  returnTo?: string | null;
 }
 
 interface ResolvedGoodsLink {
@@ -84,10 +87,14 @@ function RecordAnchor({ href, testId, children }: { href: string; testId: string
   );
 }
 
-function recordAnchor(href: string | null | undefined, children: React.ReactNode): React.ReactNode {
+function recordAnchor(
+  href: string | null | undefined,
+  children: React.ReactNode,
+  returnTo?: string | null,
+): React.ReactNode {
   const sample = sampleOrderHref(href);
   const detail = productDetailHref(href);
-  const internal = sample || detail;
+  const internal = withDetailReturn(sample || detail, returnTo);
   if (!internal) return null;
   return (
     <RecordAnchor href={internal} testId={sample ? 'open-sample-order' : 'open-product-detail'}>
@@ -187,19 +194,19 @@ function preprocessLlmHtml(content: string): string {
     .join('');
 }
 
-export default function MarkdownRenderer({ content, className = '', darkMode = false, citeIds, onCite, goodsLinks }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className = '', darkMode = false, citeIds, onCite, goodsLinks, returnTo }: MarkdownRendererProps) {
   // Color helpers
   const t = (light: string, dark: string) => darkMode ? dark : light;
   const knownIds = React.useMemo(() => (citeIds ? new Set(citeIds) : null), [citeIds]);
   const resolvedGoods = React.useMemo<ResolvedGoodsLink[]>(() => {
     const links: ResolvedGoodsLink[] = [];
     for (const link of goodsLinks || []) {
-      const href = productDetailHref(link?.productDetailPath);
+      const href = withDetailReturn(productDetailHref(link?.productDetailPath), returnTo);
       const goodsNo = link?.goodsNo?.trim();
       if (href && goodsNo) links.push({ goodsNo, href });
     }
     return links;
-  }, [goodsLinks]);
+  }, [goodsLinks, returnTo]);
   const cite = (children: React.ReactNode) => mapCiteChildren(children, knownIds, onCite, resolvedGoods);
   const processedContent = React.useMemo(() => preprocessLlmHtml(content), [content]);
 
@@ -342,7 +349,7 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               const known = knownIds == null || knownIds.has(citeId);
               return <CiteChip id={citeId} known={known} onCite={onCite} />;
             }
-            const internal = recordAnchor(href, children);
+            const internal = recordAnchor(href, children, returnTo);
             if (internal) return internal;
             return (
             <a

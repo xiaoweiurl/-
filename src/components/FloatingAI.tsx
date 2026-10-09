@@ -8,6 +8,7 @@ import {
   Copy, Check, Sparkles, Loader2, Lightbulb, Globe
 } from 'lucide-react';
 import ChatAnswerBody from './ChatAnswerBody';
+import { detailReturnPath, SUPPLY_CHAIN_CHAT_RETURN } from '@/lib/detail-return';
 import ChatFeedbackBar from './ChatFeedbackBar';
 import { backendFetch } from '@/lib/backend-proxy';
 import { isSamplerSession } from '@/lib/auth';
@@ -64,6 +65,7 @@ function getModeFromPath(pathname: string): { mode: string; label: string; icon:
 // ===== 主组件 =====
 export default function FloatingAI() {
   const pathname = usePathname();
+  const chatReturnTo = detailReturnPath(pathname === '/supply-chain' ? SUPPLY_CHAIN_CHAT_RETURN : pathname);
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -456,7 +458,7 @@ export default function FloatingAI() {
                   )}
 
                   {msg.role === 'assistant' && visualMatchesFromSources(msg.sources).length > 0 && (
-                    <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} />
+                    <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} returnTo={chatReturnTo} />
                   )}
 
                   {/* 消息内容 */}
@@ -473,6 +475,7 @@ export default function FloatingAI() {
                           goodsLibrary={msg.goodsLibrary}
                           darkMode
                           citeIds={citeIdsFromSources(msg.sources)}
+                          returnTo={chatReturnTo}
                           onCite={(id) => {
                             const hit = msg.sources?.find(s => s.id === id);
                             if (hit) setOpenSource(hit);
