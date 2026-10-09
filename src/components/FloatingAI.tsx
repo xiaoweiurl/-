@@ -7,7 +7,7 @@ import {
   MessageSquare, X, Send, Bot, User, ChevronDown,
   Copy, Check, Sparkles, Loader2, Lightbulb, Globe
 } from 'lucide-react';
-import MarkdownRenderer from './MarkdownRenderer';
+import ChatAnswerBody from './ChatAnswerBody';
 import ChatFeedbackBar from './ChatFeedbackBar';
 import { backendFetch } from '@/lib/backend-proxy';
 import { isSamplerSession } from '@/lib/auth';
@@ -24,6 +24,7 @@ interface ChatMessage {
   thinkingChain?: string[];
   searchResults?: { title: string; url: string; snippet: string }[];
   sources?: ChatSource[];
+  goodsLibrary?: unknown[];
   historyId?: string;
   feedback?: 'useful' | 'wrong';
 }
@@ -135,6 +136,10 @@ export default function FloatingAI() {
         if (data.type === 'sources' && Array.isArray(data.sources)) {
           const sources = data.sources;
           setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, sources } : m));
+        }
+        if (data.type === 'goods_library' && Array.isArray(data.entries)) {
+          const goodsLibrary = data.entries;
+          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, goodsLibrary } : m));
         }
         if (data.type === 'content' && typeof data.content === 'string') {
           fullContent += data.content;
@@ -462,8 +467,10 @@ export default function FloatingAI() {
                   }`}>
                     {msg.role === 'assistant' ? (
                       <div className="text-[13px] leading-relaxed">
-                        <MarkdownRenderer
+                        <ChatAnswerBody
                           content={msg.content || (msg.isStreaming ? '' : '...')}
+                          sources={msg.sources}
+                          goodsLibrary={msg.goodsLibrary}
                           darkMode
                           citeIds={citeIdsFromSources(msg.sources)}
                           onCite={(id) => {

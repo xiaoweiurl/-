@@ -16,19 +16,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GoodsLibraryAnswerBlockTest {
 
     @Test
-    void rendersEveryRealSlotAndTheGoodsLibraryLinks() {
+    void rendersLinksWithoutPuttingSignedUrlsInTheAnswer() {
         String block = GoodsLibraryAnswerBlock.render(List.of(goodsEntry()));
 
         assertTrue(block.contains("[M19F011](/goods-library/34)"), block);
         assertTrue(block.contains("[打样单](/sampler/34)"), block);
         assertTrue(block.contains("品名：豹纹长裤"), block);
         assertTrue(block.contains("打样员：余凌辉"), block);
-        assertTrue(block.contains("![主图](https://files.example/main.jpg?sig=fixture&X-Amz-Signature=abc)"), block);
-        assertTrue(block.contains("![侧面图](https://files.example/side.jpg?sig=fixture&X-Amz-Signature=abc)"), block);
-        assertTrue(block.contains("![细节图](https://files.example/detail.jpg?sig=one)"), block);
+        assertFalse(block.contains("https://"), block);
+        assertFalse(block.contains("!["), block);
         assertFalse(block.contains("产品图"), block);
         assertFalse(block.contains("javascript:"), block);
         assertFalse(block.matches("(?s).*\\d+\\.\\d{2}.*"), block);
+
+        List<Map<String, Object>> photos = GoodsLibraryAnswerBlock.entries(List.of(goodsEntry()));
+        assertEquals(1, photos.size());
+        assertEquals("/goods-library/34", photos.get(0).get("productDetailPath"));
+        assertEquals("/sampler/34", photos.get(0).get("sampleOrderPath"));
+        assertEquals("豹纹长裤", photos.get(0).get("productName"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> images = (List<Map<String, Object>>) photos.get(0).get("images");
+        assertEquals(List.of("主图", "侧面图", "细节图"), images.stream().map(image -> image.get("slotLabel")).toList());
+        assertTrue(String.valueOf(images.get(0).get("imageUrl")).contains("/main.jpg"));
+        assertFalse(String.valueOf(images.get(0).get("imageUrl")).equals(String.valueOf(images.get(1).get("imageUrl"))));
+        assertTrue(GoodsLibraryAnswerBlock.entries(List.of(tampered())).isEmpty());
     }
 
     @Test

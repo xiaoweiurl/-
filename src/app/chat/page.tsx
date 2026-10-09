@@ -9,12 +9,11 @@ import {
   Bot, User, BookOpen, Loader2, Sparkles,
   Globe, ChevronRight, Lightbulb, Copy, Check, Zap, Paperclip, FileText, X
 } from 'lucide-react';
-import MarkdownRenderer from '@/components/MarkdownRenderer';
-import GoodsLibraryChatMedia from '@/components/GoodsLibraryChatMedia';
+import ChatAnswerBody from '@/components/ChatAnswerBody';
 import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import { isSamplerSession } from '@/lib/auth';
 import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
-import { goodsAnswerLinks, goodsLibraryChatEntries, withoutBrokenSlotImages } from '@/lib/goods-library-chat';
+import { resolveGoodsLibraryEntries } from '@/lib/goods-library-chat';
 import ChatVisualMatches from '@/components/ChatVisualMatches';
 
 // ===== 类型定义 =====
@@ -45,6 +44,7 @@ interface ChatMessage {
   reasoning?: string;
   searchResults?: string;
   sources?: ChatSource[];
+  goodsLibrary?: unknown[];
   feedback?: 'useful' | 'wrong';
   historyId?: string;
   images?: ChatImage[];
@@ -430,6 +430,16 @@ export default function ChatPage() {
             }
             return updated;
           });
+        } else if (event.type === 'goods_library' && Array.isArray(event.entries)) {
+          const goodsLibrary = event.entries;
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === 'assistant') {
+              updated[updated.length - 1] = { ...last, goodsLibrary };
+            }
+            return updated;
+          });
         } else if (event.type === 'images') {
           const images = (event.images || []) as ChatImage[];
           setMessages(prev => {
@@ -483,10 +493,10 @@ export default function ChatPage() {
           setMessages(prev => {
             const updated = [...prev];
             const last = updated[updated.length - 1];
-            if (last?.isStreaming) {
+            if (last?.role === 'assistant') {
               updated[updated.length - 1] = {
                 ...last,
-                content: last.content + piece,
+                content: (last.content || '') + piece,
               };
             }
             return updated;
@@ -854,7 +864,7 @@ export default function ChatPage() {
                       <Bot className="w-4 h-4 text-white" />
                     </div>
                   )}
-                  <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[80%]' : visualMatchesFromSources(msg.sources).length > 0 || goodsLibraryChatEntries(msg.sources).some(entry => entry.images.length > 0) ? 'w-full max-w-[40rem]' : 'max-w-[80%]'}`}>
+                  <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[80%]' : visualMatchesFromSources(msg.sources).length > 0 || resolveGoodsLibraryEntries(msg.sources, msg.goodsLibrary).some(entry => entry.images.length > 0) ? 'w-full max-w-[40rem]' : 'max-w-[80%]'}`}>
                     {/* 来源标签 */}
                     {msg.sources && msg.sources.some(s => s.source !== 'visual_match') && (
                       <div className="flex flex-wrap gap-1.5 mb-2">
@@ -940,19 +950,17 @@ export default function ChatPage() {
                           <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                         </div>
                       ) : (
-                        <>
-                          <MarkdownRenderer
-                            content={withoutBrokenSlotImages(msg.content || '', msg.sources)}
-                            darkMode
-                            citeIds={citeIdsFromSources(msg.sources)}
-                            goodsLinks={goodsAnswerLinks(msg.sources)}
-                            onCite={(id) => {
-                              const hit = msg.sources?.find(s => s.id === id);
-                              if (hit) setOpenSource(hit);
-                            }}
-                          />
-                          <GoodsLibraryChatMedia sources={msg.sources} content={msg.content || ''} />
-                        </>
+                        <ChatAnswerBody
+                          content={msg.content || ''}
+                          sources={msg.sources}
+                          goodsLibrary={msg.goodsLibrary}
+                          darkMode
+                          citeIds={citeIdsFromSources(msg.sources)}
+                          onCite={(id) => {
+                            const hit = msg.sources?.find(s => s.id === id);
+                            if (hit) setOpenSource(hit);
+                          }}
+                        />
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full

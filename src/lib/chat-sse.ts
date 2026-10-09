@@ -79,6 +79,8 @@ export interface ChatSseEvent {
 export interface ParsedChatAnswer {
   content: string;
   sources: ChatSource[];
+  /** goods_library 事件原文。来源帧被丢掉时，照片仍在这里。 */
+  goodsLibrary: unknown[];
   historyId: string;
   conversationId: string;
   isStreaming: boolean;
@@ -117,6 +119,7 @@ export function parseChatSse(text: string, flush = true): ParsedChatAnswer {
   const state: ParsedChatAnswer = {
     content: '',
     sources: [],
+    goodsLibrary: [],
     historyId: '',
     conversationId: '',
     isStreaming: true,
@@ -130,6 +133,10 @@ export function parseChatSse(text: string, flush = true): ParsedChatAnswer {
 export function applyChatSseEvent(state: ParsedChatAnswer, event: ChatSseEvent) {
   if (event.type === 'sources' && Array.isArray(event.sources)) {
     state.sources = event.sources;
+    return;
+  }
+  if (event.type === 'goods_library' && Array.isArray(event.entries)) {
+    state.goodsLibrary = event.entries;
     return;
   }
   if (event.type === 'content' && typeof event.content === 'string') {
