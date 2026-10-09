@@ -22,7 +22,7 @@ export default function GoodsLibraryChatMedia({
   const resolved = resolveGoodsLibraryEntries(sources, entries);
   if (resolved.length === 0) return null;
   return (
-    <div data-testid="goods-library-chat-media" className="mb-3 space-y-3">
+    <div data-testid="goods-library-chat-media" className="mb-6 space-y-3">
       {resolved.map((entry, index) => (
         <div key={`${entry.productDetailPath || entry.goodsNo}-${index}`}>
           {(entry.goodsNo || entry.productName) && (

@@ -225,19 +225,27 @@ test('answer markdown keeps paragraph, heading, list, and table spacing', () => 
   assert.match(html, /data-testid="goods-library-photo"/);
   assert.match(html, /href="\/goods-library\/34"/);
   assert.match(html, /href="\/sampler\/34"/);
-  assert.match(html, /<p class="[^"]*\bmb-4\b[^"]*text-\[14px\]\/\[1\.85\]/);
+  assert.match(html, /<p class="[^"]*text-\[15px\]\/\[2\.1\]/);
   assert.match(html, /class="md-heading\b/);
   const cells = html.match(/<t[dh] class="[^"]*"/g) || [];
   assert.ok(cells.length >= 2, html);
   for (const cell of cells) {
     assert.match(cell, /\bpy-3\b/);
+    assert.match(cell, /px-\[18px\]/);
     assert.match(cell, /\bwhitespace-normal\b/);
-    assert.match(cell, /text-\[13px\]\/\[1\.7\]/);
+    assert.match(cell, /text-\[14px\]\/\[2\]/);
   }
   assert.doesNotMatch(html, /whitespace-nowrap/);
 
   const css = fs.readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
-  assert.match(css, /\.markdown-body p \{[^}]*line-height:\s*1\.85/);
-  assert.match(css, /\.markdown-body \.md-heading \{[^}]*margin:\s*22px 0 12px/);
-  assert.match(css, /\.markdown-body td, \.markdown-body th \{[^}]*padding:\s*12px 16px[^}]*white-space:\s*normal/);
+  const bodyRule = css.match(/\.markdown-body \{[^}]*\}/)?.[0] || '';
+  assert.match(bodyRule, /display:\s*flex/);
+  assert.match(bodyRule, /gap:\s*16px/);
+  assert.match(bodyRule, /line-height:\s*2\.1/);
+  const listRule = css.match(/\.markdown-body ul,\s*\.markdown-body ol \{[^}]*\}/)?.[0] || '';
+  assert.match(listRule, /gap:\s*6px/);
+  const cellRule = css.match(/\.markdown-body td, \.markdown-body th \{[^}]*\}/)?.[0] || '';
+  assert.match(cellRule, /padding:\s*12px 18px/);
+  assert.match(cellRule, /line-height:\s*2/);
+  assert.match(cellRule, /white-space:\s*normal/);
 });
