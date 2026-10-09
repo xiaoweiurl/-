@@ -130,6 +130,30 @@ test('supply-chain sse keeps photos when sources omit image urls', () => {
   assert.match(html, /豹纹长裤/);
 });
 
+test('bare style number links the chip and shows only the filled main photo', () => {
+  const content = [
+    '当前业务数据库中暂无货号 M19F011 的精确生产排产明细。',
+    '',
+    '展示槽位：`M19F011`',
+  ].join('\n');
+  const source: ChatSource = {
+    ...goodsSource,
+    images: [{ imageUrl: MAIN, slotLabel: '主图' }],
+  };
+  const html = renderAnswer(content, [source]);
+
+  assert.match(html, /href="\/goods-library\/34"[^>]*>M19F011<\/a>/);
+  assert.match(html, /href="\/sampler\/34"/);
+  assert.match(html, /打开商品详情/);
+  assert.match(html, /打开打样单/);
+  assert.equal((html.match(/<code\b/g) || []).length, 0);
+  assert.equal((html.match(/data-testid="goods-library-photo"/g) || []).length, 1);
+  assert.match(html, /data-slot="主图"/);
+  assert.doesNotMatch(html, /data-slot="侧面图"/);
+  assert.doesNotMatch(html, /data-slot="细节图"/);
+  assert.doesNotMatch(html, /data-slot="产品图"/);
+});
+
 test('another company path and image-search cards are not turned into goods links', () => {
   const sources: ChatSource[] = [
     {
