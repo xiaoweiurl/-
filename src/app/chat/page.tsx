@@ -1193,7 +1193,7 @@ export default function ChatPage() {
   );
 }
 
-function citeKindLabel(source: string) {
+function citeKindLabel(source?: string) {
   if (source === 'supply_chain') return 'ERP单据';
   if (source === 'salesperson_kb') return '业务员资料';
   if (source === 'position_card') return '岗位卡片';
