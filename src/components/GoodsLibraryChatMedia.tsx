@@ -3,6 +3,7 @@
 import React from 'react';
 import SearchRecordActions from '@/components/SearchRecordActions';
 import { resolveGoodsLibraryEntries, type GoodsLibraryChatEntry } from '@/lib/goods-library-chat';
+import { withDetailReturn } from '@/lib/detail-return';
 import type { ChatSource } from '@/lib/chat-sse';
 
 /**
@@ -12,9 +13,11 @@ import type { ChatSource } from '@/lib/chat-sse';
 export default function GoodsLibraryChatMedia({
   sources,
   entries,
+  returnTo,
 }: {
   sources?: ChatSource[];
   entries?: GoodsLibraryChatEntry[] | unknown;
+  returnTo?: string | null;
 }) {
   const resolved = resolveGoodsLibraryEntries(sources, entries);
   if (resolved.length === 0) return null;
@@ -26,7 +29,7 @@ export default function GoodsLibraryChatMedia({
             <p className="mb-1.5 text-[12px] leading-5 text-[#3A3A3C]">
               {entry.productDetailPath ? (
                 <a
-                  href={entry.productDetailPath}
+                  href={withDetailReturn(entry.productDetailPath, returnTo) || entry.productDetailPath}
                   data-testid="open-product-detail"
                   className="text-[#007AFF] underline underline-offset-2"
                 >
@@ -58,6 +61,7 @@ export default function GoodsLibraryChatMedia({
           <SearchRecordActions
             sampleOrderPath={entry.sampleOrderPath}
             productDetailPath={entry.productDetailPath}
+            returnTo={returnTo}
           />
         </div>
       ))}

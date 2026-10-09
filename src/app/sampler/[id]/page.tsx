@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { Camera, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, X } from 'lucide-react';
 import SamplerSameProductSheet, { type SamplerSameProductHit } from '@/components/SamplerSameProductSheet';
 import { loginHref, samplerFormPath } from '@/lib/auth-redirect';
+import { detailBackAction, performDetailBack, readDetailBackContext, type DetailBackAction } from '@/lib/detail-return';
 import { prepareSearchImage } from '@/lib/image-search-file';
 import { isDingTalkEnv } from '@/lib/dingtalk-env';
 import { beginSingleFlight, recoverSamplerAuth, readSamplerTicketFromSearch, stripSamplerTicketFromLocation } from '@/lib/dingtalk-sso';
@@ -64,8 +65,10 @@ const fieldClass =
   'w-full min-h-12 bg-transparent text-[17px] leading-snug text-[#1C1C1E] placeholder:text-[#C7C7CC] focus:outline-none';
 
 export default function SamplerFormPage() {
+  const router = useRouter();
   const params = useParams();
   const id = typeof params?.id === 'string' ? params.id : '';
+  const [backAction, setBackAction] = useState<DetailBackAction>({ type: 'stay' });
 
   const [detail, setDetail] = useState<GoodsDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -181,6 +184,15 @@ export default function SamplerFormPage() {
   useEffect(() => {
     void fetchDetail();
   }, [fetchDetail]);
+
+  useEffect(() => {
+    setBackAction(detailBackAction(readDetailBackContext(null)));
+  }, []);
+
+  const goBack = () => {
+    const action = detailBackAction(readDetailBackContext(null));
+    performDetailBack(router, action);
+  };
 
   useEffect(() => {
     if (!detail) return;
@@ -361,6 +373,17 @@ export default function SamplerFormPage() {
     <div className="min-h-[100dvh] w-full max-w-[100vw] bg-[#F2F2F7] text-[#1C1C1E] overflow-x-hidden touch-manipulation pb-[max(7.5rem,calc(env(safe-area-inset-bottom)+6.25rem))]">
       <header className="sticky top-0 z-20 w-full pt-[env(safe-area-inset-top)]" style={frost}>
         <div className={`${col} py-3`}>
+          {backAction.type !== 'stay' && (
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label="返回"
+              data-testid="sampler-back"
+              className="-ml-2 mb-1 inline-flex min-h-11 min-w-11 items-center justify-center text-[#007AFF]"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
           <p className="text-[13px] font-medium text-[#007AFF] tracking-wide">打样任务</p>
           <h1 className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight truncate">
             {detail ? displayName(detail) : isGoodsId(id) ? '加载中' : '打样任务'}

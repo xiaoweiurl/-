@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useStickToBottom } from '@/hooks/useStickToBottom';
 import { useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backend-proxy';
@@ -18,6 +18,7 @@ import PdfExportButton from '@/components/PdfExportButton';
 import DocumentStatsDashboard from '@/components/DocumentStatsDashboard';
 import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
 import { resolveGoodsLibraryEntries } from '@/lib/goods-library-chat';
+import { SUPPLY_CHAIN_CHAT_RETURN } from '@/lib/detail-return';
 import ImageSearchEntry from '@/components/ImageSearchEntry';
 import ChatVisualMatches from '@/components/ChatVisualMatches';
 
@@ -64,6 +65,22 @@ function CopyButton({ text }: { text: string }) {
 export default function SupplyChainPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
+
+  const selectTab = (key: TabKey) => {
+    setActiveTab(key);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (key === 'chat') params.set('tab', 'chat');
+    else params.delete('tab');
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, '', qs ? `/supply-chain?${qs}` : '/supply-chain');
+  };
+
+  useLayoutEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'chat') {
+      setActiveTab('chat');
+    }
+  }, []);
 
   // AI对话状态
   const [chatMessages, setChatMessages] = useState<Array<{
@@ -440,7 +457,7 @@ export default function SupplyChainPage() {
         {/* Tab导航 */}
         <div className="flex gap-0.5 mb-4 bg-white rounded-2xl p-1 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-x-auto">
           {TABS.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            <button key={tab.key} onClick={() => selectTab(tab.key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all ${
                 activeTab === tab.key
                   ? 'bg-[#007AFF] text-white shadow-sm'
@@ -607,7 +624,7 @@ export default function SupplyChainPage() {
                         )}
 
                         {msg.role === 'assistant' && visualMatchesFromSources(msg.sources).length > 0 && (
-                          <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} />
+                          <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} returnTo={SUPPLY_CHAIN_CHAT_RETURN} />
                         )}
 
                         {/* 消息内容 */}
@@ -641,6 +658,7 @@ export default function SupplyChainPage() {
                               goodsLibrary={msg.goodsLibrary}
                               darkMode
                               citeIds={citeIdsFromSources(msg.sources)}
+                              returnTo={SUPPLY_CHAIN_CHAT_RETURN}
                               onCite={(id) => {
                                 const hit = msg.sources?.find(s => s.id === id);
                                 if (hit) setOpenSource(hit);

@@ -50,7 +50,7 @@ const answer = [
   `![细节图](${DETAIL})`,
 ].join('\n');
 
-function renderAnswer(content: string, sources?: ChatSource[], goodsLibrary?: unknown) {
+function renderAnswer(content: string, sources?: ChatSource[], goodsLibrary?: unknown, returnTo?: string) {
   return renderToStaticMarkup(
     <ChatAnswerBody
       content={content}
@@ -58,6 +58,7 @@ function renderAnswer(content: string, sources?: ChatSource[], goodsLibrary?: un
       goodsLibrary={goodsLibrary}
       citeIds={['E1']}
       darkMode
+      returnTo={returnTo}
       onCite={() => {}}
     />
   );
@@ -128,6 +129,25 @@ test('supply-chain sse keeps photos when sources omit image urls', () => {
   assert.match(html, /href="\/goods-library\/34"/);
   assert.match(html, /href="\/sampler\/34"/);
   assert.match(html, /豹纹长裤/);
+});
+
+test('chat links carry the page they should return to', () => {
+  const supply = renderAnswer(answer, [goodsSource], undefined, '/supply-chain?tab=chat');
+  assert.match(supply, /href="\/goods-library\/34\?from=%2Fsupply-chain%3Ftab%3Dchat"/);
+  assert.match(supply, /href="\/sampler\/34\?from=%2Fsupply-chain%3Ftab%3Dchat"/);
+  assert.doesNotMatch(supply, /href="\/goods-library\/34"/);
+  assert.doesNotMatch(supply, /target="_blank"/);
+
+  const designer = renderAnswer('展示槽位：`M19F011`', [{
+    ...goodsSource,
+    images: [{ imageUrl: MAIN, slotLabel: '主图' }],
+  }], undefined, '/chat');
+  assert.match(designer, /href="\/goods-library\/34\?from=%2Fchat"[^>]*>M19F011<\/a>/);
+  assert.match(designer, /href="\/sampler\/34\?from=%2Fchat"/);
+
+  const evil = renderAnswer(answer, [goodsSource], undefined, 'https://evil.test/phish');
+  assert.match(evil, /href="\/goods-library\/34"/);
+  assert.doesNotMatch(evil, /evil\.test/);
 });
 
 test('bare style number links the chip and shows only the filled main photo', () => {
