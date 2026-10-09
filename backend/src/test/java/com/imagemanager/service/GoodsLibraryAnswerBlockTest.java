@@ -67,6 +67,29 @@ class GoodsLibraryAnswerBlockTest {
     }
 
     @Test
+    void emptySlotsAreOmittedFromThePhotoPayload() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("货号", "M19F011");
+        data.put("品名", "豹纹长裤");
+        data.put("打样员", "余凌辉");
+        data.put("productDetailPath", "/goods-library/34");
+        data.put("sampleOrderPath", "/sampler/34");
+        data.put("主图图片URL", "https://files.example/main.jpg?sig=fixture");
+        data.put("侧面图图片URL", "");
+        data.put("细节图图片URL", null);
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("type", "商品库文件夹");
+        entry.put("data", data);
+
+        List<Map<String, Object>> photos = GoodsLibraryAnswerBlock.entries(List.of(entry));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> images = (List<Map<String, Object>>) photos.get(0).get("images");
+        assertEquals(List.of("主图"), images.stream().map(image -> image.get("slotLabel")).toList());
+        assertEquals("/goods-library/34", photos.get(0).get("productDetailPath"));
+        assertEquals("/sampler/34", photos.get(0).get("sampleOrderPath"));
+    }
+
+    @Test
     void messageWithoutGoodsRowDoesNotInventLinks() {
         assertEquals("", GoodsLibraryAnswerBlock.render(List.of()));
         Map<String, Object> plain = new LinkedHashMap<>();

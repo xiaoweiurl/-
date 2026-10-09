@@ -35,6 +35,7 @@ class DecisionDataServiceStyleNumberTest {
     private JdbcTemplate jdbcTemplate;
     private DecisionDataService service;
     private final List<List<Object>> goodsLibraryArgs = new ArrayList<>();
+    private boolean mainPhotoOnly;
 
     @BeforeEach
     void setUp() {
@@ -79,6 +80,7 @@ class DecisionDataServiceStyleNumberTest {
         assertTrue(sql.contains("FROM goods_library"), sql);
         assertTrue(sql.contains("u.company"), sql);
         assertTrue(sql.contains("g.user_id"), sql);
+        assertTrue(sql.contains("u.id IS NULL"), sql);
         assertTrue(args.contains("%M19F011%"));
         assertEquals(COMPANY, args.get(3));
         assertFalse(results.stream().anyMatch(entry -> "产品报价信息".equals(entry.get("type"))));
@@ -111,6 +113,30 @@ class DecisionDataServiceStyleNumberTest {
         }));
         assertFalse(goodsLibraryArgs.isEmpty());
         assertEquals(OTHER_COMPANY, goodsLibraryArgs.get(goodsLibraryArgs.size() - 1).get(3));
+    }
+
+    @Test
+    void sessionOwnedRowShowsOnlyFilledSlotsToTheDefaultCompany() {
+        mainPhotoOnly = true;
+        List<Map<String, Object>> results = service.searchStructuredForMessage("M19F011", null, COMPANY);
+
+        Map<String, Object> goods = findType(results, "商品库文件夹");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) goods.get("data");
+        assertEquals("/goods-library/34", data.get("productDetailPath"));
+        assertEquals("/sampler/34", data.get("sampleOrderPath"));
+        assertTrue(String.valueOf(data.get("主图图片URL")).contains("/main.jpg" + SIGNED_QUERY));
+        assertFalse(data.containsKey("侧面图图片URL"));
+        assertFalse(data.containsKey("细节图图片URL"));
+        assertFalse(data.containsKey("产品图图片URL"));
+        assertEquals("主图", data.get("已上传图片"));
+
+        String sql = String.valueOf(goodsLibraryArgs.get(goodsLibraryArgs.size() - 1).get(0));
+        assertTrue(sql.contains("u.id IS NULL AND COALESCE(btrim(g.user_id), '') <> ''"), sql);
+        assertEquals(COMPANY, goodsLibraryArgs.get(goodsLibraryArgs.size() - 1).get(3));
+
+        List<Map<String, Object>> other = service.searchStructuredForMessage("M19F011", null, OTHER_COMPANY);
+        assertTrue(other.stream().noneMatch(entry -> "商品库文件夹".equals(entry.get("type"))));
     }
 
     @Test
@@ -151,7 +177,7 @@ class DecisionDataServiceStyleNumberTest {
         return List.of();
     }
 
-    private static Map<String, Object> goodsRow() {
+    private Map<String, Object> goodsRow() {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", 34L);
         row.put("folder_name", "M19F011豹纹长裤");
@@ -162,8 +188,8 @@ class DecisionDataServiceStyleNumberTest {
         row.put("customer", null);
         row.put("order_no", null);
         row.put("main_image_key", "goods-library/M19F011/main.jpg");
-        row.put("side_image_key", "goods-library/M19F011/side.jpg");
-        row.put("detail_image_key", "goods-library/M19F011/detail.jpg");
+        row.put("side_image_key", mainPhotoOnly ? "  " : "goods-library/M19F011/side.jpg");
+        row.put("detail_image_key", mainPhotoOnly ? null : "goods-library/M19F011/detail.jpg");
         row.put("product_image_key", "");
         row.put("remark", null);
         return row;

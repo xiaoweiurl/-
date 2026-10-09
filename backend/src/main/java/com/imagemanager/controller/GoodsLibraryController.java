@@ -2,6 +2,7 @@ package com.imagemanager.controller;
 
 import com.imagemanager.dto.ApiResponse;
 import com.imagemanager.service.GoodsLibraryService;
+import com.imagemanager.util.SessionUtil;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,14 +47,15 @@ public class GoodsLibraryController {
             @RequestParam(value = "mainImage", required = false) MultipartFile mainImage,
             @RequestParam(value = "sideImage", required = false) MultipartFile sideImage,
             @RequestParam(value = "detailImage", required = false) MultipartFile detailImage,
-            @RequestParam(value = "productImage", required = false) MultipartFile productImage,
-            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
+            @RequestParam(value = "productImage", required = false) MultipartFile productImage) {
         Map<String, MultipartFile> images = new HashMap<>(4);
         if (mainImage != null) images.put("main", mainImage);
         if (sideImage != null) images.put("side", sideImage);
         if (detailImage != null) images.put("detail", detailImage);
         if (productImage != null) images.put("product", productImage);
-        return ApiResponse.success("创建成功", goodsLibraryService.createGoods(fields, images, sessionId));
+        // user_id 必须是 users.id。会话号对不上用户，货号回答会把整条商品库丢掉。
+        return ApiResponse.success("创建成功", goodsLibraryService.createGoods(
+                fields, images, SessionUtil.requireCurrentUserId()));
     }
 
     /**

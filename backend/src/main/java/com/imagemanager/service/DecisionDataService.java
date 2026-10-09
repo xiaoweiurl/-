@@ -594,9 +594,10 @@ public class DecisionDataService {
     /**
      * 按货号关联当前公司的商品库文件夹（goods_library）。
      * 文件夹命名规则 = 货号+品名，故用货号同时匹配 goods_no 与 folder_name；
-     * 公司取归属用户 users.company，无归属人的记录只对默认公司可见。
-     * 带出文件夹信息（发起人/打样员/品名/客户/订单号/备注）与四类图片
-     * （主图/侧面图/细节图/产品图）的 24h 签名 URL，供回答展示。
+     * 公司取归属用户 users.company。无归属人，以及 user_id 对不上 users.id
+     * （历史数据把会话号写进了 user_id）的记录，只对默认公司可见，不猜测其他公司。
+     * 带出文件夹信息（发起人/打样员/品名/客户/订单号/备注）与已上传槽位
+     * （主图/侧面图/细节图/产品图）的 24h 签名 URL。空槽位不签名、不编造。
      */
     private List<Map<String, Object>> queryGoodsLibraryByHuohao(String code, String company) {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -609,9 +610,11 @@ public class DecisionDataService {
                             + "LEFT JOIN users u ON u.id::text = g.user_id::text "
                             + "WHERE (g.goods_no ILIKE ? OR g.folder_name ILIKE ?) "
                             + "AND (btrim(COALESCE(u.company, '')) = ? "
-                            + "OR (COALESCE(btrim(g.user_id), '') = '' AND ? = ?)) "
+                            + "OR (COALESCE(btrim(g.user_id), '') = '' AND ? = ?) "
+                            + "OR (u.id IS NULL AND COALESCE(btrim(g.user_id), '') <> '' AND ? = ?)) "
                             + "ORDER BY g.created_at DESC LIMIT 5",
                     "%" + code + "%", "%" + code + "%", viewerCompany,
+                    ImageSearchFilters.DEFAULT_COMPANY, viewerCompany,
                     ImageSearchFilters.DEFAULT_COMPANY, viewerCompany);
             if (rows == null) {
                 return out;
