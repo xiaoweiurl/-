@@ -204,33 +204,33 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
   const processedContent = React.useMemo(() => preprocessLlmHtml(content), [content]);
 
   return (
-    <div className={`markdown-body ${className}`}>
+    <div className={`markdown-body min-w-0 max-w-full ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         urlTransform={(url) => (url.startsWith('cite:') ? url : defaultUrlTransform(url))}
         components={{
           // 段落
           p: ({ children }) => (
-            <p className={`mb-3 last:mb-0 leading-[1.8] text-[13px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>{cite(children)}</p>
+            <p className={`mb-4 last:mb-0 text-[14px]/[1.85] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>{cite(children)}</p>
           ),
           // 标题 - 简洁装饰线
           h1: ({ children }) => (
-            <div className="mb-3 mt-5 first:mt-0">
-              <h1 className={`text-[15px] font-bold mb-1.5 ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</h1>
+            <div className="md-heading mb-3 mt-6 first:mt-0">
+              <h1 className={`text-[15px]/[1.45] font-bold mb-1.5 ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</h1>
               <div className={`h-[2px] w-10 rounded-full ${t('bg-[rgba(118,118,128,0.12)]', 'bg-[#007aff]')}`} />
             </div>
           ),
           h2: ({ children }) => (
-            <div className="mb-2.5 mt-4 first:mt-0">
+            <div className="md-heading mb-3 mt-6 first:mt-0">
               <div className="flex items-center gap-2.5 mb-1">
                 <div className={`w-[3px] h-4 rounded-full shrink-0 ${t('bg-[rgba(0,0,0,0.08)]', 'bg-[#007aff]')}`} />
-                <h2 className={`text-[14px] font-bold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</h2>
+                <h2 className={`text-[14px]/[1.45] font-bold ${t('text-[#1C1C1E]', 'text-[#1C1C1E]')}`}>{cite(children)}</h2>
               </div>
             </div>
           ),
           h3: ({ children }) => (
-            <div className="mb-2 mt-3 first:mt-0">
-              <h3 className={`text-[13px] font-semibold flex items-center gap-2 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
+            <div className="md-heading mb-3 mt-5 first:mt-0">
+              <h3 className={`text-[13px]/[1.45] font-semibold flex items-center gap-2 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
                 <span className={`inline-block w-1.5 h-1.5 rounded-sm shrink-0 ${t('bg-[rgba(0,0,0,0.1)]', 'bg-[#007aff]')}`} />
                 {cite(children)}
               </h3>
@@ -238,12 +238,12 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           ),
           // 无序列表
           ul: ({ children }) => (
-            <ul className="mb-3 ml-1 space-y-1.5 [&>li]:flex [&>li]:items-start [&>li]:gap-2">
+            <ul className="mb-4 ml-1 space-y-2 [&>li]:flex [&>li]:items-start [&>li]:gap-2.5">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="mb-3 ml-1 space-y-1.5 list-none counter-reset-list">
+            <ol className="mb-4 ml-1 space-y-2 list-none counter-reset-list">
               {children}
             </ol>
           ),
@@ -257,16 +257,16 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
               : children;
 
             return (
-              <li className={`text-[13px] leading-[1.8] flex items-start gap-2.5 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
-                <span className={`inline-block w-[5px] h-[5px] rounded-full shrink-0 mt-[8px] ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
-                <span className="flex-1 min-w-0">
+              <li className={`text-[14px]/[1.85] flex items-start gap-2.5 ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
+                <span className={`inline-block w-[5px] h-[5px] rounded-full shrink-0 mt-[10px] ${t('bg-[rgba(0,0,0,0.12)]', 'bg-[#007aff]')}`} />
+                <div className="flex-1 min-w-0">
                   {cite(textChildren)}
                   {hasSubList && (
-                    <div className="mt-1 ml-0">
+                    <div className="mt-2 ml-0">
                       {childArray.filter((c) => React.isValidElement(c) && (c.type === 'ul' || c.type === 'ol'))}
                     </div>
                   )}
-                </span>
+                </div>
               </li>
             );
           },
@@ -360,8 +360,8 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
           },
           // 表格
           table: ({ children }) => (
-            <div className={`my-3 overflow-x-auto rounded-xl border shadow-sm ${t('border-[rgba(229,229,234,0.8)]', 'border-[rgba(229,229,234,0.5)]')}`}>
-              <table className="min-w-full text-[12px]">{children}</table>
+            <div className={`my-4 overflow-x-auto rounded-xl border shadow-sm ${t('border-[rgba(229,229,234,0.8)]', 'border-[rgba(229,229,234,0.5)]')}`}>
+              <table className="min-w-full text-[13px]/[1.7]">{children}</table>
             </div>
           ),
           thead: ({ children }) => (
@@ -374,12 +374,12 @@ export default function MarkdownRenderer({ content, className = '', darkMode = f
             <tr className={`${t('hover:bg-[rgba(242,242,247,0.8)]', 'hover:bg-[rgba(0,0,0,0.015)]')} transition-colors`}>{children}</tr>
           ),
           th: ({ children }) => (
-            <th className={`px-4 py-2 text-left font-semibold whitespace-nowrap text-[12px] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
+            <th className={`px-4 py-3 align-top text-left font-semibold whitespace-normal text-[13px]/[1.7] ${t('text-[#1c1c1e]', 'text-[#1c1c1e]')}`}>
               {cite(children)}
             </th>
           ),
           td: ({ children }) => (
-            <td className={`px-4 py-2 whitespace-nowrap text-[12px] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{cite(children)}</td>
+            <td className={`px-4 py-3 align-top whitespace-normal text-[13px]/[1.7] ${t('text-[#3a3a3c]', 'text-[#3a3a3c]')}`}>{cite(children)}</td>
           ),
           // 删除线
           del: ({ children }) => (

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { test } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -184,4 +185,39 @@ test('another company path and image-search cards are not turned into goods link
   }]);
   assert.equal(html.includes('goods-library-photo'), false);
   assert.doesNotMatch(html, /href="\/goods-library\/34"/);
+});
+
+test('answer markdown keeps paragraph, heading, list, and table spacing', () => {
+  const content = [
+    '针对货号 M19F011 推进利润目标。当前需先核对已录入的基础信息。',
+    '',
+    '## 二、50%利润目标倒推测算框架',
+    '',
+    '- 直接材料成本按用量和损耗核算',
+    '- 制造加工成本按机台费率核算',
+    '',
+    '| 成本维度 | 核算公式 | 管控动作 |',
+    '| --- | --- | --- |',
+    '| 直接材料成本 | 面辅料采购单价 × 单件用量 × (1+损耗率) | 录入该货号完整BOM，并核对物料规格 |',
+  ].join('\n');
+  const html = renderAnswer(content, [goodsSource]);
+
+  assert.match(html, /data-testid="goods-library-photo"/);
+  assert.match(html, /href="\/goods-library\/34"/);
+  assert.match(html, /href="\/sampler\/34"/);
+  assert.match(html, /<p class="[^"]*\bmb-4\b[^"]*text-\[14px\]\/\[1\.85\]/);
+  assert.match(html, /class="md-heading\b/);
+  const cells = html.match(/<t[dh] class="[^"]*"/g) || [];
+  assert.ok(cells.length >= 2, html);
+  for (const cell of cells) {
+    assert.match(cell, /\bpy-3\b/);
+    assert.match(cell, /\bwhitespace-normal\b/);
+    assert.match(cell, /text-\[13px\]\/\[1\.7\]/);
+  }
+  assert.doesNotMatch(html, /whitespace-nowrap/);
+
+  const css = fs.readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
+  assert.match(css, /\.markdown-body p \{[^}]*line-height:\s*1\.85/);
+  assert.match(css, /\.markdown-body \.md-heading \{[^}]*margin:\s*22px 0 12px/);
+  assert.match(css, /\.markdown-body td, \.markdown-body th \{[^}]*padding:\s*12px 16px[^}]*white-space:\s*normal/);
 });
