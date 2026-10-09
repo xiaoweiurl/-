@@ -940,17 +940,19 @@ export default function ChatPage() {
                           <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                         </div>
                       ) : (
-                        <MarkdownRenderer
-                          content={withoutBrokenSlotImages(msg.content || '', msg.sources)}
-                          darkMode
-                          citeIds={citeIdsFromSources(msg.sources)}
-                          goodsLinks={goodsAnswerLinks(msg.sources)}
-                          onCite={(id) => {
-                            const hit = msg.sources?.find(s => s.id === id);
-                            if (hit) setOpenSource(hit);
-                          }}
-                        />
-                        <GoodsLibraryChatMedia sources={msg.sources} content={msg.content || ''} />
+                        <>
+                          <MarkdownRenderer
+                            content={withoutBrokenSlotImages(msg.content || '', msg.sources)}
+                            darkMode
+                            citeIds={citeIdsFromSources(msg.sources)}
+                            goodsLinks={goodsAnswerLinks(msg.sources)}
+                            onCite={(id) => {
+                              const hit = msg.sources?.find(s => s.id === id);
+                              if (hit) setOpenSource(hit);
+                            }}
+                          />
+                          <GoodsLibraryChatMedia sources={msg.sources} content={msg.content || ''} />
+                        </>
                       )}
                       {msg.isStreaming && (
                         <span className={`inline-block w-1.5 h-4 ml-0.5 align-middle animate-pulse rounded-full
@@ -1191,7 +1193,7 @@ export default function ChatPage() {
   );
 }
 
-function citeKindLabel(source: string) {
+function citeKindLabel(source?: string) {
   if (source === 'supply_chain') return 'ERP单据';
   if (source === 'salesperson_kb') return '业务员资料';
   if (source === 'position_card') return '岗位卡片';
