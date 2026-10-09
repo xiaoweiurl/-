@@ -14,6 +14,7 @@ import ChatFeedbackBar from '@/components/ChatFeedbackBar';
 import { isSamplerSession } from '@/lib/auth';
 import { citeIdsFromSources, mapHistoryChatMessage, takeSseEvents, visualMatchesFromSources, type ChatSseEvent, type ChatSource } from '@/lib/chat-sse';
 import { resolveGoodsLibraryEntries } from '@/lib/goods-library-chat';
+import { CHAT_PAGE_RETURN } from '@/lib/detail-return';
 import ChatVisualMatches from '@/components/ChatVisualMatches';
 
 // ===== 类型定义 =====
@@ -922,7 +923,7 @@ export default function ChatPage() {
                     )}
 
                     {msg.role === 'assistant' && visualMatchesFromSources(msg.sources).length > 0 && (
-                      <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} />
+                      <ChatVisualMatches matches={visualMatchesFromSources(msg.sources)} returnTo={CHAT_PAGE_RETURN} />
                     )}
 
                     {/* 消息内容 */}
@@ -956,6 +957,7 @@ export default function ChatPage() {
                           goodsLibrary={msg.goodsLibrary}
                           darkMode
                           citeIds={citeIdsFromSources(msg.sources)}
+                          returnTo={CHAT_PAGE_RETURN}
                           onCite={(id) => {
                             const hit = msg.sources?.find(s => s.id === id);
                             if (hit) setOpenSource(hit);

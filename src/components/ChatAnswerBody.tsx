@@ -17,6 +17,7 @@ export default function ChatAnswerBody({
   darkMode = false,
   citeIds,
   onCite,
+  returnTo,
 }: {
   content: string;
   sources?: ChatSource[];
@@ -24,15 +25,18 @@ export default function ChatAnswerBody({
   darkMode?: boolean;
   citeIds?: string[];
   onCite?: (id: string) => void;
+  /** 当前对话页。商品详情和打样单返回时回到这里，而不是商品库列表。 */
+  returnTo?: string | null;
 }) {
   return (
     <>
-      <GoodsLibraryChatMedia sources={sources} entries={goodsLibrary} />
+      <GoodsLibraryChatMedia sources={sources} entries={goodsLibrary} returnTo={returnTo} />
       <MarkdownRenderer
         content={withoutBrokenSlotImages(content || '', sources, goodsLibrary)}
         darkMode={darkMode}
         citeIds={citeIds}
         goodsLinks={goodsAnswerLinks(sources, goodsLibrary)}
+        returnTo={returnTo}
         onCite={onCite}
       />
     </>
