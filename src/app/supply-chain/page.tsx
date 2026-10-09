@@ -627,17 +627,19 @@ export default function SupplyChainPage() {
                               <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.content}</div>
                             </div>
                           ) : msg.content ? (
-                            <MarkdownRenderer
-                              content={withoutBrokenSlotImages(msg.content || '', msg.sources)}
-                              darkMode
-                              citeIds={citeIdsFromSources(msg.sources)}
-                              goodsLinks={goodsAnswerLinks(msg.sources)}
-                              onCite={(id) => {
-                                const hit = msg.sources?.find(s => s.id === id);
-                                if (hit) setOpenSource(hit);
-                              }}
-                            />
-                            <GoodsLibraryChatMedia sources={msg.sources} content={msg.content || ''} />
+                            <>
+                              <MarkdownRenderer
+                                content={withoutBrokenSlotImages(msg.content || '', msg.sources)}
+                                darkMode
+                                citeIds={citeIdsFromSources(msg.sources)}
+                                goodsLinks={goodsAnswerLinks(msg.sources)}
+                                onCite={(id) => {
+                                  const hit = msg.sources?.find(s => s.id === id);
+                                  if (hit) setOpenSource(hit);
+                                }}
+                              />
+                              <GoodsLibraryChatMedia sources={msg.sources} content={msg.content || ''} />
+                            </>
                           ) : (
                             /* AI 思考中加载动画 */
                             <div className="flex items-center gap-3 py-1">
