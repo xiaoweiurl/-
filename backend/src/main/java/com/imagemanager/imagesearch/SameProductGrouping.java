@@ -1,5 +1,6 @@
 package com.imagemanager.imagesearch;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -181,19 +182,38 @@ public final class SameProductGrouping {
     }
 
     /**
-     * 多条关联算不可靠，不并进商品。唯一一条，并且有货号或商品 id，才并。
+     * 关联到不同货号时不可靠，不并进商品，卡片上也不标货号。
+     * 同一货号写了多行（大小写、空格不同）仍然算同一款，取 id 较小的那条。
      */
     static ImageSearchModels.GoodsBrief reliableLink(ImageSearchModels.ImageSearchHitView hit) {
         List<ImageSearchModels.GoodsBrief> related = hit.getRelatedGoods();
-        if (related == null || related.size() != 1 || related.get(0) == null) {
+        if (related == null || related.isEmpty()) {
             return null;
         }
-        ImageSearchModels.GoodsBrief brief = related.get(0);
-        boolean hasNo = brief.getGoodsNo() != null && !brief.getGoodsNo().isBlank();
-        if (!hasNo && brief.getId() <= 0) {
-            return null;
+        String identity = null;
+        ImageSearchModels.GoodsBrief chosen = null;
+        for (ImageSearchModels.GoodsBrief brief : related) {
+            if (brief == null) {
+                continue;
+            }
+            boolean hasNo = brief.getGoodsNo() != null && !brief.getGoodsNo().isBlank();
+            if (!hasNo && brief.getId() <= 0) {
+                continue;
+            }
+            String key = goodsIdentity(brief.getGoodsNo(), brief.getId() > 0 ? Long.toString(brief.getId()) : "");
+            if (identity == null) {
+                identity = key;
+                chosen = brief;
+                continue;
+            }
+            if (!identity.equals(key)) {
+                return null;
+            }
+            if (brief.getId() > 0 && (chosen.getId() <= 0 || brief.getId() < chosen.getId())) {
+                chosen = brief;
+            }
         }
-        return brief;
+        return chosen;
     }
 
     private static ImageSearchModels.ImageThumb thumb(ImageSearchModels.ImageSearchHitView hit) {
@@ -209,10 +229,22 @@ public final class SameProductGrouping {
     }
 
     static String goodsIdentity(String goodsNo, String fallbackId) {
-        if (goodsNo != null && !goodsNo.isBlank()) {
-            return "goods-no:" + goodsNo.trim().toLowerCase(Locale.ROOT);
+        String canonical = canonicalGoodsNo(goodsNo);
+        if (!canonical.isEmpty()) {
+            return "goods-no:" + canonical;
         }
         return "goods-id:" + text(fallbackId);
+    }
+
+    /**
+     * 货号比对：全角转半角、去掉空白、忽略大小写。连字符保留，避免把 AB-1 和 AB1 收成一款。
+     */
+    static String canonicalGoodsNo(String goodsNo) {
+        if (goodsNo == null || goodsNo.isBlank()) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(goodsNo.trim(), Normalizer.Form.NFKC);
+        return normalized.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
     }
 
     private static float scoreOf(Bucket bucket, double bonusPerExtra, double bonusCap) {

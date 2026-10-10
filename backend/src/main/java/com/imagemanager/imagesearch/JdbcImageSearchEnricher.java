@@ -14,8 +14,10 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 用数据库里的现况补全结果：删掉已删除素材，并挂上商品库/打样记录。
@@ -80,8 +82,15 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
                 }
                 view.setAlbumName(text(row.get("album_name")));
                 view.setCreatedAt(epochMillis(row.get("created_at")));
-                view.setProductId(text(row.get("product_id")));
-                view.setRelatedGoods(related.getOrDefault(text(row.get("product_id")), List.of()));
+                String productId = text(row.get("product_id")).trim();
+                view.setProductId(productId);
+                view.setRelatedGoods(related.getOrDefault(productId, List.of()));
+                if (view.getGoods() == null) {
+                    ImageSearchModels.GoodsBrief reliable = SameProductGrouping.reliableLink(view);
+                    if (reliable != null) {
+                        view.setGoods(reliable);
+                    }
+                }
                 views.add(view);
             } else if (ImageSearchFilters.SOURCE_GOODS.equals(record.source())) {
                 Long id = parseLong(record.sourceId()).orElse(null);
@@ -114,9 +123,9 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
     }
 
     private Map<String, List<ImageSearchModels.GoodsBrief>> loadRelated(Collection<Map<String, Object>> images, String company) {
-        List<String> productIds = new ArrayList<>();
+        Set<String> productIds = new LinkedHashSet<>();
         for (Map<String, Object> image : images) {
-            String productId = text(image.get("product_id"));
+            String productId = text(image.get("product_id")).trim();
             if (!productId.isBlank() && !deleted(image)) {
                 String rowCompany = ImageSearchFilters.normalizeCompany(text(image.get("company")), company);
                 if (company.equals(rowCompany)) {
@@ -128,28 +137,31 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
         if (productIds.isEmpty()) {
             return grouped;
         }
-        String placeholders = placeholders(productIds.size());
-        Object[] args = new Object[productIds.size() * 2];
-        for (int i = 0; i < productIds.size(); i++) {
-            args[i] = productIds.get(i);
-            args[productIds.size() + i] = productIds.get(i);
+        List<String> ids = new ArrayList<>(productIds);
+        String placeholders = placeholders(ids.size());
+        Object[] args = new Object[ids.size() * 2];
+        for (int i = 0; i < ids.size(); i++) {
+            args[i] = SameProductGrouping.canonicalGoodsNo(ids.get(i));
+            args[ids.size() + i] = ids.get(i);
         }
+        // 货号比较要和 SameProductGrouping.canonicalGoodsNo 的大小写、空白规则一致。全角仍靠 Java 侧 NFKC。
         List<Map<String, Object>> rows = txTemplate.execute(status -> jdbcTemplate.queryForList(
                 "SELECT id, folder_name, goods_no, product_name, sampler, initiator, customer, order_no "
-                        + "FROM goods_library WHERE goods_no IN (" + placeholders + ") "
+                        + "FROM goods_library WHERE regexp_replace(lower(btrim(goods_no)), '[[:space:]]+', '', 'g') IN ("
+                        + placeholders + ") "
                         + "OR CAST(id AS varchar) IN (" + placeholders + ") ORDER BY id",
                 args));
         if (rows == null) {
             return grouped;
         }
+        List<ImageSearchModels.GoodsBrief> briefs = new ArrayList<>();
         for (Map<String, Object> row : rows) {
-            ImageSearchModels.GoodsBrief brief = toBrief(row);
-            attach(grouped, brief.getGoodsNo(), brief);
-            attach(grouped, Long.toString(brief.getId()), brief);
+            briefs.add(toBrief(row));
         }
-        for (Map.Entry<String, List<ImageSearchModels.GoodsBrief>> entry : grouped.entrySet()) {
-            if (entry.getValue().size() > 3) {
-                entry.setValue(new ArrayList<>(entry.getValue().subList(0, 3)));
+        for (String productId : ids) {
+            List<ImageSearchModels.GoodsBrief> chosen = RelatedGoodsLinks.choose(productId, briefs);
+            if (!chosen.isEmpty()) {
+                grouped.put(productId, chosen);
             }
         }
         return grouped;
@@ -206,22 +218,14 @@ public class JdbcImageSearchEnricher implements ImageSearchEnricher {
     private static ImageSearchModels.GoodsBrief toBrief(Map<String, Object> row) {
         ImageSearchModels.GoodsBrief brief = new ImageSearchModels.GoodsBrief();
         brief.setId(((Number) row.get("id")).longValue());
-        brief.setFolderName(text(row.get("folder_name")));
-        brief.setGoodsNo(text(row.get("goods_no")));
-        brief.setProductName(text(row.get("product_name")));
-        brief.setSampler(text(row.get("sampler")));
-        brief.setInitiator(text(row.get("initiator")));
-        brief.setCustomer(text(row.get("customer")));
-        brief.setOrderNo(text(row.get("order_no")));
+        brief.setFolderName(text(row.get("folder_name")).trim());
+        brief.setGoodsNo(text(row.get("goods_no")).trim());
+        brief.setProductName(text(row.get("product_name")).trim());
+        brief.setSampler(text(row.get("sampler")).trim());
+        brief.setInitiator(text(row.get("initiator")).trim());
+        brief.setCustomer(text(row.get("customer")).trim());
+        brief.setOrderNo(text(row.get("order_no")).trim());
         return brief;
-    }
-
-    private static void attach(Map<String, List<ImageSearchModels.GoodsBrief>> grouped,
-                               String key, ImageSearchModels.GoodsBrief brief) {
-        if (key == null || key.isBlank()) {
-            return;
-        }
-        grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(brief);
     }
 
     private static boolean deleted(Map<String, Object> row) {

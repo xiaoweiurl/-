@@ -324,10 +324,12 @@ image-search:
   internal-top-k-factor: ${IMAGE_SEARCH_INTERNAL_TOPK_FACTOR:5}
   # 图文条件：时间/打样员/相册在补全后过滤，内部多取一些再滤。
   condition-fetch-factor: ${IMAGE_SEARCH_CONDITION_FETCH_FACTOR:3}
-  # final = 图片分 * image + 文字分 * text。文字分低于 floor 才丢，默认不因文字分清空。
+  # final = 图片分 * image + 文字分 * text。
+  # floor 是绝对下限。margin 是相对这批最高文字分的差距，差得远的颜色/材质丢掉；最贴近的一条留着。
   text-rerank-image-weight: ${IMAGE_SEARCH_TEXT_IMAGE_WEIGHT:0.65}
   text-rerank-text-weight: ${IMAGE_SEARCH_TEXT_TEXT_WEIGHT:0.35}
   text-score-floor: ${IMAGE_SEARCH_TEXT_SCORE_FLOOR:0}
+  text-score-margin: ${IMAGE_SEARCH_TEXT_SCORE_MARGIN:0.18}
   # 打样页拍照查同款。总开关关闭时无效。只查本公司商品图。
   sampler-enabled: ${IMAGE_SEARCH_SAMPLER_ENABLED:true}
   milvus-host: ${MILVUS_HOST:localhost}

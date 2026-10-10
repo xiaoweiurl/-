@@ -86,6 +86,43 @@ class SameProductGroupingTest {
     }
 
     @Test
+    void goodsNumbersThatDifferOnlyByCaseOrSpaceMerge() {
+        List<ImageSearchModels.ImageSearchHitView> cards = SameProductGrouping.group(List.of(
+                goods("9", "main", 0.70f, "H 100", "蕾丝", "https://a"),
+                goods("12", "side", 0.60f, "ｈ100", "蕾丝", "https://b")
+        ), 5, 0d, 0d, 0d);
+        assertEquals(1, cards.size());
+        assertEquals("H 100", cards.get(0).getGoods().getGoodsNo());
+        assertEquals(1, cards.get(0).getImages().size());
+    }
+
+    @Test
+    void hyphenatedGoodsNumbersStaySeparate() {
+        List<ImageSearchModels.ImageSearchHitView> cards = SameProductGrouping.group(List.of(
+                goods("1", "main", 0.80f, "AB-1", "甲", "https://a"),
+                goods("2", "main", 0.70f, "AB1", "乙", "https://b")
+        ), 5, 0d, 0d, 0d);
+        assertEquals(2, cards.size());
+    }
+
+    @Test
+    void duplicateRowsOfTheSameGoodsNumberMerge() {
+        ImageSearchModels.ImageSearchHitView library = library("lib-1", 0.66f, "");
+        ImageSearchModels.GoodsBrief later = new ImageSearchModels.GoodsBrief();
+        later.setId(12);
+        later.setGoodsNo("H100");
+        ImageSearchModels.GoodsBrief earlier = new ImageSearchModels.GoodsBrief();
+        earlier.setId(4);
+        earlier.setGoodsNo("h 100");
+        library.setRelatedGoods(List.of(later, earlier));
+        ImageSearchModels.ImageSearchHitView product = goods("4", "main", 0.50f, "H100", "蕾丝", "https://img/main");
+        List<ImageSearchModels.ImageSearchHitView> cards = SameProductGrouping.group(
+                List.of(library, product), 5, 0d, 0d, 0d);
+        assertEquals(1, cards.size());
+        assertEquals("H100", cards.get(0).getGoods().getGoodsNo());
+    }
+
+    @Test
     void differentCompaniesDoNotMerge() {
         ImageSearchModels.ImageSearchHitView left = goods("1", "main", 0.9f, "H1", "甲", "https://a");
         left.setCompany("宝娜斯集团");

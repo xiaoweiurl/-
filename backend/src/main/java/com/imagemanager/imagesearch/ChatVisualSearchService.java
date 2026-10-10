@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * 对话上传图片后的以图搜图。素材和商品库一起查。
  * 开关关闭、向量服务不可用、或打样会话时不搜，对话继续走原来的识图。
- * 同款和相似素材分属两个策略；短文本先看整图集合的第一条再决定。
+ * 同款和相似素材分属两个策略；短文本先用整图集合看商品命中离最高分有多近，再决定。
  * 图片附带的文字条件会收窄结果，并写进给模型的摘要。
  */
 @Slf4j
@@ -148,7 +148,7 @@ public class ChatVisualSearchService {
     }
 
     /**
-     * 短文本先用整图集合看第一条。决定后的场景如果也用整图，这次结果直接留下，不再查第二次。
+     * 短文本先用整图集合看商品命中离最高分有多近。决定后的场景如果也用整图，这次结果直接留下，不再查第二次。
      */
     private Probed probeAndCollect(byte[] bytes, String filename, String company, int limit,
                                    boolean cropReady, String scope, ImageSearchCondition.Parsed parsed) {

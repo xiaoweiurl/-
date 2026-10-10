@@ -61,6 +61,48 @@ class CropFallbackTest(unittest.TestCase):
         self.assertEqual(mode, "full")
         self.assertEqual(prepared.size, image.size)
 
+    def test_person_box_loses_to_a_weaker_clothing_box(self):
+        image = Image.new("RGB", (400, 400), "white")
+        prepared, mode = crop.preprocess(
+            image,
+            _Boxes([
+                {"score": 0.92, "label": "person", "box": [10, 10, 390, 390]},
+                {"score": 0.35, "label": "clothing", "box": [100, 80, 300, 330]},
+            ]),
+            enabled=True,
+            threshold=0.2,
+            padding_ratio=0,
+        )
+        self.assertEqual(mode, "crop")
+        self.assertLess(prepared.width, 250)
+        self.assertGreater(prepared.width, 150)
+
+    def test_tiny_box_is_left_as_the_whole_image(self):
+        image = Image.new("RGB", (400, 400), "white")
+        prepared, mode = crop.preprocess(
+            image,
+            _Boxes([{"score": 0.95, "label": "clothing", "box": [10, 10, 40, 40]}]),
+            enabled=True,
+            threshold=0.2,
+        )
+        self.assertEqual(mode, "full")
+        self.assertEqual(prepared.size, image.size)
+
+    def test_high_score_tag_loses_to_the_larger_garment(self):
+        image = Image.new("RGB", (400, 400), "white")
+        prepared, mode = crop.preprocess(
+            image,
+            _Boxes([
+                {"score": 0.95, "label": "garment", "box": [10, 10, 120, 120]},
+                {"score": 0.32, "label": "clothing", "box": [100, 50, 300, 350]},
+            ]),
+            enabled=True,
+            threshold=0.2,
+            padding_ratio=0,
+        )
+        self.assertEqual(mode, "crop")
+        self.assertGreater(prepared.width, 150)
+
     def test_confident_box_crops_with_padding_inside_frame(self):
         image = Image.new("RGB", (200, 160), "blue")
         prepared, mode = crop.preprocess(

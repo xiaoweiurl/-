@@ -4,7 +4,9 @@
 检测器：google/owlv2-base-patch16-ensemble（OWLv2，Apache-2.0）。
 选它是因为 transformers 4.57 自带 Owlv2Processor / Owlv2ForObjectDetection，
 不用另装检测库，RTX 5090 + torch 2.14 cu130 可以 fp16 跑。
-提示词是 clothing / garment / person。检不出、或图太小，就用整张图。
+提示词是 clothing / garment / person。衣服框优先于人物框：人物框分数常常更高，
+但会把脸和姿势留在图里，别的款仍会靠模特撞上。框太小（吊牌、扣子）、
+分数不够、几乎盖住整张图，或图太小，就用整张图。
 
 权重从 HF_ENDPOINT 下载。国内默认 https://hf-mirror.com。
 图像后处理会导入 scipy.ndimage（Owlv2ImageProcessor.resize）。requirements.txt 里有 scipy。
@@ -27,6 +29,9 @@ DEFAULT_PADDING = 0.12
 DEFAULT_THRESHOLD = 0.20
 # 框住了几乎整张图时，裁切没有意义，当没检出。
 MAX_COVER = 0.96
+# 小于这个面积比例的框多半是吊牌、扣子或局部，裁进去会和别的小物件撞车，也丢掉衣服本身。
+MIN_AREA_RATIO = 0.06
+GARMENT_LABELS = frozenset({"clothing", "garment"})
 
 
 class Detector(Protocol):
@@ -39,26 +44,56 @@ def image_too_small(image: Image.Image, min_side: int = DEFAULT_MIN_SIDE) -> boo
     return min(width, height) < min_side
 
 
-def select_box(detections: Sequence[dict], threshold: float) -> Optional[list]:
-    best_score = threshold
-    best_box = None
-    found = False
+def _box_area_ratio(box: Sequence[float], width: int, height: int) -> float:
+    x0, y0, x1, y1 = box
+    if x1 < x0:
+        x0, x1 = x1, x0
+    if y1 < y0:
+        y0, y1 = y1, y0
+    area = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    return area / float(max(1, width * height))
+
+
+def _pick_subject(pool: list[tuple[float, float, list]]) -> Optional[list]:
+    """同一类里，先丢掉不到最大框一半的小框，再取得分最高的。
+
+    吊牌分数可以很高，但面积远小于衣服。只按分数选会裁到吊牌。
+    """
+    if not pool:
+        return None
+    largest = max(item[0] for item in pool)
+    eligible = [item for item in pool if item[0] >= largest * 0.5]
+    eligible.sort(key=lambda item: (item[1], item[0]), reverse=True)
+    return eligible[0][2]
+
+
+def select_box(detections: Sequence[dict], threshold: float,
+               width: int = 0, height: int = 0) -> Optional[list]:
+    """衣服框优先。没有标签的框按衣服处理。人物框只在没有衣服框时使用。"""
+    garments: list[tuple[float, float, list]] = []
+    people: list[tuple[float, float, list]] = []
     for item in detections or []:
         try:
             score = float(item.get("score", 0.0))
             box = item.get("box")
+            label = str(item.get("label") or "").strip().lower()
         except (TypeError, AttributeError):
             continue
-        if box is None or len(box) != 4:
+        if box is None or len(box) != 4 or score < threshold:
             continue
-        if not found or score > best_score:
-            # 第一条必须达到阈值；之后取得分更高的。
-            if not found and score < threshold:
+        coords = [float(value) for value in box]
+        if width > 0 and height > 0:
+            ratio = _box_area_ratio(coords, width, height)
+            if ratio < MIN_AREA_RATIO:
                 continue
-            best_score = score
-            best_box = [float(value) for value in box]
-            found = True
-    return best_box
+        else:
+            ratio = 1.0
+        entry = (ratio, score, coords)
+        if label in GARMENT_LABELS or label == "":
+            garments.append(entry)
+        elif label == "person":
+            people.append(entry)
+    return _pick_subject(garments if garments else people)
 
 
 def pad_box(box: Sequence[float], width: int, height: int, padding_ratio: float):
@@ -101,7 +136,7 @@ def preprocess(image: Image.Image, detector: Optional[Detector], enabled: bool,
     except Exception:
         logger.exception("主体检测失败，改用整图")
         return image, "full"
-    box = select_box(detections, threshold)
+    box = select_box(detections, threshold, image.width, image.height)
     if box is None:
         return image, "full"
     cropped = crop_to_box(image, box, padding_ratio)
@@ -165,9 +200,19 @@ class OwlV2GarmentDetector:
         detections = []
         boxes = result.get("boxes")
         scores = result.get("scores")
+        labels = result.get("labels")
         if boxes is None or scores is None:
             return []
-        for box, score in zip(boxes, scores):
+        for index, (box, score) in enumerate(zip(boxes, scores)):
             coords = box.detach().float().cpu().tolist()
-            detections.append({"score": float(score), "box": [float(value) for value in coords]})
+            label = ""
+            if labels is not None and index < len(labels):
+                label_id = int(labels[index])
+                if 0 <= label_id < len(PROMPTS):
+                    label = PROMPTS[label_id]
+            detections.append({
+                "score": float(score),
+                "box": [float(value) for value in coords],
+                "label": label,
+            })
         return detections

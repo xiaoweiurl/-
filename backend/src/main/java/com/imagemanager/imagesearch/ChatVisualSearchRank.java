@@ -200,10 +200,7 @@ public final class ChatVisualSearchRank {
         if (hit.getGoods() != null) {
             return hit.getGoods();
         }
-        if (hit.getRelatedGoods() != null && !hit.getRelatedGoods().isEmpty()) {
-            return hit.getRelatedGoods().get(0);
-        }
-        return null;
+        return SameProductGrouping.reliableLink(hit);
     }
 
     private static String key(ImageSearchModels.ImageSearchHitView hit) {

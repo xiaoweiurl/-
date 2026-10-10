@@ -98,13 +98,22 @@ class ImageSearchRecordLinksTest {
     }
 
     @Test
-    void relatedGoodsUsesTheRowShownOnTheCard() {
+    void conflictingRelatedGoodsAreNotOpened() {
         ImageSearchModels.ImageSearchHitView hit = library("lib-1", "");
-        ImageSearchModels.GoodsBrief first = brief(4L, "H4");
-        ImageSearchModels.GoodsBrief second = brief(5L, "H5");
-        hit.setRelatedGoods(List.of(first, second));
+        hit.setRelatedGoods(List.of(brief(4L, "H4"), brief(5L, "H5")));
         ImageSearchRecordLinks.apply(List.of(hit), "宝娜斯集团",
                 new ImageSearchRecordLinks.Targets(Map.of(4L, "宝娜斯集团", 5L, "宝娜斯集团"), Map.of()));
+
+        assertNull(hit.getSampleOrderPath());
+        assertNull(hit.getProductDetailPath());
+    }
+
+    @Test
+    void sameGoodsNumberOnTwoRowsOpensTheSmallerId() {
+        ImageSearchModels.ImageSearchHitView hit = library("lib-1", "");
+        hit.setRelatedGoods(List.of(brief(12L, "H100"), brief(4L, "h 100")));
+        ImageSearchRecordLinks.apply(List.of(hit), "宝娜斯集团",
+                new ImageSearchRecordLinks.Targets(Map.of(12L, "宝娜斯集团", 4L, "宝娜斯集团"), Map.of()));
 
         assertEquals("/sampler/4", hit.getSampleOrderPath());
         assertEquals("/goods-library/4", hit.getProductDetailPath());

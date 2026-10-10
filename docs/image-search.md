@@ -222,7 +222,11 @@ pnpm start
 
 「全部 / 所有」仍然只是把对话结果放宽到最多 50 条，两个场景都生效，不会把对话改成 `MIXED`。
 
-只发一张图、或文字很短（去掉标点后不超过 8 个字）时，先用整图集合看相似度最高的一条：它是商品且不低于 `IMAGE_SEARCH_PROBE_MIN_SCORE`（默认 0.45）就当同款，否则当相似素材。探测只用整图集合，因为裁剪集合可能还没回填。
+只发一张图、或文字很短（去掉标点后不超过 8 个字）时，先用整图集合看命中。商品图，或已经唯一对上货号的素材，不低于 `IMAGE_SEARCH_PROBE_MIN_SCORE`（默认 0.45），并且离这批最高分不超过 0.12，就当同款，否则当相似素材。不再只看第一条：同一张图的素材副本经常排在商品图前面，只看第一条会漏掉按货号合并。探测只用整图集合，因为裁剪集合可能还没回填。
+
+货号合并时忽略大小写、空白和全角半角。连字符保留，`AB-1` 和 `AB1` 不会收成一款。素材上的货号要能唯一对上才写进卡片；对上了多条不同货号时不显示货号，也不打开打样单。
+
+图和文字一起搜时，颜色、材质、款式仍走中文向量。比这批里最贴近的一条低出 `IMAGE_SEARCH_TEXT_SCORE_MARGIN`（默认 0.18）的结果丢掉。最贴近的一条留下，避免条件把结果清空。取不到图片向量的命中不能绕过这个条件。向量服务没算成文字向量时，这些条件标成已放宽，结果仍按图片相似度排。打样员条件会认素材上唯一的那条商品关联，避免同款素材被滤掉。相册名要包含用户说的全称；库里的短名字（例如「衣」）不会因为被包含在「滑雪服」里就命中。
 
 弹层页签：打样 → `SAME_PRODUCT`，素材 → `SIMILAR_REFERENCE`，全部 → `MIXED`。接口的 `scenario` 和对话 `sources_json` 里的 `scenario`、`cardType`（`product` / `image`）决定卡片样式，历史记录按原样重新渲染。
 
@@ -234,7 +238,15 @@ pnpm start
 
 实图里，同一款的不同照片相似度只有 0.53–0.67，背景或模特接近的其他款可以到 0.86 以上。相似素材和同款默认都用裁过主体的向量。云端没有 GPU，这个默认是按这个失败模式定的，本机评测后可以把同款改回整图：`IMAGE_SEARCH_SAME_PRODUCT_VARIANT=full`。
 
-检测器是 **OWLv2** `google/owlv2-base-patch16-ensemble`（Apache-2.0）。`transformers` 4.57 自带 `Owlv2Processor` / `Owlv2ForObjectDetection`，不用再装检测库，5090 上用 fp16。提示词是 `clothing` / `garment` / `person`。检不出、分数不够、框几乎盖住整张图，或短边小于 48（小 GIF），就用整张图。查询图和入库图走同一套预处理。
+检测器是 **OWLv2** `google/owlv2-base-patch16-ensemble`（Apache-2.0）。`transformers` 4.57 自带 `Owlv2Processor` / `Owlv2ForObjectDetection`，不用再装检测库，5090 上用 fp16。提示词是 `clothing` / `garment` / `person`。衣服框优先：人物框分数常常更高，但会把脸和姿势留在图里，别的款仍会靠模特得到很高的相似度。没有达到阈值的衣服框时，才退回人物框。框的面积不到画面约 6%（吊牌、扣子）就不用。有更大的同类框时，不到它一半的小框也不用。分数不够、框几乎盖住整张图，或短边小于 48（小 GIF），就用整张图。查询图和入库图走同一套预处理。
+
+这套选框改过之后，裁剪集合里的旧向量和新查询会对不齐。要重新回填裁剪集合，只写 `image_vectors_vitl_crop`，不要改 `image_vectors_vitl`，也不要动 `salesperson_*`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\image-search-backfill.ps1 --variant crop --force
+```
+
+`--force` 会重算已完成的裁剪向量。没改过选框、只是补失败项时，仍然用 `--variant crop --only-failed`，不要加 `--force`。
 
 裁剪向量写入新集合，默认是整图集合名加 `_crop`。整图集合是 `image_vectors_vitl` 时，新集合是 `image_vectors_vitl_crop`。不改、不删 `image_vectors_vitl`，也不碰 `salesperson_*`。文本检索仍在同一个 Chinese-CLIP 空间里，文本本身不裁剪。
 

@@ -90,6 +90,27 @@ class ChatVisualSearchRankTest {
         assertFalse(clause.contains("visual-1"));
     }
 
+    @Test
+    void ambiguousRelatedGoodsAreNotSpokenAsAStyleNumber() {
+        ImageSearchModels.ImageSearchHitView hit = library("lib-1", 0.80f, "参考", "秋冬");
+        ImageSearchModels.GoodsBrief first = new ImageSearchModels.GoodsBrief();
+        first.setId(4);
+        first.setGoodsNo("H4");
+        first.setProductName("甲");
+        first.setSampler("张三");
+        ImageSearchModels.GoodsBrief second = new ImageSearchModels.GoodsBrief();
+        second.setId(5);
+        second.setGoodsNo("H5");
+        second.setProductName("乙");
+        hit.setRelatedGoods(List.of(first, second));
+
+        Map<String, Object> source = ChatVisualSearchRank.toSources(List.of(hit)).get(0);
+        assertFalse(source.containsKey("goodsNo"));
+        assertFalse(source.containsKey("sampler"));
+        assertFalse(ChatVisualSearchRank.context(List.of(hit)).contains("货号 H4"));
+        assertFalse(ChatVisualSearchRank.context(List.of(hit)).contains("货号 H5"));
+    }
+
     private static ImageSearchModels.ImageSearchHitView goods(
             String id, String slot, float score, String goodsNo, String name, String sampler) {
         ImageSearchModels.ImageSearchHitView view = new ImageSearchModels.ImageSearchHitView();
