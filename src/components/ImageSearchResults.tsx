@@ -39,6 +39,14 @@ function goodsLine(goods: GoodsBrief): string {
   return [goods.goodsNo, goods.productName].filter(Boolean).join(' ') || goods.folderName || '打样记录';
 }
 
+/** 商品卡上的货号以 goods 为准。素材只有唯一一条关联时才显示，多条对不上就不猜货号。 */
+function confirmedLink(hit: ImageSearchResultHit): GoodsBrief | undefined {
+  if (hit.goods) return hit.goods;
+  const related = (hit.relatedGoods || []).filter(item => item && (item.goodsNo || item.productName || item.id));
+  if (related.length === 1) return related[0];
+  return undefined;
+}
+
 /**
  * 弹层结果。同款是一张商品卡（主图 + 小图 + 货号），素材是一张图一条。
  */
@@ -52,7 +60,7 @@ export default function ImageSearchResults({
   return (
     <div className="space-y-3" data-testid="image-search-results" data-scenario={scenario || ''}>
       {results.map((hit) => {
-        const linked = hit.goods || hit.relatedGoods?.[0];
+        const linked = confirmedLink(hit);
         const product = hit.cardType === 'product';
         const thumbs = (hit.images || []).filter(thumb => thumb.imageUrl).slice(0, 4);
         return (

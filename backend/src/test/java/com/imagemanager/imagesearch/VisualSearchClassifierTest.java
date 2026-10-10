@@ -104,6 +104,34 @@ class VisualSearchClassifierTest {
     }
 
     @Test
+    void probeKeepsSameProductWhenALibraryCopyOutranksTheGoodsImage() {
+        ImageSearchModels.ImageSearchHitView library = new ImageSearchModels.ImageSearchHitView();
+        library.setSource(ImageSearchFilters.SOURCE_LIBRARY);
+        library.setScore(0.90f);
+        ImageSearchModels.ImageSearchHitView goods = new ImageSearchModels.ImageSearchHitView();
+        goods.setSource(ImageSearchFilters.SOURCE_GOODS);
+        goods.setScore(0.80f);
+        assertEquals(VisualSearchScenario.SAME_PRODUCT,
+                VisualSearchClassifier.fromProbe(List.of(library, goods), 0.45d));
+
+        goods.setScore(0.50f);
+        assertEquals(VisualSearchScenario.SIMILAR_REFERENCE,
+                VisualSearchClassifier.fromProbe(List.of(library, goods), 0.45d));
+    }
+
+    @Test
+    void probeUsesALibraryImageThatAlreadyHasOneGoodsLink() {
+        ImageSearchModels.ImageSearchHitView library = new ImageSearchModels.ImageSearchHitView();
+        library.setSource(ImageSearchFilters.SOURCE_LIBRARY);
+        library.setScore(0.70f);
+        ImageSearchModels.GoodsBrief brief = new ImageSearchModels.GoodsBrief();
+        brief.setId(9);
+        brief.setGoodsNo("H100");
+        library.setRelatedGoods(List.of(brief));
+        assertEquals(VisualSearchScenario.SAME_PRODUCT, VisualSearchClassifier.fromProbe(List.of(library), 0.45d));
+    }
+
+    @Test
     void scopeTabsMapToScenarios() {
         assertEquals(VisualSearchScenario.SAME_PRODUCT, ScopeScenario.fromScope("goods"));
         assertEquals(VisualSearchScenario.SIMILAR_REFERENCE, ScopeScenario.fromScope("library"));

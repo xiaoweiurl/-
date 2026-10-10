@@ -97,21 +97,50 @@ public final class VisualSearchClassifier {
     }
 
     /**
-     * 短文本的默认：整图集合里相似度最高的一条是商品，并且不低于阈值，就当同款；否则当相似素材。
+     * 商品命中可以比整批最高分低这么多，仍当同款。
+     * 同一张图的素材副本经常排在商品图前面，只看第一条会漏掉按货号合并。
+     */
+    static final float PROBE_SCORE_SLACK = 0.12f;
+
+    /**
+     * 短文本的默认：整图集合里，商品图（或已经唯一对上货号的素材）不低于阈值，
+     * 并且离最高分不超过 {@link #PROBE_SCORE_SLACK}，就当同款；否则当相似素材。
      * 探测只用整图集合。裁剪集合可能还没回填，不能拿它决定场景。
      */
     public static VisualSearchScenario fromProbe(java.util.List<ImageSearchModels.ImageSearchHitView> hits, double minScore) {
         if (hits == null || hits.isEmpty()) {
             return VisualSearchScenario.SIMILAR_REFERENCE;
         }
-        ImageSearchModels.ImageSearchHitView top = hits.get(0);
-        if (top != null
-                && ImageSearchFilters.SOURCE_GOODS.equals(top.getSource())
-                && !Float.isNaN(top.getScore())
-                && top.getScore() >= (float) minScore) {
+        float best = Float.NEGATIVE_INFINITY;
+        float bestProduct = Float.NEGATIVE_INFINITY;
+        for (ImageSearchModels.ImageSearchHitView hit : hits) {
+            if (hit == null || Float.isNaN(hit.getScore())) {
+                continue;
+            }
+            if (hit.getScore() > best) {
+                best = hit.getScore();
+            }
+            if (countsAsProduct(hit) && hit.getScore() > bestProduct) {
+                bestProduct = hit.getScore();
+            }
+        }
+        if (bestProduct >= (float) minScore && bestProduct + PROBE_SCORE_SLACK >= best) {
             return VisualSearchScenario.SAME_PRODUCT;
         }
         return VisualSearchScenario.SIMILAR_REFERENCE;
+    }
+
+    private static boolean countsAsProduct(ImageSearchModels.ImageSearchHitView hit) {
+        if (ImageSearchFilters.SOURCE_GOODS.equals(hit.getSource())) {
+            return true;
+        }
+        if (hit.getGoods() != null) {
+            String goodsNo = hit.getGoods().getGoodsNo();
+            if ((goodsNo != null && !goodsNo.isBlank()) || hit.getGoods().getId() > 0) {
+                return true;
+            }
+        }
+        return SameProductGrouping.reliableLink(hit) != null;
     }
 
     static boolean isShort(String message) {

@@ -83,7 +83,8 @@ public class ImageSearchConditionApplier {
                 textVector,
                 properties.getTextRerankImageWeight(),
                 properties.getTextRerankTextWeight(),
-                properties.getTextScoreFloor());
+                properties.getTextScoreFloor(),
+                properties.getTextScoreMargin());
     }
 
     public int widen(int fetch, ImageSearchCondition.Parsed parsed) {

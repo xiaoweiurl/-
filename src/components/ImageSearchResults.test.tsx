@@ -68,6 +68,25 @@ test('a result without a confirmed record has no sample or product link', () => 
           productDetailPath: '/goods-library/9/edit',
         },
         {
+          scorePercent: 48,
+          source: 'library',
+          sourceId: 'lib-ambiguous',
+          cardType: 'image',
+          title: '对不上货号',
+          relatedGoods: [
+            { id: 1, goodsNo: 'WRONG-A', productName: '甲' },
+            { id: 2, goodsNo: 'WRONG-B', productName: '乙' },
+          ],
+        },
+        {
+          scorePercent: 52,
+          source: 'library',
+          sourceId: 'lib-one',
+          cardType: 'image',
+          title: '唯一关联',
+          relatedGoods: [{ id: 3, goodsNo: 'H3', productName: '丙', sampler: '李四' }],
+        },
+        {
           scorePercent: 55,
           source: 'library',
           sourceId: 'lib-3',
@@ -78,6 +97,10 @@ test('a result without a confirmed record has no sample or product link', () => 
       ]}
     />
   );
+  assert.doesNotMatch(html, /WRONG-A/);
+  assert.doesNotMatch(html, /WRONG-B/);
+  assert.match(html, /H3 丙/);
+  assert.match(html, /打样员 李四/);
   assert.doesNotMatch(html, /open-sample-order/);
   assert.doesNotMatch(html, /evil\.test/);
   assert.doesNotMatch(html, /goods-library\/9/);

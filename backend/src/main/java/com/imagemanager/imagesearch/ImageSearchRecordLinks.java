@@ -90,7 +90,8 @@ public class ImageSearchRecordLinks {
     }
 
     /**
-     * 卡片上展示的那一条商品。货号文件夹优先；素材只挂了多条时用第一条，和卡片文案一致。
+     * 卡片上展示的那一条商品。货号文件夹优先。
+     * 素材挂了多条且货号不一致时不猜，避免打开错误的打样单。
      */
     static ImageSearchModels.GoodsBrief displayedGoods(ImageSearchModels.ImageSearchHitView hit) {
         if (hit == null) {
@@ -99,11 +100,11 @@ public class ImageSearchRecordLinks {
         if (hit.getGoods() != null && hit.getGoods().getId() > 0) {
             return hit.getGoods();
         }
-        List<ImageSearchModels.GoodsBrief> related = hit.getRelatedGoods();
-        if (related == null || related.isEmpty() || related.get(0) == null || related.get(0).getId() <= 0) {
+        ImageSearchModels.GoodsBrief linked = SameProductGrouping.reliableLink(hit);
+        if (linked == null || linked.getId() <= 0) {
             return null;
         }
-        return related.get(0);
+        return linked;
     }
 
     /**

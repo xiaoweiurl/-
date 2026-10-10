@@ -65,7 +65,7 @@ public class ImageSearchProperties {
     private double sameProductMultiBonusCap = 0.06d;
 
     /**
-     * 只发了一张图、几乎没有文字时：整图集合第一条若是商品且不低于这个值，就按同款，否则按相似素材。
+     * 只发了一张图、几乎没有文字时：商品命中不低于这个值，并且离最高分不超过 0.12，就按同款。
      */
     private double sameProductProbeMinScore = 0.45d;
 
@@ -84,9 +84,16 @@ public class ImageSearchProperties {
     private double textRerankTextWeight = 0.35d;
 
     /**
-     * 文字分低于这个值才丢弃。默认 0，只丢掉负相关，不因为文字分偏低就清空结果。
+     * 文字分低于这个值才丢弃。默认 0，绝对下限只丢掉负相关。
+     * 相对差距见 {@link #textScoreMargin}，避免颜色词把整批结果清空。
      */
     private double textScoreFloor = 0d;
+
+    /**
+     * 颜色、材质、款式：文字分比这批里最高的一条低出这么多就丢掉。
+     * 最贴近的一条始终保留。取不到图片向量的命中不能绕过这个条件。
+     */
+    private double textScoreMargin = 0.18d;
 
     /**
      * 打样页「拍照查同款」。总开关关闭时这里打开也不生效。

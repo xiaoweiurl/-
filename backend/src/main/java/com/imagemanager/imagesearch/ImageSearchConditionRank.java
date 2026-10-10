@@ -7,9 +7,13 @@ import java.util.Map;
 
 /**
  * 硬条件在补全之后过滤。时间、打样员、相册不在图片向量的标量字段里。
- * 颜色材质款式用中文向量和库里的图片向量重排，只有低于下限才丢弃。
+ * 颜色、材质、款式用中文向量和库里的图片向量比对：比这批里最贴近的一条明显更低就丢掉。
+ * 一条都对不上，或向量没取到时，不假装筛过，标签标成已放宽。
  */
 public final class ImageSearchConditionRank {
+
+    /** 和配置默认值一致。调用方没传差距时用这个。 */
+    public static final double DEFAULT_TEXT_MARGIN = 0.18d;
 
     private ImageSearchConditionRank() {
     }
@@ -35,6 +39,17 @@ public final class ImageSearchConditionRank {
                                 double imageWeight,
                                 double textWeight,
                                 double textFloor) {
+        return apply(hits, parsed, vectors, textVector, imageWeight, textWeight, textFloor, DEFAULT_TEXT_MARGIN);
+    }
+
+    public static Outcome apply(List<ImageSearchModels.ImageSearchHitView> hits,
+                                ImageSearchCondition.Parsed parsed,
+                                Map<String, float[]> vectors,
+                                float[] textVector,
+                                double imageWeight,
+                                double textWeight,
+                                double textFloor,
+                                double textMargin) {
         if (parsed == null || !parsed.active()) {
             return Outcome.unchanged(hits);
         }
@@ -55,11 +70,30 @@ public final class ImageSearchConditionRank {
             working = next;
         }
 
-        if (parsed.hasAttributes() && textVector != null && textVector.length > 0) {
-            working = rerank(working, vectors == null ? Map.of() : vectors, textVector, imageWeight, textWeight, textFloor);
+        String attributeNote = "";
+        if (parsed.hasAttributes()) {
+            if (textVector == null || textVector.length == 0) {
+                relaxAttributes(chips, parsed);
+                attributeNote = "颜色、材质或款式没能参与筛选，下面仍按图片相似度排列。";
+            } else {
+                TextRerank reranked = rerank(working, vectors == null ? Map.of() : vectors, textVector,
+                        imageWeight, textWeight, textFloor, textMargin);
+                if (reranked.passed()) {
+                    working = reranked.hits();
+                } else if (reranked.rejectedAll()) {
+                    relaxAttributes(chips, parsed);
+                    for (String term : parsed.attributes()) {
+                        relaxedLabels.add(term);
+                    }
+                } else {
+                    relaxAttributes(chips, parsed);
+                    attributeNote = "颜色、材质或款式没能参与筛选，下面仍按图片相似度排列。";
+                }
+            }
         }
-        String notice = notice(relaxedLabels);
-        return new Outcome(working, chips, notice, !relaxedLabels.isEmpty());
+        String notice = joinNotice(notice(relaxedLabels), attributeNote);
+        boolean relaxed = !relaxedLabels.isEmpty() || !attributeNote.isEmpty();
+        return new Outcome(working, chips, notice, relaxed);
     }
 
     /**
@@ -171,42 +205,111 @@ public final class ImageSearchConditionRank {
         return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
     }
 
-    private static List<ImageSearchModels.ImageSearchHitView> rerank(List<ImageSearchModels.ImageSearchHitView> hits,
-                                                                     Map<String, float[]> vectors,
-                                                                     float[] textVector,
-                                                                     double imageWeight,
-                                                                     double textWeight,
-                                                                     double textFloor) {
-        List<ImageSearchModels.ImageSearchHitView> kept = new ArrayList<>();
+    /**
+     * passed：留下贴近文字的命中，取不到向量的不能绕过颜色条件。
+     * rejectedAll：文字分都低于下限，调用方放宽条件并恢复原列表（此时还没改分数）。
+     * 两者都不是：这批没有可比的图片向量。
+     */
+    private record TextRerank(List<ImageSearchModels.ImageSearchHitView> hits, boolean passed, boolean rejectedAll) {
+        private static TextRerank pass(List<ImageSearchModels.ImageSearchHitView> hits) {
+            return new TextRerank(hits, true, false);
+        }
+
+        private static TextRerank rejectAll() {
+            return new TextRerank(List.of(), false, true);
+        }
+
+        private static TextRerank unavailable() {
+            return new TextRerank(List.of(), false, false);
+        }
+    }
+
+    private static TextRerank rerank(List<ImageSearchModels.ImageSearchHitView> hits,
+                                 Map<String, float[]> vectors,
+                                 float[] textVector,
+                                 double imageWeight,
+                                 double textWeight,
+                                 double textFloor,
+                                 double textMargin) {
+        double margin = textMargin;
+        if (margin < 0d) {
+            margin = 0d;
+        } else if (margin > 1d) {
+            margin = 1d;
+        }
+        List<Scored> scored = new ArrayList<>();
+        boolean anyKnown = false;
+        double best = Double.NEGATIVE_INFINITY;
         for (ImageSearchModels.ImageSearchHitView hit : hits) {
             if (hit == null) {
                 continue;
             }
             float[] stored = vectors.get(hit.getVectorId() == null ? "" : hit.getVectorId());
-            float imageScore = hit.getScore();
             if (stored == null) {
-                hit.setImageScore(imageScore);
-                kept.add(hit);
+                scored.add(new Scored(hit, Double.NaN));
                 continue;
             }
             double textScore = cosine(textVector, stored);
-            if (textScore < textFloor) {
+            anyKnown = true;
+            if (textScore > best) {
+                best = textScore;
+            }
+            scored.add(new Scored(hit, textScore));
+        }
+        if (!anyKnown) {
+            return TextRerank.unavailable();
+        }
+        double cutoff = Math.max(textFloor, best - margin);
+        List<ImageSearchModels.ImageSearchHitView> kept = new ArrayList<>();
+        for (Scored item : scored) {
+            if (Double.isNaN(item.text) || item.text < cutoff) {
                 continue;
             }
-            double fused = imageWeight * imageScore + textWeight * textScore;
+            ImageSearchModels.ImageSearchHitView hit = item.hit;
+            float imageScore = hit.getScore();
+            double fused = imageWeight * imageScore + textWeight * item.text;
             if (fused < 0d) {
                 fused = 0d;
             } else if (fused > 1d) {
                 fused = 1d;
             }
             hit.setImageScore(imageScore);
-            hit.setTextScore((float) textScore);
+            hit.setTextScore((float) item.text);
             hit.setScore((float) fused);
             hit.setScorePercent(ImageSearchModels.scorePercent((float) fused));
             kept.add(hit);
         }
+        if (kept.isEmpty()) {
+            return TextRerank.rejectAll();
+        }
         kept.sort((left, right) -> Float.compare(right.getScore(), left.getScore()));
-        return kept;
+        return TextRerank.pass(kept);
+    }
+
+    private record Scored(ImageSearchModels.ImageSearchHitView hit, double text) {
+    }
+
+    private static void relaxAttributes(List<ImageSearchCondition.Chip> chips, ImageSearchCondition.Parsed parsed) {
+        if (parsed.attributes() == null) {
+            return;
+        }
+        for (String term : parsed.attributes()) {
+            markRelaxed(chips, "attr:" + term);
+        }
+    }
+
+    private static String joinNotice(String hard, String attribute) {
+        StringBuilder text = new StringBuilder();
+        if (hard != null && !hard.isBlank()) {
+            text.append(hard);
+        }
+        if (attribute != null && !attribute.isBlank()) {
+            if (!text.isEmpty()) {
+                text.append('\n');
+            }
+            text.append(attribute);
+        }
+        return text.toString();
     }
 
     private static void markRelaxed(List<ImageSearchCondition.Chip> chips, String id) {
@@ -264,7 +367,7 @@ public final class ImageSearchConditionRank {
             filters.add(new HardFilter("sampler", "打样员 " + name, hits -> {
                 List<ImageSearchModels.ImageSearchHitView> next = new ArrayList<>();
                 for (ImageSearchModels.ImageSearchHitView hit : hits) {
-                    ImageSearchModels.GoodsBrief goods = hit.getGoods();
+                    ImageSearchModels.GoodsBrief goods = samplerOf(hit);
                     if (goods != null && name.equals(text(goods.getSampler()))) {
                         next.add(hit);
                     }
@@ -278,8 +381,7 @@ public final class ImageSearchConditionRank {
             filters.add(new HardFilter("album", albumLabel, hits -> {
                 List<ImageSearchModels.ImageSearchHitView> next = new ArrayList<>();
                 for (ImageSearchModels.ImageSearchHitView hit : hits) {
-                    String name = text(hit.getAlbumName());
-                    if (!name.isEmpty() && (name.equals(album) || name.contains(album) || album.contains(name))) {
+                    if (albumMatches(hit.getAlbumName(), album)) {
                         next.add(hit);
                     }
                 }
@@ -287,6 +389,32 @@ public final class ImageSearchConditionRank {
             }));
         }
         return filters;
+    }
+
+    /**
+     * 打样员写在商品上。素材只有唯一货号关联时，用那条关联上的打样员，避免同款素材被滤掉。
+     */
+    private static ImageSearchModels.GoodsBrief samplerOf(ImageSearchModels.ImageSearchHitView hit) {
+        if (hit.getGoods() != null) {
+            return hit.getGoods();
+        }
+        return SameProductGrouping.reliableLink(hit);
+    }
+
+    /**
+     * 相册名包含用户说的全称可以留，例如库里「春季新品」、条件「新品」。
+     * 反过来只有库里的名字够长、至少有条件一半长时才算，避免「衣」命中「滑雪服」。
+     */
+    static boolean albumMatches(String hitAlbum, String wanted) {
+        String name = text(hitAlbum);
+        String album = text(wanted);
+        if (name.isEmpty() || album.isEmpty()) {
+            return false;
+        }
+        if (name.equals(album) || name.contains(album)) {
+            return true;
+        }
+        return name.length() >= 2 && name.length() * 2 >= album.length() && album.contains(name);
     }
 
     private static String text(String value) {
